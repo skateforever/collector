@@ -2,7 +2,15 @@
 
 collector is a script written in Bash, it is intended to automate some tedious tasks of reconnaissance and information gathering. </br>
 This tool allows you to gather some information that should help you identify what to do next and where to look. </br>
-</br>
+
+## System Requirements
+
+Recommended to run on vps with 1VCPU and 2GB ram.
+
+## To run
+
+To run you need to install some tools and get some API keys. </br>
+
 For now collector use:</br>
 
     * amass
@@ -24,9 +32,18 @@ For now collector use:</br>
 </br>
 In the future I pretend to use dnsrecon, massdns, sublist3r and others tools to get more subdomains and others information.</br>
 
-## System Requirements
+But to facility some work and made another script get those tools:</br>
 
-Recommended to run on vps with 1VCPU and 2GB ram.
+`curl -kLOs https://raw.githubusercontent.com/skateforever/pentest-scripts/main/useful/get-tools.sh`
+`chmod -x get-tools.sh`
+`./get-tools.sh -u root -l /opt/pentest/ -p web`
+
+You don't need to run the collector or get-tools.sh from root. </br>
+If you'll run the collector with another user, you can try run the get-tool.sh like that: </br>
+
+`./get-tools.sh -u skate4ever -l /opt/pentest/ -p web`
+
+After that, you can configure the collector.cfg and use as below. </br>
 
 ## How collector works?
 
@@ -129,8 +146,8 @@ Now you have the basics funcionality of collector, but if you need or decide to 
 
 ### Screenshots
 
-![demo\_01.png](https://github.com/skateforever/pentest-scripts/raw/main/recon/collector/demo/demo_01.png) </br>
-![demo\_02.png](https://github.com/skateforever/pentest-scripts/raw/main/recon/collector/demo/demo_02.png) </br>
-![demo\_03.png](https://github.com/skateforever/pentest-scripts/raw/main/recon/collector/demo/demo_03.png) </br>
+![demo\_01.png](https://raw.githubusercontent.com/skateforever/collector/main/demo/demo_01.png) </br>
+![demo\_02.png](https://raw.githubusercontent.com/skateforever/collector/main/demo/demo_02.png) </br>
+![demo\_03.png](https://raw.githubusercontent.com/skateforever/collector/main/demo/demo_03.png) </br>
 
 
