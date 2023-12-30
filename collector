@@ -4,7 +4,7 @@
 # my job as pentester or as a hobby doing bug bounty
 #
 
-collector_command_line="$0 $@"
+collector_command_line="$0 $*"
 
 banner(){
 # Always print the banner
@@ -18,7 +18,7 @@ echo -e "                                 __ __             __
 "
 }
 
-collector_path=$(dirname $0)
+collector_path=$(dirname "$0")
 
 if [ -s "${collector_path}/collector.cfg" ]; then
     source "${collector_path}/collector.cfg"
@@ -54,7 +54,7 @@ for binary in chromium chromium-browser; do
     fi
 done
 
-if [ -z ${chromium_bin} ]; then
+if [ -z "${chromium_bin}" ]; then
     echo -e "The ${red}chromium does not exist${reset} on the system!"
     ((count += 1))
 fi
@@ -67,10 +67,10 @@ if [ "${count}" -gt 0 ]; then
 fi
 
 if [ -n "${shodan_use}" ]; then
-    shodan_use=$(echo "${shodan_use}" | tr A-Z a-z)
+    shodan_use=$(echo "${shodan_use}" | tr '[:upper:]' '[:lower:]')
     if [ "${shodan_use}" == "yes" ]; then
         [[ -n "${shodan_just_scan_main_domain}" ]] && \
-            shodan_just_scan_main_domain=$(echo "${shodan_just_scan_main_domain}" | tr A-Z a-z)
+            shodan_just_scan_main_domain=$(echo "${shodan_just_scan_main_domain}" | tr '[:upper:]' '[:lower:]')
         if [ -n "${shodan_apikey}" ] && [ ! -s ~/.shodan/api_key ]; then
             shodan init "${shodan_apikey}" > /dev/null
         fi
@@ -120,7 +120,7 @@ usage(){
 check_argument(){
     options+=(-d --domain -dl --domain-list -e --exclude-domains -el --exclude-domains-list -k -kill -ka --kill-all -l --limit-urls -o --output -p --proxy -r --recon)
     options+=(-s --subdomain-brute -u --url -wd --web-data -wld --web-long-detection -wsd --web-short-detection -wtd --web-tool-detection -ww --web-wordlists)
-    if [[ "${options[@]}" =~ "$2" ]]; then
+    if [[ "${options[*]}" =~ $2 ]]; then
         echo -e "The argument of ${yellow}\"$1\"${reset} it can not be ${red}\"$2\"${reset}, please, ${yellow}specify a valid one${reset}.\n"
         banner
         usage
@@ -142,7 +142,7 @@ while [ $# -ne 0 ]; do
     (( args_count += 1 ))
     case $1 in
         -d|--domain)
-            check_argument $1 $2
+            check_argument "$1" "$2"
             if [[ -n "${url_2_verify}" ]]; then
                 banner
                 echo -e "You can only use \"-d|--domain\" or \"-u|--url\", never both together!\n"
@@ -165,7 +165,7 @@ while [ $# -ne 0 ]; do
             fi
             ;;
         -dl|--domain-list)
-            check_argument $1 $2
+            check_argument "$1" "$2"
             if [[ -n "${url_2_verify}" ]]; then
                 banner
                 echo -e "You can only use \"-dl|--domain-list\" or \"-u|--url\", never both together!\n"
@@ -175,7 +175,7 @@ while [ $# -ne 0 ]; do
                 echo -e "You can only use \"-dl|--domain-list\" or \"-d|--domain\", never both together!\n"
                 usage
             else
-                if [ -s $2 ]; then
+                if [ -s "$2" ]; then
                     domain_list=$2
                     unset directories_structure
                     directories_structure="domain"
@@ -188,7 +188,7 @@ while [ $# -ne 0 ]; do
             fi
             ;;
         -e|--exclude-domains)
-            check_argument $1 $2
+            check_argument "$1" "$2"
             if [[ -n "${url_2_verify}" ]]; then
                 banner
                 echo -e "You can only use this (-e|--exlude-domains) option with \"-d|--domain\"!\n"
@@ -196,45 +196,45 @@ while [ $# -ne 0 ]; do
             fi
             set -f
             IFS=","
-            excluded+=($2)
+            excluded+=("$2")
 	        unset IFS
             shift 2
             ;;
         -el|--exclude-domains-list)
-            if [ -s $2 ]; then
+            if [ -s "$2" ]; then
                 exclude_domains_list="$2"
                 shift 2
             fi
             ;;
         -k|--kill)
-            check_argument $1 $2
-            if [ -z $2 ]; then
+            check_argument "$1" "$2"
+            if [ -z "$2" ]; then
                 banner
                 echo "You need to specify a domain to kill the execution!"
                 exit 1
             else
-                kill_collector $2
+                kill_collector "$2"
             fi
             ;;
         -kr|--kill-remove)
-            check_argument $1 $2
-            if [ -z $2 ]; then
+            check_argument "$1" "$2"
+            if [ -z "$2" ]; then
                 banner
                 echo "You need to specify a domain to kill the execution!"
                 exit 1
             else
-                kill_collector $2
-                rm -rf $(find / -iname "$(find / -iname $2 -type d -exec ls -1 {} \; 2>/dev/null | grep recon_ | tail -n1)" -type d 2> /dev/null)
+                kill_collector "$2"
+                rm -rf "$(find / -iname "$(find / -iname "$2" -type d -exec ls -1 {} \; 2>/dev/null | grep recon_ | tail -n1)" -type d 2> /dev/null)"
             fi
             ;;
         -l|--limit-urls)
-            check_argument $1 $2
+            check_argument "$1" "$2"
             if [[ -n "${url_2_verify}" ]]; then
                 banner
                 echo -e "You can only use this (-l|--limit-urls) option with \"-d|--domain\"!\n"
                 usage
             fi
-            if [[ -n $2 && $2 == ?(-)+([0-9]) ]]; then
+            if [[ -n "$2" && "$2" == ?(-)+([0-9]) ]]; then
                 limit_urls="$2"
                 shift 2
             else
@@ -244,11 +244,11 @@ while [ $# -ne 0 ]; do
             fi
             ;;
         -o|--output)
-            check_argument $1 $2
+            check_argument "$1" "$2"
             [ ! -d "$2" ] && mkdir -p "$2" 2> /dev/null
-            if [[ $(cd $2 > /dev/null 2>&1 ; echo "$?") -eq 0 ]] && [[ $(touch $2/permission_to_write.txt > /dev/null 2>&1; echo "$?") -eq 0 ]]; then
+            if [[ $(cd "$2" > /dev/null 2>&1 ; echo "$?") -eq 0 ]] && [[ $(touch "$2/permission_to_write.txt" > /dev/null 2>&1; echo "$?") -eq 0 ]]; then
                 unset output_dir
-                output_dir="$(echo $2 | sed -e 's/\/$//')"
+                output_dir="$(echo "$2" | sed -e 's/\/$//')"
                 shift 2
                 rm -rf "${output_dir}/permission_to_write.txt"
             else
@@ -258,9 +258,9 @@ while [ $# -ne 0 ]; do
             fi
             ;;
         -p|--proxy)
-            check_argument $1 $2
+            check_argument "$1" "$2"
             use_proxy="yes"
-            proxy_ip="$(echo $2 | sed -E 's/^\s*.*:\/\///g')"
+            proxy_ip="$(echo "$2" | sed -E 's/^\s*.*:\/\///g')"
             shift 2
             ;;
         -r|--recon)
@@ -278,7 +278,7 @@ while [ $# -ne 0 ]; do
             shift
             ;;
         -s|--subdomain-brute)
-            check_argument $1 $2
+            check_argument "$1" "$2"
             if [[ -n "${url_2_verify}" ]]; then
                 banner
                 echo -e "You can only use this (-s|--subdomain-brute) option with \"-d|--domain\"!\n"
@@ -286,12 +286,12 @@ while [ $# -ne 0 ]; do
             fi
             set -f
             IFS=","
-            dns_wordlists+=($2)
+            dns_wordlists+=("$2")
             unset IFS
             shift 2
             ;;
         -u|--url)
-            check_argument $1 $2
+            check_argument "$1" "$2"
             if [[ -n "${domain}" ]]; then
                 banner
                 echo -e "You can only use \"-u|--url\" or \"-d|--domain\", never both together!\n"
@@ -358,7 +358,7 @@ while [ $# -ne 0 ]; do
             shift
             ;;
         -wtd|--web-tool-detection)
-            check_argument $1 $2
+            check_argument "$1" "$2"
             if [[ "curl" != "$2" && "httpx" != "$2" ]] ; then
                 banner
                 echo -e "You need to inform one of these tools curl or httpx!\n"
@@ -378,10 +378,10 @@ while [ $# -ne 0 ]; do
             fi
             ;;
         -ww|--web-wordlists)
-            check_argument $1 $2
+            check_argument "$1" "$2"
             set -f
             IFS=","
-            web_wordlists+=($2)
+            web_wordlists+=("$2")
             unset IFS
             shift 2
             ;;
@@ -470,7 +470,7 @@ for file in diff_recon domain_recon emails_recon infra_recon web_data web_detect
         source "${function}"
     else
         banner
-        echo -e "Please ${red}make sure${reset} you have the ${yellow}"${function}"${reset} file."
+        echo -e "Please ${red}make sure${reset} you have the ${yellow}\"${function}\"${reset} file."
         echo -e "${yellow}You need this file to execute collector${reset}!"
         exit 1
     fi
@@ -618,7 +618,7 @@ check_parameter_dependency_domain(){
 }
 
 if [[ -n ${domain} ]] && [[ ! -s "${domain_list}" ]] && [[ -z "${url_2_verify}" ]]; then
-    clear >$(tty)
+    clear > "$(tty)"
     echo -e "${collector_command_line}\n"
     banner
     check_parameter_dependency_domain
@@ -629,8 +629,8 @@ fi
 
 if [[ -z ${domain} ]] && [[ -s "${domain_list}" ]] && [[ -z "${url_2_verify}" ]]; then
     unset domain
-    for domain in $(cat "${domain_list}"); do
-        clear >$(tty)
+    while read -r domain; do 
+        clear > "$(tty)"
         echo -e "${collector_command_line}\n"
         banner
         check_parameter_dependency_domain
@@ -642,14 +642,14 @@ if [[ -z ${domain} ]] && [[ -s "${domain_list}" ]] && [[ -z "${url_2_verify}" ]]
             echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} The ${yellow}${domain}${reset} does not exist!" | tee -a "${report_dir}/domain_doesnot_exit.txt"
             echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${green}Recon finished on${reset} ${yellow}${domain}${reset}${green}!${reset}"
         fi
-        unset domain
-    done
+    done < "${domain_list}"
+    unset domain
 fi
 
 if [[ -z ${domain} ]] && [[ ! -s "${domain_list}" ]] && [[ -n "${url_2_verify}" ]]; then
     # Checking the runtime parameter dependency for url recon
-    if [[ -n "${url_2_verify}" && -n "${domain}" ]] || [[ -n "${dns_wordlists}" ]] || \
-        [[ -n "${url_2_verify}" && -n "${limit_urls}" ]] || [[ -n "${url_2_verify}" && -n "${excluded}" ]]; then
+    if [[ -n "${url_2_verify}" && -n "${domain}" ]] || [[ "${#dns_wordlists[*]}" -gt 0 ]] || \
+        [[ -n "${url_2_verify}" && -n "${limit_urls}" ]] || [[ -n "${url_2_verify}" && "${#excluded[*]}" -gt 0 ]]; then
         echo -e "You have specified one or more options that are not used with \"-u|--url\"!\n"
         usage
     fi
@@ -666,8 +666,8 @@ if [[ -z ${domain} ]] && [[ ! -s "${domain_list}" ]] && [[ -n "${url_2_verify}" 
             grep -E "^^([0-9]+(\.|$)){4}|^([0-9a-fA-F]{0,4}:){1,7}([0-9a-fA-F]){0,4}$") ]] && break
     done
 
-    clear >$(tty)
-    echo -e "$0 $@\n"
+    clear > "$(tty)"
+    echo -e "$0 $*\n"
     banner
     check_is_known_target "${url_domain}"
     create_initial_directories_structure
