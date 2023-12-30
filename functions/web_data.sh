@@ -56,18 +56,13 @@ web_data(){
                 while IFS= read -r url; do
                     name="$(echo "${url}" | sed -e "s/http:\/\//http_/" -e "s/https:\/\//https_/" -e "s/:/_/" -e "s/\/$//" -e "s/\//_/g")"
                     file_nuclei="${name}_nuclei.txt"
-                    > "${nuclei_dir}/${file_nuclei}"
                     if [ -n "${use_proxy}" ] && [ "${use_proxy}" == "yes" ]; then
-                        if [ ! -f "${nuclei_dir}/${file_nuclei}" ]; then
-                            echo "echo ${url} | nuclei -no-color -silent -proxy-url \"http://${proxy_ip}\" -H \"User-Agent: ${nuclei_agent}\" -t \"${nuclei_templates_dir}\"" >> "${log_execution_file}"
-                            echo "${url}" | nuclei -no-color -silent -proxy-url "http://${proxy_ip}" -H "User-Agent: ${nuclei_agent}" -t "${nuclei_templates_dir}" \
+                        echo "echo ${url} | nuclei -no-color -silent -proxy-url \"http://${proxy_ip}\" -H \"User-Agent: ${nuclei_agent}\" -t \"${nuclei_templates_dir}\"" >> "${log_execution_file}"
+                        echo "${url}" | nuclei -no-color -silent -proxy-url "http://${proxy_ip}" -H "User-Agent: ${nuclei_agent}" -t "${nuclei_templates_dir}" \
                             >> "${nuclei_dir}/${file_nuclei}" 2>> "${log_execution_file}" &
-                        fi
                     else
-                        if [ ! -f "${nuclei_dir}/${file_nuclei}" ]; then
-                            echo "echo ${url} | nuclei -no-color -silent -t ${nuclei_templates_dir}" >> "${log_execution_file}"
-                            echo "${url}" | nuclei -no-color -silent -t "${nuclei_templates_dir}" >> "${nuclei_dir}/${file_nuclei}" 2>> "${log_execution_file}" &
-                        fi
+                        echo "echo ${url} | nuclei -no-color -silent -t ${nuclei_templates_dir}" >> "${log_execution_file}"
+                        echo "${url}" | nuclei -no-color -silent -t "${nuclei_templates_dir}" >> "${nuclei_dir}/${file_nuclei}" 2>> "${log_execution_file}" &
                     fi
                     while [[ "$(pgrep -acf "[n]uclei")" -ge "${web_data_total_processes}" ]]; do
                         sleep 1

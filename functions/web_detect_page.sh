@@ -76,7 +76,7 @@ webapp_alive(){
             if cp "${report_dir}/domains_alive.txt" "${report_dir}/domains_infrastructure.txt"; then
                 while IFS= read -r line; do
                     subdomain=$(echo "${line}" | sed -e "s/http:\/\///" -e "s/https:\/\///" | awk -F":" '{print $1}' | awk -F"/" '{print $1}')
-                    if grep -q "${subdomain}" "${report_dir}/domains_infrastructure.txt" 2> ${log_dir}/recon_domain_error_${date_recon}.log ; then
+                    if grep -q "${subdomain}" "${report_dir}/domains_infrastructure.txt" 2>> "${log_execution_file}" ; then
                         sed -i "/^${subdomain}$/d" "${report_dir}/domains_infrastructure.txt"
                     else
                         continue
