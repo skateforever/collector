@@ -17,7 +17,7 @@ emails_recon(){
     
 
     if [ -n ${lampyre_api_key} ]; then
-        curl ${curl_options[@]} "lampyre.io/domain=${domain}&${lampyre_api_key}" >> "${tmp_dir}/lampyre_email.txt" 2>> "${log_dir}/recon_domain_execution_${date_recon}.log"
+        curl ${curl_options[@]} "lampyre.io/domain=${domain}&${lampyre_api_key}" >> "${tmp_dir}/lampyre_email.txt" 2>> "${log_execution_file}"
     fi
 
     #sort -u -o "${report_dir}/emails.txt" "${tmp_dir}/emails.txt"

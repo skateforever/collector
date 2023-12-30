@@ -425,8 +425,7 @@ create_initial_directories_structure(){
         # Create all dirs necessaries to report and recon for domain
         mkdir -p "${output_dir}/${domain}"/{log,"recon_domain_${date_recon}"}
         log_dir="${output_dir}/${domain}/log"
-        log_file="${log_dir}/recon_domain_${date_recon}.log"
-        log_error_file="${log_dir}/recon_domain_error_${date_recon}.log"
+        log_execution_file="${log_dir}/recon_domain_execution_${date_recon}.log"
         recon_dir="${output_dir}/${domain}/recon_domain_${date_recon}"
         # secundaries directories
         mkdir -p "${recon_dir}"/{aquatone-data,nmap,nuclei-data,report,tmp,wayback-data,web-data}
@@ -447,7 +446,7 @@ create_initial_directories_structure(){
         # Create all dirs necessaries to report and recon for url
         mkdir -p "${output_dir}"/"${url_domain}"/{log,"recon_url_${date_recon}"}
         log_dir="${output_dir}/${url_domain}/log"
-        log_file="${log_dir}/recon_url_${date_recon}.log"
+        log_execution_file="${log_dir}/recon_url_${date_recon}.log"
         recon_dir="${output_dir}/${url_domain}/recon_url_${date_recon}"
     
         # secundaries directories
@@ -513,7 +512,7 @@ domain_execution(){
         web_data_dir="${recon_dir}/web-data"
     fi
 
-    echo "Directory structure created and ready to work." | tee -a "${log_file}"
+    echo "Directory structure created and ready to work." | tee -a "${log_execution_file}"
 
     (# Show the directory structure
     echo "The directory structure you will have to work with, is..."
@@ -569,11 +568,11 @@ domain_execution(){
         git_rebuild
     fi
     #report
-    message) 2>&1 | tee -a "${log_file}"
+    message) > "${log_execution_file}" 2>&1 | tee -a "${log_execution_file}"
 }
 
 url_execution(){
-    echo "Directory structure created and ready to work." | tee -a "${log_file}"
+    echo "Directory structure created and ready to work." | tee -a "${log_execution_file}"
 
     (# Show the directory structure
     echo "The directory structure you will have to work with, is..."
@@ -600,7 +599,7 @@ url_execution(){
     done
     git_rebuild 
     message "${url_2_verify}"
-    rm "${recon_dir}/url_2_test.txt" > /dev/null 2>&1) 2>&1 | tee -a "${log_file}"
+    rm "${recon_dir}/url_2_test.txt" > /dev/null 2>&1) > "${log_execution_file}" 2>&1 | tee -a "${log_execution_file}"
 }
 
 # Checking the runtime parameter dependency for domain recon

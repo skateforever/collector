@@ -142,7 +142,7 @@ shodan_recon(){
             if [ "${shodan_recons}" -gt "${total_ip}" ]; then
                 for ip in $(seq ${ip_range}); do
                     [[ "${shodan_count}" -eq "${shodan_recon_total}" ]] && break
-                    "shodan" scan submit "${rm_network}${ip}" > "${shodan_dir}/shodan_${rm_network}${ip}" 2> "${log_file}" &
+                    "shodan" scan submit "${rm_network}${ip}" > "${shodan_dir}/shodan_${rm_network}${ip}" 2> "${log_execution_file}" &
                     (( shodan_count+=1 ))
                 done
             fi
@@ -154,7 +154,7 @@ shodan_recon(){
             echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing shodan domain scan... " 
             main_domain_ip=$(timeout 5s host -W 3 -t A ${domain} 2> /dev/null | awk '{print $4}' | head -n1)
             [[ -n "${main_domain_ip}" ]] && \
-                "shodan" scan submit "${main_domain_ip}" > "${shodan_dir}/shodan_${domain}" 2> "${log_file}" &
+                "shodan" scan submit "${main_domain_ip}" > "${shodan_dir}/shodan_${domain}" 2> "${log_execution_file}" &
             echo "Done!"
         fi
     fi
