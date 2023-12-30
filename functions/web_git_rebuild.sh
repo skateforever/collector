@@ -25,7 +25,8 @@ git_rebuild(){
                     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Creating the .git directory structure for ${green}${target}${reset}... "
                     echo "Done!"
                     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Downloading the static and objects files from repository... "
-                    "${gitdumper_bin}" --proxy "http://${proxy_ip}" "${target}" "${target_dir}" > ${log_dir}/recon_domain_error_${date_recon}.log 2>&1
+                    echo "gitdumper --proxy \"http://${proxy_ip}\" ${target} \"${target_dir}\"" >> "${log_execution_file}"
+                    gitdumper --proxy "http://${proxy_ip}" "${target}" "${target_dir}" >> "${log_execution_file}" 2>&1
                     echo "Done!"
                     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Downloading files from repository... "
                     dir_origem="${PWD}"
@@ -35,6 +36,7 @@ git_rebuild(){
                         if [[ ! -d "${repo_file_dir}" ]] && [[ "${repo_file_dir}" != "." ]]; then
                             mkdir -p "${repo_file_dir}"
                         fi
+                        echo "curl -L -A ${curl_agent} --proxy \"${proxy_ip}\" -f -s -k --max-time 60 \"${target}/${repo_file}\" -o ${repo_file}" >> "${log_execution_file}"
                         curl -L -A "${curl_agent}" --proxy "${proxy_ip}" -f -s -k --max-time 60 "${target}/${repo_file}" -o "${repo_file}" &
                      done    
                      while pgrep -f curl > /dev/null; do
@@ -51,7 +53,8 @@ git_rebuild(){
                     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Creating the .git directory structure for ${green}${target}${reset}... "
                     echo "Done!"
                     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Downloading the static and objects files from repository... "
-                    "${gitdumper_bin}" "${target}" "${target_dir}" > ${log_dir}/recon_domain_error_${date_recon}.log 2>&1
+                    echo "gitdumper ${target} \"${target_dir}\"" >> "${log_execution_file}" 2>&1
+                    gitdumper "${target}" "${target_dir}" >> "${log_execution_file}" 2>&1
                     echo "Done!"
                     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Downloading files from repository... "
                     dir_origem="${PWD}"
@@ -61,6 +64,7 @@ git_rebuild(){
                         if [[ ! -d "${repo_file_dir}" ]] && [[ "${repo_file_dir}" != "." ]]; then
                             mkdir -p "${repo_file_dir}"
                         fi
+                        echo "curl -L -A ${curl_agent} -f -s -k --max-time 60 \"${target}/${repo_file}\" -o \"${repo_file}\"" >> "${log_execution_file}"
                         curl -L -A "${curl_agent}" -f -s -k --max-time 60 "${target}/${repo_file}" -o "${repo_file}" &
                     done
                     while pgrep -f curl > /dev/null; do

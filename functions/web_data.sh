@@ -21,7 +21,6 @@ web_data(){
                 echo -e "${red}Warning:${reset} It can take a long time to execute the web_data function!"
                 echo -e "\t We have $(wc -l "${urls_file}" | awk '{print $1}') urls to scan and ${#web_wordlists[@]} wordlist(s) to run."
                 echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Getting information about urls from response... "
-                echo -e "\nGetting information about urls from response" >> "${log_dir}/recon_domain_execution_${date_recon}.log"
                 httpx -no-color -silent -update > /dev/null 2>&1
                 while IFS= read -r url; do
                     name="$(echo "${url}" | sed -e "s/http:\/\//http_/" -e "s/https:\/\//https_/" -e "s/:/_/" -e "s/\/$//" -e "s/\//_/g")"
@@ -36,12 +35,12 @@ web_data(){
                         fi
                     fi
                     if [ "${web_tool_detection}" == "curl" ]; then
-                        echo "${curl_options[@]} -I ${url}" >> "${log_dir}/recon_domain_execution_${date_recon}.log"
-                        curl ${curl_options[@]} -I "${url}" >> "${web_data_dir}/${file_header_response}" 2>> "${log_dir}/recon_domain_execution_${date_recon}.log" 
+                        echo "curl ${curl_options[@]} -I ${url}" >> "${log_execution_file}"
+                        curl ${curl_options[@]} -I "${url}" >> "${web_data_dir}/${file_header_response}" 2>> "${log_execution_file}"
                     fi
                     if [ "${web_tool_detection}" == "httpx" ]; then
-                        echo "${url} | httpx -silent -no-color -title -status-code -tech-detect -follow-redirects -timeout 3" >> "${log_dir}/recon_domain_execution_${date_recon}.log"
-                        echo "${url}" | httpx -silent -no-color -title -status-code -tech-detect -follow-redirects -timeout 3 >> "${web_data_dir}/${file_header_response}" 2>> "${log_dir}/recon_domain_execution_${date_recon}.log"
+                        echo "echo ${url} | httpx -silent -no-color -title -status-code -tech-detect -follow-redirects -timeout 3" >> "${log_execution_file}"
+                        echo "${url}" | httpx -silent -no-color -title -status-code -tech-detect -follow-redirects -timeout 3 >> "${web_data_dir}/${file_header_response}" 2>> "${log_execution_file}"
                     fi
                     unset file_header_response
                     unset name
@@ -52,23 +51,22 @@ web_data(){
                 echo "Done!"
 
                 echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing nuclei... "
-                echo -e "\nExecuting nuclei" >> "${log_dir}/recon_domain_execution_${date_recon}.log"
-                "nuclei" -no-color -silent -update > /dev/null 2>&1
-                "nuclei" -no-color -silent -update-templates > /dev/null 2>&1
+                nuclei -no-color -silent -update > /dev/null 2>&1
+                nuclei -no-color -silent -update-templates > /dev/null 2>&1
                 while IFS= read -r url; do
                     name="$(echo "${url}" | sed -e "s/http:\/\//http_/" -e "s/https:\/\//https_/" -e "s/:/_/" -e "s/\/$//" -e "s/\//_/g")"
                     file_nuclei="${name}_nuclei.txt"
                     > "${nuclei_dir}/${file_nuclei}"
                     if [ -n "${use_proxy}" ] && [ "${use_proxy}" == "yes" ]; then
                         if [ ! -f "${nuclei_dir}/${file_nuclei}" ]; then
-                            echo "${url} | nuclei -no-color -silent -proxy-url \"http://${proxy_ip}\" -H \"User-Agent: ${nuclei_agent}\" -t \"${nuclei_templates_dir}\"" >> "${log_dir}/recon_domain_execution_${date_recon}.log" 
+                            echo "echo ${url} | nuclei -no-color -silent -proxy-url \"http://${proxy_ip}\" -H \"User-Agent: ${nuclei_agent}\" -t \"${nuclei_templates_dir}\"" >> "${log_execution_file}"
                             echo "${url}" | nuclei -no-color -silent -proxy-url "http://${proxy_ip}" -H "User-Agent: ${nuclei_agent}" -t "${nuclei_templates_dir}" \
-                            >> "${nuclei_dir}/${file_nuclei}" 2>> "${log_dir}/recon_domain_execution_${date_recon}.log" &
+                            >> "${nuclei_dir}/${file_nuclei}" 2>> "${log_execution_file}" &
                         fi
                     else
                         if [ ! -f "${nuclei_dir}/${file_nuclei}" ]; then
-                            echo "${url} | nuclei -no-color -silent -t ${nuclei_templates_dir}" >> "${log_dir}/recon_domain_execution_${date_recon}.log"
-                            echo "${url}" | nuclei -no-color -silent -t "${nuclei_templates_dir}" >> "${nuclei_dir}/${file_nuclei}" 2>> "${log_dir}/recon_domain_execution_${date_recon}.log" &
+                            echo "echo ${url} | nuclei -no-color -silent -t ${nuclei_templates_dir}" >> "${log_execution_file}"
+                            echo "${url}" | nuclei -no-color -silent -t "${nuclei_templates_dir}" >> "${nuclei_dir}/${file_nuclei}" 2>> "${log_execution_file}" &
                         fi
                     fi
                     while [[ "$(pgrep -acf "[n]uclei")" -ge "${web_data_total_processes}" ]]; do
@@ -81,7 +79,6 @@ web_data(){
 
                 if [ ${#web_wordlists[@]} -gt 0 ]; then
                     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Web data function will use ${#web_wordlists[@]} wordlists with gobuster and dirsearch... "
-                    echo -e "\nWeb data function will use ${#web_wordlists[@]} wordlists with gobuster and dirsearch" >> "${log_dir}/recon_domain_execution_${date_recon}.log"
                     for list in "${web_wordlists[@]}"; do
                         index=$(printf "%s\n" "${web_wordlists[@]}" | grep -En "^""${list}""$" | awk -F":" '{print $1}')
                         urls_tested=1
@@ -95,38 +92,38 @@ web_data(){
                                     # Skipping the specific wordlist from dirsearch on gobuster
                                     if grep -E "\.\%EXT\%|\.\%EX\%" "${list}" > /dev/null 2>&1 ; then
                                         echo "dirsearch -t \"${dirsearch_threads}\" -e \"${web_extensions}\" --random-agent --no-color --quiet-mode \
-                                            -w \"${list}\" --proxy \"${proxy_ip}\" --timeout=20 -u ${url}" >> "${log_dir}/recon_domain_execution_${date_recon}.log"
+                                            -w \"${list}\" --proxy \"${proxy_ip}\" --timeout=20 -u ${url}" >> "${log_execution_file}"
                                         dirsearch -t "${dirsearch_threads}" -e "${web_extensions}" --random-agent --no-color --quiet-mode \
                                             -w "${list}" --proxy "${proxy_ip}" --timeout=20 \
-                                            -u "${url}" >> "${web_data_dir}/${file_dirsearch}" 2>> "${log_dir}/recon_domain_execution_${date_recon}.log" &
+                                            -u "${url}" >> "${web_data_dir}/${file_dirsearch}" 2>> "${log_execution_file}" &
                                     else
                                         echo "dirsearch -t \"${dirsearch_threads}\" -e \"${web_extensions}\" --random-agent --no-color --quiet-mode \
-                                            -w \"${list}\" --proxy \"${proxy_ip}\" --timeout=20 -u \"${url}\"" >> "${log_dir}/recon_domain_execution_${date_recon}.log"
+                                            -w \"${list}\" --proxy \"${proxy_ip}\" --timeout=20 -u \"${url}\"" >> "${log_execution_file}"
                                         echo "${gobuster_bin} dir -z -t \"${gobuster_threads}\" --timeout 20s -x \"${web_extensions}\" \
-                                            --proxy \"http://${proxy_ip}\" -k -w \"${list}\" -u \"${url}\"" >> "${log_dir}/recon_domain_execution_${date_recon}.log"
+                                            --proxy \"http://${proxy_ip}\" -k -w \"${list}\" -u \"${url}\"" >> "${log_execution_file}"
                                         dirsearch -t "${dirsearch_threads}" -e "${web_extensions}" --random-agent --no-color --quiet-mode \
                                             -w "${list}" --proxy "${proxy_ip}" --timeout=20 \
-                                            -u "${url}" >> "${web_data_dir}/${file_dirsearch}" 2>> "${log_dir}/recon_domain_execution_${date_recon}.log" &
+                                            -u "${url}" >> "${web_data_dir}/${file_dirsearch}" 2>> "${log_execution_file}" &
                                         ${gobuster_bin} dir -z -t "${gobuster_threads}" --timeout 20s -x "${web_extensions}" \
                                             --proxy "http://${proxy_ip}" -k -w "${list}" -u "${url}" \
-                                            >> "${web_data_dir}/${file_gobuster}" 2>> "${log_dir}/recon_domain_execution_${date_recon}.log" &
+                                            >> "${web_data_dir}/${file_gobuster}" 2>> "${log_execution_file}" &
                                     fi
                                 else
                                     # Skipping the specific wordlist from dirsearch on gobuster
                                     if grep -E "\.\%EXT\%|\.\%EX\%" "${list}" > /dev/null 2>&1 ; then
                                         echo "dirsearch -t \"${dirsearch_threads}\" -e \"${web_extensions}\" --random-agent --no-color --quiet-mode \
-                                            -w \"${list}\" -u \"${url}\"" >> "${log_dir}/recon_domain_execution_${date_recon}.log" &
+                                            -w \"${list}\" -u \"${url}\"" >> "${log_execution_file}"
                                         dirsearch -t "${dirsearch_threads}" -e "${web_extensions}" --random-agent --no-color --quiet-mode \
-                                            -w "${list}" -u "${url}" >> "${web_data_dir}/${file_dirsearch}" 2>>"${log_dir}/recon_domain_execution_${date_recon}.log" &
+                                            -w "${list}" -u "${url}" >> "${web_data_dir}/${file_dirsearch}" 2>> "${log_execution_file}" &
                                     else
                                         echo "dirsearch -t \"${dirsearch_threads}\" -e \"${web_extensions}\" --random-agent --no-color --quiet-mode \
-                                            -w \"${list}\" -u \"${url}\"" >>  "${log_dir}/recon_domain_execution_${date_recon}.log" &
+                                            -w \"${list}\" -u \"${url}\"" >> "${log_execution_file}"
                                         echo "${gobuster_bin} dir --delay 300ms -k -z -t \"${gobuster_threads}\" -x \"${web_extensions}\" -w \"${list}\" \
-                                            -u \"${url}\"" >> "${log_dir}/recon_domain_execution_${date_recon}.log"
+                                            -u \"${url}\"" >> "${log_execution_file}"
                                         dirsearch -t "${dirsearch_threads}" -e "${web_extensions}" --random-agent --no-color --quiet-mode \
-                                            -w "${list}" -u "${url}" >> "${web_data_dir}/${file_dirsearch}" 2>> "${log_dir}/recon_domain_execution_${date_recon}.log" &
+                                            -w "${list}" -u "${url}" >> "${web_data_dir}/${file_dirsearch}" 2>> "${log_execution_file}" &
                                         ${gobuster_bin} dir --delay 300ms -k -z -t "${gobuster_threads}" -x "${web_extensions}" -w "${list}" \
-                                            -u "${url}" >> "${web_data_dir}/${file_gobuster}" 2>> "${log_dir}/recon_domain_execution_${date_recon}.log" &
+                                            -u "${url}" >> "${web_data_dir}/${file_gobuster}" 2>> "${log_execution_file}" &
                                     fi
                                 fi
                                 while [[ "$(pgrep -acf "[d]irsearch.*${process_domain}|[g]obuster.*${process_domain}")" -ge "${web_data_total_processes}" ]]; do
@@ -158,12 +155,11 @@ web_data(){
                 fi
                 
                 echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing wayback... "
-                echo -e "\nExecuting wayback" >> "${log_dir}/recon_domain_execution_${date_recon}.log"
                 while IFS= read -r url; do
                     name=$(echo "${url}" | sed -e "s/http:\/\//http_/" -e "s/https:\/\//https_/" -e "s/:/_/" -e "s/\/$//" -e "s/\//_/g")
                     file="wayback_${name}.txt"
-                    echo "${url} | waybackurls" >> "${log_dir}/recon_domain_execution_${date_recon}.log"
-                    echo "${url}" | waybackurls > "${wayback_dir}/${file}" 2>> "${log_dir}/recon_domain_execution_${date_recon}.log"
+                    echo "echo ${url} | waybackurls" >> "${log_execution_file}"
+                    echo "${url}" | waybackurls > "${wayback_dir}/${file}" 2>> "${log_execution_file}"
                     unset file
                 done < "${urls_file}"
                 unset url
@@ -223,7 +219,6 @@ robots_txt(){
 
 aquatone_function(){
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Starting aquatone scan... "
-    echo -e "\nStarting aquatone scan"
     file=$1
     if [ -s "${file}" ]; then
         if [[ -n "${domain}" && -z "${url_2_verify}" ]]; then
@@ -233,8 +228,8 @@ aquatone_function(){
         fi
         if [ ! -d "${aquatone_files_dir}" ]; then
             if mkdir -p "${aquatone_files_dir}" ; then
-                echo "aquatone -chrome-path ${chromium_bin} -out ${aquatone_files_dir} -threads ${aquatone_threads} < ${file}" >> "${log_dir}/recon_domain_execution_${date_recon}.log"
-                "aquatone" -chrome-path "${chromium_bin}" -out "${aquatone_files_dir}" -threads "${aquatone_threads}" < "${file}" > "${aquatone_log}"
+                echo "aquatone -chrome-path ${chromium_bin} -out ${aquatone_files_dir} -threads ${aquatone_threads} < ${file}" >> "${log_execution_file}"
+                aquatone -chrome-path "${chromium_bin}" -out "${aquatone_files_dir}" -threads "${aquatone_threads}" < "${file}" >> "${aquatone_log}" 2>> "${log_execution_file}"
                 echo "Done!"
             else
                 echo "Fail!"
@@ -243,8 +238,8 @@ aquatone_function(){
                 exit 1
             fi
         else
-            echo "aquatone -chrome-path ${chromium_bin} -out ${aquatone_files_dir} -threads ${aquatone_threads} < ${file}" >> "${log_dir}/recon_domain_execution_${date_recon}.log"
-            "aquatone" -chrome-path "${chromium_bin}" -out "${aquatone_files_dir}" -threads "${aquatone_threads}" < "${file}" > "${aquatone_log}"
+            echo "aquatone -chrome-path ${chromium_bin} -out ${aquatone_files_dir} -threads ${aquatone_threads} < ${file}" >> "${log_execution_file}"
+            aquatone -chrome-path "${chromium_bin}" -out "${aquatone_files_dir}" -threads "${aquatone_threads}" < "${file}" >> "${aquatone_log}" 2>> "${log_execution_file}"
             echo "Done!"
         fi
     else
