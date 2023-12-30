@@ -32,7 +32,7 @@ For now collector use:</br>
 </br>
 In the future I pretend to use dnsrecon, massdns, sublist3r and others tools to get more subdomains and others information.</br>
 
-But to facility some work and made another script get those tools:</br>
+But to facility this work I made another script get those tools:</br>
 
 `curl -kLOs https://raw.githubusercontent.com/skateforever/pentest-scripts/main/useful/get-tools.sh`
 `chmod -x get-tools.sh`
