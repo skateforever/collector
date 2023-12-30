@@ -15,77 +15,77 @@ subdomains_recon(){
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Initializing the subdomains discovery and this might take a certain time!"
         # Backing the correct Cursor position
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing alienvault... "
-        echo curl "${curl_options[@]} \"https://otx.alienvault.com/api/v1/indicators/domain/${domain}/passive_dns\" | jq --raw-output '.passive_dns[]?.hostname'" >> "${log_execution_file}"
         curl "${curl_options[@]}" "https://otx.alienvault.com/api/v1/indicators/domain/${domain}/passive_dns" \
             | jq --raw-output '.passive_dns[]?.hostname' 2>> ${log_execution_file} | sort -u >> "${tmp_dir}/alienvault_output.txt"
         echo "Done!"
+        echo "curl ${curl_options[@]} \"https://otx.alienvault.com/api/v1/indicators/domain/${domain}/passive_dns\" | jq --raw-output '.passive_dns[]?.hostname'" >> "${log_execution_file}"
         sleep 1
         
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing amass... "
-        echo "amass enum -timeout ${amass_timeout_execution} -d ${domain}" >> "${log_execution_file}"
-        echo "amass enum -timeout ${amass_timeout_execution} -passive -d ${domain}" >> "${log_execution_file}"
-        timeout $((${amass_timeout_execution} + 1))m amass enum -timeout "${amass_timeout_execution}"  -d "${domain}" >> "${tmp_dir}/amass_output.txt" 2>> "${log_execution_file}"
+        timeout $((${amass_timeout_execution} + 1))m amass enum -timeout "${amass_timeout_execution}" -d "${domain}" >> "${tmp_dir}/amass_output.txt" 2>> "${log_execution_file}"
         timeout $((${amass_timeout_execution} + 1))m amass enum -timeout "${amass_timeout_execution}" -passive -d "${domain}" >> "${tmp_dir}/amass_passive_output.txt" 2>> "${log_execution_file}"
         echo "Done!"
+        echo "amass enum -timeout ${amass_timeout_execution} -d ${domain}" >> "${log_execution_file}"
+        echo "amass enum -timeout ${amass_timeout_execution} -passive -d ${domain}" >> "${log_execution_file}"
         sleep 1
 
         if [[ -n ${binaryedge_api_url} ]] && [[ -n "${binaryedge_api_key}" ]]; then
             binaryedge_api_check=$(curl -ks -w %{http_code} "${binaryedge_api_url}/user/subscription" -H "X-key: ${binaryedge_api_key}" -o /dev/null)
             if [ "${binaryedge_api_check}" -eq 200 ]; then
                 echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing binaryedge.io... "
-                echo "curl -ks -H \"X-Key:${binaryedge_api_key}\" \"${binaryedge_api_url}/query/domains/subdomain/${domain}\" | jq -r '.events[]?'" >> "${log_execution_file}"
                 curl -ks -H "X-Key:${binaryedge_api_key}" "${binaryedge_api_url}/query/domains/subdomain/${domain}" | jq -r '.events[]?' 2>> "${log_execution_file}" \
                     | sort -u >> "${tmp_dir}/binaryedge_output.txt"
                 echo "Done!"
+                echo "curl -ks -H \"X-Key:${binaryedge_api_key}\" \"${binaryedge_api_url}/query/domains/subdomain/${domain}\" | jq -r '.events[]?'" >> "${log_execution_file}"
                 sleep 1
             fi
         fi
 
         if [[ -n "${builtwith_api_key}" ]] && [[ -n "${builtwith_api_url}" ]]; then
             echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing builtwith subdomain... "
-            echo "curl ${curl_options[@]} ${builtwith_api_url}/v21/api.json?KEY=${builtwith_api_key}&LOOKUP=${domain}" >> "${log_execution_file}"
             curl "${curl_options[@]}" "${builtwith_api_url}/v21/api.json?KEY=${builtwith_api_key}&LOOKUP=${domain}" \
                 | jq -r '.Results[].Result.Paths[].SubDomain' | sort -u | sed "s/$/\.${domain}/g" >> "${tmp_dir}/builtwith_subdomain__output.txt"
 
-            echo "curl ${curl_options[@]} ${builtwith_api_url}/tag1/api.json?KEY=${builtwith_api_key}&LOOKUP=IP-$(dig +short ${domain} A | head -n1)" >> "${log_execution_file}"
             curl "${curl_options[@]}" "${builtwith_api_url}/tag1/api.json?KEY=${builtwith_api_key}&LOOKUP=IP-$(dig +short ${domain} A | head -n1)" | \
                 jq -r '.Identifers[].Matches[].Domain' >> "${report_dir}/shared_cloud.txt"
             echo "Done!"
+            echo "curl ${curl_options[@]} ${builtwith_api_url}/v21/api.json?KEY=${builtwith_api_key}&LOOKUP=${domain}" >> "${log_execution_file}"
+            echo "curl ${curl_options[@]} ${builtwith_api_url}/tag1/api.json?KEY=${builtwith_api_key}&LOOKUP=IP-$(dig +short ${domain} A | head -n1)" >> "${log_execution_file}"
         fi
 
         if [[ -n "${censys_api_url}" ]] && [[ -n "${censys_api_id}" ]] && [[ -n "${censys_api_secret}" ]]; then
             censys_api_check=$(curl -ks -w %{http_code} -u "${censys_api_id}:${censys_api_secret}" "${censys_api_url}/account" -H 'accept: application/json' -o /dev/null)
             if [ "${censys_api_check}" -eq 200 ]; then
                 echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing censys.io... "
-                echo "censys-subdomain-finder.py --censys-api-id ${censys_api_id} --censys-api-secret ${censys_api_secret} ${domain} --output ${tmp_dir}/censys_output.txt" >> "${log_execution_file}"
                 censys-subdomain-finder.py --censys-api-id "${censys_api_id}" --censys-api-secret "${censys_api_secret}" "${domain}" --output "${tmp_dir}/censys_output.txt" > /dev/null 2>> "${log_execution_file}"
                 echo "Done!"
+                echo "censys-subdomain-finder.py --censys-api-id ${censys_api_id} --censys-api-secret ${censys_api_secret} ${domain} --output ${tmp_dir}/censys_output.txt" >> "${log_execution_file}"
                 sleep 1
             fi
         fi
 
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing certspotter... "
-        echo "curl -ks \"https://api.certspotter.com/v1/issuances?domain=${domain}&include_subdomains=true&expand=dns_names\" | jq -r '.[].dns_names[]'" >> "${log_execution_file}"
         curl -ks "https://api.certspotter.com/v1/issuances?domain=${domain}&include_subdomains=true&expand=dns_names" \
             | jq -r '.[].dns_names[]' 2>> ${log_execution_file} | sed 's/\"//g' | sed 's/\*\.//g' \
             | sort -u | grep "${domain}" >> "${tmp_dir}/certspotter_output.txt"
         echo "Done!"
+        echo "curl -ks \"https://api.certspotter.com/v1/issuances?domain=${domain}&include_subdomains=true&expand=dns_names\" | jq -r '.[].dns_names[]'" >> "${log_execution_file}"
         sleep 1
 
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing commoncrawl... "
-        echo "curl -ks \"${commoncrawl_db}?url=*.${domain}/&output=json\" | jq -r .url?" >> "${log_execution_file}"
         commoncrawl_db=$(curl -ks "${commoncrawl_url}" | jq --raw-output .[0]'."cdx-api"' 2>> "${log_execution_file}")
         curl -ks "${commoncrawl_db}?url=*.${domain}/&output=json" | jq -r .url? 2>> "${log_execution_file}" \
             | sed 's/\*\.//g' | sed -e 's_https*://__' -e "s/\/.*//" -e 's/:.*//' -e "/@/d" -e 's/\.$//' \
             | sort -u >> "${tmp_dir}/commoncrawl_domains_output.txt"
         echo "Done!"
+        echo "curl -ks \"${commoncrawl_db}?url=*.${domain}/&output=json\" | jq -r .url?" >> "${log_execution_file}"
         sleep 1
 
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing crt.sh... "
-        echo "curl -ks \"https://crt.sh/?q=%25.${domain}&output=json\" | jq -r '.[].name_value'" >> "${log_execution_file}"
         curl -ks "https://crt.sh/?q=%25.${domain}&output=json" | jq -r '.[].name_value' 2>> "${log_execution_file}" | \
             sed 's/\*\.//g' | sort -u >> "${tmp_dir}/crtsh_output.txt"
         echo "Done!"
+        echo "curl -ks \"https://crt.sh/?q=%25.${domain}&output=json\" | jq -r '.[].name_value'" >> "${log_execution_file}"
         sleep 1
 
         # Now dnsdb.info is paid product owned by domaintools.com
@@ -93,20 +93,17 @@ subdomains_recon(){
         #    dnsdb_api_check=$(curl "${curl_options[@]}" -g -w "%{http_code}\n" -H "Accept: application/json" -H "X-API-Key: ${dnsdb_api_key}" "${dnsdb_api_url}/*.${domain}?limit=1000000000" -o /dev/null)
         #    if [ "${dnsdb_api_check}"  -eq 200 ]; then
         #        echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing dnsdb... "
-        #        echo "curl ${curl_options[@]} -g -H \"Accept: application/json\" -H \"X-API-Key: ${dnsdb_api_key}\" \"${dnsdb_api_url}/*.${domain}?limit=1000000000\" | jq --raw-output -r .rrname? >> "${log_execution_file}"
         #        curl "${curl_options[@]}" -g -H "Accept: application/json" -H "X-API-Key: ${dnsdb_api_key}" "${dnsdb_api_url}/*.${domain}?limit=1000000000" \
         #            | jq --raw-output -r .rrname? 2>> ${log_execution_file} \
         #            | sed -e 's/\.$//' \
         #            | sort -u >> "${tmp_dir}/dnsdb_output.txt"
         #        echo "Done!"
+        #        echo "curl ${curl_options[@]} -g -H \"Accept: application/json\" -H \"X-API-Key: ${dnsdb_api_key}\" \"${dnsdb_api_url}/*.${domain}?limit=1000000000\" | jq --raw-output -r .rrname? >> "${log_execution_file}"
         #        sleep 1
         #    fi
         #fi
 
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing dns dumpster... "
-        echo "curl ${curl_options[@]} -X POST -b \"csrftoken=${dnsdumpster_csrf_token}\" -H 'Accept: */*' -H 'Content-Type: application/x-www-form-urlencoded' \
-            -H \"Origin: ${dnsdumpster_url}\" -H \"Referer: ${dnsdumpster_url}\" \
-            --data-binary \"csrfmiddlewaretoken=${dnsdumpster_csrf_token}&targetip=${domain}&user=free\" ${dnsdumpster_url}" >> "${log_execution_file}"
         dnsdumpster_csrf_token=$(curl "${curl_options[@]}" -L "${dnsdumpster_url}" | grep -i -P  "csrfmiddlewaretoken" | grep -Po '(?<=value=")[^"]*(?=")')
         curl "${curl_options[@]}" -X POST -b "csrftoken=${dnsdumpster_csrf_token}" -H 'Accept: */*' -H 'Content-Type: application/x-www-form-urlencoded' \
             -H "Origin: ${dnsdumpster_url}" -H "Referer: ${dnsdumpster_url}" \
@@ -115,34 +112,37 @@ subdomains_recon(){
             | sort -u \
             | grep "${domain}" >> "${tmp_dir}/dnsdumpster_output.txt"
         echo "Done!"
+        echo "curl ${curl_options[@]} -X POST -b \"csrftoken=${dnsdumpster_csrf_token}\" -H 'Accept: */*' -H 'Content-Type: application/x-www-form-urlencoded' \
+            -H \"Origin: ${dnsdumpster_url}\" -H \"Referer: ${dnsdumpster_url}\" \
+            --data-binary \"csrfmiddlewaretoken=${dnsdumpster_csrf_token}&targetip=${domain}&user=free\" ${dnsdumpster_url}" >> "${log_execution_file}"
         sleep 1
 
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing hackertarget... "
-        echo "curl -ks \"${hackertarget_url}${domain}\"" >> "${log_execution_file}"
         curl -ks "${hackertarget_url}${domain}" | awk -F',' '{print $1}' | sort -u \
             | grep -v "API count exceeded - Increase Quota with Membership" >> "${tmp_dir}/hackertarget_output.txt"
         echo "Done!"
+        echo "curl -ks \"${hackertarget_url}${domain}\"" >> "${log_execution_file}"
         sleep 1
 
         # netcraft
         # "https://searchdns.netcraft.com/?restriction=site+contains&host=${domain}&position=limited"
 
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing rapiddns... "
-        echo "curl -ks \"https://rapiddns.io/subdomain/${domain}#result\"" >> "${log_execution_file}"
         curl -ks "https://rapiddns.io/subdomain/${domain}#result" | grep -Po '<td>\K[^<]*' | grep "${domain}" \
             | sort -u >> "${tmp_dir}/rapiddns_output.txt"
         echo "Done!"
+        echo "curl -ks \"https://rapiddns.io/subdomain/${domain}#result\"" >> "${log_execution_file}"
         sleep 1
 
         if [[ -n "${riskiq_api_key}" ]] && [[ -n "${riskiq_api_secret}" ]]; then
             riskiq_api_check=$(curl "${curl_options[@]}" -w "%{http_code}\n" -u "${riskiq_api_key}:${riskiq_api_secret}" "${riskiq_api_url}?query=${domain}" -o /dev/null)
             if [ "${riskiq_api_check}" -eq 200 ]; then
                 echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing riskiq... "
-                echo "${curl_options[@]} -u \"${riskiq_api_key}:${riskiq_api_secret}\" \"${riskiq_api_url}?que\ry=${domain}\" | jq -r .subdomains[]?" >> "${log_execution_file}"
                 curl "${curl_options[@]}" -u "${riskiq_api_key}:${riskiq_api_secret}" "${riskiq_api_url}?query=${domain}" \
                      | jq -r .subdomains[]? 2>> "${log_execution_file}" | sort -u | grep -Ev "^.*_domainkey$" >> "${tmp_dir}/riskiq_output.txt"
                 sed -i "s/$/\.${domain}/" "${tmp_dir}/riskiq_output.txt"
                 echo "Done!"
+                echo "curl ${curl_options[@]} -u \"${riskiq_api_key}:${riskiq_api_secret}\" \"${riskiq_api_url}?que\ry=${domain}\" | jq -r .subdomains[]?" >> "${log_execution_file}"
                 sleep 1
             fi
         fi
@@ -151,75 +151,78 @@ subdomains_recon(){
             securitytrails_api_check=$(curl "${curl_options[@]}" "${securitytrails_api_url}/ping" -H "APIKEY: ${securitytrails_api_key}" -H 'Accept: application/json' | jq -r '.success' 2>> ${log_execution_file})
             if [ "${securitytrails_api_check}" == "true" ]; then
                 echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing security trails... "
-                echo "curl ${curl_options[@]} \"${securitytrails_api_url}/domain/${domain}/subdomains?children_only=false&include_inactive=true\" \
-                    -H \"APIKEY: ${securitytrails_api_key}\" -H 'Accept: application/json' \
-                    | jq -r '.subdomains[]'" >> "${log_execution_file}"
                 curl "${curl_options[@]}" "${securitytrails_api_url}/domain/${domain}/subdomains?children_only=false&include_inactive=true" \
                     -H "APIKEY: ${securitytrails_api_key}" -H 'Accept: application/json' \
                     | jq -r '.subdomains[]' 2>> "${log_execution_file}" | sort -u >> "${tmp_dir}/securitytrails_output.txt"
                 sed -i "s/$/\.${domain}/" "${tmp_dir}/securitytrails_output.txt"
                 echo "Done!"
+                echo "curl ${curl_options[@]} \"${securitytrails_api_url}/domain/${domain}/subdomains?children_only=false&include_inactive=true\" \
+                    -H \"APIKEY: ${securitytrails_api_key}\" -H 'Accept: application/json' \
+                    | jq -r '.subdomains[]'" >> "${log_execution_file}"
                 sleep 1
             fi
         fi
 
         if [ "${shodan_use}" == "yes" ]; then
             echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing shodan... "
-            echo "shodan search --no-color --fields hostnames hostname:${domain}" >> "${log_execution_file}"
-            "shodan" search --no-color --fields hostnames hostname:"${domain}" 2>> "${log_execution_file}" | sed -e 's/;/\n/g' -e '/^$/d' | sort -u >> "${tmp_dir}/shodan_subdomain_output.txt"
+            shodan search --no-color --fields hostnames hostname:"${domain}" 2>> "${log_execution_file}" | sed -e 's/;/\n/g' -e '/^$/d' | sort -u >> "${tmp_dir}/shodan_subdomain_output.txt"
             echo "Done!"
+            echo "shodan search --no-color --fields hostnames hostname:${domain}" >> "${log_execution_file}"
             sleep 1
         fi
 
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing subfinder... "
-        echo "subfinder -silent -d ${domain}" >> "${log_execution_file}"
         subfinder -silent -d "${domain}" >> "${tmp_dir}/subfinder_output.txt" 2>> "${log_execution_file}"
         echo "Done!"
+        echo "subfinder -silent -d ${domain}" >> "${log_execution_file}"
         sleep 1
 
-        echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing threatcrowd... "
-        echo "curl ${curl_options[@]} \"${threatcrowd_url}${domain}\" | jq -r '.subdomains[]?'" >> "${log_execution_file}" 
-        curl "${curl_options[@]}" "${threatcrowd_url}${domain}" | jq -r '.subdomains[]?' 2>> "${log_execution_file}" \
-            | grep -Eo "\b[A-Za-z0-9.-]+\.[A-Za-z]{2,6}\b" \
-            | grep -P "${domain}" | sort -u >> "${tmp_dir}/threatcrowd_output.txt"
-        echo "Done!"
-        sleep 1
+        # Threatcrowd looks like does not work anymore
+        #echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing threatcrowd... "
+        #curl "${curl_options[@]}" "${threatcrowd_url}${domain}" | jq -r '.subdomains[]?' 2>> "${log_execution_file}" \
+        #    | grep -Eo "\b[A-Za-z0-9.-]+\.[A-Za-z]{2,6}\b" \
+        #    | grep -P "${domain}" | sort -u >> "${tmp_dir}/threatcrowd_output.txt"
+        #echo "Done!"
+        #echo "curl ${curl_options[@]} \"${threatcrowd_url}${domain}\" | jq -r '.subdomains[]?'" >> "${log_execution_file}" 
+        #sleep 1
 
         # Threatminer does not get brazilian domains
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing threatminer... "
-        echo "curl -ks \"${threatminer_url}${domain}&rt=5\" | jq -r '.results[]?'" >> "${log_execution_file}"
         curl -ks "${threatminer_url}${domain}&rt=5" | jq -r '.results[]?' 2>> "${log_execution_file}" | sort -u >> "${tmp_dir}/threatminer_output.txt"
         echo "Done!"
+        echo "curl -ks \"${threatminer_url}${domain}&rt=5\" | jq -r '.results[]?'" >> "${log_execution_file}"
         sleep 1
 
         if [[ -n "${virustotal_api_url}" ]] && [[ -n "${virustotal_api_key}" ]]; then
             virustotal_api_check=$(curl "${curl_options[@]}" -w "%{http_code}\n" -H "X-Apikey: ${virustotal_api_key}" "${virustotal_api_url}/${domain}/subdomains?limit=40" -o /dev/null)
             if [ "${virustotal_api_check}" -eq 200 ]; then
                 echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing virus total... "
-                echo "curl ${curl_options[@]} -H \"X-Apikey: ${virustotal_api_key}\" \"${virustotal_api_url}/${domain}/subdomains?limit=40\" \
-                    | jq -r '.data[]?.id'" >>  "${log_execution_file}"
                 curl "${curl_options[@]}" -H "X-Apikey: ${virustotal_api_key}" "${virustotal_api_url}/${domain}/subdomains?limit=40" \
                     | jq -r '.data[]?.id' 2>> "${log_execution_file}" | sort -u >> "${tmp_dir}/virustotal_output.txt"
                 echo "Done!"
+                echo "curl ${curl_options[@]} -H \"X-Apikey: ${virustotal_api_key}\" \"${virustotal_api_url}/${domain}/subdomains?limit=40\" \
+                    | jq -r '.data[]?.id'" >>  "${log_execution_file}"
                 sleep 1
             fi
         fi
 
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing webarchive... "
-        echo "curl ${curl_options[@]} \"http://web.archive.org/cdx/search/cdx?url=*.${domain}/*&output=text&fl=original&collapse=urlkey\"" >> "${log_execution_file}"
         curl "${curl_options[@]}" "http://web.archive.org/cdx/search/cdx?url=*.${domain}/*&output=text&fl=original&collapse=urlkey" \
             | sed -e 's_https*://__' -e "s/\/.*//" -e 's/:.*//' -e 's/^www\.//' | sed "/@/d" | sed -e 's/\.$//' | sort -u >> "${tmp_dir}/webarchive_output.txt"
         echo "Done!"
+        echo "curl ${curl_options[@]} \"http://web.archive.org/cdx/search/cdx?url=*.${domain}/*&output=text&fl=original&collapse=urlkey\"" >> "${log_execution_file}"
         sleep 1
 
-        echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing whoisxmlapi... "
-        echo "curl ${curl_options[@]} -X POST \"${whoisxmlapi_subdomain_url}\" -H \"Content-Type: application/json\" \
-            --data '{\"apiKey\": \"${whoisxmlapi_apikey}\", \"domains\": {\"include\": [\"${domain}\"]},\"subdomains\": {\"include\": [],\"exclude\": []}}' \
-            | jq -r '.domainsList[]'" >> "${log_execution_file}"
-        curl "${curl_options[@]}" -X POST "${whoisxmlapi_subdomain_url}" -H "Content-Type: application/json" \
-            --data '{"apiKey": "'${whoisxmlapi_apikey}'", "domains": {"include": ["'${domain}'"]},"subdomains": {"include": [],"exclude": []}}' \
-            | jq -r '.domainsList[]' 2>> "${log_execution_file}" >> "${tmp_dir}/whoisxmlapi_output.txt"
-        echo "Done!"
+        if [[ -n "${whoisxmlapi_apikey}" ]] && [[ -n "${whoisxmlapi_subdomain_url}" ]]; then
+            echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing whoisxmlapi... "
+            curl "${curl_options[@]}" -X POST "${whoisxmlapi_subdomain_url}" -H "Content-Type: application/json" \
+                --data '{"apiKey": "'${whoisxmlapi_apikey}'", "domains": {"include": ["'${domain}'"]},"subdomains": {"include": [],"exclude": []}}' \
+                | jq -r '.domainsList[]' 2>> "${log_execution_file}" >> "${tmp_dir}/whoisxmlapi_output.txt"
+            echo "Done!"
+            echo "curl ${curl_options[@]} -X POST \"${whoisxmlapi_subdomain_url}\" -H \"Content-Type: application/json\" \
+                --data '{\"apiKey\": \"${whoisxmlapi_apikey}\", \"domains\": {\"include\": [\"${domain}\"]},\"subdomains\": {\"include\": [],\"exclude\": []}}' \
+                | jq -r '.domainsList[]'" >> "${log_execution_file}"
+        fi
         sleep 1
 
         if [ "${#dns_wordlists[@]}" -gt 0 ]; then
