@@ -24,10 +24,10 @@ subdomains_recon(){
         
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing amass... "
         echo -e "\nExecuting amass" >> "${log_dir}/recon_domain_execution_${date_recon}.log"
-        echo "${amass_bin} enum -timeout ${amass_timeout_execution} -d ${domain}" >> "${log_dir}/recon_domain_execution_${date_recon}.log"
-        echo "${amass_bin} enum -timeout ${amass_timeout_execution} -passive -d ${domain}" >> "${log_dir}/recon_domain_execution_${date_recon}.log"
-        timeout $((${amass_timeout_execution} + 1))m ${amass_bin} enum -timeout "${amass_timeout_execution}"  -d "${domain}" >> "${tmp_dir}/amass_output.txt" 2>> "${log_dir}/recon_domain_execution_${date_recon}.log"
-        timeout $((${amass_timeout_execution} + 1))m ${amass_bin} enum -timeout "${amass_timeout_execution}" -passive -d "${domain}" >> "${tmp_dir}/amass_passive_output.txt" 2>> "${log_dir}/recon_domain_execution_${date_recon}.log"
+        echo "amass enum -timeout ${amass_timeout_execution} -d ${domain}" >> "${log_dir}/recon_domain_execution_${date_recon}.log"
+        echo "amass enum -timeout ${amass_timeout_execution} -passive -d ${domain}" >> "${log_dir}/recon_domain_execution_${date_recon}.log"
+        timeout $((${amass_timeout_execution} + 1))m amass enum -timeout "${amass_timeout_execution}"  -d "${domain}" >> "${tmp_dir}/amass_output.txt" 2>> "${log_dir}/recon_domain_execution_${date_recon}.log"
+        timeout $((${amass_timeout_execution} + 1))m amass enum -timeout "${amass_timeout_execution}" -passive -d "${domain}" >> "${tmp_dir}/amass_passive_output.txt" 2>> "${log_dir}/recon_domain_execution_${date_recon}.log"
         echo "Done!"
         sleep 1
 
@@ -61,8 +61,8 @@ subdomains_recon(){
             if [ "${censys_api_check}" -eq 200 ]; then
                 echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing censys.io... "
                 echo -e "\nExecuting censys.io" >> "${log_dir}/recon_domain_execution_${date_recon}.log"
-                echo "${censys_python} --censys-api-id ${censys_api_id} --censys-api-secret ${censys_api_secret} ${domain} --output ${tmp_dir}/censys_output.txt" >> "${log_dir}/recon_domain_execution_${date_recon}.log"
-                ${censys_python} --censys-api-id "${censys_api_id}" --censys-api-secret "${censys_api_secret}" "${domain}" --output "${tmp_dir}/censys_output.txt" > /dev/null 2>> "${log_dir}/recon_domain_execution_${date_recon}.log"
+                echo "censys-subdomain-finder.py --censys-api-id ${censys_api_id} --censys-api-secret ${censys_api_secret} ${domain} --output ${tmp_dir}/censys_output.txt" >> "${log_dir}/recon_domain_execution_${date_recon}.log"
+                censys-subdomain-finder.py --censys-api-id "${censys_api_id}" --censys-api-secret "${censys_api_secret}" "${domain}" --output "${tmp_dir}/censys_output.txt" > /dev/null 2>> "${log_dir}/recon_domain_execution_${date_recon}.log"
                 echo "Done!"
                 sleep 1
             fi
@@ -179,16 +179,16 @@ subdomains_recon(){
         if [ "${shodan_use}" == "yes" ]; then
             echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing shodan... "
             echo -e "\nExecuting shodan" >> "${log_dir}/recon_domain_execution_${date_recon}.log"
-            echo "${shodan_bin} search --no-color --fields hostnames hostname:${domain}" >> "${log_dir}/recon_domain_execution_${date_recon}.log"
-            "${shodan_bin}" search --no-color --fields hostnames hostname:"${domain}" 2>> "${log_dir}/recon_domain_execution_${date_recon}.log" | sed -e 's/;/\n/g' -e '/^$/d' | sort -u >> "${tmp_dir}/shodan_subdomain_output.txt"
+            echo "shodan search --no-color --fields hostnames hostname:${domain}" >> "${log_dir}/recon_domain_execution_${date_recon}.log"
+            "shodan" search --no-color --fields hostnames hostname:"${domain}" 2>> "${log_dir}/recon_domain_execution_${date_recon}.log" | sed -e 's/;/\n/g' -e '/^$/d' | sort -u >> "${tmp_dir}/shodan_subdomain_output.txt"
             echo "Done!"
             sleep 1
         fi
 
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing subfinder... "
         echo -e "\nExecuting subfinder" >> "${log_dir}/recon_domain_execution_${date_recon}.log"
-        echo "${subfinder_bin} -silent -d ${domain}" >> "${log_dir}/recon_domain_execution_${date_recon}.log"
-        ${subfinder_bin} -silent -d "${domain}" >> "${tmp_dir}/subfinder_output.txt" 2>> "${log_dir}/recon_domain_execution_${date_recon}.log"
+        echo "subfinder -silent -d ${domain}" >> "${log_dir}/recon_domain_execution_${date_recon}.log"
+        subfinder -silent -d "${domain}" >> "${tmp_dir}/subfinder_output.txt" 2>> "${log_dir}/recon_domain_execution_${date_recon}.log"
         echo "Done!"
         sleep 1
 
@@ -252,12 +252,12 @@ subdomains_recon(){
                 if [ -s "${list}" ]; then
                     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Execution number ${index}... "
                     echo -e "\nExecution number ${index}" >> "${log_dir}/recon_domain_execution_${date_recon}.log"
-                    echo "${amass_bin} enum -src -w ${list} -d ${domain}" >> "${log_dir}/recon_domain_execution_${date_recon}.log"
-                    echo "${gobuster_bin} dns -z -q -t ${gobuster_threads} -d ${domain} -w ${list}" >> "${log_dir}/recon_domain_execution_${date_recon}.log"
-                    echo "${dnssearch_bin} -consumers 600 -domain ${domain} -wordlist ${list}" >> "${log_dir}/recon_domain_execution_${date_recon}.log"
-                    ${amass_bin} enum -src -w "${list}" -d "${domain}" >> "${tmp_dir}"/amass_brute_output_"${index}".txt 2>> "${log_dir}/recon_domain_execution_${date_recon}.log"
-                    ${gobuster_bin} dns -z -q -t "${gobuster_threads}" -d "${domain}" -w "${list}" >> "${tmp_dir}"/gobuster_dns_output_"${index}".txt 2>> "${log_dir}/recon_domain_execution_${date_recon}.log"
-                    ${dnssearch_bin} -consumers 600 -domain "${domain}" -wordlist "${list}" | \
+                    echo "amass enum -src -w ${list} -d ${domain}" >> "${log_dir}/recon_domain_execution_${date_recon}.log"
+                    echo "gobuster dns -z -q -t ${gobuster_threads} -d ${domain} -w ${list}" >> "${log_dir}/recon_domain_execution_${date_recon}.log"
+                    echo "dnssearch -consumers 600 -domain ${domain} -wordlist ${list}" >> "${log_dir}/recon_domain_execution_${date_recon}.log"
+                    amass enum -src -w "${list}" -d "${domain}" >> "${tmp_dir}"/amass_brute_output_"${index}".txt 2>> "${log_dir}/recon_domain_execution_${date_recon}.log"
+                    gobuster dns -z -q -t "${gobuster_threads}" -d "${domain}" -w "${list}" >> "${tmp_dir}"/gobuster_dns_output_"${index}".txt 2>> "${log_dir}/recon_domain_execution_${date_recon}.log"
+                    dnssearch -consumers 600 -domain "${domain}" -wordlist "${list}" | \
                     grep "${domain}" >> "${tmp_dir}"/dnssearch_output_"${index}".txt 2>> "${log_dir}/recon_domain_execution_${date_recon}.log"
                     echo "Done!"
                     sleep 1
@@ -469,7 +469,7 @@ managing_the_files(){
     if [ -s "${subdomains_file}" ]; then
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Getting the IPs and aliases of the domain and subdomains... "
         # Domains and subdomains resolution
-        "${massdns_bin}" -q -r "${dns_resolvers_file}" -t A -o S \
+        "massdns" -q -r "${dns_resolvers_file}" -t A -o S \
             -w "${tmp_dir}/domains_massdns_resolution.txt" "${subdomains_file}" > /dev/null 2>&1
 
         for d in $(cat "${subdomains_file}"); do
@@ -577,10 +577,10 @@ hdc(){
         # https://domaineye.com/reverse-whois/
 
         domains_reversewhois+=($(curl -kLs "https://www.reversewhois.io/?searchterm=${email}" | \
-            "${html2text_bin}" | grep -E "^[0-9]"| awk '{print $2}' | sed 's/|//'))
+            "html2text" | grep -E "^[0-9]"| awk '{print $2}' | sed 's/|//'))
         domains_found_temp+=("${domains_reversewhois[@]}")
 
-        domains_viewdns+=($(curl -kLs -A "${curl_agent}" "https://viewdns.info/reversewhois/?q=${email}" | "${html2text_bin}" | \
+        domains_viewdns+=($(curl -kLs -A "${curl_agent}" "https://viewdns.info/reversewhois/?q=${email}" | "html2text" | \
             grep -Po "[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)" | \
             grep -Evi "viewdns|${email}|favicon\.ico|cloudflare.com"))
         domains_found_temp+=("${domains_viewdns[@]}")
