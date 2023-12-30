@@ -425,7 +425,7 @@ create_initial_directories_structure(){
         # Create all dirs necessaries to report and recon for domain
         mkdir -p "${output_dir}/${domain}"/{log,"recon_domain_${date_recon}"}
         log_dir="${output_dir}/${domain}/log"
-        log_execution_file="${log_dir}/recon_domain_execution_${date_recon}.log"
+        log_execution_file="${log_dir}/recon_domain_${date_recon}.log"
         recon_dir="${output_dir}/${domain}/recon_domain_${date_recon}"
         # secundaries directories
         mkdir -p "${recon_dir}"/{aquatone-data,nmap,nuclei-data,report,tmp,wayback-data,web-data}
@@ -568,7 +568,7 @@ domain_execution(){
         git_rebuild
     fi
     #report
-    message) > "${log_execution_file}" 2>&1 | tee -a "${log_execution_file}"
+    message) 2>> "${log_execution_file}" | tee -a "${log_execution_file}"
 }
 
 url_execution(){
@@ -599,7 +599,7 @@ url_execution(){
     done
     git_rebuild 
     message "${url_2_verify}"
-    rm "${recon_dir}/url_2_test.txt" > /dev/null 2>&1) > "${log_execution_file}" 2>&1 | tee -a "${log_execution_file}"
+    rm "${recon_dir}/url_2_test.txt" > /dev/null 2>&1) 2>> "${log_execution_file}"| tee -a "${log_execution_file}"
 }
 
 # Checking the runtime parameter dependency for domain recon
@@ -618,11 +618,11 @@ check_parameter_dependency_domain(){
 
 if [[ -n ${domain} ]] && [[ ! -s "${domain_list}" ]] && [[ -z "${url_2_verify}" ]]; then
     clear > "$(tty)"
-    echo -e "${collector_command_line}\n"
-    banner
-    check_parameter_dependency_domain
-    check_is_known_target "${domain}"
-    create_initial_directories_structure
+    echo -e "${collector_command_line}\n" | tee -a "${log_execution_file}"
+    banner | tee -a "${log_execution_file}"
+    check_parameter_dependency_domain | tee -a "${log_execution_file}"
+    check_is_known_target "${domain}" | tee -a "${log_execution_file}"
+    create_initial_directories_structure | tee -a "${log_execution_file}"
     domain_execution
 fi
 
@@ -630,10 +630,10 @@ if [[ -z ${domain} ]] && [[ -s "${domain_list}" ]] && [[ -z "${url_2_verify}" ]]
     unset domain
     while read -r domain; do 
         clear > "$(tty)"
-        echo -e "${collector_command_line}\n"
-        banner
-        check_parameter_dependency_domain
-        check_is_known_target "${domain}"
+        echo -e "${collector_command_line}\n" | tee -a "${log_execution_file}"
+        banner | tee -a "${log_execution_file}"
+        check_parameter_dependency_domain | tee -a "${log_execution_file}"
+        check_is_known_target "${domain}" | tee -a "${log_execution_file}"
         create_initial_directories_structure
         if [[ $(host -t A "${domain}" | grep -E "has.address" | awk '{print $4}' | grep -E "${IPv4_regex}$" > /dev/null 2>&1 ; echo $?) -eq 0 ]]; then
             domain_execution
@@ -666,10 +666,10 @@ if [[ -z ${domain} ]] && [[ ! -s "${domain_list}" ]] && [[ -n "${url_2_verify}" 
     done
 
     clear > "$(tty)"
-    echo -e "$0 $*\n"
-    banner
-    check_is_known_target "${url_domain}"
-    create_initial_directories_structure
+    echo -e "$0 $*\n" | tee -a "${log_execution_file}"
+    banner | tee -a "${log_execution_file}"
+    check_is_known_target "${url_domain}" | tee -a "${log_execution_file}"
+    create_initial_directories_structure | tee -a "${log_execution_file}"
 
     [[ -s "${recon_dir}/url_2_test.txt"  ]] && rm "${recon_dir}/url_2_test.txt"
 
