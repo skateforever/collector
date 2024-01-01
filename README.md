@@ -11,37 +11,60 @@ Recommended to run on vps with 1VCPU and 2GB ram.
 
 To run you need to install some tools and get some API keys. </br>
 
-For now collector use:</br>
+Lists of API/Web Sites for recon used in the collector:</br>
+
+    * alienvault
+    * binaryedge
+    * builitwith
+    * censys
+    * certspotter
+    * commoncrawl
+    * crt.sh
+    * dnsdb
+    * dnsdumpster
+    * hackertarget
+    * rapiddns
+    * riskiq
+    * securitytrails
+    * threatcrowd
+    * threatminer
+    * virustotal
+    * webarchive
+    * whoisxmlapi
+
+Lists of tools for recon used in the collector:</br>
 
     * amass
-    * aquatone
-    * certspotter
-    * chromium
-    * crt.sh
-    * dirsearch
     * dnssearch
+    * gobuster
+    * nmap
+    * shodan
+    * subfinder
+
+Lists of tools for web data function used in the collector:</br>
+
+    * aquatone
+    * chromium
+    * dirsearch
     * git-dumper
     * gobuster
-    * html2text
     * httpx
-    * jq
-    * nmap
     * nuclei
-    * subfinder
     * wayback
 </br>
+
 In the future I pretend to use dnsrecon, massdns, sublist3r and others tools to get more subdomains and others information.</br>
 
 But to facility this work I made another script get those tools:</br>
 
-`curl -kLOs https://raw.githubusercontent.com/skateforever/pentest-scripts/main/useful/get-tools.sh`
-`chmod -x get-tools.sh`
-`./get-tools.sh -u root -l /opt/pentest/ -p web`
+`curl -kLOs https://raw.githubusercontent.com/skateforever/pentest-scripts/main/useful/get-tools.sh` </br>
+`chmod -x get-tools.sh` </br>
+`./get-tools.sh -u root -l /opt/pentest/ -p web` </br>
 
 You don't need to run the collector or get-tools.sh from root. </br>
 If you'll run the collector with another user, you can try run the get-tool.sh like that: </br>
 
-`./get-tools.sh -u skate4ever -l /opt/pentest/ -p web`
+`sudo -H ./get-tools.sh -u skate4ever -l /opt/pentest/ -p web`
 
 After that, you can configure the collector.cfg and use as below. </br>
 
