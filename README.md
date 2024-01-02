@@ -58,7 +58,7 @@ In the future I pretend to use dnsrecon, massdns, sublist3r and others tools to 
 But to facility this work I made another script get those tools:</br>
 
 `curl -kLOs https://raw.githubusercontent.com/skateforever/pentest-scripts/main/useful/get-tools.sh` </br>
-`chmod -x get-tools.sh` </br>
+`chmod +x get-tools.sh` </br>
 `./get-tools.sh -u root -l /opt/pentest/ -p web` </br>
 
 You don't need to run the collector or get-tools.sh from root. </br>
