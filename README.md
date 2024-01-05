@@ -209,5 +209,7 @@ https://github.com/nahamsec/Resources-for-Beginner-Bug-Bounty-Hunters </br>
 https://www.offensity.com/en/blog/just-another-recon-guide-pentesters-and-bug-bounty-hunters/ </br>
 https://blog.projectdiscovery.io/reconnaissance-a-deep-dive-in-active-passive-reconnaissance/ </br>
 https://0xffsec.com/handbook/information-gathering/subdomain-enumeration/#content-security-policy-csp-header </br>
+https://www.ceeyu.io/resources/blog/subdomain-enumeration-tools-and-techniques </br>
+https://securitytrails.com/blog/dns-enumeration </br>
 
 **Warning:** The code of all scripts find here was originally created for personal use, it generates a substantial amount of traffic, please use with caution. 
