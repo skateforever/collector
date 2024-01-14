@@ -211,5 +211,6 @@ https://blog.projectdiscovery.io/reconnaissance-a-deep-dive-in-active-passive-re
 https://0xffsec.com/handbook/information-gathering/subdomain-enumeration/#content-security-policy-csp-header </br>
 https://www.ceeyu.io/resources/blog/subdomain-enumeration-tools-and-techniques </br>
 https://securitytrails.com/blog/dns-enumeration </br>
+https://securitytrails.com/blog/whois-records-infosec-industry </br>
 
 **Warning:** The code of all scripts find here was originally created for personal use, it generates a substantial amount of traffic, please use with caution. 

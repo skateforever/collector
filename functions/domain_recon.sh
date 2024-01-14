@@ -84,6 +84,9 @@ subdomains_recon(){
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing crt.sh... "
         curl -ks "https://crt.sh/?q=%25.${domain}&output=json" | jq -r '.[].name_value' 2>> "${log_execution_file}" | \
             sed 's/\*\.//g' | sort -u >> "${tmp_dir}/crtsh_output.txt"
+        echo "SELECT ci.NAME_VALUE NAME_VALUE FROM certificate_identity ci WHERE ci.NAME_TYPE = 'dNSName' AND reverse(lower(ci.NAME_VALUE)) LIKE reverse(lower('%.${domain}'));" \
+            | psql -t -h crt.sh -p 5432 certwatch guest \
+            | sed -e 's:^ *::g' -e 's:^*\::g' -e '/^$/d' -e 's:*.::g' | sort -u >> "${tmp_dir}/crtsh_output.txt"
         echo "Done!"
         echo "curl -ks \"https://crt.sh/?q=%25.${domain}&output=json\" | jq -r '.[].name_value'" >> "${log_execution_file}"
         sleep 1
@@ -558,9 +561,9 @@ hdc(){
         # and would like to collaborate please PR
         # https://domaineye.com/reverse-whois/
 
-        domains_reversewhois+=($(curl -kLs "https://www.reversewhois.io/?searchterm=${email}" | \
-            "html2text" | grep -E "^[0-9]"| awk '{print $2}' | sed 's/|//'))
-        domains_found_temp+=("${domains_reversewhois[@]}")
+        #domains_reversewhois+=($(curl -kLs "https://www.reversewhois.io/?searchterm=${email}" | \
+        #    "html2text" | grep -E "^[0-9]"| awk '{print $2}' | sed 's/|//'))
+        #domains_found_temp+=("${domains_reversewhois[@]}")
 
         domains_viewdns+=($(curl -kLs -A "${curl_agent}" "https://viewdns.info/reversewhois/?q=${email}" | "html2text" | \
             grep -Po "[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)" | \
@@ -583,10 +586,56 @@ hdc(){
             | jq -r '.Relationships[].Identifiers[].Matches[].Domain' | grep -v "${domain}" >> "${tmp}/domains_correlation_tmp.txt"
         curl "${curl_options[@]}" "${builtwith_api_url}/redirect1/api.json?KEY=${builtwith_api_key}&LOOKUP=${domain}" \
             | jq -r '.Inbound[].Domain' | grep -v "${domain}" >> "${tmp}/domains_correlation_tmp.txt"
+        echo "curl ${curl_options[@]} \"${builtwith_api_url}/rv2/api.json?KEY=${builtwith_api_key}&LOOKUP=${domain}\" \
+            | jq -r '.Relationships[].Identifiers[].Matches[].Domain'" >> "${log_execution_file}"
+        echo "curl ${curl_options[@]} \"${builtwith_api_url}/redirect1/api.json?KEY=${builtwith_api_key}&LOOKUP=${domain}\" \
+            | jq -r '.Inbound[].Domain'" >> "${log_execution_file}"
     fi
 
-    if [ -n "${whoisxmlapi_apikey}" ]; then
-        curl ${curl_options[@]} "${whoisxmlapi_hdc_url}" -H "Content-Type: application/json" --data '{"apiKey": "'${whoisxmlapi_apikey}'","limit": 10000,"recordType": "soa","terms": [{"field": "domain","term": "'${domain}'"},{"field": "value","term": "ns1.google*"}],"outputFormat":"JSON"}'
+    if [[ -n "${securitytrails_api_key}" ]] && [[ -n "${securitytrails_api_url}" ]]; then
+        for email in "${emails[@]}"; do
+            curl "${curl_options[@]}" -X POST -H 'content-type: application/json' -H "APIKEY: ${securitytrails_api_key}" \
+                "${securitytrails_api_url}/domains/list?include_ips=false&scroll=false" \
+                --data '{"filter": {"whois_email": "'"${email}"'"}}' \
+                | jq -r '.records.[].hostname' 2> /dev/null >> "${tmp}/domains_correlation_tmp.txt"
+        done
+
+        for ns in "${domains_ns[@]}"; do
+            curl "${curl_options[@]}"  -X POST -H 'content-type: application/json' -H "APIKEY: ${securitytrails_api_key}" \
+                "${securitytrails_api_url}/domains/list?include_ips=false&scroll=false" \
+                --data '{"filter": {"ns": "'"${ns}"'"}}' \
+                | jq -r '.records.[].hostname' 2> /dev/null >> "${tmp}/domains_correlation_tmp.txt"
+        done
+
+        whois "${domain}" \
+            | grep -Ei "^owner:|^person:|^Registrant Organization:|^Tech Organization:" \
+            | awk -F':' '{print $2}' \
+            | sed 's/^[[:blank:]]*//' | \
+            while read company_name; do
+                curl "${curl_options[@]}" -X POST -H 'content-type: application/json' -H "APIKEY: ${securitytrails_api_key}" \
+                    "${securitytrails_api_url}/domains/list?include_ips=false&scroll=false" \
+                    --data '{"filter": {"whois_organization": "'"${company_name}"'"}}' \
+                    | jq -r '.records.[].hostname' 2> /dev/null >> "${tmp}/domains_correlation_tmp.txt"
+            done
+    fi
+
+    if [[ -n "${whoisxmlapi_apikey}" ]] && [[ -n "${whoisxmlapi_hdc_ns_url}" ]]; then
+        for ns in "${domains_ns[@]}"; do
+            curl "${curl_options[@]}" -H "Content-Type: application/json" "${whoisxmlapi_hdc_ns_url}?apikey=${whoisxmlapi_apikey}&ns=${ns}" \
+                | jq -r '.result.[].name' 2> /dev/null | sort -u >> "${tmp}/domains_correlation_tmp.txt"
+        done
+    fi
+
+    if [[ -n "${whoisxmlapi_apikey}" ]] && [[ -n "${whoisxmlapi_hdc_whois_url}" ]]; then
+        whois "${domain}" \
+            | grep -Ei "^owner:|^person:|^Registrant Organization:|^Tech Organization:" \
+            | awk -F':' '{print $2}' \
+            | sed 's/^[[:blank:]]*//' | \
+            while read company_name; do
+                curl "${curl_options[@]}" -H "Content-Type: application/json" "${whoisxmlapi_hdc_whois_url}" \
+                    --data '{"apiKey":"'${whoisxmlapi_apikey}'", "searchType": "current", "mode": "purchase", "punycode": true, "advancedSearchTerms": [{"field": "RegistrantContact.Organization", "term": "'${company_name}'", "exactMatch": true}]}' \
+                    | jq -r 2> /dev/null >> "${tmp}/domains_correlation_tmp.txt"
+            done
     fi
 
     if sort -u -o "${report_dir}/domains_correlation_found.txt" "${tmp}/domains_correlation_tmp.txt"; then
