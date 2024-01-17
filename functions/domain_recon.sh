@@ -582,29 +582,43 @@ hdc(){
     fi
 
     if [[ -n "${builtwith_api_key}" ]] && [[ -n "${builtwith_api_url}" ]]; then
-        curl "${curl_options[@]}" "${builtwith_api_url}/rv2/api.json?KEY=${builtwith_api_key}&LOOKUP=${domain}" \
-            | jq -r '.Relationships[].Identifiers[].Matches[].Domain' | grep -v "${domain}" >> "${tmp}/domains_correlation_tmp.txt"
-        curl "${curl_options[@]}" "${builtwith_api_url}/redirect1/api.json?KEY=${builtwith_api_key}&LOOKUP=${domain}" \
-            | jq -r '.Inbound[].Domain' | grep -v "${domain}" >> "${tmp}/domains_correlation_tmp.txt"
         echo "curl ${curl_options[@]} \"${builtwith_api_url}/rv2/api.json?KEY=${builtwith_api_key}&LOOKUP=${domain}\" \
             | jq -r '.Relationships[].Identifiers[].Matches[].Domain'" >> "${log_execution_file}"
+        curl "${curl_options[@]}" "${builtwith_api_url}/rv2/api.json?KEY=${builtwith_api_key}&LOOKUP=${domain}" \
+            | jq -r '.Relationships[].Identifiers[].Matches[].Domain' 2>> "${log_execution_file}" | grep -v "${domain}" >> "${tmp}/domains_correlation_tmp.txt"
         echo "curl ${curl_options[@]} \"${builtwith_api_url}/redirect1/api.json?KEY=${builtwith_api_key}&LOOKUP=${domain}\" \
-            | jq -r '.Inbound[].Domain'" >> "${log_execution_file}"
+            | jq -r '.Inbound[].Domain'" >> "${log_execution_file}" >> "${log_execution_file}"
+        curl "${curl_options[@]}" "${builtwith_api_url}/redirect1/api.json?KEY=${builtwith_api_key}&LOOKUP=${domain}" \
+            | jq -r '.Inbound[].Domain' 2>> "${log_execution_file}" | grep -v "${domain}" >> "${tmp}/domains_correlation_tmp.txt"
     fi
 
     if [[ -n "${securitytrails_api_key}" ]] && [[ -n "${securitytrails_api_url}" ]]; then
         for email in "${emails[@]}"; do
-            curl "${curl_options[@]}" -X POST -H 'content-type: application/json' -H "APIKEY: ${securitytrails_api_key}" \
-                "${securitytrails_api_url}/domains/list?include_ips=false&scroll=false" \
-                --data '{"filter": {"whois_email": "'"${email}"'"}}' \
-                | jq -r '.records.[].hostname' 2> /dev/null >> "${tmp}/domains_correlation_tmp.txt"
+            total_pages=$(curl "${curl_options[@]}" -X POST -H 'content-type: application/json' -H "APIKEY: ${securitytrails_api_key}" "${securitytrails_api_url}/domains/list?include_ips=false&scroll=false" --data '{"filter": {"whois_email": "'"${email}"'"}}' | jq -r '.meta.total_pages')
+            for p in $(seq 1 ${total_pages}); do
+                echo "curl ${curl_options[@]} -X POST -H 'content-type: application/json' -H \"APIKEY: ${securitytrails_api_key}\" \
+                    \"${securitytrails_api_url}/domains/list?include_ips=false&scroll=false&page=$p\" \
+                    --data '{\"filter\": {\"whois_email\": \"${email}\"}}' \
+                    | jq -r '.records.[].hostname'" >> "${log_execution_file}"
+                curl "${curl_options[@]}" -X POST -H 'content-type: application/json' -H "APIKEY: ${securitytrails_api_key}" \
+                    "${securitytrails_api_url}/domains/list?include_ips=false&scroll=false&page=$p" \
+                    --data '{"filter": {"whois_email": "'"${email}"'"}}' \
+                    | jq -r '.records.[].hostname' 2>> "${log_execution_file}" >> "${tmp}/domains_correlation_tmp.txt"
+            done
         done
 
         for ns in "${domains_ns[@]}"; do
-            curl "${curl_options[@]}"  -X POST -H 'content-type: application/json' -H "APIKEY: ${securitytrails_api_key}" \
-                "${securitytrails_api_url}/domains/list?include_ips=false&scroll=false" \
-                --data '{"filter": {"ns": "'"${ns}"'"}}' \
-                | jq -r '.records.[].hostname' 2> /dev/null >> "${tmp}/domains_correlation_tmp.txt"
+            total_pages=$(curl "${curl_options[@]}"  -X POST -H 'content-type: application/json' -H "APIKEY: ${securitytrails_api_key}" "${securitytrails_api_url}/domains/list?include_ips=false&scroll=false" --data '{"filter": {"ns": "'"${ns}"'"}}' | jq -r '.meta.total_pages')
+            for p in $(seq 1 ${total_pages}); do
+                echo "curl ${curl_options[@]} -X POST -H 'content-type: application/json' -H \"APIKEY: ${securitytrails_api_key}\" \
+                    \"${securitytrails_api_url}/domains/list?include_ips=false&scroll=false&page=$p\" \
+                    --data '{\"filter\": {\"ns\": \"${ns}\"}}' \
+                    | jq -r '.records.[].hostname'" >> "${log_execution_file}"
+                curl "${curl_options[@]}" -X POST -H 'content-type: application/json' -H "APIKEY: ${securitytrails_api_key}" \
+                    "${securitytrails_api_url}/domains/list?include_ips=false&scroll=false&page=$p" \
+                    --data '{"filter": {"ns": "'"${ns}"'"}}' \
+                    | jq -r '.records.[].hostname' 2>> "${log_execution_file}" >> "${tmp}/domains_correlation_tmp.txt"
+            done
         done
 
         whois "${domain}" \
@@ -612,17 +626,26 @@ hdc(){
             | awk -F':' '{print $2}' \
             | sed 's/^[[:blank:]]*//' | \
             while read company_name; do
-                curl "${curl_options[@]}" -X POST -H 'content-type: application/json' -H "APIKEY: ${securitytrails_api_key}" \
-                    "${securitytrails_api_url}/domains/list?include_ips=false&scroll=false" \
-                    --data '{"filter": {"whois_organization": "'"${company_name}"'"}}' \
-                    | jq -r '.records.[].hostname' 2> /dev/null >> "${tmp}/domains_correlation_tmp.txt"
+                total_pages=$(curl "${curl_options[@]}" -X POST -H 'content-type: application/json' -H "APIKEY: ${securitytrails_api_key}" "${securitytrails_api_url}/domains/list?include_ips=false&scroll=false" --data '{"filter": {"whois_organization": "'"${company_name}"'"}}' | jq -r '.meta.total_pages')
+                for p in $(seq 1 ${total_pages}); do
+                    echo "curl ${curl_options[@]} -X POST -H 'content-type: application/json' -H \"APIKEY: ${securitytrails_api_key}\" \
+                        \"${securitytrails_api_url}/domains/list?include_ips=false&scroll=false&page=$p\" \
+                        --data '{\"filter\": {\"whois_organization\": \"${company_name}\"}}' \
+                        | jq -r '.records.[].hostname'" >> "${log_execution_file}"
+                    curl "${curl_options[@]}" -X POST -H 'content-type: application/json' -H "APIKEY: ${securitytrails_api_key}" \
+                        "${securitytrails_api_url}/domains/list?include_ips=false&scroll=false&page=$p" \
+                        --data '{"filter": {"whois_organization": "'"${company_name}"'"}}' \
+                        | jq -r '.records.[].hostname' 2>> "${log_execution_file}" >> "${tmp}/domains_correlation_tmp.txt"
+                done
             done
     fi
 
     if [[ -n "${whoisxmlapi_apikey}" ]] && [[ -n "${whoisxmlapi_hdc_ns_url}" ]]; then
         for ns in "${domains_ns[@]}"; do
+            echo "curl ${curl_options[@]} -H \"Content-Type: application/json\" \"${whoisxmlapi_hdc_ns_url}?apikey=${whoisxmlapi_apikey}&ns=${ns}\" \
+                | jq -r '.result.[].name'" >> "${log_execution_file}"
             curl "${curl_options[@]}" -H "Content-Type: application/json" "${whoisxmlapi_hdc_ns_url}?apikey=${whoisxmlapi_apikey}&ns=${ns}" \
-                | jq -r '.result.[].name' 2> /dev/null | sort -u >> "${tmp}/domains_correlation_tmp.txt"
+                | jq -r '.result.[].name' 2>> "${log_execution_file}" | sort -u >> "${tmp}/domains_correlation_tmp.txt"
         done
     fi
 
@@ -632,9 +655,12 @@ hdc(){
             | awk -F':' '{print $2}' \
             | sed 's/^[[:blank:]]*//' | \
             while read company_name; do
+                echo "curl ${curl_options[@]} -H 'Content-Type: application/json' \"${whoisxmlapi_hdc_whois_url}\" \
+                    --data '{\"apiKey\":\"${whoisxmlapi_apikey}\", \"searchType\": \"current\", \"mode\": \"purchase\", \"punycode\": true, \"basicSearchTerms\": {\"include\":[\"${company_name}\"]}}' \
+                    | jq -r '.domainsList.[]'" >> "${log_execution_file}"
                 curl "${curl_options[@]}" -H "Content-Type: application/json" "${whoisxmlapi_hdc_whois_url}" \
-                    --data '{"apiKey":"'${whoisxmlapi_apikey}'", "searchType": "current", "mode": "purchase", "punycode": true, "advancedSearchTerms": [{"field": "RegistrantContact.Organization", "term": "'${company_name}'", "exactMatch": true}]}' \
-                    | jq -r 2> /dev/null >> "${tmp}/domains_correlation_tmp.txt"
+                    --data '{"apiKey":"'"${whoisxmlapi_apikey}"'", "searchType": "current", "mode": "purchase", "punycode": true, "basicSearchTerms": {"include":["'"${company_name}"'"]}}' \
+                    | jq -r '.domainsList.[]' 2>> "${log_execution_file}" >> "${tmp}/domains_correlation_tmp.txt"
             done
     fi
 

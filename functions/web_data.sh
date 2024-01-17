@@ -17,15 +17,14 @@ web_data(){
     else
         urls_file=$1
         if [ -s "${urls_file}" ]; then
-            if [ -d "${report_dir}" ] && [ -d "${web_data_dir}" ] && [ -d "${nuclei_dir}" ] && [ -d "${wayback_dir}" ]; then
+            if [ -d "${report_dir}" ] && [ -d "${nuclei_dir}" ] && [ -d "${web_data_dir}" ] && [ -d "${web_params_dir}" ] && [ -d "${web_tech_dir}" ] ; then
                 echo -e "${red}Warning:${reset} It can take a long time to execute the web_data function!"
                 echo -e "\t We have $(wc -l "${urls_file}" | awk '{print $1}') urls to scan and ${#web_wordlists[@]} wordlist(s) to run."
                 echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Getting information about urls from response... "
                 httpx -no-color -silent -update > /dev/null 2>&1
                 while IFS= read -r url; do
                     name="$(echo "${url}" | sed -e "s/http:\/\//http_/" -e "s/https:\/\//https_/" -e "s/:/_/" -e "s/\/$//" -e "s/\//_/g")"
-                    file_header_response="${name}_headers_response.txt"
-                    > "${web_data_dir}/${file_header_response}"
+                    file_tech_by_headers="${name}.tech"
                     if [ -n "${use_proxy}" ] && [ "${use_proxy}" == "yes" ]; then
                         if [ "${web_tool_detection}" == "curl" ]; then
                             alias curl="curl --proxy ${proxy_ip}"
@@ -36,13 +35,13 @@ web_data(){
                     fi
                     if [ "${web_tool_detection}" == "curl" ]; then
                         echo "curl ${curl_options[@]} -I ${url}" >> "${log_execution_file}"
-                        curl ${curl_options[@]} -I "${url}" >> "${web_data_dir}/${file_header_response}" 2>> "${log_execution_file}"
+                        curl ${curl_options[@]} -I "${url}" >> "${web_tech_dir}/${file_tech_by_headers}" 2>> "${log_execution_file}"
                     fi
                     if [ "${web_tool_detection}" == "httpx" ]; then
                         echo "echo ${url} | httpx -silent -no-color -title -status-code -tech-detect -follow-redirects -timeout 3" >> "${log_execution_file}"
-                        echo "${url}" | httpx -silent -no-color -title -status-code -tech-detect -follow-redirects -timeout 3 >> "${web_data_dir}/${file_header_response}" 2>> "${log_execution_file}"
+                        echo "${url}" | httpx -silent -no-color -title -status-code -tech-detect -follow-redirects -timeout 3 >> "${web_tech_dir}/${file_tech_by_headers}" 2>> "${log_execution_file}"
                     fi
-                    unset file_header_response
+                    unset file_tech_by_headers
                     unset name
                     unset url
                 done < "${urls_file}"
@@ -55,14 +54,14 @@ web_data(){
                 nuclei -no-color -silent -update-templates > /dev/null 2>&1
                 while IFS= read -r url; do
                     name="$(echo "${url}" | sed -e "s/http:\/\//http_/" -e "s/https:\/\//https_/" -e "s/:/_/" -e "s/\/$//" -e "s/\//_/g")"
-                    file_nuclei="${name}_nuclei.txt"
+                    file_nuclei="${name}.nuclei"
                     if [ -n "${use_proxy}" ] && [ "${use_proxy}" == "yes" ]; then
                         echo "echo ${url} | nuclei -no-color -silent -proxy-url \"http://${proxy_ip}\" -H \"User-Agent: ${nuclei_agent}\" -t \"${nuclei_templates_dir}\"" >> "${log_execution_file}"
-                        echo "${url}" | nuclei -no-color -silent -proxy-url "http://${proxy_ip}" -H "User-Agent: ${nuclei_agent}" -t "${nuclei_templates_dir}" \
+                        echo "${url}" | nuclei -no-color -silent -c 50 -proxy-url "http://${proxy_ip}" -H "User-Agent: ${nuclei_agent}" -t "${nuclei_templates_dir}" \
                             >> "${nuclei_dir}/${file_nuclei}" 2>> "${log_execution_file}" &
                     else
                         echo "echo ${url} | nuclei -no-color -silent -t ${nuclei_templates_dir}" >> "${log_execution_file}"
-                        echo "${url}" | nuclei -no-color -silent -t "${nuclei_templates_dir}" >> "${nuclei_dir}/${file_nuclei}" 2>> "${log_execution_file}" &
+                        echo "${url}" | nuclei -no-color -silent -c 50 -t "${nuclei_templates_dir}" >> "${nuclei_dir}/${file_nuclei}" 2>> "${log_execution_file}" &
                     fi
                     while [[ "$(pgrep -acf "[n]uclei")" -ge "${web_data_total_processes}" ]]; do
                         sleep 1
@@ -81,8 +80,8 @@ web_data(){
                             while IFS= read -r url; do
                                 # Mounting the file names
                                 name="$(echo "${url}" | sed -e "s/http:\/\//http_/" -e "s/https:\/\//https_/" -e "s/:/_/" -e "s/\/$//" -e "s/\//_/g")"
-                                file_gobuster="${name}_gobuster_${index}.txt"
-                                file_dirsearch="${name}_dirsearch_${index}.txt"
+                                file_gobuster="${name}.gobuster.${index}"
+                                file_dirsearch="${name}.dirsearch.${index}"
                                 if [ -n "${use_proxy}" ] && [ "${use_proxy}" == "yes" ]; then
                                     # Skipping the specific wordlist from dirsearch on gobuster
                                     if grep -E "\.\%EXT\%|\.\%EX\%" "${list}" > /dev/null 2>&1 ; then
@@ -152,9 +151,20 @@ web_data(){
                 echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing wayback... "
                 while IFS= read -r url; do
                     name=$(echo "${url}" | sed -e "s/http:\/\//http_/" -e "s/https:\/\//https_/" -e "s/:/_/" -e "s/\/$//" -e "s/\//_/g")
-                    file="wayback_${name}.txt"
+                    file="${name}.wayback"
                     echo "echo ${url} | waybackurls" >> "${log_execution_file}"
-                    echo "${url}" | waybackurls > "${wayback_dir}/${file}" 2>> "${log_execution_file}"
+                    echo "${url}" | waybackurls > "${web_params_dir}/${file}" 2>> "${log_execution_file}"
+                    unset file
+                done < "${urls_file}"
+                unset url
+                echo "Done!"
+
+                echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing katana... "
+                while IFS= read -r url; do
+                    name=$(echo "${url}" | sed -e "s/http:\/\//http_/" -e "s/https:\/\//https_/" -e "s/:/_/" -e "s/\/$//" -e "s/\//_/g")
+                    file="${name}.katana"
+                    echo "echo ${url} | katana -silent -nc -c 50 -p 50 -f qurl,qpath,kv -d 50 > ${web_params_dir}/${file}" >> "${log_execution_file}"
+                    echo "${url}" | katana -silent -nc -c 50 -p 50 -f qurl,qpath,kv -d 50 > "${web_params_dir}/${file}" 2>> "${log_execution_file}"
                     unset file
                 done < "${urls_file}"
                 unset url

@@ -423,41 +423,43 @@ create_initial_directories_structure(){
 
     if [ "${directories_structure}" == "domain" ]; then
         # Create all dirs necessaries to report and recon for domain
-        mkdir -p "${output_dir}/${domain}"/{log,"recon_domain_${date_recon}"}
+        mkdir -p "${output_dir}/${domain}"/{log,"domain_${date_recon}"}
         log_dir="${output_dir}/${domain}/log"
-        log_execution_file="${log_dir}/recon_domain_${date_recon}.log"
-        recon_dir="${output_dir}/${domain}/recon_domain_${date_recon}"
+        log_execution_file="${log_dir}/domain_${date_recon}.log"
+        recon_dir="${output_dir}/${domain}/domain_${date_recon}"
         # secundaries directories
-        mkdir -p "${recon_dir}"/{aquatone-data,nmap,nuclei-data,report,tmp,wayback-data,web-data}
-        aquatone_files_dir="${recon_dir}/aquatone-data"
+        mkdir -p "${recon_dir}"/{aquatone,nmap,nuclei,report,tmp,web-data,web-params,web-tech}
+        aquatone_files_dir="${recon_dir}/aquatone"
         nmap_dir="${recon_dir}/nmap"
-        nuclei_dir="${recon_dir}/nuclei-data"
+        nuclei_dir="${recon_dir}/nuclei"
         report_dir="${recon_dir}/report"
-        shodan_dir="${recon_dir}/shodan-data"
+        shodan_dir="${recon_dir}/shodan"
         if [[ "${shodan_use}" == "yes" ]] && [[ ! -d "${shodan_dir}" ]]; then
             mkdir -p "${shodan_dir}"
         fi
         tmp_dir="${recon_dir}/tmp"
-        wayback_dir="${recon_dir}/wayback-data"
         web_data_dir="${recon_dir}/web-data"
+        web_params_dir="${recon_dir}/web-params"
+        web_tech_dir="${recon_dir}/web-tech"
     fi
 
     if [ "${directories_structure}" == "url" ]; then
         # Create all dirs necessaries to report and recon for url
-        mkdir -p "${output_dir}"/"${url_domain}"/{log,"recon_url_${date_recon}"}
+        mkdir -p "${output_dir}"/"${url_domain}"/{log,"url_${date_recon}"}
         log_dir="${output_dir}/${url_domain}/log"
-        log_execution_file="${log_dir}/recon_url_${date_recon}.log"
-        recon_dir="${output_dir}/${url_domain}/recon_url_${date_recon}"
+        log_execution_file="${log_dir}/url_${date_recon}.log"
+        recon_dir="${output_dir}/${url_domain}/url_${date_recon}"
     
         # secundaries directories
-        mkdir -p "${recon_dir}/${url_base}"/{report,aquatone-data}
+        mkdir -p "${recon_dir}/${url_base}"/{report,aquatone}
         report_dir="${recon_dir}/${url_base}/report"
-        aquatone_files_dir="${recon_dir}/${url_base}/aquatone-data"
+        aquatone_files_dir="${recon_dir}/${url_base}/aquatone"
         nuclei_dir="${report_dir}"
         shodan_dir="${report_dir}"
         tmp_dir="${report_dir}"
         web_data_dir="${report_dir}"
-        wayback_dir="${report_dir}"
+        web_params_dir="${report_dir}"
+        web_tech_dir="${report_dir}"
     fi
 
 }
@@ -502,14 +504,15 @@ domain_execution(){
                 break
             fi
         done
-        aquatone_files_dir="${recon_dir}/aquatone-data"
+        aquatone_files_dir="${recon_dir}/aquatone"
         nmap_dir="${recon_dir}/nmap"
-        nuclei_dir="${recon_dir}/nuclei-data"
+        nuclei_dir="${recon_dir}/nuclei"
         report_dir="${recon_dir}/report"
-        shodan_dir="${recon_dir}/shodan-data"
+        shodan_dir="${recon_dir}/shodan"
         tmp_dir="${recon_dir}/tmp"
-        wayback_dir="${recon_dir}/wayback-data"
         web_data_dir="${recon_dir}/web-data"
+        web_params_dir="${recon_dir}/web-params"
+        web_tech_dir="${recon_dir}/web-tech"
     fi
 
     echo "Directory structure created and ready to work." | tee -a "${log_execution_file}"
@@ -520,12 +523,13 @@ domain_execution(){
     echo "${output_dir}/${domain}"
     echo -e " ├── log (${yellow}log dir for collector script execution${reset})"
     echo -e " └── $(basename "${recon_dir}")"
-    echo -e "     ├── aquatone-data (${yellow}aquatone output files${reset})"
-    echo -e "     ├── nuclei-data (${yellow}nuclei execution output files${reset})"
+    echo -e "     ├── aquatone (${yellow}aquatone output files${reset})"
+    echo -e "     ├── nuclei (${yellow}nuclei execution output files${reset})"
     echo -e "     ├── report (${yellow}adjust function output files${reset})"
     echo -e "     ├── tmp (${yellow}subdomains recon tmp files${reset})"
-    echo -e "     ├── wayback-data (${yellow}web data function for waybackurl output${reset})"
-    echo -e "     └── web-data (${yellow}web data function for gobuster and dirsearch output${reset})"
+    echo -e "     ├── web-data (${yellow}web data function for gobuster and dirsearch output${reset})"
+    echo -e "     ├── web-params (${yellow}web data function for katana and waybackurl output${reset})"
+    echo -e "     └── web-tech (${yellow}web data function for response headers using curl or httpx output${reset})"
     echo " "
     echo -e "${red}Attention:${reset} The output from all tools used here will be placed in background and treated later."
     echo -e "\t   If you need look the output in execution time, you need to \"tail\" the files."
