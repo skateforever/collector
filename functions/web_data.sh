@@ -163,8 +163,8 @@ web_data(){
                 while IFS= read -r url; do
                     name=$(echo "${url}" | sed -e "s/http:\/\//http_/" -e "s/https:\/\//https_/" -e "s/:/_/" -e "s/\/$//" -e "s/\//_/g")
                     file="${name}.katana"
-                    echo "echo ${url} | katana -silent -nc -c 50 -p 50 -f qurl,qpath,kv -d 50 > ${web_params_dir}/${file}" >> "${log_execution_file}"
-                    echo "${url}" | katana -silent -nc -c 50 -p 50 -f qurl,qpath,kv -d 50 > "${web_params_dir}/${file}" 2>> "${log_execution_file}"
+                    echo "echo ${url} | katana -silent -nc -c 50 -p 50 -f qurl,qpath,kv -d 50 | grep -E \"^http\" | sort -u > ${web_params_dir}/${file}" >> "${log_execution_file}"
+                    echo "${url}" | katana -silent -nc -c 50 -p 50 -f qurl,qpath,kv -d 50 | grep -E "^http" | sort -u > "${web_params_dir}/${file}" 2>> "${log_execution_file}"
                     unset file
                 done < "${urls_file}"
                 unset url
