@@ -49,28 +49,6 @@ web_data(){
                 unalias httpx > /dev/null 2>&1
                 echo "Done!"
 
-                echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing nuclei... "
-                nuclei -no-color -silent -update > /dev/null 2>&1
-                nuclei -no-color -silent -update-templates > /dev/null 2>&1
-                while IFS= read -r url; do
-                    name="$(echo "${url}" | sed -e "s/http:\/\//http_/" -e "s/https:\/\//https_/" -e "s/:/_/" -e "s/\/$//" -e "s/\//_/g")"
-                    file_nuclei="${name}.nuclei"
-                    if [ -n "${use_proxy}" ] && [ "${use_proxy}" == "yes" ]; then
-                        echo "echo ${url} | nuclei -no-color -silent -proxy-url \"http://${proxy_ip}\" -H \"User-Agent: ${nuclei_agent}\" -t \"${nuclei_templates_dir}\"" >> "${log_execution_file}"
-                        echo "${url}" | nuclei -no-color -silent -c 50 -proxy-url "http://${proxy_ip}" -H "User-Agent: ${nuclei_agent}" -t "${nuclei_templates_dir}" \
-                            >> "${nuclei_dir}/${file_nuclei}" 2>> "${log_execution_file}" &
-                    else
-                        echo "echo ${url} | nuclei -no-color -silent -t ${nuclei_templates_dir}" >> "${log_execution_file}"
-                        echo "${url}" | nuclei -no-color -silent -c 50 -t "${nuclei_templates_dir}" >> "${nuclei_dir}/${file_nuclei}" 2>> "${log_execution_file}" &
-                    fi
-                    while [[ "$(pgrep -acf "[n]uclei")" -ge "${web_data_total_processes}" ]]; do
-                        sleep 1
-                    done
-                    unset file_nuclei
-                    unset name
-                done < "${urls_file}"
-                echo "Done!"
-
                 if [ ${#web_wordlists[@]} -gt 0 ]; then
                     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Web data function will use ${#web_wordlists[@]} wordlists with gobuster and dirsearch... "
                     for list in "${web_wordlists[@]}"; do
@@ -169,6 +147,29 @@ web_data(){
                 done < "${urls_file}"
                 unset url
                 echo "Done!"
+
+                echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing nuclei... "
+                nuclei -no-color -silent -update > /dev/null 2>&1
+                nuclei -no-color -silent -update-templates > /dev/null 2>&1
+                while IFS= read -r url; do
+                    name="$(echo "${url}" | sed -e "s/http:\/\//http_/" -e "s/https:\/\//https_/" -e "s/:/_/" -e "s/\/$//" -e "s/\//_/g")"
+                    file_nuclei="${name}.nuclei"
+                    if [ -n "${use_proxy}" ] && [ "${use_proxy}" == "yes" ]; then
+                        echo "echo ${url} | nuclei -no-color -silent -proxy-url \"http://${proxy_ip}\" -H \"User-Agent: ${nuclei_agent}\" -t \"${nuclei_templates_dir}\"" >> "${log_execution_file}"
+                        echo "${url}" | nuclei -no-color -silent -ept ssl -c 50 -t "${nuclei_templates_dir}" -proxy-url "http://${proxy_ip}" -H "User-Agent: ${nuclei_agent}" \
+                            >> "${nuclei_dir}/${file_nuclei}" 2>> "${log_execution_file}" &
+                    else
+                        echo "echo ${url} | nuclei -no-color -silent -t ${nuclei_templates_dir}" >> "${log_execution_file}"
+                        echo "${url}" | nuclei -no-color -silent -ept ssl -c 50 -t "${nuclei_templates_dir}" >> "${nuclei_dir}/${file_nuclei}" 2>> "${log_execution_file}" &
+                    fi
+                    while [[ "$(pgrep -acf "[n]uclei")" -ge "${web_data_total_processes}" ]]; do
+                        sleep 1
+                    done
+                    unset file_nuclei
+                    unset name
+                done < "${urls_file}"
+                echo "Done!"
+
             else
                 echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Make sure the directories structure was created. Stopping the script."
                 unset urls_file
