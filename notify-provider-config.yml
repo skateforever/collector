@@ -1,0 +1,43 @@
+# You need to safe this file at home of the user the will use the collector: 
+# ~/.config/notify/provider-config.yaml
+#
+# More info: https://github.com/projectdiscovery/notify 
+
+# This is a sample how I configure the notify to send menssage
+# I have 4 channels on discord to be notified about founded vulnerabilities
+# And 1 channel to be notified when the recon is finished
+# Remeber, the way you configure your discord or other message application
+# Will afect the collector when will send the messages.
+# I recommend try do keep what I put here OR
+# if You have patience, feel free to change confirm your needs
+
+discord:
+  - id: "recon"
+    discord_channel: "reconnaissance"
+    discord_username: "Collector"
+    discord_format: "{{data}}"
+    discord_webhook_url: ""
+
+  - id: "low"
+    discord_channel: "low"
+    discord_username: "Collector"
+    discord_format: "{{data}}"
+    discord_webhook_url: ""
+
+  - id: "medium"
+    discord_channel: "medium"
+    discord_username: "Collector"
+    discord_format: "{{data}}"
+    discord_webhook_url: ""
+
+  - id: "high"
+    discord_channel: "high"
+    discord_username: "Collector"
+    discord_format: "{{data}}"
+    discord_webhook_url: ""
+
+  - id: "critical"
+    discord_channel: "critical"
+    discord_username: "Collector"
+    discord_format: "{{data}}"
+    discord_webhook_url: ""

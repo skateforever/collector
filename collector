@@ -40,7 +40,7 @@ fi
 # Verifying if all binaries there are in the system
 count=0
 for binary in amass aquatone censys-subdomain-finder.py diff dig dirsearch dnssearch git-dumper \
-   gobuster host html2text jq katana massdns nmap nuclei shodan subfinder waybackurls whois; do
+   gobuster host html2text jq katana massdns nmap notify nuclei shodan subfinder waybackurls whois; do
    if ! command -v "${binary}" > /dev/null 2>&1 ; then
       echo -e "The ${red}${binary} does not exist${reset} on the system!"
       ((count += 1))
@@ -492,6 +492,7 @@ message(){
     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${green}Recon finished on${reset} ${yellow}${target}${reset}${green}!${reset}"
     echo -e "\t\t    ${green}Consider to use recon-ng and theHarvester to help get more assets!${reset}"
     echo -e "\t\t    ${green}Use Shoda.io, Censys and others.${reset}"
+    echo "The reconnaissance for ${target} finished at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "recon"
     unset target
 }
 
@@ -623,6 +624,7 @@ check_parameter_dependency_domain(){
 if [[ -n ${domain} ]] && [[ ! -s "${domain_list}" ]] && [[ -z "${url_2_verify}" ]]; then
     clear > "$(tty)"
     echo -e "${collector_command_line}\n"
+    echo "The reconnaissance for ${target} started at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "recon"
     banner
     check_parameter_dependency_domain
     check_is_known_target "${domain}"
@@ -635,6 +637,7 @@ if [[ -z ${domain} ]] && [[ -s "${domain_list}" ]] && [[ -z "${url_2_verify}" ]]
     while read -r domain; do 
         clear > "$(tty)"
         echo -e "${collector_command_line}\n"
+        echo "The reconnaissance for ${target} started at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "recon"
         banner
         check_parameter_dependency_domain
         check_is_known_target "${domain}"
@@ -671,6 +674,7 @@ if [[ -z ${domain} ]] && [[ ! -s "${domain_list}" ]] && [[ -n "${url_2_verify}" 
 
     clear > "$(tty)"
     echo -e "$0 $*\n"
+    echo "The reconnaissance for ${target} started at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "recon"
     banner
     check_is_known_target
     create_initial_directories_structure
