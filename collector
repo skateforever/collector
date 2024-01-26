@@ -492,7 +492,7 @@ message(){
     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${green}Recon finished on${reset} ${yellow}${target}${reset}${green}!${reset}"
     echo -e "\t\t    ${green}Consider to use recon-ng and theHarvester to help get more assets!${reset}"
     echo -e "\t\t    ${green}Use Shoda.io, Censys and others.${reset}"
-    echo "The reconnaissance for ${target} finished at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "recon"
+    echo "The reconnaissance for ${target} finished at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "recon" > /dev/null
     unset target
 }
 
@@ -548,8 +548,8 @@ domain_execution(){
         fi
         infra_recon
         shodan_recon
-        webapp_alive
         hdc
+        webapp_alive
         #emails_recon
         if [ "${only_recon}" == "yes" ]; then
             message "${domain}"
@@ -573,7 +573,7 @@ domain_execution(){
         git_rebuild
     fi
     #report
-    message) 2>> "${log_execution_file}" | tee -a "${log_execution_file}"
+    message "${domain}") 2>> "${log_execution_file}" | tee -a "${log_execution_file}"
 }
 
 url_execution(){
@@ -622,9 +622,9 @@ check_parameter_dependency_domain(){
 }
 
 if [[ -n ${domain} ]] && [[ ! -s "${domain_list}" ]] && [[ -z "${url_2_verify}" ]]; then
+    echo "The reconnaissance for ${domain} started at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "recon" > /dev/null
     clear > "$(tty)"
     echo -e "${collector_command_line}\n"
-    echo "The reconnaissance for ${target} started at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "recon"
     banner
     check_parameter_dependency_domain
     check_is_known_target "${domain}"
@@ -635,9 +635,9 @@ fi
 if [[ -z ${domain} ]] && [[ -s "${domain_list}" ]] && [[ -z "${url_2_verify}" ]]; then
     unset domain
     while read -r domain; do 
-        clear > "$(tty)"
+        echo "The reconnaissance for ${domain} started at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "recon" > /dev/null
+        $(clear >&2)
         echo -e "${collector_command_line}\n"
-        echo "The reconnaissance for ${target} started at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "recon"
         banner
         check_parameter_dependency_domain
         check_is_known_target "${domain}"
@@ -672,11 +672,11 @@ if [[ -z ${domain} ]] && [[ ! -s "${domain_list}" ]] && [[ -n "${url_2_verify}" 
             grep -E "^^([0-9]+(\.|$)){4}|^([0-9a-fA-F]{0,4}:){1,7}([0-9a-fA-F]){0,4}$") ]] && break
     done
 
+    echo "The reconnaissance for ${url_base} started at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "recon" > /dev/null
     clear > "$(tty)"
     echo -e "$0 $*\n"
-    echo "The reconnaissance for ${target} started at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "recon"
     banner
-    check_is_known_target
+    check_is_known_target "${url_domain}"
     create_initial_directories_structure
 
     [[ -s "${recon_dir}/url_2_test.txt"  ]] && rm "${recon_dir}/url_2_test.txt"
