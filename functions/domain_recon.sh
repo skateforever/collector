@@ -6,7 +6,6 @@
 #   * subdomains_recon                                      #
 #   * joining_removing_duplicates                           #
 #   * managing_the_files                                    #
-#   * hdc                                                   #
 #                                                           #
 #############################################################            
 
@@ -216,14 +215,14 @@ subdomains_recon(){
         echo "curl ${curl_options[@]} \"http://web.archive.org/cdx/search/cdx?url=*.${domain}/*&output=text&fl=original&collapse=urlkey\"" >> "${log_execution_file}"
         sleep 1
 
-        if [[ -n "${whoisxmlapi_apikey}" ]] && [[ -n "${whoisxmlapi_subdomain_url}" ]]; then
+        if [[ -n "${whoisxmlapi_api_key}" ]] && [[ -n "${whoisxmlapi_subdomain_url}" ]]; then
             echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing whoisxmlapi... "
             curl "${curl_options[@]}" -X POST "${whoisxmlapi_subdomain_url}" -H "Content-Type: application/json" \
-                --data '{"apiKey": "'${whoisxmlapi_apikey}'", "domains": {"include": ["'${domain}'"]},"subdomains": {"include": [],"exclude": []}}' \
+                --data '{"apiKey": "'${whoisxmlapi_api_key}'", "domains": {"include": ["'${domain}'"]},"subdomains": {"include": [],"exclude": []}}' \
                 | jq -r '.domainsList[]' 2>> "${log_execution_file}" >> "${tmp_dir}/whoisxmlapi_output.txt"
             echo "Done!"
             echo "curl ${curl_options[@]} -X POST \"${whoisxmlapi_subdomain_url}\" -H \"Content-Type: application/json\" \
-                --data '{\"apiKey\": \"${whoisxmlapi_apikey}\", \"domains\": {\"include\": [\"${domain}\"]},\"subdomains\": {\"include\": [],\"exclude\": []}}' \
+                --data '{\"apiKey\": \"${whoisxmlapi_api_key}\", \"domains\": {\"include\": [\"${domain}\"]},\"subdomains\": {\"include\": [],\"exclude\": []}}' \
                 | jq -r '.domainsList[]'" >> "${log_execution_file}"
         fi
         sleep 1
@@ -454,7 +453,7 @@ managing_the_files(){
     if [ -s "${subdomains_file}" ]; then
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Getting the IPs and aliases of the domain and subdomains... "
         # Domains and subdomains resolution
-        "massdns" -q -r "${dns_resolvers_file}" -t A -o S \
+        "massdns" -q -r "${massdns_resolvers_file}" -t A -o S \
             -w "${tmp_dir}/domains_massdns_resolution.txt" "${subdomains_file}" > /dev/null 2>&1
 
         for d in $(cat "${subdomains_file}"); do
@@ -532,173 +531,4 @@ managing_the_files(){
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Look all files from initial recon in ${tmp_dir} and fix the problem!"
         exit 1
     fi    
-}
-
-hdc(){
-    # Horizontal Domain Correlation
-    # Find all possible domains
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Looking for Horizontal Domain Correlation... "
-    emails=($(whois "${domain}" | grep -E "Registrant Email|^e-mail" | grep -E -ho "[[:graph:]]+@[[:graph:]]+"))
-    owner_id=($(whois "${domain}" | grep -Ei "^ownerid:|^Registry.Domain.ID:" | awk -F':' '{print $2}' | sed 's/[[:blank:]]//'))
-    excluded_ns="akam\.net|azure|cloudflare|aws"
-    domains_ns+=($(dig +short +noall +answer +multiline "${domain}" @1.1.1.1 -t NS | sed 's/\.$//g' | grep -Ev "${excluded_ns}"))
-    domains_ns+=($(dig +short +noall +answer +multiline "${domain}" -t NS | sed 's/\.$//g' | grep -Ev "${excluded_ns}"))
-    domains_found_temp+=("${domain}")
-    echo "Done!"
-
-    if [ "$(echo "${domain}" | awk -F "." '{print $NF}')" == "br" ]; then
-        brazilian="yes"
-        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} It's a Brazilian domain, so we can see how much domains the ${owner_id} has."
-        xsrf_token_value="$(curl -I -kLs -A "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/45.0.2454.85 Safari/537.36" "https://registro.br/v2/ajax/payment/policy/com.br" | grep -Ei "^set-cookie: " | awk '{print $2}' | sed 's/;$// ; s/^XSRF.*=//')"
-        number_of_domains=$(curl -H "Cookie: XSRF=${xsrf_token_value}" -H "X-Xsrf-Token: ${xsrf_token_value}" -kLs -A "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/45.0.2454.85 Safari/537.36" "https://registro.br/v2/ajax/whois/?qr=${owner_id}" | jq -r '.Entity.DomainCount')
-    fi
-
-    if [[ -n "${brazilian}" && "${brazilian}" == "yes" && ${number_of_domains} -gt 0 ]]; then
-        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} We have around ${number_of_domains} brazilian domain(s) to find!"
-    fi
-
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Searching domains... "
-
-    for email in "${emails[@]}"; do
-        # Domain Eye is a paid service, if you have an access
-        # and would like to collaborate please PR
-        # https://domaineye.com/reverse-whois/
-
-        #domains_reversewhois+=($(curl -kLs "https://www.reversewhois.io/?searchterm=${email}" | \
-        #    "html2text" | grep -E "^[0-9]"| awk '{print $2}' | sed 's/|//'))
-        #domains_found_temp+=("${domains_reversewhois[@]}")
-
-        domains_viewdns+=($(curl -kLs -A "${curl_agent}" "https://viewdns.info/reversewhois/?q=${email}" | "html2text" | \
-            grep -Po "[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)" | \
-            grep -Evi "viewdns|${email}|favicon\.ico|cloudflare.com"))
-        domains_found_temp+=("${domains_viewdns[@]}")
-    done
-
-    for d in $(printf "%s\n" ${domains_found_temp[@]} | sort -u); do
-        domains_found+=("${d}")
-    done
-    unset d
-
-    if [ ${#domains_found[@]} -gt 0 ]; then
-        domains_horizontal+=($(echo ${domains_found[@]} | tr ' ' '\n' | sort -u))
-        printf "%s\n" "${domains_horizontal[@]}" >> "${tmp_dir}/domains_correlation_tmp.txt"
-    fi
-
-    echo "Built With" >> "${log_execution_file}"
-    if [[ -n "${builtwith_api_key}" ]] && [[ -n "${builtwith_api_url}" ]]; then
-        echo "curl ${curl_options[@]} \"${builtwith_api_url}/rv2/api.json?KEY=${builtwith_api_key}&LOOKUP=${domain}\" \
-            | jq -r '.Relationships[].Identifiers[].Matches[].Domain'" >> "${log_execution_file}"
-        curl "${curl_options[@]}" "${builtwith_api_url}/rv2/api.json?KEY=${builtwith_api_key}&LOOKUP=${domain}" \
-            | jq -r '.Relationships[].Identifiers[].Matches[].Domain' 2>> "${log_execution_file}" | grep -v "${domain}" >> "${tmp_dir}/domains_correlation_tmp.txt"
-        echo "curl ${curl_options[@]} \"${builtwith_api_url}/redirect1/api.json?KEY=${builtwith_api_key}&LOOKUP=${domain}\" \
-            | jq -r '.Inbound[].Domain'" >> "${log_execution_file}" >> "${log_execution_file}"
-        curl "${curl_options[@]}" "${builtwith_api_url}/redirect1/api.json?KEY=${builtwith_api_key}&LOOKUP=${domain}" \
-            | jq -r '.Inbound[].Domain' 2>> "${log_execution_file}" | grep -v "${domain}" >> "${tmp_dir}/domains_correlation_tmp.txt"
-    fi
-
-    echo "Security Trails" >> "${log_execution_file}"
-    if [[ -n "${securitytrails_api_key}" ]] && [[ -n "${securitytrails_api_url}" ]]; then
-        echo "Emails search" >> "${log_execution_file}"
-        for email in "${emails[@]}"; do
-            total_pages=$(curl "${curl_options[@]}" -X POST -H 'content-type: application/json' -H "APIKEY: ${securitytrails_api_key}" "${securitytrails_api_url}/domains/list?include_ips=false&scroll=false" --data '{"filter": {"whois_email": "'"${email}"'"}}' | jq -r '.meta.total_pages')
-            for p in $(seq 1 ${total_pages}); do
-                echo "curl ${curl_options[@]} -X POST -H 'content-type: application/json' -H \"APIKEY: ${securitytrails_api_key}\" \
-                    \"${securitytrails_api_url}/domains/list?include_ips=false&scroll=false&page=$p\" \
-                    --data '{\"filter\": {\"whois_email\": \"${email}\"}}' \
-                    | jq -r '.records.[].hostname'" >> "${log_execution_file}"
-                curl "${curl_options[@]}" -X POST -H 'content-type: application/json' -H "APIKEY: ${securitytrails_api_key}" \
-                    "${securitytrails_api_url}/domains/list?include_ips=false&scroll=false&page=$p" \
-                    --data '{"filter": {"whois_email": "'"${email}"'"}}' \
-                    | jq -r '.records.[].hostname' 2>> "${log_execution_file}" >> "${tmp_dir}/domains_correlation_tmp.txt"
-            done
-        done
-
-        echo "NS search" >> "${log_execution_file}"
-        for ns in "${domains_ns[@]}"; do
-            total_pages=$(curl "${curl_options[@]}"  -X POST -H 'content-type: application/json' -H "APIKEY: ${securitytrails_api_key}" "${securitytrails_api_url}/domains/list?include_ips=false&scroll=false" --data '{"filter": {"ns": "'"${ns}"'"}}' | jq -r '.meta.total_pages')
-            for p in $(seq 1 ${total_pages}); do
-                echo "curl ${curl_options[@]} -X POST -H 'content-type: application/json' -H \"APIKEY: ${securitytrails_api_key}\" \
-                    \"${securitytrails_api_url}/domains/list?include_ips=false&scroll=false&page=$p\" \
-                    --data '{\"filter\": {\"ns\": \"${ns}\"}}' \
-                    | jq -r '.records.[].hostname'" >> "${log_execution_file}"
-                curl "${curl_options[@]}" -X POST -H 'content-type: application/json' -H "APIKEY: ${securitytrails_api_key}" \
-                    "${securitytrails_api_url}/domains/list?include_ips=false&scroll=false&page=$p" \
-                    --data '{"filter": {"ns": "'"${ns}"'"}}' \
-                    | jq -r '.records.[].hostname' 2>> "${log_execution_file}" >> "${tmp_dir}/domains_correlation_tmp.txt"
-            done
-        done
-
-        echo "Reverse Whois search" >> "${log_execution_file}"
-        whois "${domain}" \
-            | grep -Ei "^name:|^owner:|^person:|^Admin Organization:|^Registrant Organization:|^Tech Organization:" \
-            | awk -F':' '{print $2}' \
-            | sed 's/^[[:blank:]]*//' \
-            | sort -u | \
-            while read company_name; do
-                total_pages=$(curl "${curl_options[@]}" -X POST -H 'content-type: application/json' -H "APIKEY: ${securitytrails_api_key}" "${securitytrails_api_url}/domains/list?include_ips=false&scroll=false" --data '{"filter": {"whois_organization": "'"${company_name}"'"}}' | jq -r '.meta.total_pages')
-                for p in $(seq 1 ${total_pages}); do
-                    echo "curl ${curl_options[@]} -X POST -H 'content-type: application/json' -H \"APIKEY: ${securitytrails_api_key}\" \
-                        \"${securitytrails_api_url}/domains/list?include_ips=false&scroll=false&page=$p\" \
-                        --data '{\"filter\": {\"whois_organization\": \"${company_name}\"}}' \
-                        | jq -r '.records.[].hostname'" >> "${log_execution_file}"
-                    curl "${curl_options[@]}" -X POST -H 'content-type: application/json' -H "APIKEY: ${securitytrails_api_key}" \
-                        "${securitytrails_api_url}/domains/list?include_ips=false&scroll=false&page=$p" \
-                        --data '{"filter": {"whois_organization": "'"${company_name}"'"}}' \
-                        | jq -r '.records.[].hostname' 2>> "${log_execution_file}" >> "${tmp_dir}/domains_correlation_tmp.txt"
-                done
-            done
-    fi
-
-    echo "Whois XML API" >> "${log_execution_file}"
-    if [[ -n "${whoisxmlapi_apikey}" ]] && [[ -n "${whoisxmlapi_hdc_ns_url}" ]]; then
-        echo "NS search" >> "${log_execution_file}"
-        for ns in "${domains_ns[@]}"; do
-            echo "curl ${curl_options[@]} -H \"Content-Type: application/json\" \"${whoisxmlapi_hdc_ns_url}?apikey=${whoisxmlapi_apikey}&ns=${ns}\" \
-                | jq -r '.result.[].name'" >> "${log_execution_file}"
-            curl "${curl_options[@]}" -H "Content-Type: application/json" "${whoisxmlapi_hdc_ns_url}?apikey=${whoisxmlapi_apikey}&ns=${ns}" \
-                | jq -r '.result.[].name' 2>> "${log_execution_file}" | sort -u >> "${tmp_dir}/domains_correlation_tmp.txt"
-        done
-    fi
-
-    if [[ -n "${whoisxmlapi_apikey}" ]] && [[ -n "${whoisxmlapi_hdc_whois_url}" ]]; then
-        echo "Reverse Whois search" >> "${log_execution_file}"
-        whois "${domain}" \
-            | grep -Ei "^name:|^owner:|^person:|^Admin Organization:|^Registrant Organization:|^Tech Organization:" \
-            | awk -F':' '{print $2}' \
-            | sed 's/^[[:blank:]]*//' \
-            | sort -u | \
-            while read company_name; do
-                echo "curl ${curl_options[@]} -H 'Content-Type: application/json' \"${whoisxmlapi_hdc_whois_url}\" \
-                    --data '{\"apiKey\":\"${whoisxmlapi_apikey}\", \"searchType\": \"current\", \"mode\": \"purchase\", \"punycode\": true, \"basicSearchTerms\": {\"include\":[\"${company_name}\"]}}' \
-                    | jq -r '.domainsList.[]'" >> "${log_execution_file}"
-                curl "${curl_options[@]}" -H "Content-Type: application/json" "${whoisxmlapi_hdc_whois_url}" \
-                    --data '{"apiKey":"'"${whoisxmlapi_apikey}"'", "searchType": "current", "mode": "purchase", "punycode": true, "basicSearchTerms": {"include":["'"${company_name}"'"]}}' \
-                    | jq -r '.domainsList.[]' 2>> "${log_execution_file}" >> "${tmp_dir}/domains_correlation_tmp.txt"
-            done
-    fi
-
-    if sort -u -o "${report_dir}/domains_correlation_found.txt" "${tmp_dir}/domains_correlation_tmp.txt"; then
-        echo "Done!"
-
-        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} We found $(wc -l ${report_dir}/domains_correlation_found.txt) correlated domains."
-        # Finding valid domain (that have valid A record).
-        # After that domains without A record will be rechecked.
-
-        echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Correlated domains validation (DNS requests)... "
-
-        for d in $(cat "${report_dir}/domains_correlation_found.txt"); do
-            ipv4=($(dig "${d}" A +short +time=5 +tries=3))
-            ipv6=($(dig "${d}" AAAA +short +time=5 +tries=3 | grep -E "${IPv6_regex}"))
-            if [ -n "${ipv4}" ]; then
-                echo -e "${d}\t${ipv4}" >> "${report_dir}/domains_correlation_ipv4.txt"
-            elif [ -n "${ipv6}" ]; then
-                echo -e "${d}\t${ipv6}" >> "${report_dir}/domains_correlation_ipv6.txt"
-            fi
-        done
-
-        echo "Done!"
-    else
-        echo "Fail!"
-        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} No domains correlation founds!"
-    fi
 }

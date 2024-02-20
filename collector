@@ -550,7 +550,6 @@ domain_execution(){
         fi
         infra_recon
         shodan_recon
-        hdc
         webapp_alive
         #emails_recon
         if [ "${only_recon}" == "yes" ]; then
