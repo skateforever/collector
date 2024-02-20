@@ -4,7 +4,6 @@
 # And is responsible to get the functions:                  #
 #                                                           #
 #   * web_data                                              #
-#   * cleanup_web_data_files                                #
 #   * robots_txt                                            #
 #   * aquatone_function                                     #
 #                                                           #
@@ -71,13 +70,15 @@ web_data(){
                                     else
                                         echo "dirsearch -t \"${dirsearch_threads}\" -e \"${web_extensions}\" --random-agent --no-color --quiet-mode \
                                             -w \"${list}\" --proxy \"${proxy_ip}\" --timeout=20 -u \"${url}\"" >> "${log_execution_file}"
-                                        echo "${gobuster_bin} dir -z -t \"${gobuster_threads}\" --timeout 20s -x \"${web_extensions}\" \
-                                            --proxy \"http://${proxy_ip}\" -k -w \"${list}\" -u \"${url}\"" >> "${log_execution_file}"
                                         dirsearch -t "${dirsearch_threads}" -e "${web_extensions}" --random-agent --no-color --quiet-mode \
                                             -w "${list}" --proxy "${proxy_ip}" --timeout=20 \
                                             -u "${url}" >> "${web_data_dir}/${file_dirsearch}" 2>> "${log_execution_file}" &
-                                        ${gobuster_bin} dir -z -t "${gobuster_threads}" --timeout 20s -x "${web_extensions}" \
-                                            --proxy "http://${proxy_ip}" -k -w "${list}" -u "${url}" \
+                                        echo "gobuster dir --quiet --no-color --no-error -z -k -e --timeout 20s --delay 300ms \
+                                            --proxy http://${proxy_ip} -t ${gobuster_threads} \
+                                            -u ${url} -w ${list} -x ${web_extensions} >> ${web_data_dir}/${file_gobuster}"
+                                        gobuster dir --quiet --no-color --no-error -z -k -e --timeout 20s --delay 300ms \
+                                            --proxy "http://${proxy_ip}" -t "${gobuster_threads}" \
+                                            -u "${url}" -w "${list}" -x "${web_extensions}" \
                                             >> "${web_data_dir}/${file_gobuster}" 2>> "${log_execution_file}" &
                                     fi
                                 else
@@ -90,15 +91,16 @@ web_data(){
                                     else
                                         echo "dirsearch -t \"${dirsearch_threads}\" -e \"${web_extensions}\" --random-agent --no-color --quiet-mode \
                                             -w \"${list}\" -u \"${url}\"" >> "${log_execution_file}"
-                                        echo "${gobuster_bin} dir --delay 300ms -k -z -t \"${gobuster_threads}\" -x \"${web_extensions}\" -w \"${list}\" \
-                                            -u \"${url}\"" >> "${log_execution_file}"
                                         dirsearch -t "${dirsearch_threads}" -e "${web_extensions}" --random-agent --no-color --quiet-mode \
                                             -w "${list}" -u "${url}" >> "${web_data_dir}/${file_dirsearch}" 2>> "${log_execution_file}" &
-                                        ${gobuster_bin} dir --delay 300ms -k -z -t "${gobuster_threads}" -x "${web_extensions}" -w "${list}" \
-                                            -u "${url}" >> "${web_data_dir}/${file_gobuster}" 2>> "${log_execution_file}" &
+                                        echo "gobuster dir --quiet --no-color --no-error -z -k -e --timeout 20s --delay 300ms \
+                                            -t ${gobuster_threads} -u ${url} -w ${list} -x ${web_extensions} >> ${web_data_dir}/${file_gobuster}"
+                                        gobuster dir --quiet --no-color --no-error -z -k -e --timeout 20s --delay 300ms \
+                                            -t "${gobuster_threads}" -u "${url}" -w "${list}" -x "${web_extensions}" \
+                                            >> "${web_data_dir}/${file_gobuster}" 2>> "${log_execution_file}" &
                                     fi
                                 fi
-                                while [[ "$(pgrep -acf "[d]irsearch.*${process_domain}|[g]obuster.*${process_domain}")" -ge "${web_data_total_processes}" ]]; do
+                                while [[ "$(pgrep -acf "[d]irsearch.*|[g]obuster.*")" -ge "${web_data_total_processes}" ]]; do
                                     sleep 1
                                 done
                                 [[ "${limit_urls}" -eq "${urls_tested}" ]] && break
@@ -116,60 +118,91 @@ web_data(){
                         unset list
                         unset urls_tested
                     done
+
                     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Waiting the dirsearch and/or gobuster finish... "
-                    while pgrep -af "[d]irsearch.*${process_domain}" > /dev/null || pgrep -af "[g]obuster.*${process_domain}" > /dev/null; do
+                    while pgrep -af "[d]irsearch.*" > /dev/null || pgrep -af "[g]obuster.*" > /dev/null; do
                         sleep 1
                     done
+                    echo "Done!"
+
+                    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Cleaning up dirsearch files... "
+                    sed -i -e 's/.\[4.m//g' -e 's/.\[3.m//g' -e 's/.\[1K.\[0G/\n/g'\
+                        -e 's/.\[1m//g' -e 's/.\[0m//g'-e '/Last request to/d' "${web_data_dir}/*.dirsearch*" 2> /dev/null
+                    #sed -i -e '/^$/d' "${file}" 2> /dev/null
+                    echo "Done!"
+
+                    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Cleaning up gobuster files... "
+                    sed -i "s/^..\[2K//" "${web_data_dir}/*.gobuster*" 2> /dev/null
+                    echo "Done!"
+
+                    # Notifying the finds
+                    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Sending files search notification... "
+                    grep --color=never -Ehr "^\[.*\] 200 -" "${web_data_dir}/" | awk '{print $6}' | grep -E "($(echo ${web_extensions} | sed 's/,/|/g'))$" | notify -nc -silent -id "${notify_files_channel}"
+                    grep --color=never -Ehr "\(Status: 200\)" "${web_data_dir}/" | awk '{print $1}' | grep -E "($(echo ${web_extensions} | sed 's/,/|/g'))$" | notify -nc -silent -id "${notify_files_channel}"
                     echo "Done!"
                 else
                     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} dirseach/goboster web_data function error: array of wordlists is empty. Stopping the script"
                     exit 1
                 fi
-                
-                echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing wayback... "
+
+                echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing params crawler with wayback and katana... "
                 while IFS= read -r url; do
                     name=$(echo "${url}" | sed -e "s/http:\/\//http_/" -e "s/https:\/\//https_/" -e "s/:/_/" -e "s/\/$//" -e "s/\//_/g")
-                    file="${name}.wayback"
-                    echo "echo ${url} | waybackurls" >> "${log_execution_file}"
-                    echo "${url}" | waybackurls > "${web_params_dir}/${file}" 2>> "${log_execution_file}"
+                    file="${name}.params"
+                    echo "echo ${url} | waybackurls >> ${web_params_dir}/${file}" >> "${log_execution_file}"
+                    echo "${url}" | waybackurls >> "${web_params_dir}/${file}" 2>> "${log_execution_file}"
+                    echo "echo ${url} | katana -silent -nc -timeout ${katana_timeout} -c ${katana_threads} -p ${katana_threads} -f qurl -d 10 | grep -E \"^http\" | sort -u >> ${web_params_dir}/${file}" >> "${log_execution_file}"
+                    echo "${url}" | katana -silent -nc -timeout "${katana_timeout}" -c ${katana_threads} -p ${katana_threads} -f qurl -d 10 | grep -E "^http" | sort -u >> "${web_params_dir}/${file}" 2>> "${log_execution_file}"
                     unset file
                 done < "${urls_file}"
                 unset url
                 echo "Done!"
 
-                echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing katana... "
-                while IFS= read -r url; do
-                    name=$(echo "${url}" | sed -e "s/http:\/\//http_/" -e "s/https:\/\//https_/" -e "s/:/_/" -e "s/\/$//" -e "s/\//_/g")
-                    file="${name}.katana"
-                    echo "echo ${url} | katana -silent -nc -c 50 -p 50 -f qurl,qpath,kv -d 50 | grep -E \"^http\" | sort -u > ${web_params_dir}/${file}" >> "${log_execution_file}"
-                    echo "${url}" | katana -silent -nc -c 50 -p 50 -f qurl,qpath,kv -d 50 | grep -E "^http" | sort -u > "${web_params_dir}/${file}" 2>> "${log_execution_file}"
-                    unset file
-                done < "${urls_file}"
-                unset url
-                echo "Done!"
+                # TODO: Put gospider to get more params
 
-                echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing nuclei... "
+                echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing nuclei scan... "
                 nuclei -no-color -silent -update > /dev/null 2>&1
                 nuclei -no-color -silent -update-templates > /dev/null 2>&1
                 while IFS= read -r url; do
-                    name="$(echo "${url}" | sed -e "s/http:\/\//http_/" -e "s/https:\/\//https_/" -e "s/:/_/" -e "s/\/$//" -e "s/\//_/g")"
-                    file_nuclei="${name}.nuclei"
                     if [ -n "${use_proxy}" ] && [ "${use_proxy}" == "yes" ]; then
-                        echo "echo ${url} | nuclei -no-color -silent -proxy-url \"http://${proxy_ip}\" -H \"User-Agent: ${nuclei_agent}\" -t \"${nuclei_templates_dir}\"" >> "${log_execution_file}"
-                        echo "${url}" | nuclei -no-color -silent -ept ssl -c 50 -t "${nuclei_templates_dir}" -proxy-url "http://${proxy_ip}" -H "User-Agent: ${nuclei_agent}" \
-                            >> "${nuclei_dir}/${file_nuclei}" 2>> "${log_execution_file}" &
+                        echo "echo ${url} | nuclei -no-color -silent -ept ${nuclei_exclude_types} -et ${nuclei_exclude_templates} \
+                            -c ${nuclei_threads} -t ${nuclei_templates_dir} -proxy-url \"http://${proxy_ip}\" \
+                            -H \"User-Agent: ${nuclei_agent}\"" >> "${log_execution_file}"
+                        echo "${url}" | nuclei -no-color -silent -ept "${nuclei_exclude_types}" -et "${nuclei_exclude_templates}" \
+                            -c ${nuclei_threads} -t "${nuclei_templates_dir}" -proxy-url "http://${proxy_ip}" \
+                            -H "User-Agent: ${nuclei_agent}" >> "${nuclei_scan_file}" 2>> "${log_execution_file}" &
                     else
-                        echo "echo ${url} | nuclei -no-color -silent -t ${nuclei_templates_dir}" >> "${log_execution_file}"
-                        echo "${url}" | nuclei -no-color -silent -ept ssl -c 50 -t "${nuclei_templates_dir}" >> "${nuclei_dir}/${file_nuclei}" 2>> "${log_execution_file}" &
+                        echo "echo ${url} | nuclei -no-color -silent -c ${nuclei_threads} -ept ${nuclei_exclude_types} \
+                            -et ${nuclei_exclude_templates} -t ${nuclei_templates_dir}" >> "${log_execution_file}"
+                        echo "${url}" | nuclei -no-color -silent -ept "${nuclei_exclude_types}" -et "${nuclei_exclude_templates}" \
+                            -c ${nuclei_threads} -t "${nuclei_templates_dir}" >> "${nuclei_scan_file}" 2>> "${log_execution_file}" &
                     fi
                     while [[ "$(pgrep -acf "[n]uclei")" -ge "${web_data_total_processes}" ]]; do
                         sleep 1
                     done
-                    unset file_nuclei
-                    unset name
                 done < "${urls_file}"
                 echo "Done!"
 
+                # Notifying the finds
+                echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Sending nuclei scan notification... "
+                grep -Ehr "\[critical\]" "${nuclei_scan_file}" | notify -nc -silent -id "${notify_critical_channel}"
+                grep -Ehr "\[high\]" "${nuclei_scan_file}" | notify -nc -silent -id "${notify_high_channel}"
+                echo "Done!"
+
+                echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing nuclei on web params... "
+                for f in $(find "${web_params_dir}" -type f ! -empty); do
+                    echo "nuclei -no-color -silent -c ${nuclei_threads} -t ${nuclei_fuzzing_templates_dir} \
+                    -H \"User-Agent: ${nuclei_agent}\" -l ${f}" >> "${log_execution_file}"
+                    nuclei -no-color -silent -c "${nuclei_threads}" -t "${nuclei_fuzzing_templates_dir}" \
+                    -H "User-Agent: ${nuclei_agent}" -l "${f}" >> "${nuclei_web_fuzzing_file}" 2>> "${log_execution_file}"
+                done
+                echo "Done!"
+
+                # Notifying the finds
+                echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Sending nuclei web params notification... "
+                grep -Ehr "\[critical\]" "${nuclei_web_fuzzing_file}" | notify -nc -silent -id "${notify_critical_channel}"
+                grep -Ehr "\[high\]" "${nuclei_web_fuzzing_file}" | notify -nc -silent -id "${notify_high_channel}"
+                echo "Done"
             else
                 echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Make sure the directories structure was created. Stopping the script."
                 unset urls_file
@@ -182,27 +215,6 @@ web_data(){
         unset urls_file
     fi
     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Web data function is done!"
-}
-
-cleanup_web_data_files(){
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Cleaning up dirsearch files... "
-    for file in $(ls -1A "${web_data_dir}" | grep dirsearch); do 
-        sed -i -e 's/.\[4.m//g' -e 's/.\[3.m//g' -e 's/.\[1K.\[0G/\n/g' "${web_data_dir}/${file}" 2> /dev/null
-        sed -i -e 's/.\[1m//g' -e 's/.\[0m//g' "${web_data_dir}/${file}" 2> /dev/null
-        sed -i -e '/Last request to/d' "${web_data_dir}/${file}" 2> /dev/null
-        #sed -i -e '/^$/d' "${file}" 2> /dev/null
-    done 
-    echo "Done!"
-    unset file
-    unset files
-       
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Cleaning up gobuster files... "
-    for file in $(ls -1A "${web_data_dir}" | grep gobuster); do
-        sed -i "s/^..\[2K//" "${web_data_dir}/${file}" 2> /dev/null
-    done 
-    echo "Done!"
-    unset file
-    unset files
 }
 
 robots_txt(){

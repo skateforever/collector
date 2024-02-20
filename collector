@@ -402,12 +402,12 @@ if [[ -z "${url_2_verify}" ]] && [[ -z "${domain}" ]] && [[ ! -s "${domain_list}
 fi
 
 # Verify the if exist the default resolvers list
-if [ ! -s "${dns_resolvers_file}" ]; then
+if [ ! -s "${massdns_resolvers_file}" ]; then
     banner
     echo "The resolvers file does not exist, please fix it, downloading from this source: "
     echo -e "\n\thttps://public-dns.info/nameservers.txt"
     echo " "
-    echo -e "After the download put the path to nameservers.txt file in dns_resolvers_file variable in collector.cfg file.\n"
+    echo -e "After the download put the path to nameservers.txt file in massdns_resolvers_file variable in collector.cfg file.\n"
     usage
 fi
 
@@ -462,6 +462,8 @@ create_initial_directories_structure(){
         web_tech_dir="${report_dir}"
     fi
 
+    nuclei_scan_file="${nuclei_dir}/nuclei_scan.result"
+    nuclei_web_fuzzing_file="${nuclei_dir}/nuclei_web_fuzzing.result"
 }
 
 # Checking if the essencial functions there are
@@ -492,7 +494,7 @@ message(){
     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${green}Recon finished on${reset} ${yellow}${target}${reset}${green}!${reset}"
     echo -e "\t\t    ${green}Consider to use recon-ng and theHarvester to help get more assets!${reset}"
     echo -e "\t\t    ${green}Use Shoda.io, Censys and others.${reset}"
-    echo "The reconnaissance for ${target} finished at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "recon" > /dev/null
+    echo "The reconnaissance for ${target} finished at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
     unset target
 }
 
@@ -563,10 +565,8 @@ domain_execution(){
         exit 1
     else
         web_data "${report_dir}/web_data_urls.txt"
-        cleanup_web_data_files
         robots_txt
         web_data "${report_dir}/robots_urls.txt"
-        cleanup_web_data_files
         for file in "${report_dir}/web_data_urls.txt" "${report_dir}/robots_urls.txt" ; do
             aquatone_function "${file}"
         done
@@ -595,10 +595,8 @@ url_execution(){
     # Executing just the functions necessary to url check
     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${green}Recon started on${reset} ${yellow}${url_base}${reset}${green}!${reset}"
     web_data "${recon_dir}/url_2_test.txt"
-    cleanup_web_data_files
     robots_txt
     web_data "${report_dir}/robots_urls.txt"
-    cleanup_web_data_files
     for file in "${recon_dir}/url_2_test.txt" "${report_dir}/robots_urls.txt" ; do
         aquatone_function "${file}"
     done
@@ -622,7 +620,7 @@ check_parameter_dependency_domain(){
 }
 
 if [[ -n ${domain} ]] && [[ ! -s "${domain_list}" ]] && [[ -z "${url_2_verify}" ]]; then
-    echo "The reconnaissance for ${domain} started at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "recon" > /dev/null
+    echo "The reconnaissance for ${domain} started at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
     clear > "$(tty)"
     echo -e "${collector_command_line}\n"
     banner
@@ -635,7 +633,7 @@ fi
 if [[ -z ${domain} ]] && [[ -s "${domain_list}" ]] && [[ -z "${url_2_verify}" ]]; then
     unset domain
     while read -r domain; do 
-        echo "The reconnaissance for ${domain} started at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "recon" > /dev/null
+        echo "The reconnaissance for ${domain} started at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
         $(clear >&2)
         echo -e "${collector_command_line}\n"
         banner
@@ -672,7 +670,7 @@ if [[ -z ${domain} ]] && [[ ! -s "${domain_list}" ]] && [[ -n "${url_2_verify}" 
             grep -E "^^([0-9]+(\.|$)){4}|^([0-9a-fA-F]{0,4}:){1,7}([0-9a-fA-F]){0,4}$") ]] && break
     done
 
-    echo "The reconnaissance for ${url_base} started at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "recon" > /dev/null
+    echo "The reconnaissance for ${url_base} started at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
     clear > "$(tty)"
     echo -e "$0 $*\n"
     banner
