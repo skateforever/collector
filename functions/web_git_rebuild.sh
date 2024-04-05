@@ -25,8 +25,8 @@ git_rebuild(){
                     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Creating the .git directory structure for ${green}${target}${reset}... "
                     echo "Done!"
                     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Downloading the static and objects files from repository... "
-                    echo "gitdumper --proxy \"http://${proxy_ip}\" ${target} \"${target_dir}\"" >> "${log_execution_file}"
-                    gitdumper --proxy "http://${proxy_ip}" "${target}" "${target_dir}" >> "${log_execution_file}" 2>&1
+                    echo "git-dumper --proxy \"http://${proxy_ip}\" ${target} \"${target_dir}\"" >> "${log_execution_file}"
+                    git-dumper --proxy "http://${proxy_ip}" "${target}" "${target_dir}" >> "${log_execution_file}" 2>&1
                     echo "Done!"
                     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Downloading files from repository... "
                     dir_origem="${PWD}"
@@ -53,8 +53,8 @@ git_rebuild(){
                     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Creating the .git directory structure for ${green}${target}${reset}... "
                     echo "Done!"
                     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Downloading the static and objects files from repository... "
-                    echo "gitdumper ${target} \"${target_dir}\"" >> "${log_execution_file}" 2>&1
-                    gitdumper "${target}" "${target_dir}" >> "${log_execution_file}" 2>&1
+                    echo "git-dumper ${target} \"${target_dir}\"" >> "${log_execution_file}" 2>&1
+                    git-dumper "${target}" "${target_dir}" >> "${log_execution_file}" 2>&1
                     echo "Done!"
                     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Downloading files from repository... "
                     dir_origem="${PWD}"
