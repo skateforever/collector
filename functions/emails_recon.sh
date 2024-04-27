@@ -27,4 +27,8 @@ emails_recon(){
 
 
     echo "Done!"
+    #echo "The error occurred in the function emails_recon.sh!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+    #echo -e "The message was: \n\tMake sure the directories structure was created. Stopping the script." |
+    #echo "The reconnaissance for ${domain} failed at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+
 }

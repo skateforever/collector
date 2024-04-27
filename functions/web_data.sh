@@ -12,6 +12,9 @@
 web_data(){
     if [ $# != 1 ]; then
         echo "Please, especify just 1 file to get URL from."
+        echo "The error occurred in the function web_data.sh!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+        echo -e "The message was: \n\tPlease, especify just 1 file to get URL from." |
+        echo "The reconnaissance for ${domain} failed at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
         exit 1
     else
         urls_file=$1
@@ -141,7 +144,10 @@ web_data(){
                     grep --color=never -Ehr "\(Status: 200\)" "${web_data_dir}/" | awk '{print $1}' | grep -E "($(echo ${web_extensions} | sed 's/,/|/g'))$" | notify -nc -silent -id "${notify_files_channel}"
                     echo "Done!"
                 else
-                    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} dirseach/goboster web_data function error: array of wordlists is empty. Stopping the script"
+                    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Array of wordlists is empty. Stopping the script!"
+                    echo "The error occurred in the function web_data.sh!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+                    echo -e "The message was: \n\t Array of wordlists is empty. Stopping the script!" |
+                    echo "The reconnaissance for ${domain} failed at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
                     exit 1
                 fi
 
@@ -211,8 +217,11 @@ web_data(){
                 grep -Ehr "\[high\]" "${nuclei_web_fuzzing_file}" | notify -nc -silent -id "${notify_high_channel}"
                 echo "Done"
             else
-                echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Make sure the directories structure was created. Stopping the script."
+                echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Make sure the directories structure was created. Stopping the script!"
                 unset urls_file
+                echo "The error occurred in the function web_data.sh!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+                echo -e "The message was: \n\tMake sure the directories structure was created. Stopping the script!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+                echo "The reconnaissance for ${domain} failed at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
                 exit 1
             fi
         else
@@ -260,6 +269,9 @@ aquatone_function(){
                 echo "Fail!"
                 echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Something got wrong, wasnt possible create directory ${aquatone_files_dir}."
                 echo -e "\t\t    Please, look what got wrong and run the script again. Stopping the script!"
+                echo "The error occurred in the function web_data.sh!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+                echo -e "The message was: \n\tSomething got wrong, wasnt possible create directory ${aquatone_files_dir}.\n\tPlease, look what got wrong and run the script again. Stopping the script!" | | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+                echo "The reconnaissance for ${domain} failed at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
                 exit 1
             fi
         else
