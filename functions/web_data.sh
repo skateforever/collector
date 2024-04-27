@@ -100,7 +100,7 @@ web_data(){
                                             >> "${web_data_dir}/${file_gobuster}" 2>> "${log_execution_file}" &
                                     fi
                                 fi
-                                while [[ "$(pgrep -acf "[d]irsearch.*|[g]obuster.*")" -ge "${web_data_total_processes}" ]]; do
+                                while [[ "$(pgrep -acf "[d]irsearch.*${domain}$|[g]obuster.*${domain}$")" -ge "${web_data_total_processes}" ]]; do
                                     sleep 1
                                 done
                                 [[ "${limit_urls}" -eq "${urls_tested}" ]] && break
@@ -120,7 +120,7 @@ web_data(){
                     done
 
                     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Waiting the dirsearch and/or gobuster finish... "
-                    while pgrep -af "[d]irsearch.*" > /dev/null || pgrep -af "[g]obuster.*" > /dev/null; do
+                    while pgrep -af "[d]irsearch.*${domain}$" > /dev/null || pgrep -af "[g]obuster.*${domain}$" > /dev/null; do
                         sleep 1
                     done
                     echo "Done!"
@@ -153,6 +153,13 @@ web_data(){
                     echo "${url}" | waybackurls >> "${web_params_dir}/${file}" 2>> "${log_execution_file}"
                     echo "echo ${url} | katana -silent -nc -timeout ${katana_timeout} -c ${katana_threads} -p ${katana_threads} -f qurl -d 10 | grep -E \"^http\" | sort -u >> ${web_params_dir}/${file}" >> "${log_execution_file}"
                     echo "${url}" | katana -silent -nc -timeout "${katana_timeout}" -c ${katana_threads} -p ${katana_threads} -f qurl -d 10 | grep -E "^http" | sort -u >> "${web_params_dir}/${file}" 2>> "${log_execution_file}"
+                    #katana -silent -nc -timeout "${katana_timeout}" -c ${katana_threads} -p ${katana_threads} -jc
+                    #katana -silent -nc -timeout "${katana_timeout}" -c ${katana_threads} -p ${katana_threads} -f qpath -d 10
+                    #www.example.com/path/arquivo.js
+                    #www.example.com/path/
+                    #www.example.com/path/1/
+                    #www.example.com/path/2/
+                    #www.example.com/path/3/
                     unset file
                 done < "${urls_file}"
                 unset url
