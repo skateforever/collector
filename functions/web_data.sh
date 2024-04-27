@@ -270,7 +270,7 @@ aquatone_function(){
                 echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Something got wrong, wasnt possible create directory ${aquatone_files_dir}."
                 echo -e "\t\t    Please, look what got wrong and run the script again. Stopping the script!"
                 echo "The error occurred in the function web_data.sh!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
-                echo -e "The message was: \n\tSomething got wrong, wasnt possible create directory ${aquatone_files_dir}.\n\tPlease, look what got wrong and run the script again. Stopping the script!" | | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+                echo -e "The message was: \n\tSomething got wrong, wasnt possible create directory ${aquatone_files_dir}.\n\tPlease, look what got wrong and run the script again. Stopping the script!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
                 echo "The reconnaissance for ${domain} failed at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
                 exit 1
             fi
