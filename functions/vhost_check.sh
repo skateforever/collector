@@ -31,3 +31,5 @@ vhost_check(){
 
 }
 
+
+#utilizar gobuster para detecção de vhost
