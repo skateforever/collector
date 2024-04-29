@@ -491,11 +491,17 @@ check_is_known_target(){
 
 message(){
     target="$1"
-    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${green}Recon finished on${reset} ${yellow}${target}${reset}${green}!${reset}"
-    echo -e "\t\t    ${green}Consider to use recon-ng and theHarvester to help get more assets!${reset}"
-    echo -e "\t\t    ${green}Use Shoda.io, Censys and others.${reset}"
-    echo "The reconnaissance for ${target} finished at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+    status="$2"
+    if [ "${status}" == "finished" ]; then
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} The reconnaissance on ${yellow}${target}${reset} ${green}finished!${reset}"
+        echo "The reconnaissance on ${target} finished at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+    fi
+    if [ "${status}" == "failed" ]; then
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} The reconnaissance on ${yellow}${target}${reset} ${red}failed!${reset}"
+        echo "The reconnaissance on ${target} failed at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+    fi
     unset target
+    unset status
 }
 
 domain_execution(){
@@ -538,7 +544,7 @@ domain_execution(){
     echo -e "\t   If you need look the output in execution time, you need to \"tail\" the files."
     echo " "
     # Execute all functions
-    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${green}Recon started on${reset} ${yellow}${domain}${reset}${green}!${reset}"
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${green}Reconnaissance started on${reset} ${yellow}${domain}${reset}${green}!${reset}"
     if [ "${only_web_data}" == "no" ]; then
         subdomains_recon
         joining_removing_duplicates
@@ -553,12 +559,12 @@ domain_execution(){
         webapp_alive
         #emails_recon
         if [ "${only_recon}" == "yes" ]; then
-            message "${domain}"
+            message "${domain}" finished
             exit 0
         fi
     fi
     if [ "${only_web_data}" == "yes" ] && [ ! -s "${report_dir}/web_data_urls.txt" ]; then
-        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${red}The recon finished 'cause an error:${reset}"
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${red}The reconnaissance finished 'cause an error:${reset}"
         echo -e "\t\t    You haven't the actual ${yellow}web_data_urls.txt${reset} file to collect data to analyze!"
         echo -e "\t\t    Please, run the collector with -d domain --recon or just -d domain to run recon and web data!"
         exit 1
@@ -572,7 +578,7 @@ domain_execution(){
         git_rebuild
     fi
     #report
-    message "${domain}") 2>> "${log_execution_file}" | tee -a "${log_execution_file}"
+    message "${domain}") finished 2>> "${log_execution_file}" | tee -a "${log_execution_file}"
 }
 
 url_execution(){
@@ -600,7 +606,7 @@ url_execution(){
         aquatone_function "${file}"
     done
     git_rebuild 
-    message "${url_2_verify}"
+    message "${url_2_verify}" finished
     rm "${recon_dir}/url_2_test.txt" > /dev/null 2>&1) 2>> "${log_execution_file}"| tee -a "${log_execution_file}"
 }
 
@@ -644,7 +650,7 @@ if [[ -z ${domain} ]] && [[ -s "${domain_list}" ]] && [[ -z "${url_2_verify}" ]]
         else
             echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} The ${yellow}${domain}${reset} does not exist!" | tee -a "${log_dir}/domain_doesnot_exit.txt"
             echo "The ${domain} does not exist!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
-            message "${domain}"
+            message "${domain}" failed
         fi
     done < "${domain_list}"
     unset domain
