@@ -467,7 +467,7 @@ create_initial_directories_structure(){
 }
 
 # Checking if the essencial functions there are
-for file in diff_recon domain_recon emails_recon infra_recon vhost_check web_data web_detect_page web_git_rebuild; do
+for file in diff domain emails files git infra vhost web_data web_page; do
     function="${collector_path}/functions/${file}.sh"
     if [ -s "${function}" ]; then
         source "${function}"
@@ -547,12 +547,12 @@ domain_execution(){
     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${green}Reconnaissance started on${reset} ${yellow}${domain}${reset}${green}!${reset}"
     if [ "${only_web_data}" == "no" ]; then
         subdomains_recon
-        joining_removing_duplicates
+        joining_domains
         diff_domains
         if [ -s "${report_dir}/domains_diff.txt" ]; then
-            managing_the_files "${report_dir}/domains_diff.txt"
+            cleanup_files "${report_dir}/domains_diff.txt"
         else
-            managing_the_files "${report_dir}/domains_found.txt"
+            cleanup_files "${report_dir}/domains_found.txt"
         fi
         infra_recon
         shodan_recon
