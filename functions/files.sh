@@ -33,19 +33,11 @@ joining_domains(){
                 | sort -u >> "${tmp_dir}/domains_found.tmp"
         fi
 
-        #if [ -s "${tmp_dir}/binaryedge_output.txt" ]; then
-        #    grep -E "^.*\.${domain}" "${tmp_dir}/binaryedge_output.txt" >> "${tmp_dir}/domains_found.tmp"
-        #fi
-
         if [ -s "${tmp_dir}/builtwith_subdomain_output.json" ]; then
             cat "${tmp_dir}/builtwith_subdomain_output.json" \
                 | jq -r '.Results[].Result.Paths[].SubDomain' \
                 | sort -u | sed "s/$/\.${domain}/g" >> "${tmp_dir}/domains_found.tmp"
         fi
-
-        #if [ -s "${tmp_dir}/censys_output.txt" ]; then
-        #    grep -E "^.*\.${domain}" "${tmp_dir}/censys_output.txt" >> "${tmp_dir}/domains_found.tmp"
-        #fi
 
         if [ -s "${tmp_dir}/certspotter_output.json" ]; then
             cat "${tmp_dir}/certspotter_output.json" \
@@ -68,10 +60,6 @@ joining_domains(){
                 | sort -u >> "${tmp_dir}/domains_found.tmp"
         fi
         
-        #if [ -s "${tmp_dir}/dnsdb_output.txt" ]; then
-        #    grep -E "^.*\.${domain}" "${tmp_dir}/dnsdb_output.txt" >> "${tmp_dir}/domains_found.tmp"
-        #fi
-
         if [ -s "${tmp_dir}/dnsdumpster_output.json" ]; then
             cat "${tmp_dir}/dnsdumpster_out.json" \
                 | jq -r '.a[].host' \
@@ -88,10 +76,6 @@ joining_domains(){
                 | grep -E "^.*\.${domain}" "${tmp_dir}/rapiddns_output.txt" \
                 >> "${tmp_dir}/domains_found.tmp"
         fi
-
-        #if [ -s "${tmp_dir}/riskiq_output.txt" ]; then
-        #    grep -E "^.*\.${domain}" "${tmp_dir}/riskiq_output.txt" >> "${tmp_dir}/domains_found.tmp"
-        #fi
 
         if [ -s "${tmp_dir}/securitytrails_output.json" ]; then
             cat "${tmp_dir}/securitytrails_output.json" \
@@ -110,13 +94,9 @@ joining_domains(){
             grep -E "^.*\.${domain}" "${tmp_dir}/subfinder_output.txt" >> "${tmp_dir}/domains_found.tmp"
         fi
 
-        #if [ -s "${tmp_dir}/threatcrowd_output.txt" ]; then
-        #    grep -E "^.*\.${domain}" "${tmp_dir}/threatcrowd_output.txt" >> "${tmp_dir}/domains_found.tmp"
-        #fi
-
-        #if [ -s "${tmp_dir}/threatminer_output.txt" ]; then
-        #    grep -E "^.*\.${domain}" "${tmp_dir}/threatminer_output.txt" >> "${tmp_dir}/domains_found.tmp"
-        #fi
+        if [ -s "${tmp_dir}/tlsx_output.json" ]; then
+            cat "${tmp_dir}/tlsx_output.json" | jq -r '.subject_an[]' grep -E "^.*\.${domain}" >> "${tmp_dir}/domains_found.tmp"
+        fi
 
         if [ -s "${tmp_dir}/virustotal_output.json" ]; then
             cat "${tmp_dir}/virustotal_output.json" \
