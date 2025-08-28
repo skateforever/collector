@@ -63,45 +63,28 @@ web_data(){
                                 file_gobuster="${name}.gobuster.${index}"
                                 file_dirsearch="${name}.dirsearch.${index}"
                                 if [ -n "${use_proxy}" ] && [ "${use_proxy}" == "yes" ]; then
-                                    # Skipping the specific wordlist from dirsearch on gobuster
-                                    if grep -E "\.\%EXT\%|\.\%EX\%" "${list}" > /dev/null 2>&1 ; then
-                                        echo "dirsearch -t \"${dirsearch_threads}\" -e \"${web_extensions}\" --random-agent --no-color --quiet-mode \
-                                            -w \"${list}\" --proxy \"${proxy_ip}\" --timeout=20 -u ${url}" >> "${log_execution_file}"
-                                        dirsearch -t "${dirsearch_threads}" -e "${web_extensions}" --random-agent --no-color --quiet-mode \
-                                            -w "${list}" --proxy "${proxy_ip}" --timeout=20 \
-                                            -u "${url}" >> "${web_data_dir}/${file_dirsearch}" 2>> "${log_execution_file}" &
-                                    else
-                                        echo "dirsearch -t \"${dirsearch_threads}\" -e \"${web_extensions}\" --random-agent --no-color --quiet-mode \
-                                            -w \"${list}\" --proxy \"${proxy_ip}\" --timeout=20 -u \"${url}\"" >> "${log_execution_file}"
-                                        dirsearch -t "${dirsearch_threads}" -e "${web_extensions}" --random-agent --no-color --quiet-mode \
-                                            -w "${list}" --proxy "${proxy_ip}" --timeout=20 \
-                                            -u "${url}" >> "${web_data_dir}/${file_dirsearch}" 2>> "${log_execution_file}" &
-                                        echo "gobuster dir --quiet --no-color --no-error -z -k -e --timeout 20s --delay 300ms \
-                                            --proxy http://${proxy_ip} -t ${gobuster_threads} \
-                                            -u ${url} -w ${list} -x ${web_extensions} >> ${web_data_dir}/${file_gobuster}"
-                                        gobuster dir --quiet --no-color --no-error -z -k -e --timeout 20s --delay 300ms \
-                                            --proxy "http://${proxy_ip}" -t "${gobuster_threads}" \
-                                            -u "${url}" -w "${list}" -x "${web_extensions}" \
-                                            >> "${web_data_dir}/${file_gobuster}" 2>> "${log_execution_file}" &
-                                    fi
+                                    echo "dirsearch -t \"${dirsearch_threads}\" -e \"${web_extensions}\" --random-agent --no-color --quiet-mode \
+                                        -w \"${list}\" --proxy \"${proxy_ip}\" --timeout=20 -u \"${url}\"" >> "${log_execution_file}"
+                                    dirsearch -t "${dirsearch_threads}" -e "${web_extensions}" --random-agent --no-color --quiet-mode \
+                                        -w "${list}" --proxy "${proxy_ip}" --timeout=20 \
+                                        -u "${url}" >> "${web_data_dir}/${file_dirsearch}" 2>> "${log_execution_file}" &
+                                    echo "gobuster dir --quiet --no-color --no-error -z -k -e --timeout 20s --delay 300ms \
+                                        --proxy http://${proxy_ip} -t ${gobuster_threads} \
+                                        -u ${url} -w ${list} -x ${web_extensions} >> ${web_data_dir}/${file_gobuster}"
+                                    gobuster dir --quiet --no-color --no-error -z -k -e --timeout 20s --delay 300ms \
+                                        --proxy "http://${proxy_ip}" -t "${gobuster_threads}" \
+                                        -u "${url}" -w "${list}" -x "${web_extensions}" \
+                                        >> "${web_data_dir}/${file_gobuster}" 2>> "${log_execution_file}" &
                                 else
-                                    # Skipping the specific wordlist from dirsearch on gobuster
-                                    if grep -E "\.\%EXT\%|\.\%EX\%" "${list}" > /dev/null 2>&1 ; then
-                                        echo "dirsearch -t \"${dirsearch_threads}\" -e \"${web_extensions}\" --random-agent --no-color --quiet-mode \
-                                            -w \"${list}\" -u \"${url}\"" >> "${log_execution_file}"
-                                        dirsearch -t "${dirsearch_threads}" -e "${web_extensions}" --random-agent --no-color --quiet-mode \
-                                            -w "${list}" -u "${url}" >> "${web_data_dir}/${file_dirsearch}" 2>> "${log_execution_file}" &
-                                    else
-                                        echo "dirsearch -t \"${dirsearch_threads}\" -e \"${web_extensions}\" --random-agent --no-color --quiet-mode \
-                                            -w \"${list}\" -u \"${url}\"" >> "${log_execution_file}"
-                                        dirsearch -t "${dirsearch_threads}" -e "${web_extensions}" --random-agent --no-color --quiet-mode \
-                                            -w "${list}" -u "${url}" >> "${web_data_dir}/${file_dirsearch}" 2>> "${log_execution_file}" &
-                                        echo "gobuster dir --quiet --no-color --no-error -z -k -e --timeout 20s --delay 300ms \
-                                            -t ${gobuster_threads} -u ${url} -w ${list} -x ${web_extensions} >> ${web_data_dir}/${file_gobuster}"
-                                        gobuster dir --quiet --no-color --no-error -z -k -e --timeout 20s --delay 300ms \
-                                            -t "${gobuster_threads}" -u "${url}" -w "${list}" -x "${web_extensions}" \
-                                            >> "${web_data_dir}/${file_gobuster}" 2>> "${log_execution_file}" &
-                                    fi
+                                    echo "dirsearch -t \"${dirsearch_threads}\" -e \"${web_extensions}\" --random-agent --no-color --quiet-mode \
+                                        -w \"${list}\" -u \"${url}\"" >> "${log_execution_file}"
+                                    dirsearch -t "${dirsearch_threads}" -e "${web_extensions}" --random-agent --no-color --quiet-mode \
+                                        -w "${list}" -u "${url}" >> "${web_data_dir}/${file_dirsearch}" 2>> "${log_execution_file}" &
+                                    echo "gobuster dir --quiet --no-color --no-error -z -k -e --timeout 20s --delay 300ms \
+                                        -t ${gobuster_threads} -u ${url} -w ${list} -x ${web_extensions} >> ${web_data_dir}/${file_gobuster}"
+                                    gobuster dir --quiet --no-color --no-error -z -k -e --timeout 20s --delay 300ms \
+                                        -t "${gobuster_threads}" -u "${url}" -w "${list}" -x "${web_extensions}" \
+                                        >> "${web_data_dir}/${file_gobuster}" 2>> "${log_execution_file}" &
                                 fi
                                 while [[ "$(pgrep -acf "[d]irsearch.*${domain}$|[g]obuster.*${domain}$")" -ge "${web_data_total_processes}" ]]; do
                                     sleep 1
