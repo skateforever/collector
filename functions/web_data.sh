@@ -162,16 +162,16 @@ web_data(){
                 while IFS= read -r url; do
                     if [ -n "${use_proxy}" ] && [ "${use_proxy}" == "yes" ]; then
                         echo "echo ${url} | nuclei -no-color -silent -ept ${nuclei_exclude_types} -et ${nuclei_exclude_templates} \
-                            -c ${nuclei_threads} -t ${nuclei_templates_dir} -proxy-url \"http://${proxy_ip}\" \
+                            -c ${nuclei_threads} -proxy-url \"http://${proxy_ip}\" \
                             -H \"User-Agent: ${nuclei_agent}\"" >> "${log_execution_file}"
                         echo "${url}" | nuclei -no-color -silent -ept "${nuclei_exclude_types}" -et "${nuclei_exclude_templates}" \
-                            -c ${nuclei_threads} -t "${nuclei_templates_dir}" -proxy-url "http://${proxy_ip}" \
+                            -c ${nuclei_threads} -proxy-url "http://${proxy_ip}" \
                             -H "User-Agent: ${nuclei_agent}" >> "${nuclei_scan_file}" 2>> "${log_execution_file}" &
                     else
                         echo "echo ${url} | nuclei -no-color -silent -c ${nuclei_threads} -ept ${nuclei_exclude_types} \
-                            -et ${nuclei_exclude_templates} -t ${nuclei_templates_dir}" >> "${log_execution_file}"
+                            -et ${nuclei_exclude_templates}" >> "${log_execution_file}"
                         echo "${url}" | nuclei -no-color -silent -ept "${nuclei_exclude_types}" -et "${nuclei_exclude_templates}" \
-                            -c ${nuclei_threads} -t "${nuclei_templates_dir}" >> "${nuclei_scan_file}" 2>> "${log_execution_file}" &
+                            -c ${nuclei_threads} >> "${nuclei_scan_file}" 2>> "${log_execution_file}" &
                     fi
                     while [[ "$(pgrep -acf "[n]uclei")" -ge "${web_data_total_processes}" ]]; do
                         sleep 1
@@ -185,20 +185,6 @@ web_data(){
                 grep -Ehr "\[high\]" "${nuclei_scan_file}" | notify -nc -silent -id "${notify_high_channel}"
                 echo "Done!"
 
-                echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing nuclei on web params... "
-                for f in $(find "${web_params_dir}" -type f ! -empty); do
-                    echo "nuclei -no-color -silent -c ${nuclei_threads} -t ${nuclei_fuzzing_templates_dir} \
-                    -H \"User-Agent: ${nuclei_agent}\" -l ${f}" >> "${log_execution_file}"
-                    nuclei -no-color -silent -c "${nuclei_threads}" -t "${nuclei_fuzzing_templates_dir}" \
-                    -H "User-Agent: ${nuclei_agent}" -l "${f}" >> "${nuclei_web_fuzzing_file}" 2>> "${log_execution_file}"
-                done
-                echo "Done!"
-
-                # Notifying the finds
-                echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Sending nuclei web params notification... "
-                grep -Ehr "\[critical\]" "${nuclei_web_fuzzing_file}" | notify -nc -silent -id "${notify_critical_channel}"
-                grep -Ehr "\[high\]" "${nuclei_web_fuzzing_file}" | notify -nc -silent -id "${notify_high_channel}"
-                echo "Done"
             else
                 echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Make sure the directories structure was created. Stopping the script!"
                 unset urls_file
