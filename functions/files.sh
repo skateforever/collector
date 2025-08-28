@@ -218,8 +218,10 @@ cleanup_files(){
     if [ -s "${subdomains_file}" ]; then
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Getting the IPs and aliases of the domain and subdomains... "
         # Domains and subdomains resolution
-        "massdns" -q -r "${massdns_resolvers_file}" -t A -o S \
-            -w "${tmp_dir}/domains_massdns_resolution.txt" "${subdomains_file}" > /dev/null 2>&1
+        if [ -s "${massdns_resolvers_file}" ]; then
+            "massdns" -q -r "${massdns_resolvers_file}" -t A -o S \
+                -w "${tmp_dir}/domains_massdns_resolution.txt" "${subdomains_file}" > /dev/null 2>&1
+        fi
 
         for d in $(cat "${subdomains_file}"); do
             dig +nocmd +nocomments +noquestion +noqr +nostats +timeout=2 -t A "${d}" >> "${tmp_dir}/domains_dig_command_resolution.txt"
