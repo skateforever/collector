@@ -30,13 +30,6 @@ else
     exit 1
 fi
 
-if [ -z "${pentest_dir}" ] ; then
-    banner
-    echo -e "Please ${red}make sure${reset} that the ${yellow}pentest_dir${reset} variable is indicating the location,"
-    echo -e "for the tools and wordlists used by the ${yellow}collector${reset} in the ${yellow}collector.cfg${reset} configuration file.\n"
-    exit 1
-fi
-
 # Verifying if all binaries there are in the system
 count=0
 for binary in amass aquatone censys-subdomain-finder.py diff dig dirsearch dnssearch git-dumper \
@@ -110,7 +103,7 @@ usage(){
     echo -e "\t-wld|--web-long-detection   - Will execute the long list of ports setup in collector.cfg as variable web_port_long_detection." 
     echo -e "\t-wsd|--web-short-detection  - Will execute the short list of ports setup in collector.cfg as variable web_port_short_detection."
     echo -e "\t-wtd|--web-tool-detection   - You need to inform what tool to perform web application detection the tool can be ${bold}${yellow}curl${reset}${normal} OR ${bold}${yellow}httpx${reset}${normal}."
-    echo -e "\t-ww |--web-wordlists        - Specity more wordlists to put in web_wordlist array, by default we use the $(echo ${web_tools_dir} | sed "s/\/home\/.*\/pentest/~\/pentest/")/dirsearch/db/dicc.txt"
+    echo -e "\t-ww |--web-wordlists        - Specity more wordlists to put in web_wordlist array"
     echo -e "\t\t\t\t      as the first wordlist to enumerate dirs and files from website."
     echo -e "\t\t\t\t      ${yellow}use -ww /path/to/wordlist1,/path/to/wordlist2 or --web-wordlists /path/to/wordlist1,/path/to/wordlist2${reset}"
     echo ""

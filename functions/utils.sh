@@ -30,13 +30,6 @@ else
     exit 1
 fi
 
-if [ -z "${pentest_dir}" ] ; then
-    banner
-    echo -e "Please ${red}make sure${reset} that the ${yellow}pentest_dir${reset} variable is indicating the location,"
-    echo -e "for the tools and wordlists used by the ${yellow}collector${reset} in the ${yellow}collector.cfg${reset} configuration file.\n"
-    exit 1
-fi
-
 # Verifying if all binaries there are in the system
 count=0
 for binary in amass aquatone censys-subdomain-finder.py diff dig dirsearch dnssearch git-dumper \
