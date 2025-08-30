@@ -22,26 +22,16 @@ else
     exit 1
 fi
 
-[[ -s "${PWD}/functions/check_binaries.sh" ]] && \
-    source "${PWD}/functions/check_binaries.sh"
-[[ -s "${PWD}/functions/help.sh" ]] && \
-    source "${PWD}/functions/help.sh"
-[[ -s "${PWD}/functions/kill_collector.sh" ]] && \
-    source "${PWD}/functions/kill_collector.sh"
-[[ -s "${PWD}/functions/menu.sh" ]] && \
-    source "${PWD}/functions/menu.sh"
-[[ -s "${PWD}/functions/check_execution.sh" ]] && \
-    source "${PWD}/functions/check_execution.sh"
-[[ -s "${PWD}/functions/check_structure.sh" ]] && \
-    source "${PWD}/functions/check_structure.sh"
-[[ -s "${PWD}/functions/check_functions.sh" ]] && \
-    source "${PWD}/functions/check_functions.sh"
-[[ -s "${PWD}/functions/message.sh" ]] && \
-    source "${PWD}/functions/message.sh"
-[[ -s "${PWD}/functions/domains_recon.sh" ]] && \
-    source "${PWD}/functions/domains_recon.sh"
-[[ -s "${PWD}/functions/url_recon.sh" ]] && \
-    source "${PWD}/functions/url_recon.sh"
-[[ -s "${PWD}/functions/collector_execution.sh" ]] && \
-    source "${PWD}/functions/collector_execution.sh"
+[[ -s "${PWD}/functions/check_binaries.sh" ]] && source "${PWD}/functions/check_binaries.sh"
+[[ -s "${PWD}/functions/help.sh" ]] && source "${PWD}/functions/help.sh"
+[[ -s "${PWD}/functions/kill_collector.sh" ]] && source "${PWD}/functions/kill_collector.sh"
+[[ -s "${PWD}/functions/menu.sh" ]] && source "${PWD}/functions/menu.sh"
+menu
+[[ -s "${PWD}/functions/check_execution.sh" ]] && source "${PWD}/functions/check_execution.sh"
+[[ -s "${PWD}/functions/check_structure.sh" ]] && source "${PWD}/functions/check_structure.sh"
+[[ -s "${PWD}/functions/check_functions.sh" ]] && source "${PWD}/functions/check_functions.sh"
+[[ -s "${PWD}/functions/message.sh" ]] && source "${PWD}/functions/message.sh"
+[[ -s "${PWD}/functions/domains_recon.sh" ]] && source "${PWD}/functions/domains_recon.sh"
+[[ -s "${PWD}/functions/url_recon.sh" ]] && source "${PWD}/functions/url_recon.sh"
+[[ -s "${PWD}/functions/collector_execution.sh" ]] && source "${PWD}/functions/collector_exec.sh"
 collector_exec

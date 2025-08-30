@@ -1,9 +1,6 @@
+# main function of the collector script
+
 collector_exec(){
-    check_binaries
-    check_functions
-    menu
-    check_execution
-    check_is_known_target
     if [[ -n ${domain} ]] && [[ ! -s "${domain_list}" ]] && [[ -z "${url_2_verify}" ]]; then
         echo "The reconnaissance for ${domain} started at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
         clear > "$(tty)"
