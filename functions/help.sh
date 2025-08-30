@@ -1,7 +1,7 @@
 # Script usage description
 usage(){
     (
-    echo -e "Basic usage:"
+    echo "Basic usage:"
     echo -e "       ${yellow}$0${reset} ${green}-d domain.com -wsd -wtd curl${reset}"
     echo -e "       ${yellow}$0${reset} ${green}-dl /path/file/domain_list.txt -wsd -wtd curl${reset}"
     echo -e "       ${yellow}$0${reset} ${green}-u http://domain.com${reset}\n"
@@ -27,8 +27,10 @@ usage(){
     echo -e "\t\t\t\t      by default the array is empty and not execute amass, gobuster and dnssearch. This option take a long time to finish, use this own your need!"
     echo -e "\t\t\t\t      The success of use those tools is a good wordlist:"
     echo -e "\t\t\t\t      use ${yellow}-s /path/to/wordlist1,/path/to/wordlist2${reset} OR ${yellow}--subdomain-brute /path/to/wordlist1,/path/to/wordlist2${reset}"
-    echo -e "\t-u  |--url                  - Specify a valid url [${red}needed${reset}]."
-    echo -e "\t-wd |--web-data             - Will execute a web data dig after execution of collector with recon option (${red}-re|--recon${reset}): used only with ${red}-d|--domain${reset} WITHOUT ${red}-re|--recon${reset}."
+    echo -e "\t-u  |--url                  - Specify a valid url [${red}needed${reset}] to retrieve information from specified URL using the web_data function."
+    echo -e "\t-wd |--web-data             - By default, a function called web_data will be executed, ${red}unless${reset} the collector is run recon-only option (${yellow}-r${reset} OR ${yellow}--recon${reset})"
+    echo -e "\t\t\t\t      After the use the collector with the recon-only option you can use this option (${yellow}-wd${reset} OR ${yellow}--web-data${reset}) retrieve information from the web application:"
+    echo -e "\t\t\t\t      used only with ${red}-d|--domain${reset}"
     echo -e "\t-wld|--web-long-detection   - Will execute the long list of ports setup in collector.cfg as variable web_port_long_detection." 
     echo -e "\t-wsd|--web-short-detection  - Will execute the short list of ports setup in collector.cfg as variable web_port_short_detection."
     echo -e "\t-wtd|--web-tool-detection   - You need to inform what tool to perform web application detection the tool can be ${bold}${yellow}curl${reset}${normal} OR ${bold}${yellow}httpx${reset}${normal}."
