@@ -1,9 +1,8 @@
-check_argument(){
+heck_argument(){
     options+=(-d --domain -dl --domain-list -e --exclude-domains -el --exclude-domains-list -k -kill -ka --kill-all -l --limit-urls -o --output -p --proxy -r --recon)
     options+=(-s --subdomain-brute -u --url -wd --web-data -wld --web-long-detection -wsd --web-short-detection -wtd --web-tool-detection -ww --web-wordlists)
     if [[ "${options[*]}" =~ $2 ]]; then
         echo -e "The argument of ${yellow}\"$1\"${reset} it can not be ${red}\"$2\"${reset}, please, ${yellow}specify a valid one${reset}.\n"
-        banner
         usage
     fi
 }
@@ -19,11 +18,9 @@ menu(){
             -d|--domain)
                 check_argument "$1" "$2"
                 if [[ -n "${url_2_verify}" ]]; then
-                    banner
                     echo -e "You can only use \"-d|--domain\" or \"-u|--url\", never both together!\n"
                     usage
                 elif [[ -s "${domain_list}" ]]; then
-                    banner
                     echo -e "You can only use \"-d|--domain\" or \"-dl|--domain-list\", never both together!\n"
                     usage
                 else
@@ -33,7 +30,6 @@ menu(){
                         directories_structure="domain"
                         shift 2
                     else
-                        banner
                         echo -e "You need specify a valid domain!\n"
                         usage
                     fi
@@ -42,11 +38,9 @@ menu(){
             -dl|--domain-list)
                 check_argument "$1" "$2"
                 if [[ -n "${url_2_verify}" ]]; then
-                    banner
                     echo -e "You can only use \"-dl|--domain-list\" or \"-u|--url\", never both together!\n"
                     usage
                 elif [[ -s "${domain_list}" ]]; then
-                    banner
                     echo -e "You can only use \"-dl|--domain-list\" or \"-d|--domain\", never both together!\n"
                     usage
                 else
@@ -56,7 +50,6 @@ menu(){
                         directories_structure="domain"
                         shift 2
                     else
-                        banner
                         echo -e "Please provide a valid file with domains.\n"
                         usage
                     fi
@@ -65,7 +58,6 @@ menu(){
             -e|--exclude-domains)
                 check_argument "$1" "$2"
                 if [[ -n "${url_2_verify}" ]]; then
-                    banner
                     echo -e "You can only use this (-e|--exlude-domains) option with \"-d|--domain\"!\n"
                     usage
                 fi
@@ -84,7 +76,6 @@ menu(){
             -k|--kill)
                 check_argument "$1" "$2"
                 if [ -z "$2" ]; then
-                    banner
                     echo "You need to specify a domain to kill the execution!"
                     exit 1
                 else
@@ -94,7 +85,6 @@ menu(){
             -kr|--kill-remove)
                 check_argument "$1" "$2"
                 if [ -z "$2" ]; then
-                    banner
                     echo "You need to specify a domain to kill the execution!"
                     exit 1
                 else
@@ -105,7 +95,6 @@ menu(){
             -l|--limit-urls)
                 check_argument "$1" "$2"
                 if [[ -n "${url_2_verify}" ]]; then
-                    banner
                     echo -e "You can only use this (-l|--limit-urls) option with \"-d|--domain\"!\n"
                     usage
                 fi
@@ -113,7 +102,6 @@ menu(){
                     limit_urls="$2"
                     shift 2
                 else
-                    banner
                     echo -e "Specify the total number of URLs you want to test!\n"
                     usage
                 fi
@@ -127,7 +115,6 @@ menu(){
                     shift 2
                     rm -rf "${output_dir}/permission_to_write.txt"
                 else
-                    banner
                     echo -e "Please, you need to specify a ${yellow}valid directory you own or have access permission${reset}!\n"
                     usage
                 fi
@@ -140,12 +127,10 @@ menu(){
                 ;;
             -r|--recon)
                 if [[ -n "${only_web_data}" ]] && [[ "${only_web_data}" == "yes"  ]]; then
-                    banner
                     echo -e "You can't use this (-re|--recon) option with \"-wd|--web-data\"!\n"
                     usage
                 fi
                 if [[ -n "${url_2_verify}" ]]; then
-                    banner
                     echo -e "With this option (-re|--recon) You can only use \"-d|--domain\"!\n"
                     usage
                 fi
@@ -156,7 +141,6 @@ menu(){
             -s|--subdomain-brute)
                 check_argument "$1" "$2"
                 if [[ -n "${url_2_verify}" ]]; then
-                    banner
                     echo -e "You can only use this (-s|--subdomain-brute) option with \"-d|--domain\"!\n"
                     usage
                 fi
@@ -169,17 +153,14 @@ menu(){
             -u|--url)
                 check_argument "$1" "$2"
                 if [[ -n "${domain}" ]]; then
-                    banner
                     echo -e "You can only use \"-u|--url\" or \"-d|--domain\", never both together!\n"
                     usage
                 elif [[ -s "${domain_list}" ]]; then
-                    banner
                     echo -e "You can only use \"-u|--url\" or \"-dl|--domain-list\", never both together!\n"
                     usage
                 else
                     [[ -n "$2" ]] && status_code=$(curl -o /dev/null -kLs -w "%{http_code}" "$2")
                     if [[ -z ${status_code} || "${status_code}" -eq "000" ]];then
-                        banner
                         echo -e "You need specify a valid URL!\n"
                         usage
                     else
@@ -193,12 +174,10 @@ menu(){
                 ;;
             -wd|--web-data)
                 if [[ -n "${only_recon}" ]] && [[ "${only_recon}" == "yes"  ]]; then
-                    banner
                     echo -e "You can't use this (-wd|--web-data) option with \"-re|--recon\"!\n"
                     usage
                 fi
                 if [[ -n "${url_2_verify}" ]]; then
-                    banner
                     echo -e "With this option (-wd|--web-data) You can only use \"-d|--domain\"!\n"
                     usage
                 fi
@@ -211,7 +190,6 @@ menu(){
                 else
                     diff_array=$(diff <(printf "%s\n" "${web_port_detect[@]}") <(printf "%s\n" "${web_port_long_detection[@]}"))
                     if [[ "${#web_port_detect[@]}" -ne 0 ]] && [[ -n ${diff_array} ]]; then
-                        banner
                         echo -e "You need to specify just sort or long web port detection, not both!\n"
                         unset web_port_detect
                         usage
@@ -225,7 +203,6 @@ menu(){
                 else
                     diff_array=$(diff <(printf "%s\n" "${web_port_detect[@]}") <(printf "%s\n" "${web_port_short_detection[@]}"))
                     if [[ "${#web_port_detect[@]}" -ne 0 ]] && [[ -n ${diff_array} ]]; then
-                        banner
                         echo -e "You need to specify just sort or long web port detection, not both!\n"
                         unset web_port_detect
                         usage
@@ -236,7 +213,6 @@ menu(){
             -wtd|--web-tool-detection)
                 check_argument "$1" "$2"
                 if [[ "curl" != "$2" && "httpx" != "$2" ]] ; then
-                    banner
                     echo -e "You need to inform one of these tools curl or httpx!\n"
                     usage
                 else
@@ -244,7 +220,6 @@ menu(){
                     web_tool_detection="$2"
                     if [ "${web_tool_detection}" == "httpx" ]; then
                         if ! command -v httpx > /dev/null 2>&1 ; then
-                            banner
                             echo -e "The ${red}httpx does not exist${reset} on the system!"
                             echo -e "Please install the httpx and put in your PATH!"
                             exit 1
@@ -262,7 +237,6 @@ menu(){
                 shift 2
                 ;;
             -?*)
-                banner
                 usage
                 ;;
             *)
