@@ -1,14 +1,12 @@
 check_execution(){
     # Checking if the script has the main parameters needed
     if [[ -z "${url_2_verify}" ]] && [[ -z "${domain}" ]] && [[ ! -s "${domain_list}" ]]; then
-        banner
         echo -e "You need at least one option \"-u|--url\", \"-d|--domain\" OR \"-dl|--domain-list\" to execute this script!\n"
         usage
     fi
 
     # Verify the if exist the default resolvers list
     #if [ ! -s "${massdns_resolvers_file}" ]; then
-    #    banner
     #    echo "The resolvers file does not exist, please fix it, downloading from this source: "
     #    echo -e "\n\thttps://public-dns.info/nameservers.txt"
     #    echo " "
@@ -18,7 +16,6 @@ check_execution(){
 
     # Verify the if exist the default wordlist for web
     #if [ ${#web_wordlists[@]} -eq 0 ]; then
-    #    banner
     #    echo -e "Please, ${yellow}make sure${reset} you have the default wordlists to web directory and file discovery!\n"
     #    usage
     #fi

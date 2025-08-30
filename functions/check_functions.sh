@@ -5,7 +5,6 @@ check_functions(){
         if [ -s "${function}" ]; then
             source "${function}"
         else
-            banner
             echo -e "Please ${red}make sure${reset} you have the ${yellow}\"${function}\"${reset} file."
             echo -e "${yellow}You need this file to execute collector${reset}!"
             exit 1

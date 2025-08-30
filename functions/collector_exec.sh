@@ -3,7 +3,6 @@ collector_exec(){
         echo "The reconnaissance for ${domain} started at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
         clear > "$(tty)"
         echo -e "${collector_command_line}\n"
-        banner
         check_parameter_dependency_domain
         check_is_known_target "${domain}"
         create_initial_directories_structure
@@ -16,7 +15,6 @@ collector_exec(){
             echo "The reconnaissance for ${domain} started at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
             $(clear >&2)
             echo -e "${collector_command_line}\n"
-            banner
             check_parameter_dependency_domain
             check_is_known_target "${domain}"
             create_initial_directories_structure
@@ -54,7 +52,6 @@ collector_exec(){
         echo "The reconnaissance for ${url_base} started at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
         clear > "$(tty)"
         echo -e "$0 $*\n"
-        banner
         check_is_known_target "${url_domain}"
         create_initial_directories_structure
 
