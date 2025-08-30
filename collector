@@ -33,5 +33,5 @@ menu
 [[ -s "${PWD}/functions/message.sh" ]] && source "${PWD}/functions/message.sh"
 [[ -s "${PWD}/functions/domains_recon.sh" ]] && source "${PWD}/functions/domains_recon.sh"
 [[ -s "${PWD}/functions/url_recon.sh" ]] && source "${PWD}/functions/url_recon.sh"
-[[ -s "${PWD}/functions/collector_execution.sh" ]] && source "${PWD}/functions/collector_exec.sh"
+[[ -s "${PWD}/functions/collector_exec.sh" ]] && source "${PWD}/functions/collector_exec.sh"
 collector_exec
