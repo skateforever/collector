@@ -3,7 +3,7 @@
 collector_exec(){
     if [[ -n ${domain} ]] && [[ ! -s "${domain_list}" ]] && [[ -z "${url_2_verify}" ]]; then
         echo "The reconnaissance for ${domain} started at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
-        clear > "$(tty)"
+        #clear > "$(tty)"
         #echo -e "${collector_command_line}\n"
         check_is_known_target "${domain}"
         create_initial_directories_structure
@@ -14,7 +14,7 @@ collector_exec(){
         unset domain
         while read -r domain; do 
             echo "The reconnaissance for ${domain} started at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
-            $(clear >&2)
+            #$(clear >&2)
             #echo -e "${collector_command_line}\n"
             check_is_known_target "${domain}"
             create_initial_directories_structure
@@ -50,7 +50,7 @@ collector_exec(){
         done
 
         echo "The reconnaissance for ${url_base} started at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
-        clear > "$(tty)"
+        #clear > "$(tty)"
         echo -e "$0 $*\n"
         check_is_known_target "${url_domain}"
         create_initial_directories_structure
