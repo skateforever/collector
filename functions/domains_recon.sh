@@ -47,7 +47,7 @@ domains_recon(){
         else
             managing_the_files "${report_dir}/domains_found.txt"
         fi
-        infra_recon
+        #infra_recon
         shodan_recon
         webapp_alive
         #emails_recon
@@ -71,5 +71,5 @@ domains_recon(){
         git_rebuild
     fi
     #report
-    message "${domain}") finished 2>> "${log_execution_file}" | tee -a "${log_execution_file}"
+    message "${domain}" finished) 2>> "${log_execution_file}" | tee -a "${log_execution_file}"
 }

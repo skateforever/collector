@@ -6,8 +6,7 @@
 
 collector_command_line="$0 $*"
 
-[[ -s "${PWD}/functions/banner.sh" ]] && \
-    source "${PWD}/functions/banner.sh"
+[[ -s "${PWD}/functions/banner.sh" ]] && source "${PWD}/functions/banner.sh"
 banner
 
 collector_path=$(dirname "$0")
@@ -22,16 +21,18 @@ else
     exit 1
 fi
 
-[[ -s "${PWD}/functions/check_binaries.sh" ]] && source "${PWD}/functions/check_binaries.sh"
-[[ -s "${PWD}/functions/help.sh" ]] && source "${PWD}/functions/help.sh"
-[[ -s "${PWD}/functions/kill_collector.sh" ]] && source "${PWD}/functions/kill_collector.sh"
-[[ -s "${PWD}/functions/menu.sh" ]] && source "${PWD}/functions/menu.sh"
-menu
-[[ -s "${PWD}/functions/check_execution.sh" ]] && source "${PWD}/functions/check_execution.sh"
-[[ -s "${PWD}/functions/check_structure.sh" ]] && source "${PWD}/functions/check_structure.sh"
-[[ -s "${PWD}/functions/check_functions.sh" ]] && source "${PWD}/functions/check_functions.sh"
-[[ -s "${PWD}/functions/message.sh" ]] && source "${PWD}/functions/message.sh"
-[[ -s "${PWD}/functions/domains_recon.sh" ]] && source "${PWD}/functions/domains_recon.sh"
-[[ -s "${PWD}/functions/url_recon.sh" ]] && source "${PWD}/functions/url_recon.sh"
-[[ -s "${PWD}/functions/collector_exec.sh" ]] && source "${PWD}/functions/collector_exec.sh"
+# Checking if the essencial functions there are
+for file in kill_collector check_binaries usage message menu check_structure check_execution \
+    domains_sources files diff_recon infra vhost web_page web_data git \
+    domains_recon url_recon collector_exec; do
+    function="${collector_path}/functions/${file}.sh"
+    if [ -s "${function}" ]; then
+        source "${function}"
+    else
+        echo -e "Please ${red}make sure${reset} you have the ${yellow}\"${function}\"${reset} file."
+        echo -e "${yellow}You need this file to execute collector${reset}!"
+        exit 1
+    fi
+done
+
 collector_exec
