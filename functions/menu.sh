@@ -212,6 +212,7 @@ menu(){
                 ;;
             -wtd|--web-tool-detection)
                 check_argument "$1" "$2"
+                web_tool_detection="$2"
                 shift 2
                 ;;
             -ww|--web-wordlists)
