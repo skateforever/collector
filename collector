@@ -35,4 +35,6 @@ for file in kill_collector check_binaries usage message menu check_structure che
     fi
 done
 
+menu "$@"
+check_execution
 collector_exec

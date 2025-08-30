@@ -13,7 +13,7 @@ usage(){
     echo -e "\t-el |--exclude-domains-list - Specify excluded subdomains from a file after all treated files, ${red}used only with${reset} ${yellow}-d|--domain${reset}:"
     echo -e "\t\t\t\t      use ${yellow}-el /path/file/excluded_domains_list.txt${reset} OR ${yellow}--exclude-domains-list /path/file/excluded_domains_list.txt${reset}"
     echo -e "\t-k  |--kill                 - Will kill the current execution of collector, you need to specify the domain as argument."
-    echo -e "\t-ka |--kill-all             - Will kill the current execution of collector and delete the directory of results from current execution, you need to specify the domain as argument."
+    echo -e "\t-kr |--kill-remove          - Will kill the current execution of collector and delete the directory of results from current execution, you need to specify the domain as argument."
     echo -e "\t-l  |--limit-urls           - Specify the url quantity to run dirsearch and gobuster for dirs and files enumeration [${red}used only with${reset} ${yellow}-d|--domain${reset}]:"
     echo -e "\t\t\t\t      use ${yellow}-l 10${reset} OR ${yellow}--limit-urls 10${reset}"
     echo -e "\t-o  |--output               - This option when specified will use the directory to save the output of collector script if omitted the default value is: ${yellow}${PWD}${reset}"

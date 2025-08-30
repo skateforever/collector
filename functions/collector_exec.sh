@@ -1,11 +1,10 @@
 # main function of the collector script
 
 collector_exec(){
-    check_execution
     if [[ -n ${domain} ]] && [[ ! -s "${domain_list}" ]] && [[ -z "${url_2_verify}" ]]; then
         echo "The reconnaissance for ${domain} started at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
         clear > "$(tty)"
-        echo -e "${collector_command_line}\n"
+        #echo -e "${collector_command_line}\n"
         check_parameter_dependency_domain
         check_is_known_target "${domain}"
         create_initial_directories_structure
@@ -17,7 +16,7 @@ collector_exec(){
         while read -r domain; do 
             echo "The reconnaissance for ${domain} started at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
             $(clear >&2)
-            echo -e "${collector_command_line}\n"
+            #echo -e "${collector_command_line}\n"
             check_parameter_dependency_domain
             check_is_known_target "${domain}"
             create_initial_directories_structure

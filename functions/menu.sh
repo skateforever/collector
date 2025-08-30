@@ -1,4 +1,4 @@
-heck_argument(){
+check_argument(){
     options+=(-d --domain -dl --domain-list -e --exclude-domains -el --exclude-domains-list -k -kill -ka --kill-all -l --limit-urls -o --output -p --proxy -r --recon)
     options+=(-s --subdomain-brute -u --url -wd --web-data -wld --web-long-detection -wsd --web-short-detection -wtd --web-tool-detection -ww --web-wordlists)
     if [[ "${options[*]}" =~ $2 ]]; then
@@ -212,21 +212,7 @@ menu(){
                 ;;
             -wtd|--web-tool-detection)
                 check_argument "$1" "$2"
-                if [[ "curl" != "$2" && "httpx" != "$2" ]] ; then
-                    echo -e "You need to inform one of these tools curl or httpx!\n"
-                    usage
-                else
-                    unset web_tool_detection
-                    web_tool_detection="$2"
-                    if [ "${web_tool_detection}" == "httpx" ]; then
-                        if ! command -v httpx > /dev/null 2>&1 ; then
-                            echo -e "The ${red}httpx does not exist${reset} on the system!"
-                            echo -e "Please install the httpx and put in your PATH!"
-                            exit 1
-                        fi
-                    fi
-                    shift 2
-                fi
+                shift 2
                 ;;
             -ww|--web-wordlists)
                 check_argument "$1" "$2"

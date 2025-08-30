@@ -40,4 +40,3 @@ check_is_known_target(){
         echo "This is a known target."
     fi
 }
-
