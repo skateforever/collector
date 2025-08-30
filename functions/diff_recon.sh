@@ -9,8 +9,8 @@
 
 diff_domains(){
     if [ -d "${report_dir}" ]; then 
+        echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Getting the difference between files to improve the time running collector script... "
         if [ -s "${report_dir}/domains_found.txt" ]; then
-            echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Getting the difference between files to improve the time running collector script... "
             oldest_domains=$(find "${output_dir}/${domain}" -name domains_found.txt -type f | sort -u | grep -v "${date_recon}" | tail -n1)
             if [[ -n "${oldest_domains}" ]]; then
                 if cmp -s "${oldest_domains}" "${report_dir}/domains_found.txt"; then
