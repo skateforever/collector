@@ -1,5 +1,4 @@
 domains_recon(){
-
     if [[ "${only_web_data}" == "yes" ]]; then
         for d in $(ls -1t "${output_dir}/${domain}" | grep -Ev "log$"); do
             if [[ -s "${output_dir}/${domain}/${d}/report/web_data_urls.txt" ]]; then

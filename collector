@@ -24,30 +24,18 @@ fi
 
 [[ -s "${PWD}/functions/check_binaries.sh" ]] && \
     source "${PWD}/functions/check_binaries.sh"
-check_binaries
 [[ -s "${PWD}/functions/help.sh" ]] && \
     source "${PWD}/functions/help.sh"
 [[ -s "${PWD}/functions/kill_collector.sh" ]] && \
     source "${PWD}/functions/kill_collector.sh"
 [[ -s "${PWD}/functions/menu.sh" ]] && \
     source "${PWD}/functions/menu.sh"
-menu
 [[ -s "${PWD}/functions/check_execution.sh" ]] && \
     source "${PWD}/functions/check_execution.sh"
-check_execution
 [[ -s "${PWD}/functions/check_structure.sh" ]] && \
     source "${PWD}/functions/check_structure.sh"
 [[ -s "${PWD}/functions/check_functions.sh" ]] && \
     source "${PWD}/functions/check_functions.sh"
-check_functions
-
-# Checking if is a know target to get the cursor position
-check_is_known_target(){
-    if [[ -n "$1" ]] && [[ -d "${output_dir}/$1" ]]; then
-        echo "This is a known target."
-    fi
-}
-
 [[ -s "${PWD}/functions/message.sh" ]] && \
     source "${PWD}/functions/message.sh"
 [[ -s "${PWD}/functions/domains_recon.sh" ]] && \

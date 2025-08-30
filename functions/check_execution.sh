@@ -33,3 +33,11 @@ check_parameter_dependency_domain(){
         usage
     fi
 }
+
+# Checking if is a know target to get the cursor position
+check_is_known_target(){
+    if [[ -n "$1" ]] && [[ -d "${output_dir}/$1" ]]; then
+        echo "This is a known target."
+    fi
+}
+
