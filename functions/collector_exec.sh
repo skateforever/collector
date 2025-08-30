@@ -5,7 +5,6 @@ collector_exec(){
         echo "The reconnaissance for ${domain} started at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
         clear > "$(tty)"
         #echo -e "${collector_command_line}\n"
-        check_parameter_dependency_domain
         check_is_known_target "${domain}"
         create_initial_directories_structure
         domains_recon
@@ -17,7 +16,6 @@ collector_exec(){
             echo "The reconnaissance for ${domain} started at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
             $(clear >&2)
             #echo -e "${collector_command_line}\n"
-            check_parameter_dependency_domain
             check_is_known_target "${domain}"
             create_initial_directories_structure
             if [[ $(host -t A "${domain}" | grep -E "has.address" | awk '{print $4}' | grep -E "${IPv4_regex}$" > /dev/null 2>&1 ; echo $?) -eq 0 ]]; then

@@ -37,4 +37,5 @@ done
 
 menu "$@"
 check_execution
+check_parameter_dependency_domain
 collector_exec
