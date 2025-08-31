@@ -14,7 +14,7 @@ subdomains_recon(){
             dnsdumpster.sh hackertarget.sh netcraft.sh rapiddns.sh securitytrails.sh shodan.sh subfinder.sh \
             tlsx.sh virustotal.sh webarchive.sh whoisxmlapi.sh zonetransfer.sh)
         for src in "${source_files[@]}"; do
-            source "${PWD}/../sources/${src}"
+            source "${PWD}/sources/${src}"
         done
     else
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Make sure the directories structure was created. Stopping the script!"
