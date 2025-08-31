@@ -22,15 +22,21 @@ check_execution(){
 }
 # Checking the runtime parameter dependency for domain recon
 check_parameter_dependency_domain(){
-    [[ "${args_count}" -gt 9 ]] && echo -e "You are trying to pass a number of parameters beyond what is necessary for this collector reconnaissance option \"${yellow}-d|--domain${reset}\".\n" && usage
-    if [[ ${#web_port_detect[@]} -eq 0 ]]; then
-        echo -e "You need to specify at least one of these options sort (-ws|--web-short-detection) or long (-wl|--web-long-detection) web detection!\n"
-        usage
-    fi
+    if [[ -n "${domain}" ]] || [[ -s "${domain_list}" ]]; then
+        if [[ "${args_count}" -gt 9 ]]; then 
+            echo -e "You are trying to pass a number of parameters beyond what is necessary for this collector reconnaissance option \"${yellow}-d|--domain${reset}\".\n"
+            usage
+        fi
+ 
+        if [[ ${#web_port_detect[@]} -eq 0 ]]; then
+            echo -e "You need to specify at least one of these options sort (-ws|--web-short-detection) or long (-wl|--web-long-detection) web detection!\n"
+            usage
+        fi
 
-    if [[ -z "${web_tool_detection}" ]]; then
-        echo -e "You need to inform one of these tools ${bold}${yellow}curl${reset}${normal} or ${bold}${yellow}httpx${reset}${normal} to perform web application detection.\n"
-        usage
+        if [[ -z "${web_tool_detection}" ]]; then
+            echo -e "You need to inform one of these tools ${bold}${yellow}curl${reset}${normal} or ${bold}${yellow}httpx${reset}${normal} to perform web application detection.\n"
+            usage
+       fi
     fi
 }
 
