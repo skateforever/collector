@@ -9,10 +9,9 @@
 #############################################################            
 
 joining_domains(){
+    echo -en "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Putting all domain search results in one file... " \
+        | tee -a "${log_execution_file}"
     if [ -d "${tmp_dir}" ] && [ -d "${report_dir}" ]; then
-        echo -en "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Putting all domain search results in one file... " \
-            | tee -a "${log_execution_file}"
-
         if [ -s "${tmp_dir}/alienvault_output.json" ]; then
             cat "${tmp_dir}/alienvault_output.json" \
                 | jq --raw-output '.passive_dns[]?.hostname' \
@@ -149,13 +148,13 @@ joining_domains(){
                 unset file
             done
         fi
-        echo "Done!"
 
         #if [ -s  "${tmp_dir}/zone_transfer.txt" ]; then
         #    
         #fi
         
         if [ -s "${tmp_dir}/domains_found.tmp" ]; then
+            echo "Done!"
             echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Joining the subdomains and removing duplicates... "
             # Removing duplicated subdomains
             cp "${tmp_dir}/domains_found.tmp" "${tmp_dir}/domains_found_tmp.old"
@@ -192,6 +191,8 @@ joining_domains(){
                 sed -i '/^$/d' "${report_dir}/domains_found.txt"
                 echo "Done!"
             fi
+        else
+            echo "Fail!"
         fi
 
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Looking for Zone Transfer... "

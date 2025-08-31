@@ -8,8 +8,8 @@
 ############################################################# 
 
 webapp_alive(){
+    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Testing subdomains to know if it has a web application... "
     if [ -s "${report_dir}/domains_alive.txt" ]; then
-        echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Testing subdomains to know if it is or have web application... "
 
         if [ -n "${proxy_ip}" ] && [ "${proxy_ip}" == "yes" ]; then
             if [ "${web_tool_detection}" == "curl" ]; then
@@ -77,8 +77,8 @@ webapp_alive(){
             echo "Done!"
         fi
 
+        echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Separating infrastructure from web application... "
         if [ -s "${report_dir}/domains_web.txt" ]; then
-            echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Separating infrastructure from web application... "
             if cp "${report_dir}/domains_alive.txt" "${report_dir}/domains_infrastructure.txt"; then
                 while IFS= read -r line; do
                     subdomain=$(echo "${line}" | sed -e "s/http:\/\///" -e "s/https:\/\///" | awk -F":" '{print $1}' | awk -F"/" '{print $1}')
@@ -96,7 +96,6 @@ webapp_alive(){
                 echo "The error occurred in the function web_detect_page.sh!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
                 echo -e "The message was: \n\tCould not create file for infrastructure domains, something went wrong." | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
                 echo "The reconnaissance for ${domain} failed at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
-
                 exit 1
             fi
         else
@@ -114,8 +113,9 @@ webapp_alive(){
             echo -e "\t\t      * $(wc -l "${report_dir}/domains_infrastructure.txt" | awk '{print $1}') Infrastructure domain(s)."
         fi
     else
+        echo "Fail!"
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} The ${report_dir}/domains_alive.txt does not exist or is empty."
-        echo "The error occurred in the function web_detect_page.sh!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+        echo "The error occurred in the function web_page.sh!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
         echo -e "The message was: \n\tThe ${report_dir}/domains_alive.txt does not exist or is empty." | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
         echo "The reconnaissance for ${domain} failed at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
         exit 1
