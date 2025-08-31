@@ -270,25 +270,17 @@ organizing_subdomains(){
         fi
         echo "Done!"
 
+        echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Separating live subdomains from unresponsive subdomains... "
         if sort -u -o "${report_dir}/domains_alive.txt" "${tmp_dir}/domains_alive_tmp.txt"; then
             # Unavailable domains
-            echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Separating live subdomains from unresponsive subdomains... "
             cp "${subdomains_file}" "${report_dir}/domains_without_resolution.txt"
             for d in $(cat "${report_dir}/domains_alive.txt"); do
                 sed -i "/${d}/d" "${report_dir}/domains_without_resolution.txt"
             done
             echo "Done!"
 
-            # Sorting out...
-            echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Removing duplicate subdomains... "
-            sort -u -o "${report_dir}/domains_aliases.txt" "${report_dir}/domains_aliases.txt" 2> /dev/null
-            sort -u -o "${report_dir}/domains_alive.txt" "${report_dir}/domains_alive.txt" 2> /dev/null
-            sort -u -o "${report_dir}/domains_internal_ipv4.txt" "${tmp_dir}/domains_found_tmp_internal_ips.txt" 2> /dev/null
-            sort -u -o "${report_dir}/domains_external_ipv4.txt" "${report_dir}/domains_external_ipv4.txt" 2> /dev/null
-            #sort -u -o "${report_dir}/domains_external_ipv6.txt" "${report_dir}/domains_external_ipv6.txt" 2> /dev/null
-            sort -u -o "${report_dir}/domains_without_resolution.txt" "${report_dir}/domains_without_resolution.txt" 2> /dev/null
-            echo "Done!"
         else
+            echo "Fail!"
             echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Error organizing and handling subdomain files!"
             echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Could not find any live domains, exiting!"
             echo "The error occurred in the function diff_domains.sh!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
@@ -296,6 +288,16 @@ organizing_subdomains(){
             echo "The reconnaissance for ${domain} failed at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
             exit 1
         fi
+ 
+        # Sorting out...
+        echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Removing duplicate subdomains... "
+        sort -u -o "${report_dir}/domains_aliases.txt" "${report_dir}/domains_aliases.txt" 2> /dev/null
+        sort -u -o "${report_dir}/domains_alive.txt" "${report_dir}/domains_alive.txt" 2> /dev/null
+        sort -u -o "${report_dir}/domains_internal_ipv4.txt" "${tmp_dir}/domains_found_tmp_internal_ips.txt" 2> /dev/null
+        sort -u -o "${report_dir}/domains_external_ipv4.txt" "${report_dir}/domains_external_ipv4.txt" 2> /dev/null
+        #sort -u -o "${report_dir}/domains_external_ipv6.txt" "${report_dir}/domains_external_ipv6.txt" 2> /dev/null
+        sort -u -o "${report_dir}/domains_without_resolution.txt" "${report_dir}/domains_without_resolution.txt" 2> /dev/null
+        echo "Done!"
 
     else
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} The file with all domains from initial recon does not exist or is empty."
