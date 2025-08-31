@@ -28,7 +28,7 @@ check_parameter_dependency_domain(){
             usage
         fi
  
-        if [[ ${#web_port_detect[@]} -eq 0 ]]; then
+        if [[ ${#web_port_detect[@]} -eq 0 ]] && [[ "${only_web_data}" == "no" ]]; then
             echo -e "You need to specify at least one of these options sort (-ws|--web-short-detection) or long (-wl|--web-long-detection) web detection!\n"
             usage
         fi
