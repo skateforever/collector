@@ -207,9 +207,8 @@ joining_subdomains(){
     else
         echo "Fail!"
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Make sure the directories structure was created. Stopping the script."
-        echo "The error occurred in the function domain_recon.sh!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
-        echo -e "The message was: \n\tMake sure the directories structure was created. Stopping the script." | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
-        echo "The reconnaissance for ${domain} failed at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+        echo -e "Make sure the directories structure was created. Stopping the script." | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+        message "${domain}" failed
         exit 1
     fi
 }
@@ -281,11 +280,9 @@ organizing_subdomains(){
 
         else
             echo "Fail!"
-            echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Error organizing and handling subdomain files!"
-            echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Could not find any live domains, exiting!"
-            echo "The error occurred in the function diff_domains.sh!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
-            echo -e "The message was: \n\tError organizing and handling subdomain files!\n\tCould not find any live domains, exiting!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
-            echo "The reconnaissance for ${domain} failed at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+            echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Error organizing and handling subdomain files!\n\tCould not find any live domains, exiting!"
+            echo -e "Error organizing and handling subdomain files!\n\tCould not find any live domains, exiting!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+            message "${domain}" failed
             exit 1
         fi
  
@@ -302,9 +299,8 @@ organizing_subdomains(){
     else
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} The file with all domains from initial recon does not exist or is empty."
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Look all files from initial recon in ${tmp_dir} and fix the problem!"
-        echo "The error occurred in the function diff_domains.sh!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
-        echo -e "The message was: \n\tThe file with all domains from initial recon does not exist or is empty.\n\tLook all files from initial recon in ${tmp_dir} and fix the problem!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
-        echo "The reconnaissance for ${domain} failed at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+        echo -e "The file with all domains from initial recon does not exist or is empty.\n\tLook all files from initial recon in ${tmp_dir} and fix the problem!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+        message "${domain}" failed
         exit 1
     fi    
 }

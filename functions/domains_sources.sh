@@ -18,9 +18,8 @@ subdomains_recon(){
         done
     else
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Make sure the directories structure was created. Stopping the script!"
-        echo "The error occurred in the function domains.sh!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
-        echo -e "The message was: \n\tMake sure the directories structure was created. Stopping the script!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
-        echo "The reconnaissance for ${target} failed at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+        echo -e "Make sure the directories structure was created. Stopping the script!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+        message "${domain}" failed
         exit 1
     fi
 }

@@ -31,14 +31,14 @@ diff_domains(){
             echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} File ${report_dir}/domains_alive.txt does not exist or is empty!"
             echo "The error occurred in the function diff_domains.sh!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
             echo -e "The message was: \n\tFile ${report_dir}/domains_alive.txt does not exist or is empty!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
-            echo "The reconnaissance for ${domain} failed at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+            message "${domain}" failed
             exit 1
         fi
     else
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Make sure the directories structure was created. Stopping the script."
         echo "The error occurred in the function diff_domains.sh!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
         echo -e "The message was: \n\tMake sure the directories structure was created. Stopping the script." | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
-        echo "The reconnaissance for ${domain} failed at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+        message "${domain}" failed
         exit 1
     fi
 }

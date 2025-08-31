@@ -56,17 +56,15 @@ webapp_alive(){
             else
                 echo "Fail!"
                 echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Something got wrong while checking web status file!"
-                echo "The error occurred in the function web_detect_page.sh!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
-                echo -e "The message was: \n\tSomething got wrong while checking web status file!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
-                echo "The reconnaissance for ${domain} failed at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+                echo "Something got wrong while checking web status file!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+                message "${domain}" failed
                 exit 1
             fi
         else
             echo "Fail!"
             echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Something got wrong while checking the status of URLs!"
-            echo "The error occurred in the function web_detect_page.sh!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
-            echo -e "The message was: \n\tSomething got wrong while checking the status of URLs!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
-            echo "The reconnaissance for ${domain} failed at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+            echo -e "Something got wrong while checking the status of URLs!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+            message "${domain}" failed
             exit 1
         fi
 
@@ -93,17 +91,15 @@ webapp_alive(){
             else
                 echo "Fail!"
                 echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Could not create file for infrastructure domains, something went wrong."
-                echo "The error occurred in the function web_detect_page.sh!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
-                echo -e "The message was: \n\tCould not create file for infrastructure domains, something went wrong." | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
-                echo "The reconnaissance for ${domain} failed at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+                echo -e "Could not create file for infrastructure domains, something went wrong." | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+                message "${domain}" failed
                 exit 1
             fi
         else
             echo "Fail!"
             echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} We probably didn't have any application with HTTP Status Code defined in collector.cfg, something is wrong!"
-            echo "The error occurred in the function web_detect_page.sh!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
-            echo -e "The message was: \n\tWe probably didn't have any application with HTTP Status Code defined in collector.cfg, something is wrong!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
-            echo "The reconnaissance for ${domain} failed at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+            echo -e "We probably didn't have any application with HTTP Status Code defined in collector.cfg, something is wrong!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+            message "${domain}" failed
             exit 1
         fi
 
@@ -115,9 +111,8 @@ webapp_alive(){
     else
         echo "Fail!"
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} The ${report_dir}/domains_alive.txt does not exist or is empty."
-        echo "The error occurred in the function web_page.sh!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
-        echo -e "The message was: \n\tThe ${report_dir}/domains_alive.txt does not exist or is empty." | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
-        echo "The reconnaissance for ${domain} failed at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+        echo -e "The ${report_dir}/domains_alive.txt does not exist or is empty." | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+        message "${domain}" failed
         exit 1
     fi
     unalias curl > /dev/null 2>&1

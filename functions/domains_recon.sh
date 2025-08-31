@@ -37,7 +37,7 @@ domains_recon(){
     echo -e "\t   If you need look the output in execution time, you need to \"tail\" the files."
     echo " "
     # Execute all functions
-    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${green}Recon started on${reset} ${yellow}${domain}${reset}${green}!${reset}"
+    message "${domain}" start
     if [ "${only_web_data}" == "no" ]; then
         subdomains_recon
         joining_subdomains
@@ -57,6 +57,7 @@ domains_recon(){
         fi
     fi
     if [ "${only_web_data}" == "yes" ] && [ ! -s "${report_dir}/web_data_urls.txt" ]; then
+        message "${domain}" failed
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${red}The recon finished 'cause an error:${reset}"
         echo -e "\t\t    You haven't the actual ${yellow}web_data_urls.txt${reset} file to collect data to analyze!"
         echo -e "\t\t    Please, run the collector with -d domain --recon or just -d domain to run recon and web data!"
@@ -69,7 +70,6 @@ domains_recon(){
             aquatone_function "${file}"
         done
         git_rebuild
-    fi
-    #report
-    message "${domain}" finished) 2>> "${log_execution_file}" | tee -a "${log_execution_file}"
+        message "${domain}" finished
+    fi) 2>> "${log_execution_file}" | tee -a "${log_execution_file}"
 }
