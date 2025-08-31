@@ -17,7 +17,7 @@ infra_data(){
         echo "AS      | IP               | BGP Prefix          | CC | Registry | Allocated  | AS Name" > "${report_dir}/infra_whois.txt"
         while IFS= read -r IP; do
             whois -h whois.cymru.com -- "-v ${IP}" | tail -n +2 >> "${report_dir}/infra_data.txt"
-        done < awk '{print $2}' "${report_dir}/domains_external_ipv4.txt" | sort -u
+        done < <(awk '{print $2}' "${report_dir}/domains_external_ipv4.txt" | sort -u)
         echo "Done!"
 
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Getting target ownwer IP and blocks... "
