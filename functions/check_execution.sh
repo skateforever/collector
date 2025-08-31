@@ -39,7 +39,7 @@ check_parameter_dependency_domain(){
        fi
     fi
 
-    if [[ -n "${url_2_verify}" ]] && [[ -z "${domain}" ]] && [[ 1 -s "${domain_list}" ]]; then
+    if [[ -n "${url_2_verify}" ]] && [[ -z "${domain}" ]] && [[ ! -s "${domain_list}" ]]; then
         if [[ "${args_count}" -gt 4 ]]; then
             echo -e "You are trying to pass a number of parameters beyond what is necessary for this collector reconnaissance option \"${yellow}-u|--url${reset}\".\n"
             usage
