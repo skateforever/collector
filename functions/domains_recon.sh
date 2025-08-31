@@ -1,24 +1,4 @@
 domains_recon(){
-    if [[ "${only_web_data}" == "yes" ]]; then
-        for d in $(ls -1t "${output_dir}/${domain}" | grep -Ev "log$"); do
-            if [[ -s "${output_dir}/${domain}/${d}/report/web_data_urls.txt" ]]; then
-                recon_dir="${output_dir}/${domain}/${d}"
-                break
-            fi
-        done
-        aquatone_files_dir="${recon_dir}/aquatone"
-        nmap_dir="${recon_dir}/nmap"
-        nuclei_dir="${recon_dir}/nuclei"
-        report_dir="${recon_dir}/report"
-        shodan_dir="${recon_dir}/shodan"
-        tmp_dir="${recon_dir}/tmp"
-        web_data_dir="${recon_dir}/web-data"
-        web_params_dir="${recon_dir}/web-params"
-        web_tech_dir="${recon_dir}/web-tech"
-    fi
-
-    echo "Directory structure created and ready to work." | tee -a "${log_execution_file}"
-
     (# Show the directory structure
     echo "The directory structure you will have to work with, is..."
     echo " "
@@ -47,7 +27,7 @@ domains_recon(){
         else
             organizing_subdomains "${report_dir}/domains_found.txt"
         fi
-        #infra_recon
+        infra_data
         shodan_recon
         webapp_alive
         #emails_recon

@@ -1,6 +1,4 @@
 url_recon(){
-    echo "Directory structure created and ready to work." | tee -a "${log_execution_file}"
-
     (# Show the directory structure
     echo "The directory structure you will have to work with, is..."
     echo " "

@@ -42,6 +42,26 @@ create_initial_directories_structure(){
         web_tech_dir="${report_dir}"
     fi
 
+    if [[ "${only_web_data}" == "yes" ]]; then
+        for d in $(ls -1t "${output_dir}/${domain}" | grep -Ev "log$"); do
+            if [[ -s "${output_dir}/${domain}/${d}/report/web_data_urls.txt" ]]; then
+                recon_dir="${output_dir}/${domain}/${d}"
+                break
+            fi
+        done
+        aquatone_files_dir="${recon_dir}/aquatone"
+        nmap_dir="${recon_dir}/nmap"
+        nuclei_dir="${recon_dir}/nuclei"
+        report_dir="${recon_dir}/report"
+        shodan_dir="${recon_dir}/shodan"
+        tmp_dir="${recon_dir}/tmp"
+        web_data_dir="${recon_dir}/web-data"
+        web_params_dir="${recon_dir}/web-params"
+        web_tech_dir="${recon_dir}/web-tech"
+    fi
+
     nuclei_scan_file="${nuclei_dir}/nuclei_scan.result"
     nuclei_web_fuzzing_file="${nuclei_dir}/nuclei_web_fuzzing.result"
+
+    echo "Directory structure created and ready to work." | tee -a "${log_execution_file}"
 }

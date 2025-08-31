@@ -3,75 +3,29 @@
 # This file is an essential part of collector's execution!  #
 # And is responsible to get the functions:                  #
 #                                                           #
-#   * infra_recon                                           #
+#   * infra_data                                            #
+#   * nmap_scan                                             #
 #   * shodan_recon                                          #
 #                                                           #
 ############################################################# 
 
-cidr_recon(){
+infra_data(){
+    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Getting information about infrastructure... "
     if [ -s "${report_dir}/domains_external_ipv4.txt" ]; then
-        echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Getting subdomains IP to use with nmap... "
-        if awk '{print $2}' "${report_dir}/domains_external_ipv4.txt" | sort -u >> "${report_dir}/infra_ips.txt"; then
-            echo "Done!"
-        else
-            echo "Fail!"
-        fi
-
         # To avoid the warning message: "Warning: RIPE flags used with a traditional server."
         # The -- option is needed.
-        echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Getting information about IP... "
         echo "AS      | IP               | BGP Prefix          | CC | Registry | Allocated  | AS Name" > "${report_dir}/infra_whois.txt"
         while IFS= read -r IP; do
-            whois -h whois.cymru.com -- "-v ${IP}" | tail -n +2 >> "${report_dir}/infra_whois.txt"
-        done < "${report_dir}/infra_ips.txt"
+            whois -h whois.cymru.com -- "-v ${IP}" | tail -n +2 >> "${report_dir}/infra_data.txt"
+        done < awk '{print $2}' "${report_dir}/domains_external_ipv4.txt" | sort -u
         echo "Done!"
 
-        echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Getting target IP blocks to use with nmap... "
-        if [ -s "${report_dir}/infra_whois.txt" ]; then
-            awk '{print $5}' "${report_dir}/infra_whois.txt" | tail -n +2 >> "${tmp_dir}/tmp_infra_blocks.txt"
+        echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Getting target ownwer IP and blocks... "
+        if [ -s "${report_dir}/infra_data.txt" ]; then
+            awk '{print $3}' "${report_dir}/infra_ips.txt" | tail -n +2 | sort -u >> "${report_dir}/infra_ipv4.txt"
+            awk '{print $5}' "${report_dir}/infra_whois.txt" | tail -n +2 | sort -u >> "${report_dir}/infra_ipv4_blocks.txt"
         fi
-
-        #if [ -s "${report_dir}/domains_alive.txt" ]; then
-        #    while IFS= read -r subdomain; do
-        #        if whois "${subdomain}" 2> /dev/null | grep -q "${domain}"; then
-        #            sleep 2
-        #            whois "${subdomain}" 2> /dev/null | grep -E "^inetnum:|^inetrev:|^CIDR:|^inetnum-up:" | \
-        #                awk '{for (i=2; i<=NF; i++){printf("%s",$i)}; printf "\n"}'
-        #            sleep 2
-        #        fi
-        #    done < "${report_dir}/domains_alive.txt" | sort -u >> "${tmp_dir}/tmp_infra_blocks.txt"
-        #    unset subdomain
-        #fi
-
-        #if [ -s "${tmp_dir}/tmp_infra_blocks.txt" ]; then
-        #    while IFS= read -r block; do
-        #        for asn in $(whois "${block}" 2> /dev/null | grep -E "^aut-num:" | awk '{print $2}'); do
-        #            sleep 2
-        #            [[ -n "${asn}" ]] && \
-        #                curl -A "${curl_agent}" -s https://api.hackertarget.com/aslookup/?q="${asn}" 2> /dev/null | \
-        #                grep -E "^${IPv4_regex}$|^${IPv6_regex}$"
-        #            sleep 2
-        #        done
-        #    done < "${tmp_dir}/tmp_infra_blocks.txt" | sort -u >> "${tmp_dir}/tmp_asn_blocks.txt"
-        #    unset asn
-        #fi
-
-        #[[ -s "${tmp_dir}/tmp_asn_blocks.txt" ]] && sort -u "${tmp_dir}/tmp_asn_blocks.txt" >> "${tmp_dir}/tmp_infra_blocks.txt"
-
-        if [ -s "${tmp_dir}/tmp_infra_blocks.txt" ]; then        
-            sed -i 's/,/\n/g' "${tmp_dir}/tmp_infra_blocks.txt"
-            sort -u -o "${tmp_dir}/tmp_infra_blocks_sorted.txt" "${tmp_dir}/tmp_infra_blocks.txt"
-        fi
-
-        if [ -s "${tmp_dir}/tmp_infra_blocks_sorted.txt" ]; then        
-            for block in $(cat "${tmp_dir}/tmp_infra_blocks_sorted.txt"); do
-                owner="$(whois "${block}" 2> /dev/null | grep -E "^OrgName:|^CustName:|^owner:" | awk '{print $2,$3,$4,$5,$6,$7,$8}')"
-                echo -e "${block}\t${owner}" >> "${report_dir}/infra_ipv4_blocks.txt"
-                unset owner
-                unset block
-            done
-        fi
-
+        
         ownerid=$(whois "${domain}" 2> /dev/null | grep -E "^ownerid:" | awk '{print $2}')
         if [[ -n "${ownerid}" ]] && [[ -s "${report_dir}/infra_ipv4_blocks.txt" ]]; then
             for block in $(cat "${report_dir}/infra_ipv4_blocks.txt" | awk '{print $1}'); do
@@ -87,7 +41,13 @@ cidr_recon(){
 
         [[ -s "${tmp_dir}/tmp_infra_owner_blocks.txt" ]] && sort -u -o "${report_dir}/infra_owner_blocks.txt" "${tmp_dir}/tmp_infra_owner_blocks.txt"
         echo "Done!"
+    else
+        echo "Fail!"
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>> File ${report_dir}/domains_external_ipv4.txt does not exist or is empty!${reset}"
+    fi
+}
 
+nmap_scan(){
         if [ -s "${report_dir}/infra_owner_blocks.txt" ]; then
             echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Getting IPs from blocks with nmap -sn \"block\"... "
             count=0
@@ -109,12 +69,6 @@ cidr_recon(){
             done < "${report_dir}/infra_owner_blocks.txt"
             echo "Done!"
 
-            echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Got owner IP blocks!"
-            if [[ ${count} -lt $(wc -l "${report_dir}/infra_owner_blocks.txt" | awk '{print $1}') ]]; then
-                echo -e "${red}Warning:${reset} Just ${count} block(s) were scanned, please look at ${report_dir}/infra_owner_blocks.txt"
-                echo -e "\t and nmap blocks files to know what were excluded blocks."
-            fi
-            unset count
         fi
         #echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Getting open ports from IPs... "
         #if [ -s "${report_dir}/infra_ips.txt" ]; then
@@ -123,9 +77,6 @@ cidr_recon(){
         #    done
         #fi
         #echo "Done!"
-    else
-        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>> File ${report_dir}/domains_external_ipv4.txt does not exist or is empty!${reset}"
-    fi
 }
 
 shodan_recon(){
@@ -160,6 +111,3 @@ shodan_recon(){
     fi
         
 }
-    #echo "The error occurred in the function emails_recon.sh!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
-    #echo -e "The message was: \n\tMake sure the directories structure was created. Stopping the script." |
-    #echo "The reconnaissance for ${domain} failed at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
