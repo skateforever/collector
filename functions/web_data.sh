@@ -10,12 +10,14 @@
 ############################################################# 
 
 web_data(){
-    if [ $# != 1 ]; then
-        message "${domain}" failed
-        echo -e "The message was: \n\tPlease, especify just 1 file to get URL from." | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+    target="$1"
+    urls_file="$2"
+    if [ "$#" != 2 ] && [ ! -s "${urls_file}" ]; then
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Please, especify just 1 file to get URL from."
+        echo -e "Please, especify just 1 file to get URL from." | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+        message "${target}" failed
         exit 1
     else
-        urls_file=$1
         if [ -s "${urls_file}" ]; then
             if [ -d "${report_dir}" ] && [ -d "${nuclei_dir}" ] && [ -d "${web_data_dir}" ] && [ -d "${web_params_dir}" ] && [ -d "${web_tech_dir}" ] ; then
                 echo -e "${red}Warning:${reset} It can take a long time to execute the web_data function!"
@@ -84,7 +86,7 @@ web_data(){
                                         -t "${gobuster_threads}" -u "${url}" -w "${list}" -x "${web_extensions}" \
                                         >> "${web_data_dir}/${file_gobuster}" 2>> "${log_execution_file}" &
                                 fi
-                                while [[ "$(pgrep -acf "[d]irsearch.*${domain}$|[g]obuster.*${domain}$")" -ge "${web_data_total_processes}" ]]; do
+                                while [[ "$(pgrep -acf "[d]irsearch.*${target}$|[g]obuster.*${target}$")" -ge "${web_data_total_processes}" ]]; do
                                     sleep 1
                                 done
                                 [[ "${limit_urls}" -eq "${urls_tested}" ]] && break
@@ -104,7 +106,7 @@ web_data(){
                     done
 
                     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Waiting the dirsearch and/or gobuster finish... "
-                    while pgrep -af "[d]irsearch.*${domain}$" > /dev/null || pgrep -af "[g]obuster.*${domain}$" > /dev/null; do
+                    while pgrep -af "[d]irsearch.*${target}$" > /dev/null || pgrep -af "[g]obuster.*${target}$" > /dev/null; do
                         sleep 1
                     done
                     echo "Done!"
@@ -127,7 +129,7 @@ web_data(){
                 else
                     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Array of wordlists is empty. Stopping the script!"
                     echo -e "Array of wordlists is empty. Stopping the script!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
-                    message "${domain}" failed
+                    message "${target}" failed
                     exit 1
                 fi
 
@@ -186,7 +188,7 @@ web_data(){
                 echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Make sure the directories structure was created. Stopping the script!"
                 unset urls_file
                 echo -e "Make sure the directories structure was created. Stopping the script!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
-                message "${domain}" failed
+                message "${target}" failed
                 exit 1
             fi
         else
@@ -220,9 +222,9 @@ aquatone_function(){
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Starting aquatone scan... "
     file=$1
     if [ -s "${file}" ]; then
-        if [[ -n "${domain}" && -z "${url_2_verify}" ]]; then
-            aquatone_log="${tmp_dir}/aquatone_${domain}.log"
-        elif [[ -n "${url_2_verify}" && -z "${domain}" ]] ; then
+        if [[ -n "${target}" && -z "${url_2_verify}" ]]; then
+            aquatone_log="${tmp_dir}/aquatone_${target}.log"
+        elif [[ -n "${url_2_verify}" && -z "${target}" ]] ; then
             aquatone_log="${tmp_dir}/aquatone_${url_base}.log"
         fi
         if [ ! -d "${aquatone_files_dir}" ]; then
@@ -234,7 +236,7 @@ aquatone_function(){
                 echo "Fail!"
                 echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Something got wrong, wasnt possible create directory ${aquatone_files_dir}."
                 echo -e "Something got wrong, wasnt possible create directory ${aquatone_files_dir}.\n\tPlease, look what got wrong and run the script again. Stopping the script!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
-                message "${domain}" failed
+                message "${target}" failed
                 exit 1
             fi
         else

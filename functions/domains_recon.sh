@@ -63,7 +63,7 @@ domains_recon(){
         echo -e "\t\t    Please, run the collector with -d domain --recon or just -d domain to run recon and web data!"
         exit 1
     else
-        web_data "${report_dir}/web_data_urls.txt"
+        web_data "${domain}" "${report_dir}/web_data_urls.txt"
         robots_txt
         web_data "${report_dir}/robots_urls.txt"
         for file in "${report_dir}/web_data_urls.txt" "${report_dir}/robots_urls.txt" ; do

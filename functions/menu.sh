@@ -178,7 +178,7 @@ menu(){
                     usage
                 fi
                 if [[ -n "${url_2_verify}" ]]; then
-                    echo -e "With this option (-wd|--web-data) You can only use \"-d|--domain\"!\n"
+                    echo -e "You can't use this (-wd|--web-data) option with \"-re|--recon\"!\n"
                     usage
                 fi
                 only_web_data=yes

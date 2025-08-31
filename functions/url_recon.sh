@@ -1,7 +1,14 @@
 url_recon(){
     echo "Directory structure created and ready to work." | tee -a "${log_execution_file}"
 
-    url_domain=$(echo "${url_2_verify}" | sed -e 's/http.*\/\///' | awk -F'/' '{print $1}' | xargs -I {} basename {})
+    if [[ $(echo "${url_2_verify}" | grep -qE "^(http|https)://" ; echo "$?") -eq 0 ]]; then
+        echo "${url_2_verify}" > "${recon_dir}/url_2_test.txt"
+        url_domain="${url_2_verify}"
+    else
+        [[ "200" -eq "$(curl -o /dev/null -Ls -w "%{http_code}\n" "http://${url_2_verify}")" ]] && curl -o /dev/null -Ls -w "%{url_effective}\n" "http://${url_2_verify}" > "${recon_dir}/url_2_test.txt"
+        [[ "200" -eq "$(curl -o /dev/null -kLs -w "%{http_code}\n" "https://${url_2_verify}")" ]] && curl -o /dev/null -kLs -w "%{url_effective}\n" "https://${url_2_verify}" > "${recon_dir}/url_2_test.txt"
+        url_domain="${url_2_verify}"
+    fi
 
     (# Show the directory structure
     echo "The directory structure you will have to work with, is..."
@@ -29,7 +36,7 @@ url_recon(){
        exit 1
     fi 
 
-    web_data "${recon_dir}/url_2_test.txt"
+    web_data "${url_domain}" "${recon_dir}/url_2_test.txt"
     robots_txt
     web_data "${report_dir}/robots_urls.txt"
     for file in "${recon_dir}/url_2_test.txt" "${report_dir}/robots_urls.txt" ; do
@@ -39,13 +46,3 @@ url_recon(){
     message "${url_2_verify}" finished
     rm "${recon_dir}/url_2_test.txt" > /dev/null 2>&1) 2>> "${log_execution_file}"| tee -a "${log_execution_file}"
 }
-
-
-
-        if [[ $(echo "${url_2_verify}" | grep -qE "^(http|https)://" ; echo "$?") -eq 0 ]]; then
-            echo "${url_2_verify}" > "${recon_dir}/url_2_test.txt"
-        else
-            [[ "200" -eq "$(curl -o /dev/null -Ls -w "%{http_code}\n" "http://${url_2_verify}")" ]] && curl -o /dev/null -Ls -w "%{url_effective}\n" "http://${url_2_verify}" > "${recon_dir}/url_2_test.txt"
-            [[ "200" -eq "$(curl -o /dev/null -kLs -w "%{http_code}\n" "https://${url_2_verify}")" ]] && curl -o /dev/null -kLs -w "%{url_effective}\n" "https://${url_2_verify}" > "${recon_dir}/url_2_test.txt"
-        fi
-
