@@ -22,7 +22,7 @@ check_execution(){
 }
 # Checking the runtime parameter dependency for domain recon
 check_parameter_dependency_domain(){
-    if [[ -n "${domain}" ]] || [[ -s "${domain_list}" ]]; then
+    if [[ -n "${domain}" ]] || [[ -s "${domain_list}" ]] && [[ -z "${url_2_verify}" ]]; then
         if [[ "${args_count}" -gt 9 ]]; then 
             echo -e "You are trying to pass a number of parameters beyond what is necessary for this collector reconnaissance option \"${yellow}-d|--domain${reset}\".\n"
             usage
@@ -37,6 +37,13 @@ check_parameter_dependency_domain(){
             echo -e "You need to inform one of these tools ${bold}${yellow}curl${reset}${normal} or ${bold}${yellow}httpx${reset}${normal} to perform web application detection.\n"
             usage
        fi
+    fi
+
+    if [[ -n "${url_2_verify}" ]] && [[ -z "${domain}" ]] && [[ 1 -s "${domain_list}" ]]; then
+        if [[ "${args_count}" -gt 4 ]]; then
+            echo -e "You are trying to pass a number of parameters beyond what is necessary for this collector reconnaissance option \"${yellow}-u|--url${reset}\".\n"
+            usage
+        fi
     fi
 }
 

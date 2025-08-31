@@ -30,28 +30,20 @@ collector_exec(){
     fi
     
     if [[ -z ${domain} ]] && [[ ! -s "${domain_list}" ]] && [[ -n "${url_2_verify}" ]]; then
-        # Checking the runtime parameter dependency for url recon
-        if [[ -n "${url_2_verify}" && -n "${domain}" ]] || [[ "${#dns_wordlists[*]}" -gt 0 ]] || \
-            [[ -n "${url_2_verify}" && -n "${limit_urls}" ]] || [[ -n "${url_2_verify}" && "${#excluded[*]}" -gt 0 ]]; then
-                echo -e "You have specified one or more options that are not used with \"-u|--url\"!\n"
-                usage
-        fi
+        #url_base=$(echo "${url_2_verify}" | sed -e 's/http.*\/\///' | awk -F'/' '{print $1}' | xargs -I {} basename {})
+        #mapfile -d'.' -t url_tmp_domain <<< "${url_base}"
+        #for (( i=$((${#url_tmp_domain[@]}-1)); i>=0; i-- ));do
+        #    url_domain=$(echo "${url_tmp_domain[$i]}.${url_domain}" | sed -e 's/\.$//' -e 's/^\.//' -e 's/[[:space:]]*$//')
+        #    [[ $(host -t A "${url_domain}" | grep -v "Host.*not.found:" | awk '{print $4}' | \
+        #        grep -E "^^([0-9]+(\.|$)){4}|^([0-9a-fA-F]{0,4}:){1,7}([0-9a-fA-F]){0,4}$") ]] && break
+        #done
+        url_domain=$(echo "${url_2_verify}" | sed -e 's/http.*\/\///' | awk -F'/' '{print $1}' | xargs -I {} basename {})
+        [[ $(host -t A "${url_domain}" | grep -v "Host.*not.found:" | awk '{print $4}' | \
+            grep -E "^^([0-9]+(\.|$)){4}|^([0-9a-fA-F]{0,4}:){1,7}([0-9a-fA-F]){0,4}$") ]] && break
 
-        if [[ "${args_count}" -gt 4 ]]; then
-            echo -e "You are trying to pass a number of parameters beyond what is necessary for this collector reconnaissance option \"${yellow}-u|--url${reset}\".\n"
-            usage
-        fi
-        url_base=$(echo "${url_2_verify}" | sed -e 's/http.*\/\///' | awk -F'/' '{print $1}' | xargs -I {} basename {})
-        mapfile -d'.' -t url_tmp_domain <<< "${url_base}"
-        for (( i=$((${#url_tmp_domain[@]}-1)); i>=0; i-- ));do
-            url_domain=$(echo "${url_tmp_domain[$i]}.${url_domain}" | sed -e 's/\.$//' -e 's/^\.//' -e 's/[[:space:]]*$//')
-            [[ $(host -t A "${url_domain}" | grep -v "Host.*not.found:" | awk '{print $4}' | \
-                grep -E "^^([0-9]+(\.|$)){4}|^([0-9a-fA-F]{0,4}:){1,7}([0-9a-fA-F]){0,4}$") ]] && break
-        done
-
-        echo "The reconnaissance for ${url_base} started at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+        echo "The reconnaissance for ${url_domain} started at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
         #clear > "$(tty)"
-        echo -e "$0 $*\n"
+        #echo -e "$0 $*\n"
         check_is_known_target "${url_domain}"
         create_initial_directories_structure
 
