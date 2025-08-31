@@ -1,15 +1,6 @@
 url_recon(){
     echo "Directory structure created and ready to work." | tee -a "${log_execution_file}"
 
-    if [[ $(echo "${url_2_verify}" | grep -qE "^(http|https)://" ; echo "$?") -eq 0 ]]; then
-        echo "${url_2_verify}" > "${recon_dir}/url_2_test.txt"
-        url_domain="${url_2_verify}"
-    else
-        [[ "200" -eq "$(curl -o /dev/null -Ls -w "%{http_code}\n" "http://${url_2_verify}")" ]] && curl -o /dev/null -Ls -w "%{url_effective}\n" "http://${url_2_verify}" > "${recon_dir}/url_2_test.txt"
-        [[ "200" -eq "$(curl -o /dev/null -kLs -w "%{http_code}\n" "https://${url_2_verify}")" ]] && curl -o /dev/null -kLs -w "%{url_effective}\n" "https://${url_2_verify}" > "${recon_dir}/url_2_test.txt"
-        url_domain="${url_2_verify}"
-    fi
-
     (# Show the directory structure
     echo "The directory structure you will have to work with, is..."
     echo " "

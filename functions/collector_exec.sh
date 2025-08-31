@@ -24,6 +24,7 @@ collector_exec(){
     fi
     
     if [[ -z ${domain} ]] && [[ ! -s "${domain_list}" ]] && [[ -n "${url_2_verify}" ]]; then
+        url_domain=$(echo "${url_2_verify}" | sed -e 's/http.*\/\///' | awk -F'/' '{print $1}' | xargs -I {} basename {})
         check_is_known_target "${url_domain}"
         create_initial_directories_structure
         url_recon
