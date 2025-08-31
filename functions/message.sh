@@ -10,7 +10,7 @@ message(){
         echo "The reconnaissance on ${target} failed at $(date +"%Y%m%d %H:%M")!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
     fi
     if [ "${status}" == "start" ]; then
-        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} The reconnaissance on ${target} started!"
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${green}The reconnaissance on${reset} ${yellow}${target}${reset} ${green}started!${reset}"
         echo "The reconnaissance on ${target} started at $(date +"%Y%m%d %H:%M")!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
     fi
     unset target
