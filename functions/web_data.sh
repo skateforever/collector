@@ -64,13 +64,13 @@ web_data(){
                                 file_dirsearch="${name}.dirsearch.${index}"
                                 if [ -n "${use_proxy}" ] && [ "${use_proxy}" == "yes" ]; then
                                     echo "dirsearch -t \"${dirsearch_threads}\" -e \"${web_extensions}\" --random-agent --no-color --quiet-mode \
-                                        -w \"${list}\" --proxy \"${proxy_ip}\" --timeout=20 -u \"${url}\"" 2>> "${log_execution_file}"
+                                        -w \"${list}\" --proxy \"${proxy_ip}\" --timeout=20 -u \"${url}\"" >> "${log_execution_file}"
                                     dirsearch -t "${dirsearch_threads}" -e "${web_extensions}" --random-agent --no-color --quiet-mode \
                                         -w "${list}" --proxy "${proxy_ip}" --timeout=20 \
                                         -u "${url}" >> "${web_data_dir}/${file_dirsearch}" 2>> "${log_execution_file}" &
                                     echo "gobuster dir --quiet --no-color --no-error -z -k -e --timeout 20s --delay 300ms \
-                                        --proxy http://${proxy_ip} -t ${gobuster_threads} \
-                                        -u ${url} -w ${list} -x ${web_extensions} >> ${web_data_dir}/${file_gobuster}" 2>> "${log_execution_file}"
+                                        --proxy http://${proxy_ip} -t ${gobuster_threads} -u ${url} -w ${list} \
+                                        -x ${web_extensions} >> ${web_data_dir}/${file_gobuster}" >> "${log_execution_file}"
                                     gobuster dir --quiet --no-color --no-error -z -k -e --timeout 20s --delay 300ms \
                                         --proxy "http://${proxy_ip}" -t "${gobuster_threads}" \
                                         -u "${url}" -w "${list}" -x "${web_extensions}" \
@@ -82,7 +82,7 @@ web_data(){
                                         -w "${list}" -u "${url}" >> "${web_data_dir}/${file_dirsearch}" 2>> "${log_execution_file}" &
                                     echo "gobuster dir --quiet --no-color --no-error -z -k -e --timeout 20s --delay 300ms \
                                         -t ${gobuster_threads} -u ${url} -w ${list} -x ${web_extensions} \
-                                        >> ${web_data_dir}/${file_gobuster}" 2>> "${log_execution_file}"
+                                        >> ${web_data_dir}/${file_gobuster}" >> "${log_execution_file}"
                                     gobuster dir --quiet --no-color --no-error -z -k -e --timeout 20s --delay 300ms \
                                         -t "${gobuster_threads}" -u "${url}" -w "${list}" -x "${web_extensions}" \
                                         >> "${web_data_dir}/${file_gobuster}" 2>> "${log_execution_file}" &
