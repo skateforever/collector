@@ -3,12 +3,12 @@
 # This file is an essential part of collector's execution!  #
 # And is responsible to get the functions:                  #
 #                                                           #
-#   * joining_domains                                       #
-#   * cleanup_files                                         #
+#   * joining_subdomains                                    #
+#   * organizing_subdomains                                 #
 #                                                           #
 #############################################################            
 
-joining_domains(){
+joining_subdomains(){
     echo -en "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Putting all domain search results in one file... " \
         | tee -a "${log_execution_file}"
     if [ -d "${tmp_dir}" ] && [ -d "${report_dir}" ]; then
@@ -214,7 +214,7 @@ joining_domains(){
     fi
 }
 
-cleanup_files(){
+organizing_subdomains(){
     subdomains_file="$1"
     if [ -s "${subdomains_file}" ]; then
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Getting the IPs and aliases of the domain and subdomains... "

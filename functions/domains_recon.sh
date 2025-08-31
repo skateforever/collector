@@ -40,12 +40,12 @@ domains_recon(){
     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${green}Recon started on${reset} ${yellow}${domain}${reset}${green}!${reset}"
     if [ "${only_web_data}" == "no" ]; then
         subdomains_recon
-        joining_domains
+        joining_subdomains
         diff_domains
         if [ -s "${report_dir}/domains_diff.txt" ]; then
-            managing_the_files "${report_dir}/domains_diff.txt"
+            organizing_subdomains "${report_dir}/domains_diff.txt"
         else
-            managing_the_files "${report_dir}/domains_found.txt"
+            organizing_subdomains "${report_dir}/domains_found.txt"
         fi
         #infra_recon
         shodan_recon
