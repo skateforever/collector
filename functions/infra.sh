@@ -16,7 +16,7 @@ infra_data(){
     if [ -s "${report_dir}/domains_external_ipv4.txt" ]; then
         # To avoid the warning message: "Warning: RIPE flags used with a traditional server."
         # The -- option is needed.
-        echo "AS      | IP               | BGP Prefix          | CC | Registry | Allocated  | AS Name" > "${report_dir}/infra_whois.txt"
+        echo "AS      | IP               | BGP Prefix          | CC | Registry | Allocated  | AS Name" >> "${report_dir}/infra_data.txt"
         while IFS= read -r IP; do
             whois -h whois.cymru.com -- "-v ${IP}" | tail -n +2 >> "${report_dir}/infra_data.txt"
         done < <(awk '{print $2}' "${report_dir}/domains_external_ipv4.txt" | sort -u)
@@ -24,8 +24,8 @@ infra_data(){
 
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Getting target ownwer IP and blocks... "
         if [ -s "${report_dir}/infra_data.txt" ]; then
-            awk '{print $3}' "${report_dir}/infra_ips.txt" | tail -n +2 | sort -u >> "${report_dir}/infra_ipv4.txt"
-            awk '{print $5}' "${report_dir}/infra_whois.txt" | tail -n +2 | sort -u >> "${report_dir}/infra_ipv4_blocks.txt"
+            awk '{print $3}' "${report_dir}/infra_data.txt" | tail -n +2 | sort -u >> "${report_dir}/infra_ipv4.txt"
+            awk '{print $5}' "${report_dir}/infra_data.txt" | tail -n +2 | sort -u >> "${report_dir}/infra_ipv4_blocks.txt"
         fi
         
         ownerid=$(whois "${domain}" 2> /dev/null | grep -E "^ownerid:" | awk '{print $2}')
