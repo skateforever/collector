@@ -40,8 +40,8 @@ web_data(){
                         curl ${curl_options[@]} -I "${url}" >> "${web_tech_dir}/${file_tech_by_headers}" 2>> "${log_execution_file}"
                     fi
                     if [ "${web_tool_detection}" == "httpx" ]; then
-                        echo "echo ${url} | httpx -silent -no-color -title -status-code -tech-detect -follow-redirects -timeout 3" >> "${log_execution_file}"
-                        echo "${url}" | httpx -silent -no-color -title -status-code -tech-detect -follow-redirects -timeout 3 >> "${web_tech_dir}/${file_tech_by_headers}" 2>> "${log_execution_file}"
+                        echo "echo ${url} | httpx ${httpx_options[@]}" >> "${log_execution_file}"
+                        echo "${url}" | httpx "${httpx_options[@]}" >> "${web_tech_dir}/${file_tech_by_headers}" 2>> "${log_execution_file}"
                     fi
                     unset file_tech_by_headers
                     unset name
@@ -161,17 +161,11 @@ web_data(){
                 nuclei -no-color -silent -update-templates > /dev/null 2>&1
                 while IFS= read -r url; do
                     if [ -n "${use_proxy}" ] && [ "${use_proxy}" == "yes" ]; then
-                        echo "echo ${url} | nuclei -no-color -silent -ept ${nuclei_exclude_types} -et ${nuclei_exclude_templates} \
-                            -c ${nuclei_threads} -proxy-url \"http://${proxy_ip}\" \
-                            -H \"User-Agent: ${nuclei_agent}\"" >> "${log_execution_file}"
-                        echo "${url}" | nuclei -no-color -silent -ept "${nuclei_exclude_types}" -et "${nuclei_exclude_templates}" \
-                            -c ${nuclei_threads} -proxy-url "http://${proxy_ip}" \
-                            -H "User-Agent: ${nuclei_agent}" >> "${nuclei_scan_file}" 2>> "${log_execution_file}" &
+                        echo "echo ${url} | nuclei ${nuclei_options[@]} -proxy-url \"http://${proxy_ip}\"" >> "${log_execution_file}"
+                        echo "${url}" | nuclei "${nuclei_options[@]}" -proxy-url "http://${proxy_ip}" >> "${nuclei_scan_file}" 2>> "${log_execution_file}" &
                     else
-                        echo "echo ${url} | nuclei -no-color -silent -c ${nuclei_threads} -ept ${nuclei_exclude_types} \
-                            -et ${nuclei_exclude_templates}" >> "${log_execution_file}"
-                        echo "${url}" | nuclei -no-color -silent -ept "${nuclei_exclude_types}" -et "${nuclei_exclude_templates}" \
-                            -c ${nuclei_threads} >> "${nuclei_scan_file}" 2>> "${log_execution_file}" &
+                        echo "echo ${url} | nuclei ${nuclei_options[@]}" >> "${log_execution_file}"
+                        echo "${url}" | nuclei "${nuclei_options[@]}" >> "${nuclei_scan_file}" 2>> "${log_execution_file}" &
                     fi
                     while [[ "$(pgrep -acf "[n]uclei")" -ge "${web_data_total_processes}" ]]; do
                         sleep 1
@@ -207,7 +201,7 @@ robots_txt(){
         if grep robots.txt "${web_data_dir}/${file}" > /dev/null && [ -s "${file}" ] ; then
             echo "aqui"
             target=$(grep -E "Target:|Url:" "${file}" | sed -e 's/^\[+\] //' | awk '{print $2}' | sed -e 's/\/$//') 
-            for url in $(curl -A "${curl_agent}" -s "${target}"/robots.txt | grep -Ev "User-agent: *" | awk '{print $2}' | sed -e "/^\/$/d"); do
+            for url in $(curl "${curl_options[@]}" -s "${target}"/robots.txt | grep -Ev "User-agent: *" | awk '{print $2}' | sed -e "/^\/$/d"); do
                 echo "${target}${url}" >> "${report_dir}/robots_urls.txt"
                 sed -i -e 's/\r//g' -e 's/\/$//g' "${report_dir}/robots_urls.txt"
             done

@@ -18,7 +18,7 @@ git_rebuild(){
             target_dir="${report_dir}/$(grep -E "Target:|Url:" "${web_data_dir}/${file}" | sed -e 's/^\[+\] //' | awk '{print $2}' | sed -e 's/\/$//' -e 's/http:\/\///' -e 's/https:\/\///')"
             target=$(grep -E "Target:|Url:" "${web_data_dir}/${file}" | sed -e 's/^\[+\] //' | awk '{print $2}' | sed -e 's/\/$//')
             if [ -n "${proxy_ip}" ] && [ "${proxy_ip}" == "yes" ]; then
-                if [[ "200" -eq "$(curl -A "${curl_agent}" --proxy "${proxy_ip}" -o /tmp/git_config -s -w "%{http_code}\n" "${target}/.git/config")" ]] && \
+                if [[ "200" -eq "$(curl "${curl_options[@]}" --proxy "${proxy_ip}" -o /tmp/git_config -w "%{http_code}\n" "${target}/.git/config")" ]] && \
                     [[ $(grep -Eq  "^\[core\]|^\[remote.*\]|^\[branch.*\]" /tmp/git_config; echo "$?") -eq "0" ]]; then
                     rm -rf /tmp/git_config
                     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Found .git on ${green}${target}${reset}!"
@@ -36,8 +36,8 @@ git_rebuild(){
                         if [[ ! -d "${repo_file_dir}" ]] && [[ "${repo_file_dir}" != "." ]]; then
                             mkdir -p "${repo_file_dir}"
                         fi
-                        echo "curl -L -A ${curl_agent} --proxy \"${proxy_ip}\" -f -s -k --max-time 60 \"${target}/${repo_file}\" -o ${repo_file}" >> "${log_execution_file}"
-                        curl -L -A "${curl_agent}" --proxy "${proxy_ip}" -f -s -k --max-time 60 "${target}/${repo_file}" -o "${repo_file}" &
+                        echo "curl "${curl_options[@]}" -L --proxy \"${proxy_ip}\" -f \"${target}/${repo_file}\" -o ${repo_file}" >> "${log_execution_file}"
+                        curl "${curl_options[@]}" -L --proxy "${proxy_ip}" -f "${target}/${repo_file}" -o "${repo_file}" &
                      done    
                      while pgrep -f curl > /dev/null; do
                         sleep 1
@@ -46,7 +46,7 @@ git_rebuild(){
                      cd "${dir_origem}" || exit
                 fi
             else
-                if [[ "200" -eq "$(curl -A "${curl_agent}" -o /tmp/git_config -s -w "%{http_code}" "${target}/.git/config")" ]] && \
+                if [[ "200" -eq "$(curl "${curl_options[@]}" -o /tmp/git_config -s -w "%{http_code}" "${target}/.git/config")" ]] && \
                     [[ $(grep -Eq "^\[core\]|^\[remote.*\]|^\[branch.*\]" /tmp/git_config; echo "$?") -eq "0" ]]; then
                     rm -rf /tmp/git_config
                     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Found .git on ${green}${target}${reset}!"
@@ -64,8 +64,8 @@ git_rebuild(){
                         if [[ ! -d "${repo_file_dir}" ]] && [[ "${repo_file_dir}" != "." ]]; then
                             mkdir -p "${repo_file_dir}"
                         fi
-                        echo "curl -L -A ${curl_agent} -f -s -k --max-time 60 \"${target}/${repo_file}\" -o \"${repo_file}\"" >> "${log_execution_file}"
-                        curl -L -A "${curl_agent}" -f -s -k --max-time 60 "${target}/${repo_file}" -o "${repo_file}" &
+                        echo "curl ${curl_options[@]} -L -f \"${target}/${repo_file}\" -o \"${repo_file}\"" >> "${log_execution_file}"
+                        curl "${curl_options[@]}" -L -f "${target}/${repo_file}" -o "${repo_file}" &
                     done
                     while pgrep -f curl > /dev/null; do
                         sleep 1

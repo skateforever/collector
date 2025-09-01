@@ -86,8 +86,8 @@ shodan_recon(){
             network=$(echo ${block} | awk -F'/' '{print $1}')
             cidr=$(echo ${block} | awk -F'/' '{print $2}')
             rm_network=$(echo ${network} | awk -F'.' '{print $1"."$2"."$3"."}')
-            ip_range=$(curl -A "${curl_agent}" -s "http://jodies.de/ipcalc" -d "host=${network}&mask1=${cidr}" 2> /dev/null | sed 's/<font color="#000000">/\\\n/g ; s/\\//g' | grep -E "HostMin:|HostMax:" | awk '{print $3}' | sed 's/.*>//' | tr '\n' ' ' | sed "s/${rm_network}//g ; s/.$//")
-            total_ip=$(curl -A "${curl_agent}" -s "http://jodies.de/ipcalc" -d "host=${network}&mask1=${cidr}" 2> /dev/null | sed 's/<font color="#000000">/\\\n/g ; s/\\//g' | grep -E "Hosts/Net:" | awk '{print $3}' | sed 's/.*>//' | tr '\n' ' ')
+            ip_range=$(curl "${curl_options[@]}" -s "http://jodies.de/ipcalc" -d "host=${network}&mask1=${cidr}" 2> /dev/null | sed 's/<font color="#000000">/\\\n/g ; s/\\//g' | grep -E "HostMin:|HostMax:" | awk '{print $3}' | sed 's/.*>//' | tr '\n' ' ' | sed "s/${rm_network}//g ; s/.$//")
+            total_ip=$(curl "${curl_options[@]}" -s "http://jodies.de/ipcalc" -d "host=${network}&mask1=${cidr}" 2> /dev/null | sed 's/<font color="#000000">/\\\n/g ; s/\\//g' | grep -E "Hosts/Net:" | awk '{print $3}' | sed 's/.*>//' | tr '\n' ' ')
             shodan_recons=$(shodan info 2> /dev/null | grep "Scan.*:" | awk '{print $4}')
             shodan_count=0
             if [ "${shodan_recons}" -gt "${total_ip}" ]; then
