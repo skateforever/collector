@@ -16,9 +16,9 @@ virustotal-src(){
         if [ "${virustotal_api_check}" -eq 200 ]; then
             curl "${curl_options[@]}" -H "X-Apikey: ${virustotal_api_key}" "${virustotal_api_url}/${domain}/subdomains?limit=40" \
                 > "${tmp_dir}/virustotal_output.json" 2>> "${log_execution_file}"
-            echo "Done!"
             sleep 1
         fi
+        echo "Done!"
     fi
 }
 
