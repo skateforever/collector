@@ -12,7 +12,7 @@
 check_binaries(){
     count=0
     for binary in amass aquatone censys-subdomain-finder.py curl diff dig dirsearch dnssearch git-dumper \
-        gobuster host html2text httpx jq katana massdns nmap notify nuclei shodan subfinder waybackurls whois; do
+        gobuster host html2text httpx jq katana massdns nmap notify nuclei shodan subfinder tlsx waybackurls whois; do
     if ! command -v "${binary}" > /dev/null 2>&1 ; then
         echo -e "The ${red}${binary} does not exist${reset} on the system!"
         ((count += 1))
