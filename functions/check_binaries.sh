@@ -1,5 +1,15 @@
+#!/bin/bash
+#############################################################
+# Verify if all binaries there are in the system            #
+#                                                           #
+# This file is an essential part of collector's execution!  #
+# And is responsible to get the functions:                  #
+#                                                           #
+#   * check_binaries                                        #
+#                                                           #
+#############################################################
+
 check_binaries(){
-    # Verifying if all binaries there are in the system
     count=0
     for binary in amass aquatone censys-subdomain-finder.py curl diff dig dirsearch dnssearch git-dumper \
         gobuster host html2text httpx jq katana massdns nmap notify nuclei shodan subfinder waybackurls whois; do
@@ -26,16 +36,5 @@ done
         echo -e "You could use the ${yellow}get-tools.sh${reset} to get all binaries and scripts!"
         unset count
         exit 1
-    fi
-
-    if [ -n "${shodan_use}" ]; then
-        shodan_use=$(echo "${shodan_use}" | tr '[:upper:]' '[:lower:]')
-        if [ "${shodan_use}" == "yes" ]; then
-            [[ -n "${shodan_just_scan_main_domain}" ]] && \
-                shodan_just_scan_main_domain=$(echo "${shodan_just_scan_main_domain}" | tr '[:upper:]' '[:lower:]')
-            if [ -n "${shodan_apikey}" ] && [ ! -s ~/.shodan/api_key ]; then
-                shodan init "${shodan_apikey}" > /dev/null
-            fi
-        fi
     fi
 }

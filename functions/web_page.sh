@@ -1,11 +1,13 @@
-#############################################################
-#                                                           #
-# This file is an essential part of collector's execution!  #
-# And is responsible to get the functions:                  #
-#                                                           #
-#   * webapp_alive                                          #
-#                                                           #
-############################################################# 
+#!/bin/bash
+###############################################################################
+# This function will try to idenfiy any web application running on subdomain  #
+#                                                                             #
+# This file is an essential part of collector's execution!                    #
+# And is responsible to get the functions:                                    #
+#                                                                             #
+#   * webapp_alive                                                            #
+#                                                                             #
+############################################################################### 
 
 webapp_alive(){
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Testing subdomains to know if it has a web application... "

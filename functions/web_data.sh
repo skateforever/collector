@@ -1,13 +1,15 @@
-#############################################################
-#                                                           #
-# This file is an essential part of collector's execution!  #
-# And is responsible to get the functions:                  #
-#                                                           #
-#   * web_data                                              #
-#   * robots_txt                                            #
-#   * aquatone_function                                     #
-#                                                           #
-############################################################# 
+#!/bin/bash
+###########################################################################
+# Those functions try to get all data as possible from a web application  #
+#                                                                         #
+# This file is an essential part of collector's execution!                #
+# And is responsible to get the functions:                                #
+#                                                                         #
+#   * web_data                                                            #
+#   * robots_txt                                                          #
+#   * aquatone_function                                                   #
+#                                                                         #
+########################################################################### 
 
 web_data(){
     target="$1"

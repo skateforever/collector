@@ -1,4 +1,6 @@
+#!/bin/bash
 #############################################################
+# This function try to seek for vhost subdomains            #
 #                                                           #
 # This file is an essential part of collector's execution!  #
 # And is responsible to get the functions:                  #

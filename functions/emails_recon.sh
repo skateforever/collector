@@ -1,4 +1,6 @@
+#!/bin/bash
 #############################################################
+# Try to make a email recon                                 #
 #                                                           #
 # This file is an essential part of collector's execution!  #
 # And is responsible to get the functions:                  #

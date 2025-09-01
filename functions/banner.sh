@@ -1,3 +1,13 @@
+#!/bin/bash
+#############################################################
+#                                                           #
+# This file is an essential part of collector's execution!  #
+# And is responsible to get the functions:                  #
+#                                                           #
+#   * banner                                                #
+#                                                           #
+#############################################################            
+
 banner(){
 # Always print the banner
 echo -e "                                 __ __             __

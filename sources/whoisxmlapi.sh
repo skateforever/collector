@@ -1,3 +1,4 @@
+#!/bin/bash
 #############################################################
 #                                                           #
 # This file is an essential part of collector's execution!  #
@@ -7,7 +8,7 @@
 #                                                           #
 #############################################################            
 
-whoisxmlapi(){
+whoisxmlapi-src(){
     if [[ -n "${whoisxmlapi_api_key}" ]] && [[ -n "${whoisxmlapi_subdomain_url}" ]]; then
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing whoisxmlapi... " | tee -a "${log_execution_file}"
         echo -e "\ncurl ${curl_options[@]} -X POST \"${whoisxmlapi_subdomain_url}\" -H \"Content-Type: application/json\" \
@@ -20,3 +21,5 @@ whoisxmlapi(){
     fi
     sleep 1
 }
+
+whoisxmlapi-src

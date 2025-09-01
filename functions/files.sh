@@ -1,4 +1,6 @@
+#!/bin/bash
 #############################################################
+# The main file to handle all results from sources          #
 #                                                           #
 # This file is an essential part of collector's execution!  #
 # And is responsible to get the functions:                  #

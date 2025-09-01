@@ -1,3 +1,4 @@
+#!/bin/bash
 #############################################################
 #                                                           #
 # This file is an essential part of collector's execution!  #

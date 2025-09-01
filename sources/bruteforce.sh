@@ -1,3 +1,4 @@
+#!/bin/bash
 #############################################################
 #                                                           #
 # This file is an essential part of collector's execution!  #
@@ -7,7 +8,7 @@
 #                                                           #
 #############################################################            
 
-bruteforce(){
+bruteforce-src(){
     if [ "${#dns_wordlists[@]}" -gt 0 ]; then
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} We will execute brute force dns with amass, gobuster and dnssearch ${#dns_wordlists[@]} time(s)." | tee -a "${log_execution_file}"
         echo -e "\t Take a break as this step takes a while." | tee -a "${log_execution_file}"
@@ -36,4 +37,4 @@ bruteforce(){
     fi
 }
 
-bruteforce
+bruteforce-src

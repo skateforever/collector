@@ -1,4 +1,13 @@
-# main function of the collector script
+#!/bin/bash
+#############################################################
+# Main function of the collector script                     #
+#                                                           #
+# This file is an essential part of collector's execution!  #
+# And is responsible to get the functions:                  #
+#                                                           #
+#   * collector_exec                                        #
+#                                                           #
+#############################################################
 
 collector_exec(){
     if [[ -n ${domain} ]] && [[ ! -s "${domain_list}" ]] && [[ -z "${url_2_verify}" ]]; then

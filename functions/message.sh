@@ -1,3 +1,14 @@
+#!/bin/bash
+##################################################################
+# This function will display start, finished and failed messages #
+#                                                                #
+# This file is an essential part of collector's execution!       #
+# And is responsible to get the functions:                       #
+#                                                                #
+#   * message                                                    #
+#                                                                # 
+################################################################## 
+
 message(){
     target="$1"
     status="$2"

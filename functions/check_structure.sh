@@ -1,4 +1,14 @@
-# Create the structure
+#!/bin/bash
+#############################################################
+# Create the structure                                      #
+#                                                           #
+# This file is an essential part of collector's execution!  #
+# And is responsible to get the functions:                  #
+#                                                           #
+#   * create_initial_directories_structure                  #
+#                                                           #
+#############################################################
+
 create_initial_directories_structure(){
 
     if [ "${directories_structure}" == "domain" ]; then

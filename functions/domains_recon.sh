@@ -1,3 +1,14 @@
+#!/bin/bash
+#############################################################
+# The domain recon execution file                           #
+#                                                           #
+# This file is an essential part of collector's execution!  #
+# And is responsible to get the functions:                  #
+#                                                           #
+#   * domains_recon                                         #
+#                                                           #
+############################################################# 
+
 domains_recon(){
     (# Show the directory structure
     echo "The directory structure you will have to work with, is..."

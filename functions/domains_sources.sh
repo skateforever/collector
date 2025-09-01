@@ -1,4 +1,7 @@
+#!/bin/bash
+
 #############################################################
+# Load all source files to domains_recon function           #
 #                                                           #
 # This file is an essential part of collector's execution!  #
 # And is responsible to get the functions:                  #

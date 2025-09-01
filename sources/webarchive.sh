@@ -1,3 +1,4 @@
+#!/bin/bash
 #############################################################
 #                                                           #
 # This file is an essential part of collector's execution!  #
@@ -7,7 +8,7 @@
 #                                                           #
 #############################################################            
 
-webarchive(){
+webarchive-src(){
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing webarchive... " | tee -a "${log_execution_file}"
     echo -e "\ncurl ${curl_options[@]} \"http://web.archive.org/cdx/search/cdx?url=*.${domain}/*&output=text&fl=original&collapse=urlkey\"" >> "${log_execution_file}"
     curl "${curl_options[@]}" "http://web.archive.org/cdx/search/cdx?url=*.${domain}/*&output=text&fl=original&collapse=urlkey" \
@@ -15,3 +16,5 @@ webarchive(){
     echo "Done!"
     sleep 1
 }
+
+webarchive-src

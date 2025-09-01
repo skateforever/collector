@@ -1,3 +1,16 @@
+#!/bin/bash
+#############################################################
+# Verify the execution and parameter dependency             #
+#                                                           #
+# This file is an essential part of collector's execution!  #
+# And is responsible to get the functions:                  #
+#                                                           #
+#   * check_execution                                       #
+#   * check_parameter_dependency_domain                     #
+#   * check_is_know_target                                  #
+#                                                           #
+#############################################################
+
 check_execution(){
     # Checking if the script has the main parameters needed
     if [[ -z "${url_2_verify}" ]] && [[ -z "${domain}" ]] && [[ ! -s "${domain_list}" ]]; then
