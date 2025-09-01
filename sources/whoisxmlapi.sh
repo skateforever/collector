@@ -16,7 +16,7 @@ whoisxmlapi-src(){
                 | jq -r '.domainsList[]'" >> "${log_execution_file}"
         curl "${curl_options[@]}" -X POST "${whoisxmlapi_subdomain_url}" -H "Content-Type: application/json" \
             --data '{"apiKey": "'${whoisxmlapi_api_key}'", "domains": {"include": ["'${domain}'"]},"subdomains": {"include": [],"exclude": []}}' \
-            -o "${tmp_dir}/whoisxmlapi_output.json" 2>> "${log_execution_file}"
+            > "${tmp_dir}/whoisxmlapi_output.json" 2>> "${log_execution_file}"
         echo "Done!"
     fi
     sleep 1
