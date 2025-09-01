@@ -13,4 +13,4 @@ netcraft-src(){
     # # "https://searchdns.netcraft.com/?restriction=site+contains&host=${domain}&position=limited"
 }
 
-netcraft-src
+#netcraft-src

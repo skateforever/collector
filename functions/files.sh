@@ -68,21 +68,23 @@ joining_subdomains(){
         fi
 
         if [ -s "${tmp_dir}/hackertarget_output.txt" ]; then
-            awk -F',' '{print $1}' "${tmp_dir}/hackertarget_output.txt" \
+            grep -v "API count exceeded - Increase Quota with Membership" \
+                | awk -F',' '{print $1}' "${tmp_dir}/hackertarget_output.txt" \
                 | sort -u >> "${tmp_dir}/domains_found.tmp"
         fi
 
         if [ -s "${tmp_dir}/rapiddns_output.txt" ]; then
             grep -Po '<td>\K[^<]*' "${tmp_dir}/rapiddns_output.txt" \
-                | grep -E "^.*\.${domain}" "${tmp_dir}/rapiddns_output.txt" \
-                >> "${tmp_dir}/domains_found.tmp"
+                | grep -E "^.*\.${domain}" \
+                | sort -u >> "${tmp_dir}/domains_found.tmp"
         fi
 
         if [ -s "${tmp_dir}/securitytrails_output.json" ]; then
             cat "${tmp_dir}/securitytrails_output.json" \
                 | jq -r '.subdomains[]' \
-                | sed "s/$/i\.${domain}/" \
-                sort -u >> "${tmp_dir}/domains_found.tmp"
+                | sed "s/$/\.${domain}/" \
+                | sort -u >> "${tmp_dir}/domains_found.tmp"
+           
         fi
 
         if [ -s "${tmp_dir}/shodan_output.txt" ]; then
@@ -92,11 +94,14 @@ joining_subdomains(){
         fi
 
         if [ -s "${tmp_dir}/subfinder_output.txt" ]; then
-            grep -E "^.*\.${domain}" "${tmp_dir}/subfinder_output.txt" >> "${tmp_dir}/domains_found.tmp"
+            grep -E "^.*\.${domain}" "${tmp_dir}/subfinder_output.txt" \
+                >> "${tmp_dir}/domains_found.tmp"
         fi
 
         if [ -s "${tmp_dir}/tlsx_output.json" ]; then
-            cat "${tmp_dir}/tlsx_output.json" | jq -r '.subject_an[]' grep -E "^.*\.${domain}" >> "${tmp_dir}/domains_found.tmp"
+            cat "${tmp_dir}/tlsx_output.json" \
+                | jq -r '.subject_an[]' \
+                | grep -E "^.*\.${domain}" >> "${tmp_dir}/domains_found.tmp"
         fi
 
         if [ -s "${tmp_dir}/virustotal_output.json" ]; then
