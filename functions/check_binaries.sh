@@ -35,7 +35,7 @@ check_binaries(){
     if [ "${count}" -gt 0 ]; then
         echo -e "Please, ${yellow}make sure${reset} you got all tools (binaries and scripts)."
         echo -e "You could use the ${yellow}get-tools.sh${reset} to get all binaries and scripts!"
-        echo -e "The reconnaissance failed at $(date +"%Y%m%d %H:%M") due missing tools!"
+        echo -e "The reconnaissance ${red}failed${reset} at ${yellow}$(date +"%Y%m%d %H:%M")${reset} due missing tools!"
         unset count
         exit 1
     fi
