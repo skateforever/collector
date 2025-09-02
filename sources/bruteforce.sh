@@ -19,11 +19,14 @@ bruteforce-src(){
                 echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Execution number ${index}... " | tee -a "${log_execution_file}"
                 echo -e "\namass enum -src -w ${list} -d ${domain}" >> "${log_execution_file}" 
                 amass enum -src -w "${list}" -d "${domain}" >> "${tmp_dir}/amass_brute_output_${index}.txt" 2>> "${log_execution_file}"
+
                 echo -e "\ngobuster dns -z -q -t ${gobuster_threads} -d ${domain} -w ${list}" >> "${log_execution_file}"
                 gobuster dns -z -q -t "${gobuster_threads}" -d "${domain}" -w "${list}" >> "${tmp_dir}/gobuster_dns_output_${index}.txt" 2>> "${log_execution_file}"
+
                 echo -e "\ndnssearch -consumers 600 -domain ${domain} -wordlist ${list}" >> "${log_execution_file}"
                 dnssearch -consumers 600 -domain "${domain}" -wordlist "${list}" | \
                     grep "${domain}" >> "${tmp_dir}/dnssearch_output_${index}.txt" 2>> "${log_execution_file}"
+
                 echo "Done!"
                 sleep 1
             else

@@ -11,29 +11,15 @@
 #                                                           #
 #############################################################
 
+# Checking if the script has the main parameters needed
 check_execution(){
-    # Checking if the script has the main parameters needed
     if [[ -z "${url_2_verify}" ]] && [[ -z "${domain}" ]] && [[ ! -s "${domain_list}" ]]; then
         echo -e "You need at least one option \"-u|--url\", \"-d|--domain\" OR \"-dl|--domain-list\" to execute this script!\n"
         usage
     fi
-
-    # Verify the if exist the default resolvers list
-    #if [ ! -s "${massdns_resolvers_file}" ]; then
-    #    echo "The resolvers file does not exist, please fix it, downloading from this source: "
-    #    echo -e "\n\thttps://public-dns.info/nameservers.txt"
-    #    echo " "
-    #    echo -e "After the download put the path to nameservers.txt file in massdns_resolvers_file variable in collector.cfg file.\n"
-    #    usage
-    #fi
-
-    # Verify the if exist the default wordlist for web
-    #if [ ${#web_wordlists[@]} -eq 0 ]; then
-    #    echo -e "Please, ${yellow}make sure${reset} you have the default wordlists to web directory and file discovery!\n"
-    #    usage
-    #fi
 }
-# Checking the runtime parameter dependency for domain recon
+
+# Checking the runtime parameter dependency for recon
 check_parameter_dependency_domain(){
     if [[ -n "${domain}" ]] || [[ -s "${domain_list}" ]] && [[ -z "${url_2_verify}" ]]; then
         if [[ "${args_count}" -gt 9 ]]; then 
@@ -57,6 +43,11 @@ check_parameter_dependency_domain(){
             echo -e "You are trying to pass a number of parameters beyond what is necessary for this collector reconnaissance option \"${yellow}-u|--url${reset}\".\n"
             usage
         fi
+    fi
+
+    if [[ "${only_web_data}" == "yes" ]] && [[ ${#web_wordlists[@]} -eq 0 ]]; then
+        echo -e "Please, ${yellow}make sure${reset} you have at least one wordlist to web directory and file discovery!\n"
+        usage
     fi
 }
 

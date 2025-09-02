@@ -101,6 +101,8 @@ web_data(){
                             done < "${urls_file}"
                         else
                             echo -e "\t\t    ${red}Error:${reset} ${list} does not exist or is empty!"
+                            echo -e "Error: ${list} does not exist or is empty!" >> "${log_execution_file}"
+                            echo -e "Error: ${list} does not exist or is empty!" | notify -nc -silent -id "${notify_files_channel}" 
                             continue
                         fi
                         unset index
@@ -190,7 +192,10 @@ web_data(){
             fi
         else
             echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Make sure the ${urls_file} exist and isn't empty."
+            echo -e "Make sure the ${urls_file} exist and isn't empty." | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+            message "${target}" failed
             unset urls_file
+            exit 1
         fi
         unset urls_file
     fi

@@ -35,6 +35,7 @@ for file in kill_collector check_binaries usage message menu check_structure che
     fi
 done
 
+check_binaries
 menu "$@"
 check_execution
 check_parameter_dependency_domain
