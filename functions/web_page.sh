@@ -112,7 +112,7 @@ webapp_alive(){
             echo -e "Probably we have: \n \
                 \t* $(awk '{print $1}' "${report_dir}/domains_web_status.txt" | sed -e 's/^http.*\/\/// ; s/:.*$//' | awk -F'/' '{print $1}' | sort -u | wc -l) Web Applications URL(s).\n \
                 \t* $(wc -l "${report_dir}/domains_infrastructure.txt" | awk '{print $1}') Infrastructure domain(s)." \
-                | notify -nc -silent -id "${notify_recon_channel}"
+                | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
         fi
     else
         echo "Fail!"
