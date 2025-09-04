@@ -28,33 +28,33 @@ webapp_alive(){
                 for port in "${webapp_port_detect[@]}"; do
                     subdomain_http_status_check=$(curl "${curl_options[@]}" -L -w "%{response_code}\n" "http://${subdomain}:${port}" -o /dev/null)
                     subdomain_https_status_check=$(curl "${curl_options[@]}" -L -w "%{response_code}\n" "https://${subdomain}:${port}" -o /dev/null)
-                    echo -e "http://${subdomain}:${port}\t${subdomain_http_status_check}" >> "${report_dir}/domains_webapp_status.txt"
-                    echo -e "https://${subdomain}:${port}\t${subdomain_https_status_check}" >> "${report_dir}/domains_webapp_status.txt"
+                    echo -e "http://${subdomain}:${port}\t${subdomain_http_status_check}" >> "${tmp_dir}/webapp_status_tmp.txt"
+                    echo -e "https://${subdomain}:${port}\t${subdomain_https_status_check}" >> "${tmp_dir}/webapp_status_tmp.txt"
                 done
             fi
             if [ "${webapp_tool_detection}" == "httpx" ]; then
                 echo "${subdomain}" | httpx -nc -silent -p $(echo "${webapp_port_detect[@]}" | sed 's/ /,/g') -status-code | \
-                    sed 's/\[// ; s/]//' >> "${report_dir}/domains_webapp_status.txt"
+                    sed 's/\[// ; s/]//' >> "${tmp_dir}/webapp_status_tmp.txt"
             fi
         done
 
-        if [ -s "${report_dir}/domains_webapp_status.txt" ]; then
+        if [ -s "${tmp_dir}/webapp_status_tmp.txt" ]; then
             echo "Done!"
-            sed -i 's/\/\/$// ; s/:443// ; s/:80$// ; s/:80\t/\t/ ; s/\(:80\)\(\/\)/\2/ ; s/:\/$// ; s/\(\.\)\([[:alpha:]]*\)\(\/$\)/\1\2/' "${report_dir}/domains_webapp_status.txt"
+            sed -i 's/\/\/$// ; s/:443// ; s/:80$// ; s/:80\t/\t/ ; s/\(:80\)\(\/\)/\2/ ; s/:\/$// ; s/\(\.\)\([[:alpha:]]*\)\(\/$\)/\1\2/' "${tmp_dir}/webapp_status_tmp.txt"
 
             echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Getting domain names for web applications... "
             for page_status in "${webapp_get_status[@]}"; do
                 if [[ "${page_status}" =~ "30" ]]; then
-                    for url_redirected in $(grep -E "${page_status}$" "${report_dir}/domains_webapp_status.txt" | awk '{print $1}'); do
+                    for url_redirected in $(grep -E "${page_status}$" "${tmp_dir}/webapp_status_tmp.txt" | awk '{print $1}'); do
                         curl -kLs -o /dev/null -w "%{url_effective}\n" "${url_redirected}"
                     done
                 fi
-                grep -E "${page_status}$" "${report_dir}/domains_webapp_status.txt" | awk '{print $1}'
-            done | sed -E 's/^http(|s):\/\/// ; s/:.*$//' | awk -F'/' '{print $1}' >> "${tmp_dir}/domains_webapp_tmp.txt"
+                grep -E "${page_status}$" "${report_dir}/webapp_status.txt" | awk '{print $1}'
+            done | sed -E 's/^http(|s):\/\/// ; s/:.*$//' | awk -F'/' '{print $1}' >> "${tmp_dir}/webapp_status_tmp.txt"
             unset url_redirected
 
-            if [ -s "${tmp_dir}/domains_webapp_tmp.txt" ]; then
-                sort -u -o "${report_dir}/domains_webapp.txt" "${tmp_dir}/domains_webapp_tmp.txt"
+            if [ -s "${tmp_dir}/webapp_status_tmp.txt" ]; then
+                sort -u -o "${report_dir}/webapp_status.txt" "${tmp_dir}/webapp_status_tmp.txt"
                 echo "Done!"
             else
                 echo "Fail!"
@@ -71,15 +71,15 @@ webapp_alive(){
             exit 1
         fi
 
-        if [ -s "${report_dir}/domains_webapp_status.txt" ]; then
+        if [ -s "${report_dir}/webapp_status.txt" ]; then
             echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Separating web applications according to the HTTP Status Code defined in collector.cfg... "
-            grep -E "$(echo "${webapp_get_status[@]}" | tr -s ' ' '|')" "${report_dir}/domains_webapp_status.txt" | awk '{print $1}' >> "${report_dir}/webapp_urls.txt"
-            grep -Ev "$(echo "${webapp_get_status[@]}" | tr -s ' ' '|')" "${report_dir}/domains_webapp_status.txt" | awk '{print $1}' >> "${report_dir}/api_urls.txt"
+            grep -E "$(echo "${webapp_get_status[@]}" | tr -s ' ' '|')" "${report_dir}/webapp_status.txt" | awk '{print $1}' >> "${report_dir}/webapp_urls.txt"
+            grep -Ev "$(echo "${webapp_get_status[@]}" | tr -s ' ' '|')" "${report_dir}/webapp_status.txt" | awk '{print $1}' >> "${report_dir}/api_urls.txt"
             echo "Done!"
         fi
 
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Separating infrastructure from web application... "
-        if [ -s "${report_dir}/domains_webapp.txt" ]; then
+        if [ -s "${report_dir}/webapp_urls.txt" ]; then
             if cp "${report_dir}/domains_alive.txt" "${report_dir}/domains_infrastructure.txt"; then
                 while IFS= read -r line; do
                     subdomain=$(echo "${line}" | sed -e "s/http:\/\///" -e "s/https:\/\///" | awk -F":" '{print $1}' | awk -F"/" '{print $1}')
@@ -89,7 +89,7 @@ webapp_alive(){
                         continue
                     fi
                     unset subdomain
-                done < "${report_dir}/domains_webapp.txt"
+                done < "${report_dir}/webapp_urls.txt"
                 echo "Done!"
             else
                 echo "Fail!"
@@ -106,12 +106,12 @@ webapp_alive(){
             exit 1
         fi
 
-        if [ -f "${report_dir}/domains_webapp_status.txt" ] && [ -f "${report_dir}/domains_infrastructure.txt" ]; then
+        if [ -f "${report_dir}/webapp_urls.txt" ] && [ -f "${report_dir}/domains_infrastructure.txt" ]; then
             echo -e "\t\t    Probably we have: "
-            echo -e "\t\t      * $(awk '{print $1}' "${report_dir}/domains_webapp_status.txt" | sed -e 's/^http.*\/\/// ; s/:.*$//' | awk -F'/' '{print $1}' | sort -u | wc -l) Web Applications URL(s)."
+            echo -e "\t\t      * $(awk '{print $1}' "${report_dir}/webapp_status.txt" | sed -e 's/^http.*\/\/// ; s/:.*$//' | awk -F'/' '{print $1}' | sort -u | wc -l) Web Applications URL(s)."
             echo -e "\t\t      * $(wc -l "${report_dir}/domains_infrastructure.txt" | awk '{print $1}') Infrastructure domain(s)."
             echo -e "Probably we have: \n \
-                \t* $(awk '{print $1}' "${report_dir}/domains_webapp_status.txt" | sed -e 's/^http.*\/\/// ; s/:.*$//' | awk -F'/' '{print $1}' | sort -u | wc -l) Web Applications URL(s).\n \
+                \t* $(awk '{print $1}' "${report_dir}/webapp_status.txt" | sed -e 's/^http.*\/\/// ; s/:.*$//' | awk -F'/' '{print $1}' | sort -u | wc -l) Web Applications URL(s).\n \
                 \t* $(wc -l "${report_dir}/domains_infrastructure.txt" | awk '{print $1}') Infrastructure domain(s)." \
                 | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
         fi
@@ -134,7 +134,6 @@ aquatone_scan(){
             aquatone_log="${tmp_dir}/aquatone_${target}.log"
         elif [[ -n "${url_2_verify}" && -z "${target}" ]] ; then
             aquatone_log="${tmp_dir}/aquatone_${url_base}.log"
-        fi
         if [ ! -d "${aquatone_files_dir}" ]; then
             if mkdir -p "${aquatone_files_dir}" ; then
                 echo "aquatone -chrome-path ${chromium_bin} -out ${aquatone_files_dir} -threads ${aquatone_threads} < ${file}" >> "${log_execution_file}"
