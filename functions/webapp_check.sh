@@ -134,6 +134,7 @@ aquatone_scan(){
             aquatone_log="${tmp_dir}/aquatone_${target}.log"
         elif [[ -n "${url_2_verify}" && -z "${target}" ]] ; then
             aquatone_log="${tmp_dir}/aquatone_${url_base}.log"
+        fi
         if [ ! -d "${aquatone_files_dir}" ]; then
             if mkdir -p "${aquatone_files_dir}" ; then
                 echo "aquatone -chrome-path ${chromium_bin} -out ${aquatone_files_dir} -threads ${aquatone_threads} < ${file}" >> "${log_execution_file}"
