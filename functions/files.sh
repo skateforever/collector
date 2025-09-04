@@ -69,7 +69,7 @@ joining_subdomains(){
 
         if [ -s "${tmp_dir}/hackertarget_output.txt" ]; then
             grep -v "API count exceeded - Increase Quota with Membership" "${tmp_dir}/hackertarget_output.txt" \
-                | awk -F',' '{print $1}' "${tmp_dir}/hackertarget_output.txt" \
+                | awk -F',' '{print $1}' \
                 | sort -u >> "${tmp_dir}/domains_found.tmp"
         fi
 
