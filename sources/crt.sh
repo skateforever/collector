@@ -9,7 +9,7 @@
 #############################################################            
 
 crt-src(){
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing crt.sh... " | tee -a "${log_execution_file}"
+    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing crt.sh... "
     echo -e "\ncurl -ks \"https://crt.sh/?q=%25.${domain}&output=json\" | jq -r '.[].name_value'" >> "${log_execution_file}"
     curl "${curl_options[@]}" "https://crt.sh/?q=%25.${domain}&output=json" \
         > "${tmp_dir}/crtsh_output.json" \

@@ -27,12 +27,12 @@ check_parameter_dependency_domain(){
             usage
         fi
  
-        if [[ ${#web_port_detect[@]} -eq 0 ]] && [[ "${only_web_data}" == "no" ]]; then
+        if [[ ${#webapp_port_detect[@]} -eq 0 ]] && [[ "${only_webapp_enum}" == "no" ]]; then
             echo -e "You need to specify at least one of these options sort (-ws|--web-short-detection) or long (-wl|--web-long-detection) web detection!\n"
             usage
         fi
 
-        if [[ -z "${web_tool_detection}" ]] && [[ "${only_web_data}" == "no" ]]; then
+        if [[ -z "${web_tool_detection}" ]] && [[ "${only_webapp_enum}" == "no" ]]; then
             echo -e "You need to inform one of these tools ${bold}${yellow}curl${reset}${normal} or ${bold}${yellow}httpx${reset}${normal} to perform web application detection.\n"
             usage
        fi
@@ -45,7 +45,7 @@ check_parameter_dependency_domain(){
         fi
     fi
 
-    if [[ "${only_web_data}" == "yes" ]] && [[ ${#web_wordlists[@]} -eq 0 ]]; then
+    if [[ "${only_webapp_enum}" == "yes" ]] && [[ ${#webapp_wordlists[@]} -eq 0 ]]; then
         echo -e "Please, ${yellow}make sure${reset} you have at least one wordlist to web directory and file discovery!\n"
         usage
     fi

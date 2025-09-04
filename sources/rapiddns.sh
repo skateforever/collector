@@ -9,7 +9,7 @@
 #############################################################            
 
 rapiddns-src(){
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing rapiddns... " | tee -a "${log_execution_file}"
+    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing rapiddns... "
     echo -e "\ncurl ${curl_options[@]} \"https://rapiddns.io/subdomain/${domain}#result\"" >> "${log_execution_file}"
     curl "${curl_options[@]}" "https://rapiddns.io/subdomain/${domain}#result" \
         > "${tmp_dir}/rapiddns_output.txt" \

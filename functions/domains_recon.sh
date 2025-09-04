@@ -29,7 +29,7 @@ domains_recon(){
     echo " "
     # Execute all functions
     message "${domain}" start
-    if [ "${only_web_data}" == "no" ]; then
+    if [ "${only_webapp_enum}" == "no" ]; then
         subdomains_recon
         joining_subdomains
         diff_domains
@@ -41,24 +41,28 @@ domains_recon(){
         infra_data
         shodan_recon
         webapp_alive
+        if [ -s "${report_dir}/webapp_urls.txt" ]; then
+            aquatone_scan "${report_dir}/webapp_urls.txt"
+            webapp_tech "${domain}" "${report_dir}/webapp_urls.txt"
+        fi
         #emails_recon
         if [ "${only_recon}" == "yes" ]; then
             message "${domain}" finished
             exit 0
         fi
     fi
-    if [ "${only_web_data}" == "yes" ] && [ ! -s "${report_dir}/web_data_urls.txt" ]; then
+    if [ "${only_webapp_enum}" == "yes" ] && [ ! -s "${report_dir}/webapp_urls.txt" ]; then
         message "${domain}" failed
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${red}The recon finished 'cause an error:${reset}"
-        echo -e "\t\t    You haven't the actual ${yellow}web_data_urls.txt${reset} file to collect data to analyze!"
+        echo -e "\t\t    You haven't the actual ${yellow}webapp_urls.txt${reset} file to collect data to analyze!"
         echo -e "\t\t    Please, run the collector with -d domain --recon or just -d domain to run recon and web data!"
         exit 1
     else
-        web_data "${domain}" "${report_dir}/web_data_urls.txt"
+        webapp_enum "${domain}" "${report_dir}/webapp_urls.txt"
         robots_txt
-        web_data "${report_dir}/robots_urls.txt"
-        for file in "${report_dir}/web_data_urls.txt" "${report_dir}/robots_urls.txt" ; do
-            aquatone_function "${file}"
+        webapp_enum "${report_dir}/robots_urls.txt"
+        for file in "${report_dir}/webapp_urls.txt" "${report_dir}/robots_urls.txt" ; do
+            webapp_scan "${domain}" "${file}"
         done
         git_rebuild
         message "${domain}" finished

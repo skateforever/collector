@@ -1,15 +1,16 @@
 #!/bin/bash
-#
-# collector my script for reconnaissance during
-# my job as pentester or as a hobby doing bug bounty
-#
+#######################################################
+#                                                     #
+# collector is my script for reconnaissance during    #
+# my job as pentester or as a hobby doing bug bounty  #
+#                                                     #
+#######################################################
 
 collector_command_line="$0 $*"
-
-[[ -s "${PWD}/functions/banner.sh" ]] && source "${PWD}/functions/banner.sh"
-banner
-
 collector_path=$(dirname "$0")
+
+[[ -s "${collector_path}/functions/banner.sh" ]] && source "${collector_path}/functions/banner.sh"
+banner
 
 if [ -s "${collector_path}/collector.cfg" ]; then
     source "${collector_path}/collector.cfg"
@@ -22,15 +23,16 @@ else
 fi
 
 # Checking if the essencial functions there are
-for file in kill_collector check_binaries usage message menu check_structure check_execution \
-    domains_sources files diff_recon infra vhost web_page web_data git \
-    domains_recon url_recon collector_exec; do
-    function="${collector_path}/functions/${file}.sh"
+for file in kill_collector.sh check_binaries.sh usage.sh message.sh menu.sh check_structure.sh check_execution.sh \
+    domains_sources.sh files.sh diff_recon.sh infra.sh webapp_check.sh webapp_crawler.sh webapp_scan.sh webapp_enum.sh git.sh \
+    domains_recon.sh url_recon.sh collector_exec.sh; do
+    function="${collector_path}/functions/${file}"
     if [ -s "${function}" ]; then
         source "${function}"
     else
         echo -e "Please ${red}make sure${reset} you have the ${yellow}\"${function}\"${reset} file."
         echo -e "${yellow}You need this file to execute collector${reset}!"
+        echo -e "The collector execution ${red}failed${reset} at ${yellow}$(date +"%Y%m%d %H:%M")${reset} due missing essentials files!" 
         exit 1
     fi
 done

@@ -10,15 +10,14 @@
 ############################################################# 
 
 git_rebuild(){
-    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Looking for git repository on web_data directory..."
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Looking for git repository on webapp_enum directory..."
     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} This function has no 100% guaranty to completely recover the .git repository."
     count=1
     proxy_port=8118
-    for file in $(ls -1A "${web_data_dir}"); do
-        #if [[ $(grep -q ".git/config" "${web_data_dir}/${file}") ]]; then
-        if grep -q ".git/config" "${web_data_dir}/${file}"; then
-            target_dir="${report_dir}/$(grep -E "Target:|Url:" "${web_data_dir}/${file}" | sed -e 's/^\[+\] //' | awk '{print $2}' | sed -e 's/\/$//' -e 's/http:\/\///' -e 's/https:\/\///')"
-            target=$(grep -E "Target:|Url:" "${web_data_dir}/${file}" | sed -e 's/^\[+\] //' | awk '{print $2}' | sed -e 's/\/$//')
+    for file in $(ls -1A "${webapp_enum_dir}"); do
+        if grep -q ".git/config" "${webapp_enum_dir}/${file}"; then
+            target_dir="${report_dir}/$(grep -E "Target:|Url:" "${webapp_enum_dir}/${file}" | sed -e 's/^\[+\] //' | awk '{print $2}' | sed -e 's/\/$//' -e 's/http:\/\///' -e 's/https:\/\///')"
+            target=$(grep -E "Target:|Url:" "${webapp_enum_dir}/${file}" | sed -e 's/^\[+\] //' | awk '{print $2}' | sed -e 's/\/$//')
             if [ -n "${proxy_ip}" ] && [ "${proxy_ip}" == "yes" ]; then
                 if [[ "200" -eq "$(curl "${curl_options[@]}" --proxy "${proxy_ip}" -o /tmp/git_config -w "%{http_code}\n" "${target}/.git/config")" ]] && \
                     [[ $(grep -Eq  "^\[core\]|^\[remote.*\]|^\[branch.*\]" /tmp/git_config; echo "$?") -eq "0" ]]; then

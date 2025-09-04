@@ -10,13 +10,13 @@
 
 bruteforce-src(){
     if [ "${#dns_wordlists[@]}" -gt 0 ]; then
-        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} We will execute brute force dns with amass, gobuster and dnssearch ${#dns_wordlists[@]} time(s)." | tee -a "${log_execution_file}"
-        echo -e "\t Take a break as this step takes a while." | tee -a "${log_execution_file}"
-        echo "We will execute brute force dns with amass, gobuster and dnssearch ${#dns_wordlists[@]} time(s)." | tee -a "${log_execution_file}" 
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} We will execute brute force dns with amass, gobuster and dnssearch ${#dns_wordlists[@]} time(s)."
+        echo -e "\t Take a break as this step takes a while."
+        echo "We will execute brute force dns with amass, gobuster and dnssearch ${#dns_wordlists[@]} time(s)."
         for list in "${dns_wordlists[@]}"; do
             index=$(printf "%s\n" "${dns_wordlists[@]}" | grep -En "^${list}$" | awk -F":" '{print $1}')
             if [ -s "${list}" ]; then
-                echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Execution number ${index}... " | tee -a "${log_execution_file}"
+                echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Execution number ${index}... "
                 echo -e "\namass enum -src -w ${list} -d ${domain}" >> "${log_execution_file}" 
                 amass enum -src -w "${list}" -d "${domain}" >> "${tmp_dir}/amass_brute_output_${index}.txt" 2>> "${log_execution_file}"
 

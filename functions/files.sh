@@ -11,8 +11,7 @@
 #############################################################            
 
 joining_subdomains(){
-    echo -en "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Putting all domain search results in one file... " \
-        | tee -a "${log_execution_file}"
+    echo -en "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Putting all domain search results in one file... "
     if [ -d "${tmp_dir}" ] && [ -d "${report_dir}" ]; then
         if [ -s "${tmp_dir}/alienvault_output.json" ]; then
             cat "${tmp_dir}/alienvault_output.json" \
@@ -62,7 +61,7 @@ joining_subdomains(){
         fi
         
         if [ -s "${tmp_dir}/dnsdumpster_output.json" ]; then
-            cat "${tmp_dir}/dnsdumpster_out.json" \
+            cat "${tmp_dir}/dnsdumpster_output.json" \
                 | jq -r '.a[].host' \
                 | sort -u >> "${tmp_dir}/domains_found.tmp"
         fi
@@ -239,8 +238,8 @@ organizing_subdomains(){
 
         # Organizing and handling domain files
         for file_resolution in "${tmp_dir}/domains_massdns_resolution.txt" "${tmp_dir}/domains_dig_command_resolution.txt" "${tmp_dir}/domains_host_command_resolution.txt"; do
-            cp "${file_resolution}" "${file_resolution}.old"
             if [[ -s "${file_resolution}" ]];  then
+                cp "${file_resolution}" "${file_resolution}.old"
                 sed -i "s/${domain}\./${domain}/g" "${file_resolution}"
                 sed -i "s/\.$//g" "${file_resolution}"
                 sed -i 's/\.[[:blank:]]/ /g' "${file_resolution}"

@@ -25,9 +25,7 @@ url_recon(){
     echo " "
     # Executing just the functions necessary to url check
     [[ -s "${recon_dir}/url_2_test.txt"  ]] && rm "${recon_dir}/url_2_test.txt"
-   
     message "${url_domain}" start
-    
     if [ $(host -t A "${url_domain}" | grep -v "Host.*not.found:" | awk '{print $4}' | \
             grep -E "^^([0-9]+(\.|$)){4}|^([0-9a-fA-F]{0,4}:){1,7}([0-9a-fA-F]){0,4}$") ]; then
        echo "${url_domain}" > "${recon_dir}/url_2_test.txt"
@@ -35,12 +33,13 @@ url_recon(){
        message ${url_domain} failed
        exit 1
     fi 
-
-    web_data "${url_domain}" "${recon_dir}/url_2_test.txt"
+    webapp_enum "${url_domain}" "${recon_dir}/url_2_test.txt"
     robots_txt
-    web_data "${report_dir}/robots_urls.txt"
+    webapp_enum "${report_dir}/robots_urls.txt"
     for file in "${recon_dir}/url_2_test.txt" "${report_dir}/robots_urls.txt" ; do
-        aquatone_function "${file}"
+        aquatone_scan "${file}"
+        webapp_tech "${url_domain}" "${file}"
+        webapp_scan "${url_domain}" "${file}"
     done
     git_rebuild 
     message "${url_2_verify}" finished

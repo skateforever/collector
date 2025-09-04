@@ -24,7 +24,7 @@ collector_exec(){
             if [[ $(host -t A "${domain}" | grep -E "has.address" | awk '{print $4}' | grep -E "${IPv4_regex}$" > /dev/null 2>&1 ; echo $?) -eq 0 ]]; then
                 domains_recon
             else
-                echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} The ${yellow}${domain}${reset} does not exist!" | tee -a "${log_dir}/domain_doesnot_exit.txt"
+                echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} The ${yellow}${domain}${reset} does not exist!" | tee -a "${log_dir}/domain_doesnot_exist.txt"
                 echo "The ${domain} does not exist!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
                 message "${domain}" failed
             fi

@@ -18,7 +18,7 @@ create_initial_directories_structure(){
         log_execution_file="${log_dir}/domain_${date_recon}.log"
         recon_dir="${output_dir}/${domain}/domain_${date_recon}"
         # secundaries directories
-        mkdir -p "${recon_dir}"/{aquatone,nmap,nuclei,report,tmp,web-data,web-params,web-tech}
+        mkdir -p "${recon_dir}"/{aquatone,nmap,nuclei,report,tmp,webapp-enum,webapp-params,webapp-tech}
         aquatone_files_dir="${recon_dir}/aquatone"
         nmap_dir="${recon_dir}/nmap"
         nuclei_dir="${recon_dir}/nuclei"
@@ -28,9 +28,9 @@ create_initial_directories_structure(){
             mkdir -p "${shodan_dir}"
         fi
         tmp_dir="${recon_dir}/tmp"
-        web_data_dir="${recon_dir}/web-data"
-        web_params_dir="${recon_dir}/web-params"
-        web_tech_dir="${recon_dir}/web-tech"
+        webapp_enum_dir="${recon_dir}/webapp-enum"
+        webapp_params_dir="${recon_dir}/webapp-params"
+        webapp_tech_dir="${recon_dir}/webapp-tech"
     fi
 
     if [ "${directories_structure}" == "url" ]; then
@@ -47,14 +47,14 @@ create_initial_directories_structure(){
         nuclei_dir="${report_dir}"
         shodan_dir="${report_dir}"
         tmp_dir="${report_dir}"
-        web_data_dir="${report_dir}"
+        webapp_enum_dir="${report_dir}"
         web_params_dir="${report_dir}"
         web_tech_dir="${report_dir}"
     fi
 
-    if [[ "${only_web_data}" == "yes" ]]; then
+    if [[ "${only_webapp_enum}" == "yes" ]]; then
         for d in $(ls -1t "${output_dir}/${domain}" | grep -Ev "log$"); do
-            if [[ -s "${output_dir}/${domain}/${d}/report/web_data_urls.txt" ]]; then
+            if [[ -s "${output_dir}/${domain}/${d}/report/webapp_urls.txt" ]]; then
                 recon_dir="${output_dir}/${domain}/${d}"
                 break
             fi
@@ -65,7 +65,7 @@ create_initial_directories_structure(){
         report_dir="${recon_dir}/report"
         shodan_dir="${recon_dir}/shodan"
         tmp_dir="${recon_dir}/tmp"
-        web_data_dir="${recon_dir}/web-data"
+        webapp_enum_dir="${recon_dir}/webapp-enum"
         web_params_dir="${recon_dir}/web-params"
         web_tech_dir="${recon_dir}/web-tech"
     fi

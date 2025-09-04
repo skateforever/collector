@@ -10,7 +10,7 @@
 
 securitytrails-src(){
     if [[ -n "${securitytrails_api_key}" ]]; then
-        echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing security trails... " | tee -a "${log_execution_file}"
+        echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing security trails... "
         echo -e "\ncurl ${curl_options[@]} -H 'Accept: application/json' -H \"APIKEY: ${securitytrails_api_key}\" \
             \"${securitytrails_api_url}/domain/${domain}/subdomains?children_only=false&include_inactive=true\"" \
             >> "${log_execution_file}"

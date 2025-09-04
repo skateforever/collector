@@ -1,3 +1,6 @@
 # Ignore some files from collector
 collector.api
 collector.orig
+
+# Ignore some old and third scripts
+./functions/externo/

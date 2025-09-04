@@ -1,6 +1,6 @@
 check_argument(){
     options+=(-d --domain -dl --domain-list -e --exclude-domains -el --exclude-domains-list -k -kill -ka --kill-all -l --limit-urls -o --output -p --proxy -r --recon)
-    options+=(-s --subdomain-brute -u --url -wd --web-data -wld --web-long-detection -wsd --web-short-detection -wtd --web-tool-detection -ww --web-wordlists)
+    options+=(-s --subdomain-brute -u --url -we --webapp-enum -wld --webapp-long-detection -wsd --webapp-short-detection -wtd --webapp-tool-detection -ww --webapp-wordlists)
     if [[ "${options[*]}" =~ $2 ]]; then
         echo -e "The argument of ${yellow}\"$1\"${reset} it can not be ${red}\"$2\"${reset}, please, ${yellow}specify a valid one${reset}.\n"
         usage
@@ -10,7 +10,7 @@ check_argument(){
 menu(){
     args_count=0
     only_recon="no"
-    only_web_data="no"
+    only_webapp_enum="no"
 
     while [ $# -ne 0 ]; do
         (( args_count += 1 ))
@@ -126,8 +126,8 @@ menu(){
                 shift 2
                 ;;
             -r|--recon)
-                if [[ -n "${only_web_data}" ]] && [[ "${only_web_data}" == "yes"  ]]; then
-                    echo -e "You can't use this (-re|--recon) option with \"-wd|--web-data\"!\n"
+                if [[ -n "${only_webapp_enum}" ]] && [[ "${only_webapp_enum}" == "yes"  ]]; then
+                    echo -e "You can't use this (-re|--recon) option with \"-we|--webapp-enum\"!\n"
                     usage
                 fi
                 if [[ -n "${url_2_verify}" ]]; then
@@ -172,24 +172,24 @@ menu(){
                 fi
                 unset status_code
                 ;;
-            -wd|--web-data)
+            -we|--webapp-enum)
                 if [[ -n "${only_recon}" ]] && [[ "${only_recon}" == "yes"  ]]; then
-                    echo -e "You can't use this (-wd|--web-data) option with \"-re|--recon\"!\n"
+                    echo -e "You can't use this (-we|--webapp-enum) option with \"-re|--recon\"!\n"
                     usage
                 fi
                 if [[ -n "${url_2_verify}" ]]; then
-                    echo -e "You can't use this (-wd|--web-data) option with \"-re|--recon\"!\n"
+                    echo -e "You can't use this (-we|--webapp-enum) option with \"-re|--recon\"!\n"
                     usage
                 fi
-                only_web_data=yes
+                only_webapp_enum=yes
                 shift
                 ;;
-            -wld|--web-long-detection)
-                if [ "${#web_port_detect[@]}" -eq 0 ]; then
-                    web_port_detect=("${web_port_long_detection[@]}")
+            -wld|--webapp-long-detection)
+                if [ "${#webapp_port_detect[@]}" -eq 0 ]; then
+                    webapp_port_detect=("${webapp_port_long_detection[@]}")
                 else
-                    diff_array=$(diff <(printf "%s\n" "${web_port_detect[@]}") <(printf "%s\n" "${web_port_long_detection[@]}"))
-                    if [[ "${#web_port_detect[@]}" -ne 0 ]] && [[ -n ${diff_array} ]]; then
+                    diff_array=$(diff <(printf "%s\n" "${webapp_port_detect[@]}") <(printf "%s\n" "${webapp_port_long_detection[@]}"))
+                    if [[ "${#webapp_port_detect[@]}" -ne 0 ]] && [[ -n ${diff_array} ]]; then
                         echo -e "You need to specify just sort or long web port detection, not both!\n"
                         unset web_port_detect
                         usage
@@ -197,25 +197,25 @@ menu(){
                 fi
                 shift
                 ;;
-            -wsd|--web-short-detection)
-                if [ "${#web_port_detect[@]}" -eq 0 ]; then
-                    web_port_detect=("${web_port_short_detection[@]}")
+            -wsd|--webapp-short-detection)
+                if [ "${#webapp_port_detect[@]}" -eq 0 ]; then
+                    webapp_port_detect=("${webapp_port_short_detection[@]}")
                 else
-                    diff_array=$(diff <(printf "%s\n" "${web_port_detect[@]}") <(printf "%s\n" "${web_port_short_detection[@]}"))
-                    if [[ "${#web_port_detect[@]}" -ne 0 ]] && [[ -n ${diff_array} ]]; then
+                    diff_array=$(diff <(printf "%s\n" "${webapp_port_detect[@]}") <(printf "%s\n" "${webapp_port_short_detection[@]}"))
+                    if [[ "${#webapp_port_detect[@]}" -ne 0 ]] && [[ -n ${diff_array} ]]; then
                         echo -e "You need to specify just sort or long web port detection, not both!\n"
-                        unset web_port_detect
+                        unset webapp_port_detect
                         usage
                     fi
                 fi
                 shift
                 ;;
-            -wtd|--web-tool-detection)
+            -wtd|--webapp-tool-detection)
                 check_argument "$1" "$2"
                 web_tool_detection="$2"
                 shift 2
                 ;;
-            -ww|--web-wordlists)
+            -ww|--webapp-wordlists)
                 check_argument "$1" "$2"
                 set -f
                 IFS=","
