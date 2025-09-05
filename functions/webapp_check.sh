@@ -49,7 +49,7 @@ webapp_alive(){
                         curl -kLs -o /dev/null -w "%{url_effective}\n" "${url_redirected}"
                     done
                 fi
-                grep -E "${page_status}$" "${report_dir}/webapp_status.txt" | awk '{print $1}'
+                grep -E "${page_status}$" "${tmp_dir}/webapp_status_tmp.txt" | awk '{print $1}'
             done | sed -E 's/^http(|s):\/\/// ; s/:.*$//' | awk -F'/' '{print $1}' >> "${tmp_dir}/webapp_status_tmp.txt"
             unset url_redirected
 
