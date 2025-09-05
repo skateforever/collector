@@ -38,6 +38,9 @@ webapp_alive(){
             fi
         done
 
+        echo "acabou"
+        exit 1
+
         if [ -s "${tmp_dir}/webapp_status_tmp.txt" ]; then
             echo "Done!"
             sed -i 's/\/\/$// ; s/:443// ; s/:80$// ; s/:80\t/\t/ ; s/\(:80\)\(\/\)/\2/ ; s/:\/$// ; s/\(\.\)\([[:alpha:]]*\)\(\/$\)/\1\2/' "${tmp_dir}/webapp_status_tmp.txt"
@@ -46,11 +49,12 @@ webapp_alive(){
             for page_status in "${webapp_get_status[@]}"; do
                 if [[ "${page_status}" =~ "30" ]]; then
                     for url_redirected in $(grep -E "${page_status}$" "${tmp_dir}/webapp_status_tmp.txt" | awk '{print $1}'); do
-                        curl -kLs -o /dev/null -w "%{url_effective}\n" "${url_redirected}"
+                        curl "${curl_options[@]}" -L -o /dev/null -w "%{url_effective}\n" "${url_redirected}"
                     done
                 fi
                 grep -E "${page_status}$" "${tmp_dir}/webapp_status_tmp.txt" | awk '{print $1}'
-            done | sed -E 's/^http(|s):\/\/// ; s/:.*$//' | awk -F'/' '{print $1}' >> "${tmp_dir}/webapp_status_tmp.txt"
+            #done | sed -E 's/^http(|s):\/\/// ; s/:.*$//' | awk -F'/' '{print $1}' >> "${tmp_dir}/webapp_status_tmp.txt"
+            done | sort -u >> "${report_dir}/statu" "${tmp_dir}/webapp_status_tmp.txt"
             unset url_redirected
 
             if [ -s "${tmp_dir}/webapp_status_tmp.txt" ]; then

@@ -32,7 +32,7 @@ check_parameter_dependency_domain(){
             usage
         fi
 
-        if [[ -z "${web_tool_detection}" ]] && [[ "${only_webapp_enum}" == "no" ]]; then
+        if [[ -z "${webapp_tool_detection}" ]] && [[ "${only_webapp_enum}" == "no" ]]; then
             echo -e "You need to inform one of these tools ${bold}${yellow}curl${reset}${normal} or ${bold}${yellow}httpx${reset}${normal} to perform web application detection.\n"
             usage
        fi
