@@ -219,7 +219,7 @@ menu(){
                 check_argument "$1" "$2"
                 set -f
                 IFS=","
-                web_wordlists+=("$2")
+                webapp_wordlists+=("$2")
                 unset IFS
                 shift 2
                 ;;
