@@ -38,35 +38,17 @@ webapp_alive(){
             fi
         done
 
-        echo "acabou"
-        exit 1
-
         if [ -s "${tmp_dir}/webapp_status_tmp.txt" ]; then
-            echo "Done!"
             sed -i 's/\/\/$// ; s/:443// ; s/:80$// ; s/:80\t/\t/ ; s/\(:80\)\(\/\)/\2/ ; s/:\/$// ; s/\(\.\)\([[:alpha:]]*\)\(\/$\)/\1\2/' "${tmp_dir}/webapp_status_tmp.txt"
-
-            echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Getting domain names for web applications... "
             for page_status in "${webapp_get_status[@]}"; do
                 if [[ "${page_status}" =~ "30" ]]; then
                     for url_redirected in $(grep -E "${page_status}$" "${tmp_dir}/webapp_status_tmp.txt" | awk '{print $1}'); do
                         curl "${curl_options[@]}" -L -o /dev/null -w "%{url_effective}\n" "${url_redirected}"
                     done
                 fi
-                grep -E "${page_status}$" "${tmp_dir}/webapp_status_tmp.txt" | awk '{print $1}'
-            #done | sed -E 's/^http(|s):\/\/// ; s/:.*$//' | awk -F'/' '{print $1}' >> "${tmp_dir}/webapp_status_tmp.txt"
-            done | sort -u >> "${report_dir}/statu" "${tmp_dir}/webapp_status_tmp.txt"
+            done | sort -u >> "${tmp_dir}/webapp_status_tmp.txt"
             unset url_redirected
-
-            if [ -s "${tmp_dir}/webapp_status_tmp.txt" ]; then
-                sort -u -o "${report_dir}/webapp_status.txt" "${tmp_dir}/webapp_status_tmp.txt"
-                echo "Done!"
-            else
-                echo "Fail!"
-                echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Something got wrong while checking web status file!"
-                echo "Something got wrong while checking web status file!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
-                message "${domain}" failed
-                exit 1
-            fi
+            echo "Done!"
         else
             echo "Fail!"
             echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Something got wrong while checking the status of URLs!"
@@ -75,11 +57,19 @@ webapp_alive(){
             exit 1
         fi
 
+        [[ -s "${tmp_dir}/webapp_status_tmp.txt" ]] && sort -u -o "${report_dir}/webapp_status.txt" "${tmp_dir}/webapp_status_tmp.txt"
+
+        echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Separating web applications according to the HTTP Status Code defined in collector.cfg... "
         if [ -s "${report_dir}/webapp_status.txt" ]; then
-            echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Separating web applications according to the HTTP Status Code defined in collector.cfg... "
-            grep -E "$(echo "${webapp_get_status[@]}" | tr -s ' ' '|')" "${report_dir}/webapp_status.txt" | awk '{print $1}' >> "${report_dir}/webapp_urls.txt"
-            grep -Ev "$(echo "${webapp_get_status[@]}" | tr -s ' ' '|')" "${report_dir}/webapp_status.txt" | awk '{print $1}' >> "${report_dir}/api_urls.txt"
+            grep -E "$(echo "${webapp_get_status[@]}" | tr -s ' ' '|')" "${report_dir}/webapp_status_tmp.txt" | awk '{print $1}' >> "${report_dir}/webapp_urls.txt"
+            grep -Ev "$(echo "${webapp_get_status[@]}" | tr -s ' ' '|')" "${report_dir}/webapp_status_tmp.txt" | awk '{print $1}' >> "${report_dir}/api_urls.txt"
             echo "Done!"
+        else
+            echo "Fail!"
+            echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Something got wrong while copy the status URL file tmp/webapp_status_tmp.txt to report/webapp_status.txt!"
+            echo -e "Something got wrong while copy the status URL file tmp/webapp_status_tmp.txt to report/webapp_status.txt!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+            message "${domain}" failed
+            exit 1
         fi
 
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Separating infrastructure from web application... "
