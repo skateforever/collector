@@ -2,7 +2,8 @@ check_argument(){
     options+=(-d --domain -dl --domain-list -e --exclude-domains -el --exclude-domains-list -k -kill -ka --kill-all -l --limit-urls -o --output -p --proxy -r --recon)
     options+=(-s --subdomain-brute -u --url -we --webapp-enum -wld --webapp-long-detection -wsd --webapp-short-detection -wtd --webapp-tool-detection -ww --webapp-wordlists)
     if [[ "${options[*]}" =~ $2 ]]; then
-        echo -e "The argument of ${yellow}\"$1\"${reset} it can not be ${red}\"$2\"${reset}, please, ${yellow}specify a valid one${reset}.\n"
+        [[ -z $2 ]] && value="empty" || value="$2"
+        echo -e "The argument of ${yellow}\"$1\"${reset} it can not be ${red}\"${value}\"${reset}, please, ${yellow}specify a valid one${reset}.\n"
         usage
     fi
 }
