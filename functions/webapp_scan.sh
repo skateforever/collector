@@ -33,7 +33,7 @@ webapp_scan(){
                         echo "echo ${url} | nuclei ${nuclei_options[@]}" >> "${log_execution_file}"
                         echo "${url}" | nuclei "${nuclei_options[@]}" >> "${nuclei_scan_file}" 2>> "${log_execution_file}" &
                     fi
-                    while [[ "$(pgrep -acf "[n]uclei")" -ge "${web_data_total_processes}" ]]; do
+                    while [[ "$(pgrep -acf "[n]uclei")" -ge "${webapp_enum_total_processes}" ]]; do
                         sleep 1
                     done
                 done < "${urls_file}"
