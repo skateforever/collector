@@ -28,26 +28,21 @@ webapp_alive(){
                 for port in "${webapp_port_detect[@]}"; do
                     subdomain_http_status_check=$(curl "${curl_options[@]}" -L -w "%{response_code}\n" "http://${subdomain}:${port}" -o /dev/null)
                     subdomain_https_status_check=$(curl "${curl_options[@]}" -L -w "%{response_code}\n" "https://${subdomain}:${port}" -o /dev/null)
+                    echo "echo -e \"http://${subdomain}:${port}\t${subdomain_http_status_check}\" >> \"${tmp_dir}/webapp_status_tmp.txt\"" 2>> "${log_execution_file}"
+                    echo "echo -e \"https://${subdomain}:${port}\t${subdomain_https_status_check}\" >> \"${tmp_dir}/webapp_status_tmp.txt\"" 2>> "${log_execution_file}"
                     echo -e "http://${subdomain}:${port}\t${subdomain_http_status_check}" >> "${tmp_dir}/webapp_status_tmp.txt"
                     echo -e "https://${subdomain}:${port}\t${subdomain_https_status_check}" >> "${tmp_dir}/webapp_status_tmp.txt"
                 done
             fi
             if [ "${webapp_tool_detection}" == "httpx" ]; then
-                echo "${subdomain}" | httpx -nc -silent -p $(echo "${webapp_port_detect[@]}" | sed 's/ /,/g') -status-code | \
+                echo "echo \"${subdomain}\" | httpx "${httpx_options}" -p $(echo "${webapp_port_detect[@]}" | sed 's/ /,/g') -status-code | \
+                    sed 's/\[// ; s/]//' >> "${tmp_dir}/webapp_status_tmp.txt"" 2>> "${log_execution_file}"
+                echo "${subdomain}" | httpx "${httpx_options}" -p $(echo "${webapp_port_detect[@]}" | sed 's/ /,/g') -status-code | \
                     sed 's/\[// ; s/]//' >> "${tmp_dir}/webapp_status_tmp.txt"
             fi
         done
 
         if [ -s "${tmp_dir}/webapp_status_tmp.txt" ]; then
-            sed -i 's/\/\/$// ; s/:443// ; s/:80$// ; s/:80\t/\t/ ; s/\(:80\)\(\/\)/\2/ ; s/:\/$// ; s/\(\.\)\([[:alpha:]]*\)\(\/$\)/\1\2/' "${tmp_dir}/webapp_status_tmp.txt"
-            for page_status in "${webapp_get_status[@]}"; do
-                if [[ "${page_status}" =~ "30" ]]; then
-                    for url_redirected in $(grep -E "${page_status}$" "${tmp_dir}/webapp_status_tmp.txt" | awk '{print $1}'); do
-                        curl "${curl_options[@]}" -L -o /dev/null -w "%{url_effective}\n" "${url_redirected}"
-                    done
-                fi
-            done | sort -u >> "${tmp_dir}/webapp_status_tmp.txt"
-            unset url_redirected
             echo "Done!"
         else
             echo "Fail!"
@@ -59,10 +54,25 @@ webapp_alive(){
 
         [[ -s "${tmp_dir}/webapp_status_tmp.txt" ]] && sort -u -o "${report_dir}/webapp_status.txt" "${tmp_dir}/webapp_status_tmp.txt"
 
+        echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Getting an effective URL from the redirect status... "
+        if [ -s "${report_dir}/webapp_status.txt" ]; then
+            sed -i 's/\/\/$// ; s/:443// ; s/:80$// ; s/:80\t/\t/ ; s/\(:80\)\(\/\)/\2/ ; s/:\/$// ; s/\(\.\)\([[:alpha:]]*\)\(\/$\)/\1\2/' "${tmp_dir}/webapp_status_tmp.txt"
+            for page_status in "${webapp_get_status[@]}"; do
+                if [[ "${page_status}" =~ "30" ]]; then
+                    for url_redirected in $(grep -E "${page_status}$" "${tmp_dir}/webapp_status_tmp.txt" | awk '{print $1}'); do
+                        echo "curl "${curl_options[@]}" -L -o /dev/null -w "%{url_effective}\n" "${url_redirected}"" 2>> "${log_execution_file}"
+                        curl "${curl_options[@]}" -L -o /dev/null -w "%{url_effective}\n" "${url_redirected}"
+                    done
+                fi
+            done | sort -u >> "${report_dir}/webapp_urls.txt"
+            unset url_redirected
+        fi
+        echo "Done!"
+
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Separating web applications according to the HTTP Status Code defined in collector.cfg... "
         if [ -s "${report_dir}/webapp_status.txt" ]; then
-            grep -E "$(echo "${webapp_get_status[@]}" | tr -s ' ' '|')" "${report_dir}/webapp_status_tmp.txt" | awk '{print $1}' >> "${report_dir}/webapp_urls.txt"
-            grep -Ev "$(echo "${webapp_get_status[@]}" | tr -s ' ' '|')" "${report_dir}/webapp_status_tmp.txt" | awk '{print $1}' >> "${report_dir}/api_urls.txt"
+            grep -E "$(echo "${webapp_get_status[@]}" | tr -s ' ' '|')" "${report_dir}/webapp_status.txt" | awk '{print $1}' >> "${report_dir}/webapp_urls.txt"
+            grep -Ev "$(echo "${webapp_get_status[@]}" | tr -s ' ' '|')" "${report_dir}/webapp_status.txt" | awk '{print $1}' >> "${report_dir}/api_urls.txt"
             echo "Done!"
         else
             echo "Fail!"

@@ -42,7 +42,6 @@ domains_recon(){
         shodan_recon
         webapp_alive
         if [ -s "${report_dir}/webapp_urls.txt" ]; then
-            aquatone_scan "${report_dir}/webapp_urls.txt"
             webapp_tech "${domain}" "${report_dir}/webapp_urls.txt"
         fi
         #emails_recon
@@ -62,6 +61,7 @@ domains_recon(){
         robots_txt
         webapp_enum "${report_dir}/robots_urls.txt"
         for file in "${report_dir}/webapp_urls.txt" "${report_dir}/robots_urls.txt" ; do
+            aquatone_scan "${report_dir}/webapp_urls.txt"
             webapp_scan "${domain}" "${file}"
         done
         git_rebuild
