@@ -45,7 +45,7 @@ infra_data(){
         echo "Done!"
     else
         echo "Fail!"
-        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>> File ${report_dir}/domains_external_ipv4.txt does not exist or is empty!${reset}"
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} File ${yellow}${report_dir}/domains_external_ipv4.txt${reset} ${red}does not exist${reset} or ${red}is empty!${reset}"
     fi
 }
 
