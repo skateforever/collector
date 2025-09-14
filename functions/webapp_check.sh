@@ -28,17 +28,17 @@ webapp_alive(){
                 for port in "${webapp_port_detect[@]}"; do
                     subdomain_http_status_check=$(curl "${curl_options[@]}" -L -w "%{response_code}\n" "http://${subdomain}:${port}" -o /dev/null)
                     subdomain_https_status_check=$(curl "${curl_options[@]}" -L -w "%{response_code}\n" "https://${subdomain}:${port}" -o /dev/null)
-                    echo "echo -e \"http://${subdomain}:${port}\t${subdomain_http_status_check}\" >> \"${tmp_dir}/webapp_status_tmp.txt\"" 2>> "${log_execution_file}"
-                    echo "echo -e \"https://${subdomain}:${port}\t${subdomain_https_status_check}\" >> \"${tmp_dir}/webapp_status_tmp.txt\"" 2>> "${log_execution_file}"
-                    echo -e "http://${subdomain}:${port}\t${subdomain_http_status_check}" >> "${tmp_dir}/webapp_status_tmp.txt"
-                    echo -e "https://${subdomain}:${port}\t${subdomain_https_status_check}" >> "${tmp_dir}/webapp_status_tmp.txt"
+                    echo "echo -e \"http://${subdomain}:${port}\t${subdomain_http_status_check}\" >> \"${tmp_dir}/webapp_status_tmp.txt\"" >> "${log_execution_file}"
+                    echo "echo -e \"https://${subdomain}:${port}\t${subdomain_https_status_check}\" >> \"${tmp_dir}/webapp_status_tmp.txt\"" >> "${log_execution_file}"
+                    echo -e "http://${subdomain}:${port}\t${subdomain_http_status_check}" >> "${tmp_dir}/webapp_status_tmp.txt" 2>> "${log_execution_file}"
+                    echo -e "https://${subdomain}:${port}\t${subdomain_https_status_check}" >> "${tmp_dir}/webapp_status_tmp.txt" 2>> "${log_execution_file}"
                 done
             fi
             if [ "${webapp_tool_detection}" == "httpx" ]; then
-                echo "echo \"${subdomain}\" | httpx "${httpx_options}" -p $(echo "${webapp_port_detect[@]}" | sed 's/ /,/g') -status-code | \
-                    sed 's/\[// ; s/]//' >> "${tmp_dir}/webapp_status_tmp.txt"" 2>> "${log_execution_file}"
-                echo "${subdomain}" | httpx "${httpx_options}" -p $(echo "${webapp_port_detect[@]}" | sed 's/ /,/g') -status-code | \
-                    sed 's/\[// ; s/]//' >> "${tmp_dir}/webapp_status_tmp.txt"
+                echo "echo \"${subdomain}\" | httpx "${httpx_options[@]}" -p $(echo "${webapp_port_detect[@]}" | sed 's/ /,/g') -status-code | \
+                    sed 's/\[// ; s/]//' | grep -Ei \"^(http|https)://${subdomain}.*[0-9]{3}$\" >> "${tmp_dir}/webapp_status_tmp.txt"" >> "${log_execution_file}"
+                echo "${subdomain}" | httpx "${httpx_options[@]}" -p $(echo "${webapp_port_detect[@]}" | sed 's/ /,/g') -status-code | \
+                    sed 's/\[// ; s/]//' | grep -Ei "^(http|https)://${subdomain}.*[0-9]{3}$" >> "${tmp_dir}/webapp_status_tmp.txt" 2>> "${log_execution_file}"
             fi
         done
 

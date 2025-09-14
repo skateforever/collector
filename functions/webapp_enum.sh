@@ -158,8 +158,9 @@ webapp_tech(){
                         curl ${curl_options[@]} -I "${url}" >> "${webapp_tech_dir}/${file_tech_by_headers}" 2>> "${log_execution_file}"
                     fi
                     if [ "${webapp_tool_detection}" == "httpx" ]; then
-                        echo "echo ${url} | httpx ${httpx_options[@]}" >> "${log_execution_file}"
-                        echo "${url}" | httpx "${httpx_options[@]}" >> "${webapp_tech_dir}/${file_tech_by_headers}" 2>> "${log_execution_file}"
+                        # MODIFICAR AQUI TÀ ERRADO
+                        echo "echo ${url} | httpx ${httpx_options[@]} -tech-detect" >> "${log_execution_file}"
+                        echo "${url}" | httpx "${httpx_options[@]}" -tech-detect >> "${webapp_tech_dir}/${file_tech_by_headers}" 2>> "${log_execution_file}"
                     fi
                     unset file_tech_by_headers
                     unset name
