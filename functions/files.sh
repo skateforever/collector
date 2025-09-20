@@ -62,19 +62,19 @@ joining_subdomains(){
         
         if [ -s "${tmp_dir}/dnsdumpster_output.json" ]; then
             cat "${tmp_dir}/dnsdumpster_output.json" \
-                | jq -r '.a[].host' | sed 's/\*\.//' \
+                | jq -r '.a[].host' | sed 's/^\*\.//' \
                 | sort -u >> "${tmp_dir}/domains_found.tmp"
         fi
 
         if [ -s "${tmp_dir}/hackertarget_output.txt" ]; then
             grep -v "API count exceeded - Increase Quota with Membership" "${tmp_dir}/hackertarget_output.txt" \
-                | awk -F',' '{print $1}' \
+                | awk -F',' '{print $1}' | sed 's/^\*\.//' \
                 | sort -u >> "${tmp_dir}/domains_found.tmp"
         fi
 
         if [ -s "${tmp_dir}/rapiddns_output.txt" ]; then
-            grep -Po '<td>\K[^<]*' "${tmp_dir}/rapiddns_output.txt" \
-                | grep -E "^.*\.${domain}" \
+            grep -Ei "<td>.*${domain}</td>" "${tmp_dir}/rapiddns_output.txt" \
+                | sed 's/<td>// ; s/<\/td>//' \
                 | sort -u >> "${tmp_dir}/domains_found.tmp"
         fi
 
