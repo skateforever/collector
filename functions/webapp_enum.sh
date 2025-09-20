@@ -159,8 +159,8 @@ webapp_tech(){
                     fi
                     if [ "${webapp_tool_detection}" == "httpx" ]; then
                         # MODIFICAR AQUI TÀ ERRADO
-                        echo "echo ${url} | httpx ${httpx_options[@]} -tech-detect" >> "${log_execution_file}"
-                        echo "${url}" | httpx "${httpx_options[@]}" -tech-detect >> "${webapp_tech_dir}/${file_tech_by_headers}" 2>> "${log_execution_file}"
+                        echo "echo ${url} | httpx ${httpx_options[@]} -title -tech-detect" >> "${log_execution_file}"
+                        echo "${url}" | httpx "${httpx_options[@]}" -title -tech-detect >> "${webapp_tech_dir}/${file_tech_by_headers}" 2>> "${log_execution_file}"
                     fi
                     unset file_tech_by_headers
                     unset name
