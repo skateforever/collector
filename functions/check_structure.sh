@@ -12,44 +12,53 @@
 create_initial_directories_structure(){
 
     if [ "${directories_structure}" == "domain" ]; then
-        # Create all dirs necessaries to report and recon for domain
-        mkdir -p "${output_dir}/${domain}"/{log,"domain_${date_recon}"}
-        log_dir="${output_dir}/${domain}/log"
-        log_execution_file="${log_dir}/domain_${date_recon}.log"
-        recon_dir="${output_dir}/${domain}/domain_${date_recon}"
-        # secundaries directories
-        mkdir -p "${recon_dir}"/{aquatone,nmap,nuclei,report,tmp,webapp-enum,webapp-params,webapp-tech}
-        aquatone_files_dir="${recon_dir}/aquatone"
-        nmap_dir="${recon_dir}/nmap"
-        nuclei_dir="${recon_dir}/nuclei"
-        report_dir="${recon_dir}/report"
-        shodan_dir="${recon_dir}/shodan"
-        if [[ "${shodan_use}" == "yes" ]] && [[ ! -d "${shodan_dir}" ]]; then
-            mkdir -p "${shodan_dir}"
-        fi
+        # Create all main dirs necessaries to report and recon for domain
+        recon_dir="${output_dir}/${domain}/recon_${date_recon}"
+        mkdir -p "${recon_dir}"
+        mkdir -p "${recon_dir}"/{log,tmp}
+        mkdir -p "${recon_dir}"/{report,scan/{nmap,nuclei,shodan},webapp/{aquatone,enum,params,tech,javascript}}
+        # log dirs
+        log_dir="${recon_dir}/log"
+        log_execution_file="${log_dir}/recon_${date_recon}.log"
         tmp_dir="${recon_dir}/tmp"
-        webapp_enum_dir="${recon_dir}/webapp-enum"
-        webapp_params_dir="${recon_dir}/webapp-params"
-        webapp_tech_dir="${recon_dir}/webapp-tech"
+        # report dirs
+        report_dir="${recon_dir}/report"
+        scan_dir="${recon_dir}/scan"
+        webapp_dir="${recon_dir}/webapp"
+        # scan dirs
+        nmap_dir="${scan_dir}/nmap"
+        nuclei_dir="${scan_dir}/nuclei"
+        shodan_dir="${scan_dir}/shodan"
+        # webapp dirs
+        aquatone_files_dir="${webapp_dir}/aquatone"
+        webapp_enum_dir="${webapp_dir}/enum"
+        webapp_js_dir="${webapp_dir}/javascript"
+        webapp_params_dir="${webapp_dir}/params"
+        webapp_tech_dir="${webapp_dir}/tech"
     fi
 
     if [ "${directories_structure}" == "url" ]; then
         # Create all dirs necessaries to report and recon for url
-        mkdir -p "${output_dir}"/"${url_domain}"/{log,"url_${date_recon}"}
-        log_dir="${output_dir}/${url_domain}/log"
-        log_execution_file="${log_dir}/url_${date_recon}.log"
         recon_dir="${output_dir}/${url_domain}/url_${date_recon}"
-    
-        # secundaries directories
-        mkdir -p "${recon_dir}/${url_base}"/{report,aquatone}
+        mkdir -p "${recon_dir}"
+        mkdir -p "${recon_dir}"/{log,tmp}
+        mkdir -p "${recon_dir}"/{report,scan/nuclei,webapp/{aquatone,enum,params,tech,javascript}}
+        # log dirs
+        log_dir="${recon_dir}/log"
+        log_execution_file="${log_dir}/url_${date_recon}.log"
+        tmp_dir="${recon_dir}/tmp"
+        # report dirs
         report_dir="${recon_dir}/${url_base}/report"
-        aquatone_files_dir="${recon_dir}/${url_base}/aquatone"
-        nuclei_dir="${report_dir}"
-        shodan_dir="${report_dir}"
-        tmp_dir="${report_dir}"
-        webapp_enum_dir="${report_dir}"
-        web_params_dir="${report_dir}"
-        web_tech_dir="${report_dir}"
+        scan_dir="${recon_dir}/scan"
+        webapp_dir="${recon_dir}/webapp"
+        # scan dirs
+        nuclei_dir="${scan_dir}/nuclei"
+        # webapp dirs
+        aquatone_files_dir="${webapp_dir}/aquatone"
+        webapp_enum_dir="${webapp_dir}/enum"
+        webapp_js_dir="${webapp_dir}/javascript"
+        webapp_params_dir="${webapp_dir}/params"
+        webapp_tech_dir="${webapp_dir}/tech"
     fi
 
     if [[ "${only_webapp_enum}" == "yes" ]]; then
@@ -59,15 +68,24 @@ create_initial_directories_structure(){
                 break
             fi
         done
-        aquatone_files_dir="${recon_dir}/aquatone"
-        nmap_dir="${recon_dir}/nmap"
-        nuclei_dir="${recon_dir}/nuclei"
+        # log dirs
+        log_dir="${recon_dir}/log"
+        log_execution_file="${log_dir}/recon_${date_recon}.log"
+        tmp_dir="${recon_dir}/tmp"    
+        # report dirs
         report_dir="${recon_dir}/report"
-        shodan_dir="${recon_dir}/shodan"
-        tmp_dir="${recon_dir}/tmp"
-        webapp_enum_dir="${recon_dir}/webapp-enum"
-        web_params_dir="${recon_dir}/web-params"
-        web_tech_dir="${recon_dir}/web-tech"
+        scan_dir="${recon_dir}/scan"
+        webapp_dir="${recon_dir}/webapp"
+        # scan dirs
+        nmap_dir="${scan_dir}/nmap"
+        nuclei_dir="${scan_dir}/nuclei"
+        shodan_dir="${scan_dir}/shodan"
+        # webapp dirs
+        aquatone_files_dir="${webapp_dir}/aquatone"
+        webapp_enum_dir="${webapp_dir}/enum"
+        webapp_js_dir="${webapp_dir}/javascript"
+        webapp_params_dir="${webapp_dir}/params"
+        webapp_tech_dir="${webapp_dir}/tech"
     fi
 
     nuclei_scan_file="${nuclei_dir}/nuclei_scan.result"

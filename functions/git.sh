@@ -39,12 +39,12 @@ git_rebuild(){
                         fi
                         echo "curl "${curl_options[@]}" -L --proxy \"${proxy_ip}\" -f \"${target}/${repo_file}\" -o ${repo_file}" >> "${log_execution_file}"
                         curl "${curl_options[@]}" -L --proxy "${proxy_ip}" -f "${target}/${repo_file}" -o "${repo_file}" &
-                     done    
-                     while pgrep -f curl > /dev/null; do
-                        sleep 1
-                     done
-                     echo "Done!"
-                     cd "${dir_origem}" || exit
+                    done
+                    while pgrep -f curl > /dev/null; do
+                       sleep 1
+                    done
+                    echo "Done!"
+                    cd "${dir_origem}" || exit
                 fi
             else
                 if [[ "200" -eq "$(curl "${curl_options[@]}" -o /tmp/git_config -s -w "%{http_code}" "${target}/.git/config")" ]] && \

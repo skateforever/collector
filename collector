@@ -24,7 +24,7 @@ fi
 
 # Checking if the essencial functions there are
 for file in kill_collector.sh check_binaries.sh usage.sh message.sh menu.sh check_structure.sh check_execution.sh \
-    domains_sources.sh files.sh diff_recon.sh infra.sh webapp_check.sh webapp_crawler.sh webapp_scan.sh webapp_enum.sh git.sh \
+    domains_sources.sh files.sh diff.sh infra.sh webapp_check.sh webapp_crawler.sh webapp_scan.sh webapp_enum.sh git.sh \
     domains_recon.sh url_recon.sh collector_exec.sh; do
     function="${collector_path}/functions/${file}"
     if [ -s "${function}" ]; then

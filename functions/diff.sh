@@ -21,7 +21,8 @@ diff_domains(){
                     echo -e "\t Stopping the script!"
                     exit 1
                 else
-                    diff -y "${oldest_domains}" "${report_dir}/domains_found.txt" | grep ">" | awk '{print $2}' >> "${report_dir}/domains_diff.txt" 2> /dev/null
+                    "diff -y ${oldest_domains} ${report_dir}/domains_found.txt | grep \">\" | awk '{print $2}' >> ${report_dir}/domains_diff.txt" >> ${log_execution_file}
+                    diff -y "${oldest_domains}" "${report_dir}/domains_found.txt" | grep ">" | awk '{print $2}' >> "${report_dir}/domains_diff.txt" 2>> ${log_execution_file}
                     echo "Done!"
                 fi
             else
