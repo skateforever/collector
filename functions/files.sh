@@ -62,7 +62,7 @@ joining_subdomains(){
         
         if [ -s "${tmp_dir}/dnsdumpster_output.json" ]; then
             cat "${tmp_dir}/dnsdumpster_output.json" \
-                | jq -r '.a[].host' \
+                | jq -r '.a[].host' | sed 's/\*\.//' \
                 | sort -u >> "${tmp_dir}/domains_found.tmp"
         fi
 
