@@ -23,26 +23,33 @@ webapp_alive(){
             fi
         fi
 
-        for subdomain in $(cat "${report_dir}/domains_alive.txt"); do
-            if [ "${webapp_tool_detection}" == "curl" ]; then
+        if [ "${webapp_tool_detection}" == "curl" ]; then
+            for subdomain in $(cat "${report_dir}/domains_alive.txt"); do
                 for port in "${webapp_port_detect[@]}"; do
-                    subdomain_http_status_check=$(curl "${curl_options[@]}" -L -w "%{response_code}\n" "http://${subdomain}:${port}" -o /dev/null)
-                    subdomain_https_status_check=$(curl "${curl_options[@]}" -L -w "%{response_code}\n" "https://${subdomain}:${port}" -o /dev/null)
-                    echo "echo -e \"http://${subdomain}:${port}\t${subdomain_http_status_check}\" >> \"${tmp_dir}/webapp_status_tmp.txt\"" >> "${log_execution_file}"
-                    echo "echo -e \"https://${subdomain}:${port}\t${subdomain_https_status_check}\" >> \"${tmp_dir}/webapp_status_tmp.txt\"" >> "${log_execution_file}"
-                    echo -e "http://${subdomain}:${port}\t${subdomain_http_status_check}" >> "${tmp_dir}/webapp_status_tmp.txt" 2>> "${log_execution_file}"
-                    echo -e "https://${subdomain}:${port}\t${subdomain_https_status_check}" >> "${tmp_dir}/webapp_status_tmp.txt" 2>> "${log_execution_file}"
+                    echo "curl ${curl_options[@]} -L -w \"%{response_code}\n\" \"http://${subdomain}:${port}\" -o /dev/null" >> "${log_execution_file}"
+                    http_status_code=$(curl "${curl_options[@]}" -L -w "%{response_code}\n" "http://${subdomain}:${port}" -o /dev/null 2>> "${log_execution_file}")
+                    [[ "${http_status_code}" =~ ^[1-5][0-9]{2}$ ]] && \
+                        echo "http://${subdomain}:${port}" >> "${tmp_dir}/webapp_url_tmp.txt" 2>> "${log_execution_file}"
+                    echo "curl ${curl_options[@]} -L -w \"%{response_code}\n\" \"https://${subdomain}:${port}\" -o /dev/null" >> "${log_execution_file}"
+                    https_status_code=$(curl "${curl_options[@]}" -L -w "%{response_code}\n" "https://${subdomain}:${port}" -o /dev/null 2>> "${log_execution_file}")
+                    [[ "${http_status_code}" =~ ^[1-5][0-9]{2}$ ]] && \
+                        echo "https://${subdomain}:${port}" >> "${tmp_dir}/webapp_url_tmp.txt" 2>> "${log_execution_file}"
                 done
-            fi
-            if [ "${webapp_tool_detection}" == "httpx" ]; then
-                echo "echo \"${subdomain}\" | httpx "${httpx_options[@]}" -p $(echo "${webapp_port_detect[@]}" | sed 's/ /,/g') \
-                    -status-code -follow-redirects -location >> "${tmp_dir}/webapp_status_tmp.txt"" >> "${log_execution_file}"
-                echo "${subdomain}" | httpx "${httpx_options[@]}" -p $(echo "${webapp_port_detect[@]}" | sed 's/ /,/g') \
-                    -status-code -follow-redirects -location >> "${tmp_dir}/webapp_status_tmp.txt" 2>> "${log_execution_file}"
-            fi
-        done
+                sleep 1
+            done
+        fi
 
-        if [ -s "${tmp_dir}/webapp_status_tmp.txt" ]; then
+        if [ "${webapp_tool_detection}" == "httpx" ]; then
+            for subdomain in $(cat "${report_dir}/domains_alive.txt"); do
+                echo "echo \"${subdomain}\" | httpx "${httpx_options[@]}" -p $(echo "${webapp_port_detect[@]}" | sed 's/ /,/g') \
+                    >> ${tmp_dir}/webapp_url_tmp.txt" >> "${log_execution_file}"
+                echo "${subdomain}" | httpx "${httpx_options[@]}" -p $(echo "${webapp_port_detect[@]}" | sed 's/ /,/g') \
+                    >> "${tmp_dir}/webapp_url_tmp.txt" 2>> "${log_execution_file}"
+                sleep 1
+            done
+        fi
+
+        if [ -s "${tmp_dir}/webapp_url_tmp.txt" ]; then
             echo "Done!"
         else
             echo "Fail!"
@@ -52,35 +59,7 @@ webapp_alive(){
             exit 1
         fi
 
-        [[ -s "${tmp_dir}/webapp_status_tmp.txt" ]] && sort -u -o "${report_dir}/webapp_status.txt" "${tmp_dir}/webapp_status_tmp.txt"
-
-        echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Getting an effective URL from the redirect status... "
-        if [ -s "${report_dir}/webapp_status.txt" ]; then
-            sed -i 's/\/\/$// ; s/:443// ; s/:80$// ; s/:80\t/\t/ ; s/\(:80\)\(\/\)/\2/ ; s/:\/$// ; s/\(\.\)\([[:alpha:]]*\)\(\/$\)/\1\2/' "${tmp_dir}/webapp_status_tmp.txt"
-            for page_status in "${webapp_get_status[@]}"; do
-                if [[ "${page_status}" =~ "30" ]]; then
-                    for url_redirected in $(grep -E "${page_status}$" "${tmp_dir}/webapp_status_tmp.txt" | awk '{print $1}'); do
-                        echo "curl "${curl_options[@]}" -L -o /dev/null -w "%{url_effective}\n" "${url_redirected}"" 2>> "${log_execution_file}"
-                        curl "${curl_options[@]}" -L -o /dev/null -w "%{url_effective}\n" "${url_redirected}"
-                    done
-                fi
-            done | sort -u >> "${report_dir}/webapp_urls.txt"
-            unset url_redirected
-        fi
-        echo "Done!"
-
-        echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Separating web applications according to the HTTP Status Code defined in collector.cfg... "
-        if [ -s "${report_dir}/webapp_status.txt" ]; then
-            grep -E "$(echo "${webapp_get_status[@]}" | tr -s ' ' '|')" "${report_dir}/webapp_status.txt" | awk '{print $1}' >> "${report_dir}/webapp_urls.txt"
-            grep -Ev "$(echo "${webapp_get_status[@]}" | tr -s ' ' '|')" "${report_dir}/webapp_status.txt" | awk '{print $1}' >> "${report_dir}/api_urls.txt"
-            echo "Done!"
-        else
-            echo "Fail!"
-            echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Something got wrong while copy the status URL file tmp/webapp_status_tmp.txt to report/webapp_status.txt!"
-            echo -e "Something got wrong while copy the status URL file tmp/webapp_status_tmp.txt to report/webapp_status.txt!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
-            message "${domain}" failed
-            exit 1
-        fi
+        [[ -s "${tmp_dir}/webapp_url_tmp.txt" ]] && sort -u -o "${report_dir}/webapp_url.txt" "${tmp_dir}/webapp_url_tmp.txt"
 
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Separating infrastructure from web application... "
         if [ -s "${report_dir}/webapp_urls.txt" ]; then
@@ -104,8 +83,8 @@ webapp_alive(){
             fi
         else
             echo "Fail!"
-            echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} We probably didn't have any application with HTTP Status Code defined in collector.cfg, something is wrong!"
-            echo -e "We probably didn't have any application with HTTP Status Code defined in collector.cfg, something is wrong!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+            echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} We probably didn't have any webapp application, something is wrong!"
+            echo -e "We probably didn't have any webapp application, something is wrong!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
             message "${domain}" failed
             exit 1
         fi
