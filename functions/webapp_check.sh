@@ -40,13 +40,9 @@ webapp_alive(){
         fi
 
         if [ "${webapp_tool_detection}" == "httpx" ]; then
-            for subdomain in $(cat "${report_dir}/domains_alive.txt"); do
-                echo "echo \"${subdomain}\" | httpx "${httpx_options[@]}" -p $(echo "${webapp_port_detect[@]}" | sed 's/ /,/g') \
-                    >> ${tmp_dir}/webapp_url_tmp.txt" >> "${log_execution_file}"
-                echo "${subdomain}" | httpx "${httpx_options[@]}" -p $(echo "${webapp_port_detect[@]}" | sed 's/ /,/g') \
-                    >> "${tmp_dir}/webapp_url_tmp.txt" 2>> "${log_execution_file}"
-                sleep 1
-            done
+            echo "httpx "${httpx_options[@]}" -p $(echo "${webapp_port_detect[@]}" | sed 's/ /,/g') -l ${report_dir}/domains_alive.txt >> ${tmp_dir}/webapp_url_tmp.txt" >> "${log_execution_file}"
+            httpx "${httpx_options[@]}" -p $(echo "${webapp_port_detect[@]}" | sed 's/ /,/g') -l "${report_dir}/domains_alive.txt" >> "${tmp_dir}/webapp_url_tmp.txt" 2>> "${log_execution_file}"
+            sleep 1
         fi
 
         if [ -s "${tmp_dir}/webapp_url_tmp.txt" ]; then
@@ -58,6 +54,9 @@ webapp_alive(){
             message "${domain}" failed
             exit 1
         fi
+
+        unalias curl > /dev/null 2>&1
+        unalias httpx > /dev/null 2>&1
 
         [[ -s "${tmp_dir}/webapp_url_tmp.txt" ]] && sort -u -o "${report_dir}/webapp_url.txt" "${tmp_dir}/webapp_url_tmp.txt"
 
@@ -105,8 +104,6 @@ webapp_alive(){
         message "${domain}" failed
         exit 1
     fi
-    unalias curl > /dev/null 2>&1
-    unalias httpx > /dev/null 2>&1
 }
 
 aquatone_scan(){
