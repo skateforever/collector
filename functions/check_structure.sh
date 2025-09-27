@@ -16,15 +16,15 @@ create_initial_directories_structure(){
         recon_dir="${output_dir}/${domain}/recon_${date_recon}"
         mkdir -p "${recon_dir}"
         mkdir -p "${recon_dir}"/{log,tmp}
-        mkdir -p "${recon_dir}"/{report,scan/{nmap,nuclei,shodan},webapp/{aquatone,enum,params,tech,javascript}}
+        mkdir -p "${recon_dir}"/report/{scan/{nmap,nuclei,shodan},webapp/{aquatone,enum,params,tech,javascript}}
         # log dirs
         log_dir="${recon_dir}/log"
         log_execution_file="${log_dir}/recon_${date_recon}.log"
         tmp_dir="${recon_dir}/tmp"
         # report dirs
         report_dir="${recon_dir}/report"
-        scan_dir="${recon_dir}/scan"
-        webapp_dir="${recon_dir}/webapp"
+        scan_dir="${report_dir}/scan"
+        webapp_dir="${report_dir}/webapp"
         # scan dirs
         nmap_dir="${scan_dir}/nmap"
         nuclei_dir="${scan_dir}/nuclei"
@@ -42,15 +42,15 @@ create_initial_directories_structure(){
         recon_dir="${output_dir}/${url_domain}/url_${date_recon}"
         mkdir -p "${recon_dir}"
         mkdir -p "${recon_dir}"/{log,tmp}
-        mkdir -p "${recon_dir}"/{report,scan/nuclei,webapp/{aquatone,enum,params,tech,javascript}}
+        mkdir -p "${recon_dir}"/report/{scan/nuclei,webapp/{aquatone,enum,params,tech,javascript}}
         # log dirs
         log_dir="${recon_dir}/log"
         log_execution_file="${log_dir}/url_${date_recon}.log"
         tmp_dir="${recon_dir}/tmp"
         # report dirs
         report_dir="${recon_dir}/${url_base}/report"
-        scan_dir="${recon_dir}/scan"
-        webapp_dir="${recon_dir}/webapp"
+        scan_dir="${report_dir}/scan"
+        webapp_dir="${report_dir}/webapp"
         # scan dirs
         nuclei_dir="${scan_dir}/nuclei"
         # webapp dirs
@@ -74,8 +74,8 @@ create_initial_directories_structure(){
         tmp_dir="${recon_dir}/tmp"    
         # report dirs
         report_dir="${recon_dir}/report"
-        scan_dir="${recon_dir}/scan"
-        webapp_dir="${recon_dir}/webapp"
+        scan_dir="${report_dir}/scan"
+        webapp_dir="${report_dir}/webapp"
         # scan dirs
         nmap_dir="${scan_dir}/nmap"
         nuclei_dir="${scan_dir}/nuclei"
