@@ -31,11 +31,6 @@ check_parameter_dependency_domain(){
             echo -e "You need to specify at least one of these options sort (-ws|--web-short-detection) or long (-wl|--web-long-detection) web detection!\n"
             usage
         fi
-
-        if [[ -z "${webapp_tool_detection}" ]] && [[ "${only_webapp_enum}" == "no" ]]; then
-            echo -e "You need to inform one of these tools ${bold}${yellow}curl${reset}${normal} or ${bold}${yellow}httpx${reset}${normal} to perform web application detection.\n"
-            usage
-       fi
     fi
 
     if [[ -n "${url_2_verify}" ]] && [[ -z "${domain}" ]] && [[ ! -s "${domain_list}" ]]; then

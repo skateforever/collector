@@ -15,35 +15,27 @@ webapp_alive(){
     if [ -s "${report_dir}/domains_alive.txt" ]; then
 
         if [ -n "${proxy_ip}" ] && [ "${proxy_ip}" == "yes" ]; then
-            if [ "${webapp_tool_detection}" == "curl" ]; then
-                alias curl="curl --proxy ${proxy_ip}"
-            fi
-            if [ "${webapp_tool_detection}" == "httpx" ]; then
-                alias httpx="httpx -http-proxy ${proxy_ip}"
-            fi
+            alias curl="curl --proxy ${proxy_ip}"
+            alias httpx="httpx -http-proxy ${proxy_ip}"
         fi
-
-        if [ "${webapp_tool_detection}" == "curl" ]; then
-            for subdomain in $(cat "${report_dir}/domains_alive.txt"); do
-                for port in "${webapp_port_detect[@]}"; do
-                    echo "curl ${curl_options[@]} -L -w \"%{response_code}\n\" \"http://${subdomain}:${port}\" -o /dev/null" >> "${log_execution_file}"
-                    http_status_code=$(curl "${curl_options[@]}" -L -w "%{response_code}\n" "http://${subdomain}:${port}" -o /dev/null 2>> "${log_execution_file}")
-                    [[ "${http_status_code}" =~ ^[1-5][0-9]{2}$ ]] && \
-                        echo "http://${subdomain}:${port}" >> "${tmp_dir}/webapp_urls.tmp" 2>> "${log_execution_file}"
-                    echo "curl ${curl_options[@]} -L -w \"%{response_code}\n\" \"https://${subdomain}:${port}\" -o /dev/null" >> "${log_execution_file}"
-                    https_status_code=$(curl "${curl_options[@]}" -L -w "%{response_code}\n" "https://${subdomain}:${port}" -o /dev/null 2>> "${log_execution_file}")
-                    [[ "${http_status_code}" =~ ^[1-5][0-9]{2}$ ]] && \
-                        echo "https://${subdomain}:${port}" >> "${tmp_dir}/webapp_urls.tmp" 2>> "${log_execution_file}"
-                done
-                sleep 1
+        
+        for subdomain in $(cat "${report_dir}/domains_alive.txt"); do
+            for port in "${webapp_port_detect[@]}"; do
+                echo "curl ${curl_options[@]} -L -w \"%{response_code}\n\" \"http://${subdomain}:${port}\" -o /dev/null" >> "${log_execution_file}"
+                http_status_code=$(curl "${curl_options[@]}" -L -w "%{response_code}\n" "http://${subdomain}:${port}" -o /dev/null 2>> "${log_execution_file}")
+                [[ "${http_status_code}" =~ ^[1-5][0-9]{2}$ ]] && \
+                    echo "http://${subdomain}:${port}" >> "${tmp_dir}/webapp_urls.tmp" 2>> "${log_execution_file}"
+                echo "curl ${curl_options[@]} -L -w \"%{response_code}\n\" \"https://${subdomain}:${port}\" -o /dev/null" >> "${log_execution_file}"
+                https_status_code=$(curl "${curl_options[@]}" -L -w "%{response_code}\n" "https://${subdomain}:${port}" -o /dev/null 2>> "${log_execution_file}")
+                [[ "${http_status_code}" =~ ^[1-5][0-9]{2}$ ]] && \
+                    echo "https://${subdomain}:${port}" >> "${tmp_dir}/webapp_urls.tmp" 2>> "${log_execution_file}"
             done
-        fi
-
-        if [ "${webapp_tool_detection}" == "httpx" ]; then
-            echo "httpx "${httpx_options[@]}" -p $(echo "${webapp_port_detect[@]}" | sed 's/ /,/g') -l ${report_dir}/domains_alive.txt >> ${tmp_dir}/webapp_urls.tmp" >> "${log_execution_file}"
-            httpx "${httpx_options[@]}" -p $(echo "${webapp_port_detect[@]}" | sed 's/ /,/g') -l "${report_dir}/domains_alive.txt" >> "${tmp_dir}/webapp_urls.tmp" 2>> "${log_execution_file}"
             sleep 1
-        fi
+        done
+
+        echo "httpx "${httpx_options[@]}" -p $(echo "${webapp_port_detect[@]}" | sed 's/ /,/g') -l ${report_dir}/domains_alive.txt >> ${tmp_dir}/webapp_urls.tmp" >> "${log_execution_file}"
+        httpx "${httpx_options[@]}" -p $(echo "${webapp_port_detect[@]}" | sed 's/ /,/g') -l "${report_dir}/domains_alive.txt" >> "${tmp_dir}/webapp_urls.tmp" 2>> "${log_execution_file}"
+        sleep 1
 
         if [ -s "${tmp_dir}/webapp_urls.tmp" ]; then
             echo "Done!"

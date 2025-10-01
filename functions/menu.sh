@@ -1,6 +1,6 @@
 check_argument(){
-    options+=(-d --domain -dl --domain-list -e --exclude-domains -el --exclude-domains-list -k -kill -ka --kill-all -l --limit-urls -o --output -p --proxy -r --recon)
-    options+=(-s --subdomain-brute -u --url -we --webapp-enum -wld --webapp-long-detection -wsd --webapp-short-detection -wtd --webapp-tool-detection -ww --webapp-wordlists)
+    options+=(-d --domain -dl --domain-list -e --exclude-domains -el --exclude-domains-list -k -kill -ka --kill-all -l --limit-urls -o --output -p --proxy)
+    options+=(-r --recon -s --subdomain-brute -u --url -we --webapp-enum -wld --webapp-long-detection -wsd --webapp-short-detection -ww --webapp-wordlists)
     if [[ "${options[*]}" =~ $2 ]]; then
         [[ -z $2 ]] && value="empty" || value="$2"
         echo -e "The argument of ${yellow}\"$1\"${reset} it can not be ${red}\"${value}\"${reset}, please, ${yellow}specify a valid one${reset}.\n"
@@ -210,11 +210,6 @@ menu(){
                     fi
                 fi
                 shift
-                ;;
-            -wtd|--webapp-tool-detection)
-                check_argument "$1" "$2"
-                webapp_tool_detection="$2"
-                shift 2
                 ;;
             -ww|--webapp-wordlists)
                 check_argument "$1" "$2"

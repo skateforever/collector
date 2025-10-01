@@ -146,22 +146,17 @@ webapp_tech(){
                     name="$(echo "${url}" | sed -e "s/http:\/\//http_/" -e "s/https:\/\//https_/" -e "s/:/_/" -e "s/\/$//" -e "s/\//_/g")"
                     file_tech_by_headers="${name}.tech"
                     if [ -n "${use_proxy}" ] && [ "${use_proxy}" == "yes" ]; then
-                        if [ "${webapp_tool_detection}" == "curl" ]; then
-                            alias curl="curl --proxy ${proxy_ip}"
-                        fi
-                        if [ "${webapp_tool_detection}" == "httpx" ]; then
-                            alias httpx="httpx -http-proxy ${proxy_ip}"
-                        fi
+                        alias curl="curl --proxy ${proxy_ip}"
+                        alias httpx="httpx -http-proxy ${proxy_ip}"
                     fi
-                    if [ "${webapp_tool_detection}" == "curl" ]; then
-                        echo "curl ${curl_options[@]} -I ${url}" >> "${log_execution_file}"
-                        curl ${curl_options[@]} -I "${url}" >> "${webapp_tech_dir}/${file_tech_by_headers}" 2>> "${log_execution_file}"
-                    fi
-                    if [ "${webapp_tool_detection}" == "httpx" ]; then
-                        # MODIFICAR AQUI TÀ ERRADO
-                        echo "echo ${url} | httpx ${httpx_options[@]} -title -tech-detect" >> "${log_execution_file}"
-                        echo "${url}" | httpx "${httpx_options[@]}" -title -tech-detect >> "${webapp_tech_dir}/${file_tech_by_headers}" 2>> "${log_execution_file}"
-                    fi
+
+                    echo "curl ${curl_options[@]} -I ${url}" >> "${log_execution_file}"
+                    curl ${curl_options[@]} -I "${url}" >> "${webapp_tech_dir}/${file_tech_by_headers}" 2>> "${log_execution_file}"
+
+                    # MODIFICAR AQUI TÀ ERRADO
+                    echo "echo ${url} | httpx ${httpx_options[@]} -title -tech-detect" >> "${log_execution_file}"
+                    echo "${url}" | httpx "${httpx_options[@]}" -title -tech-detect >> "${webapp_tech_dir}/${file_tech_by_headers}" 2>> "${log_execution_file}"
+
                     unset file_tech_by_headers
                     unset name
                     unset url
