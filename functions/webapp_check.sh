@@ -29,23 +29,23 @@ webapp_alive(){
                     echo "curl ${curl_options[@]} -L -w \"%{response_code}\n\" \"http://${subdomain}:${port}\" -o /dev/null" >> "${log_execution_file}"
                     http_status_code=$(curl "${curl_options[@]}" -L -w "%{response_code}\n" "http://${subdomain}:${port}" -o /dev/null 2>> "${log_execution_file}")
                     [[ "${http_status_code}" =~ ^[1-5][0-9]{2}$ ]] && \
-                        echo "http://${subdomain}:${port}" >> "${tmp_dir}/webapp_url_tmp.txt" 2>> "${log_execution_file}"
+                        echo "http://${subdomain}:${port}" >> "${tmp_dir}/webapp_urls.tmp" 2>> "${log_execution_file}"
                     echo "curl ${curl_options[@]} -L -w \"%{response_code}\n\" \"https://${subdomain}:${port}\" -o /dev/null" >> "${log_execution_file}"
                     https_status_code=$(curl "${curl_options[@]}" -L -w "%{response_code}\n" "https://${subdomain}:${port}" -o /dev/null 2>> "${log_execution_file}")
                     [[ "${http_status_code}" =~ ^[1-5][0-9]{2}$ ]] && \
-                        echo "https://${subdomain}:${port}" >> "${tmp_dir}/webapp_url_tmp.txt" 2>> "${log_execution_file}"
+                        echo "https://${subdomain}:${port}" >> "${tmp_dir}/webapp_urls.tmp" 2>> "${log_execution_file}"
                 done
                 sleep 1
             done
         fi
 
         if [ "${webapp_tool_detection}" == "httpx" ]; then
-            echo "httpx "${httpx_options[@]}" -p $(echo "${webapp_port_detect[@]}" | sed 's/ /,/g') -l ${report_dir}/domains_alive.txt >> ${tmp_dir}/webapp_url_tmp.txt" >> "${log_execution_file}"
-            httpx "${httpx_options[@]}" -p $(echo "${webapp_port_detect[@]}" | sed 's/ /,/g') -l "${report_dir}/domains_alive.txt" >> "${tmp_dir}/webapp_url_tmp.txt" 2>> "${log_execution_file}"
+            echo "httpx "${httpx_options[@]}" -p $(echo "${webapp_port_detect[@]}" | sed 's/ /,/g') -l ${report_dir}/domains_alive.txt >> ${tmp_dir}/webapp_urls.tmp" >> "${log_execution_file}"
+            httpx "${httpx_options[@]}" -p $(echo "${webapp_port_detect[@]}" | sed 's/ /,/g') -l "${report_dir}/domains_alive.txt" >> "${tmp_dir}/webapp_urls.tmp" 2>> "${log_execution_file}"
             sleep 1
         fi
 
-        if [ -s "${tmp_dir}/webapp_url_tmp.txt" ]; then
+        if [ -s "${tmp_dir}/webapp_urls.tmp" ]; then
             echo "Done!"
         else
             echo "Fail!"
@@ -58,7 +58,7 @@ webapp_alive(){
         unalias curl > /dev/null 2>&1
         unalias httpx > /dev/null 2>&1
 
-        [[ -s "${tmp_dir}/webapp_url_tmp.txt" ]] && sort -u -o "${report_dir}/webapp_url.txt" "${tmp_dir}/webapp_url_tmp.txt"
+        [[ -s "${tmp_dir}/webapp_urls.tmp" ]] && sort -u -o "${report_dir}/webapp_urls.txt" "${tmp_dir}/webapp_urls.tmp"
 
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Separating infrastructure from web application... "
         if [ -s "${report_dir}/webapp_urls.txt" ]; then

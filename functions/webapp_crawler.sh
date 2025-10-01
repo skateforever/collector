@@ -21,43 +21,36 @@ crawler_js(){
         exit 1
     else
         if [ -d "${report_dir}" ] && [ -d "${webapp_js_dir}" ] ; then
-            # Extrai todos os links para arquivos .js da URL
-            curl -H "${agent}" -L -s "$url" | grep -Eo 'src="[^"]*\.js"' | sed 's/src="//g' | sed 's/"$//g' | while read -r js_url; do
-                # Converte URL relativa em absoluta
-                if [[ "$js_url" == //* ]]; then
-                    js_url="https:$js_url"
-                elif [[ "$js_url" != http* ]]; then
-                    js_url="$url/$js_url"
-                fi
+            for subdomain in $(cat "${report_dir}"/webapp_urls.txt); do
+                # Curl
+                # Extract all links to .js files from the URL
+                curl "${curl_options[@]}" -L "${subdomain}" | grep -Eo 'src="[^"]*\.js"' | sed 's/src="//g' | sed 's/"$//g' | while read -r js_url; do
+                    # Convert relative URL to absolute
+                    if [[ "${js_url}" == //* ]]; then
+                        js_url="https:${js_url}"
+                    elif [[ "${js_url}" != http* ]]; then
+                        js_url="${url}/${js_url}"
+                    fi
             
-                # Verifica se é um arquivo JavaScript
-                if [[ "$js_url" == *.js ]]; then
-                    # Verifica se a URL retorna status HTTP 200
-                    http_status=$(curl -H "${agent}" -L -s -o /dev/null -w "%{http_code}" --head "$js_url")
-                    if [ "$http_status" -eq 200 ]; then
-                        nome_arquivo=$(basename "$js_url")
-                        if [ ! -f "$dominio/js_files/$nome_arquivo" ]; then
-                            echo "Baixando: $js_url (Status: $http_status)"
-                            curl -s "$js_url" -o "$dominio/js_files/$nome_arquivo"
-                        else
-                            echo "Arquivo já existe: $js_url (Status: $http_status)"
+                    # Checks if it is a JavaScript file
+                    if [[ "${js_url}" == *.js ]]; then
+                        # Checks if the URL returns HTTP status 200
+                        js_status=$(curl -H "${agent}" -L -s -o /dev/null -w "%{http_code}" --head "$js_url")
+                        if [[ "$js_status" -eq 200 ]]; then
+                            file_name=$(basename "${js_url}")
+                            if [ ! -f "${webapp_js_dir}/${file_name}" ]; then
+                                echo "curl ${curl_options[@]} ${js_url} -o ${webapp_js_dir}/${file_name}" >> "${log_execution_file}"
+                                curl "${curl_options[@]}" "${js_url}" -o "${webapp_js_dir}/${file_name}"
+                            fi
                         fi
-                    else
-                        echo "URL não acessível: $js_url (Status: $http_status)"
                     fi
-                fi
-                echo $js_url        
-                # Baixa o arquivo se for .js e não existir localmente
-                if [[ "$js_url" == *.js ]]; then
-                    nome_arquivo=$(basename "$js_url")
-                    if [ ! -f "$dominio/js_files/$nome_arquivo" ]; then
-                        echo "Baixando: $js_url"
-                        curl -s "$js_url" -o "$dominio/js_files/$nome_arquivo"
-                    fi
-                fi
+                done
+                # katana
+
             done
         fi
     fi
+    echo "Done!"
 }
 
 crawler_params() {
