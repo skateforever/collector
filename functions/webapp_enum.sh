@@ -42,25 +42,25 @@ webapp_enum(){
                                         -w \"${list}\" --proxy \"${proxy_ip}\" --timeout=20 -u \"${url}\"" >> "${log_execution_file}"
                                     dirsearch -t "${dirsearch_threads}" -e "${webapp_extensions}" --random-agent --no-color --quiet-mode \
                                         -w "${list}" --proxy "${proxy_ip}" --timeout=20 \
-                                        -u "${url}" >> "${webenum_dir}/${file_dirsearch}" 2>> "${log_execution_file}" &
+                                        -u "${url}" >> "${webapp_enum_dir}/${file_dirsearch}" 2>> "${log_execution_file}" &
                                     echo "gobuster dir --quiet --no-color --no-error -z -k -e --timeout 20s --delay 300ms \
                                         --proxy http://${proxy_ip} -t ${gobuster_threads} -u ${url} -w ${list} \
-                                        -x ${webapp_extensions} >> ${webenum_dir}/${file_gobuster}" >> "${log_execution_file}"
+                                        -x ${webapp_extensions} >> ${webapp_enum_dir}/${file_gobuster}" >> "${log_execution_file}"
                                     gobuster dir --quiet --no-color --no-error -z -k -e --timeout 20s --delay 300ms \
                                         --proxy "http://${proxy_ip}" -t "${gobuster_threads}" \
                                         -u "${url}" -w "${list}" -x "${webapp_extensions}" \
-                                        >> "${webenum_dir}/${file_gobuster}" 2>> "${log_execution_file}" &
+                                        >> "${webapp_enum_dir}/${file_gobuster}" 2>> "${log_execution_file}" &
                                 else
                                     echo "dirsearch -t \"${dirsearch_threads}\" -e \"${web_extensions}\" --random-agent \
                                         --no-color --quiet-mode -w \"${list}\" -u \"${url}\"" >> "${log_execution_file}"
                                     dirsearch -t "${dirsearch_threads}" -e "${web_extensions}" --random-agent --no-color --quiet-mode \
-                                        -w "${list}" -u "${url}" >> "${webenum_dir}/${file_dirsearch}" 2>> "${log_execution_file}" &
+                                        -w "${list}" -u "${url}" >> "${webapp_enum_dir}/${file_dirsearch}" 2>> "${log_execution_file}" &
                                     echo "gobuster dir --quiet --no-color --no-error -z -k -e --timeout 20s --delay 300ms \
                                         -t ${gobuster_threads} -u ${url} -w ${list} -x ${web_extensions} \
-                                        >> ${webenum_dir}/${file_gobuster}" >> "${log_execution_file}"
+                                        >> ${webapp_enum_dir}/${file_gobuster}" >> "${log_execution_file}"
                                     gobuster dir --quiet --no-color --no-error -z -k -e --timeout 20s --delay 300ms \
                                         -t "${gobuster_threads}" -u "${url}" -w "${list}" -x "${web_extensions}" \
-                                        >> "${webenum_dir}/${file_gobuster}" 2>> "${log_execution_file}" &
+                                        >> "${webapp_enum_dir}/${file_gobuster}" 2>> "${log_execution_file}" &
                                 fi
                                 while [[ "$(pgrep -acf "[d]irsearch.*${target}$|[g]obuster.*${target}$")" -ge "${webapp_enum_total_processes}" ]]; do
                                     sleep 1
@@ -91,17 +91,17 @@ webapp_enum(){
 
                     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Cleaning up dirsearch files... "
                     sed -i -e 's/.\[4.m//g' -e 's/.\[3.m//g' -e 's/.\[1K.\[0G/\n/g'\
-                        -e 's/.\[1m//g' -e 's/.\[0m//g'-e '/Last request to/d' "${webenum_dir}/*.dirsearch*" 2> /dev/null
+                        -e 's/.\[1m//g' -e 's/.\[0m//g'-e '/Last request to/d' "${webapp_enum_dir}/*.dirsearch*" 2> /dev/null
                     echo "Done!"
 
                     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Cleaning up gobuster files... "
-                    sed -i "s/^..\[2K//" "${webenum_dir}/*.gobuster*" 2> /dev/null
+                    sed -i "s/^..\[2K//" "${webapp_enum_dir}/*.gobuster*" 2> /dev/null
                     echo "Done!"
 
                     # Notifying the finds
                     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Sending files search notification... "
-                    grep --color=never -Ehr "^\[.*\] 200 -" "${webenum_dir}/" | awk '{print $6}' | grep -E "($(echo ${web_extensions} | sed 's/,/|/g'))$" | notify -nc -silent -id "${notify_files_channel}"
-                    grep --color=never -Ehr "\(Status: 200\)" "${webenum_dir}/" | awk '{print $1}' | grep -E "($(echo ${web_extensions} | sed 's/,/|/g'))$" | notify -nc -silent -id "${notify_files_channel}"
+                    grep --color=never -Ehr "^\[.*\] 200 -" "${webapp_enum_dir}/" | awk '{print $6}' | grep -E "($(echo ${web_extensions} | sed 's/,/|/g'))$" | notify -nc -silent -id "${notify_files_channel}"
+                    grep --color=never -Ehr "\(Status: 200\)" "${webapp_enum_dir}/" | awk '{print $1}' | grep -E "($(echo ${web_extensions} | sed 's/,/|/g'))$" | notify -nc -silent -id "${notify_files_channel}"
                     echo "Done!"
                 else
                     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Array of wordlists is empty. Stopping the script!"
@@ -171,8 +171,8 @@ webapp_tech(){
 
 robots_txt(){
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Looking for new URLs on robots.txt... "
-    for file in $(ls -1A "${webenum_dir}/"); do
-        if grep robots.txt "${webenum_dir}/${file}" > /dev/null && [ -s "${file}" ] ; then
+    for file in $(ls -1A "${webapp_enum_dir}/"); do
+        if grep robots.txt "${webapp_enum_dir}/${file}" > /dev/null && [ -s "${file}" ] ; then
             target=$(grep -E "Target:|Url:" "${file}" | sed -e 's/^\[+\] //' | awk '{print $2}' | sed -e 's/\/$//') 
             for url in $(curl "${curl_options[@]}" -s "${target}"/robots.txt | grep -Ev "User-agent: *" | awk '{print $2}' | sed -e "/^\/$/d"); do
                 echo "${target}${url}" >> "${report_dir}/robots_urls.txt"
