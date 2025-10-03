@@ -32,7 +32,6 @@ usage(){
     echo -e "\t\t\t\t        ${red}used only with${reset} ${yellow}-d|--domain${reset}"
     echo -e "\t-wld|--webapp-long-detection  - Will execute the long list of ports setup in collector.cfg as variable web_port_long_detection." 
     echo -e "\t-wsd|--webapp-short-detection - Will execute the short list of ports setup in collector.cfg as variable web_port_short_detection."
-    echo -e "\t-wtd|--webapp-tool-detection  - You need to inform what tool to perform web application detection the tool can be ${bold}${yellow}curl${reset}${normal} OR ${bold}${yellow}httpx${reset}${normal}."
     echo -e "\t-ww |--webapp-wordlists       - Specity more wordlists to put in web_wordlist array as the first wordlist to enumerate dirs and files from website."
     echo -e "\t\t\t\t        use ${yellow}-ww /path/to/wordlist1,/path/to/wordlist2${reset} OR ${yellow}--web-wordlists /path/to/wordlist1,/path/to/wordlist2${reset}"
     echo ""
