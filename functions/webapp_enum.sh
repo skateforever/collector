@@ -38,28 +38,28 @@ webapp_enum(){
                                 file_gobuster="${name}.gobuster.${index}"
                                 file_dirsearch="${name}.dirsearch.${index}"
                                 if [ -n "${use_proxy}" ] && [ "${use_proxy}" == "yes" ]; then
-                                    echo "dirsearch -t \"${dirsearch_threads}\" -e \"${webapp_extensions}\" --random-agent --no-color --quiet-mode \
+                                    echo "dirsearch -t \"${dirsearch_threads}\" -e \"${webapp_file_extensions}\" --random-agent --no-color --quiet-mode \
                                         -w \"${list}\" --proxy \"${proxy_ip}\" --timeout=20 -u \"${url}\"" >> "${log_execution_file}"
-                                    dirsearch -t "${dirsearch_threads}" -e "${webapp_extensions}" --random-agent --no-color --quiet-mode \
+                                    dirsearch -t "${dirsearch_threads}" -e "${webapp_file_extensions}" --random-agent --no-color --quiet-mode \
                                         -w "${list}" --proxy "${proxy_ip}" --timeout=20 \
                                         -u "${url}" >> "${webapp_enum_dir}/${file_dirsearch}" 2>> "${log_execution_file}" &
                                     echo "gobuster dir --quiet --no-color --no-error -z -k -e --timeout 20s --delay 300ms \
                                         --proxy http://${proxy_ip} -t ${gobuster_threads} -u ${url} -w ${list} \
-                                        -x ${webapp_extensions} >> ${webapp_enum_dir}/${file_gobuster}" >> "${log_execution_file}"
+                                        -x ${webapp_file_extensions} >> ${webapp_enum_dir}/${file_gobuster}" >> "${log_execution_file}"
                                     gobuster dir --quiet --no-color --no-error -z -k -e --timeout 20s --delay 300ms \
                                         --proxy "http://${proxy_ip}" -t "${gobuster_threads}" \
-                                        -u "${url}" -w "${list}" -x "${webapp_extensions}" \
+                                        -u "${url}" -w "${list}" -x "${webapp_file_extensions}" \
                                         >> "${webapp_enum_dir}/${file_gobuster}" 2>> "${log_execution_file}" &
                                 else
-                                    echo "dirsearch -t \"${dirsearch_threads}\" -e \"${web_extensions}\" --random-agent \
+                                    echo "dirsearch -t \"${dirsearch_threads}\" -e \"${webapp_file_extensions}\" --random-agent \
                                         --no-color --quiet-mode -w \"${list}\" -u \"${url}\"" >> "${log_execution_file}"
-                                    dirsearch -t "${dirsearch_threads}" -e "${web_extensions}" --random-agent --no-color --quiet-mode \
+                                    dirsearch -t "${dirsearch_threads}" -e "${webapp_file_extensions}" --random-agent --no-color --quiet-mode \
                                         -w "${list}" -u "${url}" >> "${webapp_enum_dir}/${file_dirsearch}" 2>> "${log_execution_file}" &
                                     echo "gobuster dir --quiet --no-color --no-error -z -k -e --timeout 20s --delay 300ms \
-                                        -t ${gobuster_threads} -u ${url} -w ${list} -x ${web_extensions} \
+                                        -t ${gobuster_threads} -u ${url} -w ${list} -x ${webapp_file_extensions} \
                                         >> ${webapp_enum_dir}/${file_gobuster}" >> "${log_execution_file}"
                                     gobuster dir --quiet --no-color --no-error -z -k -e --timeout 20s --delay 300ms \
-                                        -t "${gobuster_threads}" -u "${url}" -w "${list}" -x "${web_extensions}" \
+                                        -t "${gobuster_threads}" -u "${url}" -w "${list}" -x "${webapp_file_extensions}" \
                                         >> "${webapp_enum_dir}/${file_gobuster}" 2>> "${log_execution_file}" &
                                 fi
                                 while [[ "$(pgrep -acf "[d]irsearch.*${target}$|[g]obuster.*${target}$")" -ge "${webapp_enum_total_processes}" ]]; do
@@ -100,8 +100,8 @@ webapp_enum(){
 
                     # Notifying the finds
                     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Sending files search notification... "
-                    grep --color=never -Ehr "^\[.*\] 200 -" "${webapp_enum_dir}/" | awk '{print $6}' | grep -E "($(echo ${web_extensions} | sed 's/,/|/g'))$" | notify -nc -silent -id "${notify_files_channel}"
-                    grep --color=never -Ehr "\(Status: 200\)" "${webapp_enum_dir}/" | awk '{print $1}' | grep -E "($(echo ${web_extensions} | sed 's/,/|/g'))$" | notify -nc -silent -id "${notify_files_channel}"
+                    grep --color=never -Ehr "^\[.*\] 200 -" "${webapp_enum_dir}/" | awk '{print $6}' | grep -E "($(echo ${webapp_file_extensions} | sed 's/,/|/g'))$" | notify -nc -silent -id "${notify_files_channel}"
+                    grep --color=never -Ehr "\(Status: 200\)" "${webapp_enum_dir}/" | awk '{print $1}' | grep -E "($(echo ${webapp_file_extensions} | sed 's/,/|/g'))$" | notify -nc -silent -id "${notify_files_channel}"
                     echo "Done!"
                 else
                     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Array of wordlists is empty. Stopping the script!"
