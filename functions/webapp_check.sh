@@ -85,7 +85,7 @@ webapp_alive(){
             echo -e "\t\t      * $(awk '{print $1}' "${report_dir}/webapp_urls.txt" | sed -e 's/^http.*\/\/// ; s/:.*$//' | awk -F'/' '{print $1}' | sort -u | wc -l) Web Applications URL(s)."
             echo -e "\t\t      * $(wc -l "${report_dir}/domains_infrastructure.txt" | awk '{print $1}') Infrastructure domain(s)."
             echo -e "Probably we have: \n \
-                \t* $(awk '{print $1}' "${report_dir}/webapp_status.txt" | sed -e 's/^http.*\/\/// ; s/:.*$//' | awk -F'/' '{print $1}' | sort -u | wc -l) Web Applications URL(s).\n \
+                \t* $(awk '{print $1}' "${report_dir}/webapp_urls.txt" | sed -e 's/^http.*\/\/// ; s/:.*$//' | awk -F'/' '{print $1}' | sort -u | wc -l) Web Applications URL(s).\n \
                 \t* $(wc -l "${report_dir}/domains_infrastructure.txt" | awk '{print $1}') Infrastructure domain(s)." \
                 | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
         fi
