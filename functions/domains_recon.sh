@@ -34,11 +34,11 @@ domains_recon(){
     echo " "
     # Execute all functions
     message "${domain}" start
-    if [ "${only_webapp_enum}" == "no" ]; then
+    if [[ "${only_webapp_enum}" == "no" ]]; then
         subdomains_recon
         joining_subdomains
         diff_domains
-        if [ -s "${report_dir}/domains_diff.txt" ]; then
+        if [[ -s "${report_dir}/domains_diff.txt" ]]; then
             organizing_subdomains "${report_dir}/domains_diff.txt"
         else
             organizing_subdomains "${report_dir}/domains_found.txt"
@@ -46,33 +46,20 @@ domains_recon(){
         infra_data
         shodan_recon
         webapp_alive
-        #emails_recon
-        [[ -s "${report_dir}/webapp_urls.txt" ]] && webapp_tech "${domain}" "${report_dir}/webapp_urls.txt"
-        if [ "${only_recon}" == "yes" ]; then
-            message "${domain}" finished
-            exit 0
-        fi
+        webapp_tech "${domain}" "${report_dir}/webapp_urls.txt"
+        [[ "${only_recon}" == "yes" ]] && { message "${domain}" finished; exit 0; }
     fi
-    if [ "${only_webapp_enum}" == "yes" ] && [ ! -s "${report_dir}/webapp_urls.txt" ]; then
-        message "${domain}" failed
-        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${red}The recon finished 'cause an error:${reset}"
-        echo -e "\t\t    You haven't the actual ${yellow}webapp_urls.txt${reset} file to collect data to analyze!"
-        echo -e "\t\t    Please, run the collector with -d domain --recon or just -d domain to run recon and web data!"
-        exit 1
-    else
-        if [[ -s "${report_dir}/webapp_urls.txt" ]]; then
-            webapp_enum "${domain}" "${report_dir}/webapp_urls.txt"
-            aquatone_screenshot "${report_dir}/webapp_urls.txt"
-            webapp_scan "${domain}" "${report_dir}/webapp_urls.txt"
-            robots_txt
-            git_rebuild
-        fi
-        if [[ -s "${report_dir}/robots_urls.txt" ]]; then
-            webapp_enum "${report_dir}/robots_urls.txt"
-            aquatone_screenshot "${report_dir}/robots_urls.txt"
-            webapp_scan "${domain}" "${report_dir}/robots_urls.txt"
-            git_rebuild
-        fi
-        message "${domain}" finished
+    if [[ "${only_webapp_enum}" == "yes" ]]; then
+       webapp_enum "${domain}" "${report_dir}/webapp_urls.txt"
+       robots_txt
+       for file "${report_dir}/webapp_urls.txt" "${report_dir}/robots_urls.txt"; do
+           if [[ -s "${file}" ]]; then
+               aquatone_screenshot "${file}"
+               webapp_scan "${domain}" "${file}"
+               git_rebuild
+           fi
+       done
+    fi
+    message "${domain}" finished
     fi) 2>> "${log_execution_file}" | tee -a "${log_execution_file}"
 }
