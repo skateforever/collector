@@ -49,7 +49,7 @@ domains_recon(){
         webapp_tech "${domain}" "${report_dir}/webapp_urls.txt"
         [[ "${only_recon}" == "yes" ]] && { message "${domain}" finished; exit 0; }
     fi
-    if [[ "${only_webapp_enum}" == "yes" ]]; then
+    if [[ "${only_webapp_enum}" == "yes" || "${only_webapp_enum}" == "no" ]]; then
        webapp_enum "${domain}" "${report_dir}/webapp_urls.txt"
        robots_txt
        for file "${report_dir}/webapp_urls.txt" "${report_dir}/robots_urls.txt"; do
