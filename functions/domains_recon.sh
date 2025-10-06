@@ -34,7 +34,7 @@ domains_recon(){
     echo " "
     # Execute all functions
     message "${domain}" start
-    if [[ "${only_webapp_enum}" == "no" ]]; then
+    if [[ "${only_webapp_enum}" != "yes" ]]; then
         subdomains_recon
         joining_subdomains
         diff_domains
@@ -49,17 +49,15 @@ domains_recon(){
         webapp_tech "${domain}" "${report_dir}/webapp_urls.txt"
         [[ "${only_recon}" == "yes" ]] && { message "${domain}" finished; exit 0; }
     fi
-    if [[ "${only_webapp_enum}" == "yes" || "${only_webapp_enum}" == "no" ]]; then
-       webapp_enum "${domain}" "${report_dir}/webapp_urls.txt"
-       robots_txt
-       for file "${report_dir}/webapp_urls.txt" "${report_dir}/robots_urls.txt"; do
-           if [[ -s "${file}" ]]; then
-               aquatone_screenshot "${file}"
-               webapp_scan "${domain}" "${file}"
-               git_rebuild
-           fi
-       done
-    fi
+    webapp_enum "${domain}" "${report_dir}/webapp_urls.txt"
+    robots_txt
+    for file "${report_dir}/webapp_urls.txt" "${report_dir}/robots_urls.txt"; do
+        if [[ -s "${file}" ]]; then
+            aquatone_screenshot "${file}"
+            webapp_scan "${domain}" "${file}"
+            git_rebuild
+        fi
+    done
     message "${domain}" finished
     fi) 2>> "${log_execution_file}" | tee -a "${log_execution_file}"
 }
