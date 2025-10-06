@@ -58,6 +58,5 @@ domains_recon(){
             git_rebuild
         fi
     done
-    message "${domain}" finished
-    fi) 2>> "${log_execution_file}" | tee -a "${log_execution_file}"
+    message "${domain}" finished) 2>> "${log_execution_file}" | tee -a "${log_execution_file}"
 }
