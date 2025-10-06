@@ -51,7 +51,7 @@ domains_recon(){
     fi
     webapp_enum "${domain}" "${report_dir}/webapp_urls.txt"
     robots_txt
-    for file "${report_dir}/webapp_urls.txt" "${report_dir}/robots_urls.txt"; do
+    for file in "${report_dir}/webapp_urls.txt" "${report_dir}/robots_urls.txt"; do
         if [[ -s "${file}" ]]; then
             aquatone_screenshot "${file}"
             webapp_scan "${domain}" "${file}"
