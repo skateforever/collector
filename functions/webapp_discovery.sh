@@ -6,7 +6,7 @@
 # And is responsible to get the functions:                                    #
 #                                                                             #
 #   * webapp_alive                                                            #
-#   * aquatone_scan                                                           #
+#   * aquatone_screeshot                                                      #
 #                                                                             #
 ############################################################################### 
 
@@ -98,15 +98,10 @@ webapp_alive(){
     fi
 }
 
-aquatone_scan(){
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Starting aquatone scan... "
+aquatone_screeshot(){
+    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Starting aquatone screenshot... "
     file=$1
     if [ -s "${file}" ]; then
-        if [[ -n "${target}" && -z "${url_2_verify}" ]]; then
-            aquatone_log="${tmp_dir}/aquatone_${target}.log"
-        elif [[ -n "${url_2_verify}" && -z "${target}" ]] ; then
-            aquatone_log="${tmp_dir}/aquatone_${url_base}.log"
-        fi
         if [ ! -d "${aquatone_files_dir}" ]; then
             if mkdir -p "${aquatone_files_dir}" ; then
                 echo "aquatone -chrome-path ${chromium_bin} -out ${aquatone_files_dir} -threads ${aquatone_threads} < ${file}" >> "${log_execution_file}"
@@ -131,5 +126,6 @@ aquatone_scan(){
     unset aquatone_log
     unset aquatone_files_dir
     unset file
-    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Finish aquatone scan!"
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Finish aquatone screenshot!"
+    echo -e "Finish aquatone screenshot!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
 }

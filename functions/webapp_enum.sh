@@ -100,8 +100,8 @@ webapp_enum(){
 
                     # Notifying the finds
                     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Sending files search notification... "
-                    grep --color=never -Ehr "^\[.*\] 200 -" "${webapp_enum_dir}/" | awk '{print $6}' | grep -E "($(echo ${webapp_file_extensions} | sed 's/,/|/g'))$" | notify -nc -silent -id "${notify_files_channel}"
-                    grep --color=never -Ehr "\(Status: 200\)" "${webapp_enum_dir}/" | awk '{print $1}' | grep -E "($(echo ${webapp_file_extensions} | sed 's/,/|/g'))$" | notify -nc -silent -id "${notify_files_channel}"
+                    grep --color=never -Ehr "^\[.*\] 200 -" "${webapp_enum_dir}/" | awk '{print $6}' | grep -E "($(echo ${webapp_file_extensions} | sed 's/,/|/g'))$" | notify -nc -silent -id "${notify_files_channel}" > /dev/null
+                    grep --color=never -Ehr "\(Status: 200\)" "${webapp_enum_dir}/" | awk '{print $1}' | grep -E "($(echo ${webapp_file_extensions} | sed 's/,/|/g'))$" | notify -nc -silent -id "${notify_files_channel}" > /dev/null
                     echo "Done!"
                 else
                     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Array of wordlists is empty. Stopping the script!"
@@ -153,7 +153,6 @@ webapp_tech(){
                     echo "curl ${curl_options[@]} -I ${url}" >> "${log_execution_file}"
                     curl ${curl_options[@]} -I "${url}" >> "${webapp_tech_dir}/${file_tech_by_headers}" 2>> "${log_execution_file}"
 
-                    # MODIFICAR AQUI TÀ ERRADO
                     echo "echo ${url} | httpx ${httpx_options[@]} -title -tech-detect" >> "${log_execution_file}"
                     echo "${url}" | httpx "${httpx_options[@]}" -title -tech-detect >> "${webapp_tech_dir}/${file_tech_by_headers}" 2>> "${log_execution_file}"
 
@@ -172,7 +171,7 @@ webapp_tech(){
 robots_txt(){
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Looking for new URLs on robots.txt... "
     for file in $(ls -1A "${webapp_enum_dir}/"); do
-        if grep robots.txt "${webapp_enum_dir}/${file}" > /dev/null && [ -s "${file}" ] ; then
+        if grep -E "robots\.txt" "${webapp_enum_dir}/${file}" > /dev/null && [ -s "${file}" ] ; then
             target=$(grep -E "Target:|Url:" "${file}" | sed -e 's/^\[+\] //' | awk '{print $2}' | sed -e 's/\/$//') 
             for url in $(curl "${curl_options[@]}" -s "${target}"/robots.txt | grep -Ev "User-agent: *" | awk '{print $2}' | sed -e "/^\/$/d"); do
                 echo "${target}${url}" >> "${report_dir}/robots_urls.txt"

@@ -46,10 +46,8 @@ domains_recon(){
         infra_data
         shodan_recon
         webapp_alive
-        if [ -s "${report_dir}/webapp_urls.txt" ]; then
-            webapp_tech "${domain}" "${report_dir}/webapp_urls.txt"
-        fi
         #emails_recon
+        [[ -s "${report_dir}/webapp_urls.txt" ]] && webapp_tech "${domain}" "${report_dir}/webapp_urls.txt"
         if [ "${only_recon}" == "yes" ]; then
             message "${domain}" finished
             exit 0
@@ -62,14 +60,19 @@ domains_recon(){
         echo -e "\t\t    Please, run the collector with -d domain --recon or just -d domain to run recon and web data!"
         exit 1
     else
-        webapp_enum "${domain}" "${report_dir}/webapp_urls.txt"
-        robots_txt
-        webapp_enum "${report_dir}/robots_urls.txt"
-        for file in "${report_dir}/webapp_urls.txt" "${report_dir}/robots_urls.txt" ; do
-            aquatone_scan "${report_dir}/webapp_urls.txt"
-            webapp_scan "${domain}" "${file}"
-        done
-        git_rebuild
+        if [[ -s "${report_dir}/webapp_urls.txt" ]]; then
+            webapp_enum "${domain}" "${report_dir}/webapp_urls.txt"
+            aquatone_screenshot "${report_dir}/webapp_urls.txt"
+            webapp_scan "${domain}" "${report_dir}/webapp_urls.txt"
+            robots_txt
+            git_rebuild
+        fi
+        if [[ -s "${report_dir}/robots_urls.txt" ]]; then
+            webapp_enum "${report_dir}/robots_urls.txt"
+            aquatone_screenshot "${report_dir}/robots_urls.txt"
+            webapp_scan "${domain}" "${report_dir}/robots_urls.txt"
+            git_rebuild
+        fi
         message "${domain}" finished
     fi) 2>> "${log_execution_file}" | tee -a "${log_execution_file}"
 }
