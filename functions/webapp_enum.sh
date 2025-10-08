@@ -67,7 +67,6 @@ webapp_enum(){
                         done < "${urls_file}"
                     else
                         echo -e "\t\t    ${red}Error:${reset} ${list} does not exist or is empty!"
-                        echo -e "Error: ${list} does not exist or is empty!" >> "${log_execution_file}"
                         echo -e "Error: ${list} does not exist or is empty!" | notify -nc -silent -id "${notify_files_channel}" 
                         continue
                     fi
@@ -123,7 +122,7 @@ webapp_enum(){
 webapp_tech(){
     target="$1"
     urls_file="$2"
-    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing web application technology enumeration..."
+    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing web application technology enumeration..."
     if [ -s "${urls_file}" ]; then
         if [ -d "${report_dir}" ] && [ -d "${webapp_tech_dir}" ] ; then
             echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Getting information about urls from response... "
