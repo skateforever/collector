@@ -81,7 +81,7 @@ webapp_alive(){
         fi
 
         if [ -f "${report_dir}/webapp_urls.txt" ] && [ -f "${report_dir}/domains_infrastructure.txt" ]; then
-            echo -e "\t\t    Probably we have: "
+            echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Probably we have: "
             echo -e "\t\t      * $(awk '{print $1}' "${report_dir}/webapp_urls.txt" | sed -e 's/^http.*\/\/// ; s/:.*$//' | awk -F'/' '{print $1}' | sort -u | wc -l) Web Applications URL(s)."
             echo -e "\t\t      * $(wc -l "${report_dir}/domains_infrastructure.txt" | awk '{print $1}') Infrastructure domain(s)."
             echo -e "Probably we have: \n \
@@ -100,12 +100,13 @@ webapp_alive(){
 
 aquatone_screeshot(){
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Starting aquatone screenshot... "
-    file=$1
-    if [ -s "${file}" ]; then
+    target="$1"
+    urls_file="$2"
+    if [ -s "${urls_file}" ]; then
         if [ ! -d "${aquatone_files_dir}" ]; then
             if mkdir -p "${aquatone_files_dir}" ; then
-                echo "aquatone -chrome-path ${chromium_bin} -out ${aquatone_files_dir} -threads ${aquatone_threads} < ${file}" >> "${log_execution_file}"
-                aquatone -chrome-path "${chromium_bin}" -out "${aquatone_files_dir}" -threads "${aquatone_threads}" < "${file}" >> "${aquatone_log}" 2>> "${log_execution_file}"
+                echo "aquatone -chrome-path ${chromium_bin} -out ${aquatone_files_dir} -threads ${aquatone_threads} < ${urls_file}" >> "${log_execution_file}"
+                aquatone -chrome-path "${chromium_bin}" -out "${aquatone_files_dir}" -threads "${aquatone_threads}" < "${urls_file}" >> "${aquatone_log}" 2>> "${log_execution_file}"
                 echo "Done!"
             else
                 echo "Fail!"
@@ -115,17 +116,21 @@ aquatone_screeshot(){
                 exit 1
             fi
         else
-            echo "aquatone -chrome-path ${chromium_bin} -out ${aquatone_files_dir} -threads ${aquatone_threads} < ${file}" >> "${log_execution_file}"
-            aquatone -chrome-path "${chromium_bin}" -out "${aquatone_files_dir}" -threads "${aquatone_threads}" < "${file}" >> "${aquatone_log}" 2>> "${log_execution_file}"
+            echo "aquatone -chrome-path ${chromium_bin} -out ${aquatone_files_dir} -threads ${aquatone_threads} < ${urls_file}" >> "${log_execution_file}"
+            aquatone -chrome-path "${chromium_bin}" -out "${aquatone_files_dir}" -threads "${aquatone_threads}" < "${urls_file}" >> "${aquatone_log}" 2>> "${log_execution_file}"
             echo "Done!"
         fi
     else
         echo "Fail!"
-        echo -e "\t\t    The ${file} does not exist or is empty!"
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Make sure the ${urls_file} exist and isn't empty."
+        echo -e "Make sure the ${urls_file} exist and isn't empty." | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+        message "${target}" failed
+        unset urls_file
+        exit 1
     fi
     unset aquatone_log
     unset aquatone_files_dir
-    unset file
+    unset urls_file
     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Finish aquatone screenshot!"
     echo -e "Finish aquatone screenshot!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
 }
