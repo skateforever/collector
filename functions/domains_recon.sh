@@ -51,12 +51,13 @@ domains_recon(){
     fi
     webapp_enum "${domain}" "${report_dir}/webapp_urls.txt"
     robots_txt
-    for file in "${report_dir}/webapp_urls.txt" "${report_dir}/robots_urls.txt"; do
-        if [[ -s "${file}" ]]; then
-            aquatone_screenshot "${file}"
-            webapp_scan "${domain}" "${file}"
-            git_rebuild
+    [[ -s "${report_dir}/robots_urls.txt" ]] && webapp_enum "${domain}" "${report_dir}/robots_urls.txt"
+    for urls_file in "${report_dir}/webapp_urls.txt" "${report_dir}/robots_urls.txt"; do
+        if [[ -s "${urls_file}" ]]; then
+            aquatone_screenshot "${domain}" "${urls_file}"
+            webapp_scan "${domain}" "${urls_file}"
         fi
     done
+    git_rebuild
     message "${domain}" finished) 2>> "${log_execution_file}" | tee -a "${log_execution_file}"
 }
