@@ -47,10 +47,23 @@ webapp_alive(){
             exit 1
         fi
 
+        if [[ -s "${tmp_dir}/webapp_urls.tmp" ]]; then
+            for url in $(cat "${tmp_dir}/webapp_urls.tmp"); do
+                tmp_file=$(mktemp)
+                curl "${curl_options[@]}" "$url" 2>/dev/null > "${tmp_file}"
+                content="$(cat ${tmp_file})"
+                #content_length=${#content}
+                #if [[ ${content_length} -lt 50 ]] || ! echo "${content}" | grep -qiE "<html|<body|<title|<!DOCTYPE"; then
+                    if ! echo "${content}" | grep -qiE "${webapp_waf_regex}" > /dev/null 2>&1; then
+		                echo ${url}
+                    fi
+                #fi
+                rm -f ${tmp_file}
+            done | sort -u > "${report_dir}/webapp_urls.txt"
+        fi
+
         unalias curl > /dev/null 2>&1
         unalias httpx > /dev/null 2>&1
-
-        [[ -s "${tmp_dir}/webapp_urls.tmp" ]] && sort -u -o "${report_dir}/webapp_urls.txt" "${tmp_dir}/webapp_urls.tmp"
 
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Separating infrastructure from web application... "
         if [ -s "${report_dir}/webapp_urls.txt" ]; then
