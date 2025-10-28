@@ -72,6 +72,11 @@ joining_subdomains(){
                 | sort -u >> "${tmp_dir}/domains_found.tmp"
         fi
 
+        if [ -s "${tmp_dir}/katana_output.tmp" ]; then
+            awk -F'/' '{print $3}' "${tmp_dir}/katana_output.tmp" \
+                | sort -u >> "${tmp_dir}/domains_found.tmp"
+        fi
+
         if [ -s "${tmp_dir}/rapiddns_output.txt" ]; then
             grep -Ei "<td>.*${domain}</td>" "${tmp_dir}/rapiddns_output.txt" \
                 | sed 's/<td>// ; s/<\/td>//' \
