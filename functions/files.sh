@@ -102,6 +102,11 @@ joining_subdomains(){
                 | grep -E "^.*\.${domain}" >> "${tmp_dir}/domains_found.tmp"
         fi
 
+        if [ -s "${tmp_dir}/urlfinder_output.tmp" ]; then
+            awk -F'/' '{print $3}' "${tmp_dir}/urlfinder_output.tmp" \
+                | sort -u >> "${tmp_dir}/domains_found.tmp"
+        fi
+
         if [ -s "${tmp_dir}/virustotal_output.json" ]; then
             cat "${tmp_dir}/virustotal_output.json" \
                 | jq -r '.data[]?.id' \
