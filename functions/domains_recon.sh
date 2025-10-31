@@ -45,16 +45,17 @@ domains_recon(){
         fi
         infra_data
         shodan_recon
-        webapp_alive
-        webapp_tech "${domain}" "${report_dir}/webapp_urls.txt"
         [[ "${only_recon}" == "yes" ]] && { message "${domain}" finished; exit 0; }
     fi
+    webapp_alive
+    webapp_tech "${domain}" "${report_dir}/webapp_urls.txt"
     webapp_enum "${domain}" "${report_dir}/webapp_urls.txt"
     robots_txt
     [[ -s "${report_dir}/robots_urls.txt" ]] && webapp_enum "${domain}" "${report_dir}/robots_urls.txt"
     for urls_file in "${report_dir}/webapp_urls.txt" "${report_dir}/robots_urls.txt"; do
         if [[ -s "${urls_file}" ]]; then
             aquatone_screenshot "${domain}" "${urls_file}"
+            crawler_js "${domain}" "${report_dir}/webapp_url.txt"
             webapp_scan "${domain}" "${urls_file}"
         fi
     done
