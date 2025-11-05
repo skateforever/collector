@@ -219,7 +219,6 @@ menu(){
                     usage
                 fi
                 if [ "${#webapp_port_detect[@]}" -eq 0 ]; then
-                if [ "${#webapp_port_detect[@]}" -eq 0 ]; then
                     webapp_port_detect=("${webapp_port_short_detection[@]}")
                 else
                     diff_array=$(diff <(printf "%s\n" "${webapp_port_detect[@]}") <(printf "%s\n" "${webapp_port_short_detection[@]}"))
