@@ -46,7 +46,7 @@ domains_recon(){
         fi
         infra_data
         shodan_recon
-        if [[ "${webapp_discovery=}" == "yes" ]]; hen
+        if [[ "${webapp_discovery=}" == "yes" ]]; then
             webapp_alive
             webapp_tech "${domain}" "${report_dir}/webapp_urls.txt"
         fi
