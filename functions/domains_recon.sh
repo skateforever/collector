@@ -34,7 +34,8 @@ domains_recon(){
     echo " "
     # Execute all functions
     message "${domain}" start
-    if [[ "${only_webapp_enum}" != "yes" ]]; then
+
+    if [[ "${only_webapp_enum}" == "no" ]]; then
         subdomains_recon
         joining_subdomains
         diff_domains
@@ -45,13 +46,19 @@ domains_recon(){
         fi
         infra_data
         shodan_recon
+        if [[ "${webapp_discovery=}" == "yes" ]]; hen
+            webapp_alive
+            webapp_tech "${domain}" "${report_dir}/webapp_urls.txt"
+        fi
         [[ "${only_recon}" == "yes" ]] && { message "${domain}" finished; exit 0; }
     fi
-    webapp_alive
+
+    [[ ! -s "${report_dir}/webapp_urls.txt" ]] && webapp_alive
     webapp_tech "${domain}" "${report_dir}/webapp_urls.txt"
     webapp_enum "${domain}" "${report_dir}/webapp_urls.txt"
     robots_txt
     [[ -s "${report_dir}/robots_urls.txt" ]] && webapp_enum "${domain}" "${report_dir}/robots_urls.txt"
+
     for urls_file in "${report_dir}/webapp_urls.txt" "${report_dir}/robots_urls.txt"; do
         if [[ -s "${urls_file}" ]]; then
             aquatone_screenshot "${domain}" "${urls_file}"

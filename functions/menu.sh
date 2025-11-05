@@ -1,6 +1,6 @@
 check_argument(){
-    options+=(-d --domain -dl --domain-list -e --exclude-domains -el --exclude-domains-list -k -kill -ka --kill-all -l --limit-urls -o --output -p --proxy)
-    options+=(-r --recon -s --subdomain-brute -u --url -we --webapp-enum -wld --webapp-long-detection -wsd --webapp-short-detection -ww --webapp-wordlists)
+    options+=(-d --domain -dl --domain-list -e --exclude-domains -el --exclude-domains-list -k -kill -ka --kill-all -l --limit-urls -o --output -p --proxy -r --recon)
+    options+=(-s --subdomain-brute -u --url -wd --webapp-discovery -we --webapp-enum -wld --webapp-long-detection -wsd --webapp-short-detection -ww --webapp-wordlists)
     if [[ "${options[*]}" =~ $2 ]]; then
         [[ -z $2 ]] && value="empty" || value="$2"
         echo -e "The argument of ${yellow}\"$1\"${reset} it can not be ${red}\"${value}\"${reset}, please, ${yellow}specify a valid one${reset}.\n"
@@ -12,6 +12,7 @@ menu(){
     args_count=0
     only_recon="no"
     only_webapp_enum="no"
+    webapp_discovery="no"
 
     while [ $# -ne 0 ]; do
         (( args_count += 1 ))
@@ -173,6 +174,16 @@ menu(){
                 fi
                 unset status_code
                 ;;
+            -wd|--webapp-discovery)
+                if [[ "$only_webapp_enum" ]]; then
+                    echo -e "You can't use this (-wd|--webapp-discovery) option with \"-we|--webapp-enum\"!\n"
+                    echo -e "The option \"-we|--webapp-enum\" by defaul will run webapp-discovery function."
+                    usage
+                fi
+                unset webapp_discovery
+                webapp_discovery="yes"
+                shift
+                ;;
             -we|--webapp-enum)
                 if [[ -n "${only_recon}" ]] && [[ "${only_recon}" == "yes"  ]]; then
                     echo -e "You can't use this (-we|--webapp-enum) option with \"-re|--recon\"!\n"
@@ -186,6 +197,10 @@ menu(){
                 shift
                 ;;
             -wld|--webapp-long-detection)
+                if [[ "$@" =~ ( -wd | --webapp-discovery | -we | --webapp-enum ) ]]; then
+                    echo echo -e "You need to specify \"--wd|--webapp-discovery\" or \"-we|--webapp-enum\" to perform web application discovery!\n"
+                    usage
+                fi
                 if [ "${#webapp_port_detect[@]}" -eq 0 ]; then
                     webapp_port_detect=("${webapp_port_long_detection[@]}")
                 else
@@ -199,6 +214,11 @@ menu(){
                 shift
                 ;;
             -wsd|--webapp-short-detection)
+                if [[ "$@" =~ ( -wd | --webapp-discovery | -we | --webapp-enum ) ]]; then
+                    echo echo -e "You need to specify \"--wd|--webapp-discovery\" or \"-we|--webapp-enum\" to perform web application discovery!\n"
+                    usage
+                fi
+                if [ "${#webapp_port_detect[@]}" -eq 0 ]; then
                 if [ "${#webapp_port_detect[@]}" -eq 0 ]; then
                     webapp_port_detect=("${webapp_port_short_detection[@]}")
                 else
