@@ -58,7 +58,6 @@ url_recon(){
         fi
     done
 
-    fi
     message "${url_2_verify}" finished
     rm "${recon_dir}/url_2_test.txt" > /dev/null 2>&1) 2>> "${log_execution_file}"| tee -a "${log_execution_file}"
 }
