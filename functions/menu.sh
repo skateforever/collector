@@ -1,5 +1,5 @@
 check_argument(){
-    options+=(-d --domain -dl --domain-list -e --exclude-domains -el --exclude-domains-list -k -kill -ka --kill-all -l --limit-urls -o --output -p --proxy -r --recon)
+    options+=(-d --domain -dl --domain-list -e --exclude-domains -el --exclude-domain-list -k -kill -ka --kill-all -l --limit-urls -o --output -p --proxy -r --recon)
     options+=(-s --subdomain-brute -u --url -wd --webapp-discovery -we --webapp-enum -wld --webapp-long-detection -wsd --webapp-short-detection -ww --webapp-wordlists)
     if [[ "${options[*]}" =~ $2 ]]; then
         [[ -z $2 ]] && value="empty" || value="$2"
@@ -69,7 +69,7 @@ menu(){
                 unset IFS
                 shift 2
                 ;;
-            -el|--exclude-domains-list)
+            -el|--exclude-domain-list)
                 if [ -s "$2" ]; then
                     exclude_domains_list="$2"
                     shift 2
