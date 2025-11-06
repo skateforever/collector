@@ -175,6 +175,10 @@ menu(){
                 unset status_code
                 ;;
             -wd|--webapp-discovery)
+                if [[ ! "$@" =~ ( -wld | --webapp-long-detection | -wsd | --webapp-short-detection ) ]]; then
+                    echo -e "You need to specify \"-wld|--webapp-long-detection\" or \"-wsd|--webapp-short-detection\" to perform web application discovery!\n"
+                    usage
+                fi
                 if [[ "$only_webapp_enum" ]]; then
                     echo -e "You can't use this (-wd|--webapp-discovery) option with \"-we|--webapp-enum\"!\n"
                     echo -e "The option \"-we|--webapp-enum\" by defaul will run webapp-discovery function."
@@ -190,22 +194,22 @@ menu(){
                     usage
                 fi
                 if [[ -n "${url_2_verify}" ]]; then
-                    echo -e "You can't use this (-we|--webapp-enum) option with \"-re|--recon\"!\n"
+                    echo -e "You can't use this (-we|--webapp-enum) option with \"-u|--url\"!\n"
                     usage
                 fi
                 only_webapp_enum=yes
                 shift
                 ;;
             -wld|--webapp-long-detection)
-                if [[ "$@" =~ ( -wd | --webapp-discovery | -we | --webapp-enum ) ]]; then
-                    echo echo -e "You need to specify \"--wd|--webapp-discovery\" or \"-we|--webapp-enum\" to perform web application discovery!\n"
+                if [[ ! "$@" =~ ( -wd | --webapp-discovery | -we | --webapp-enum ) ]]; then
+                    echo -e "You need to specify \"--wd|--webapp-discovery\" or \"-we|--webapp-enum\" to perform web application discovery!\n"
                     usage
                 fi
                 if [ "${#webapp_port_detect[@]}" -eq 0 ]; then
                     webapp_port_detect=("${webapp_port_long_detection[@]}")
                 else
                     diff_array=$(diff <(printf "%s\n" "${webapp_port_detect[@]}") <(printf "%s\n" "${webapp_port_long_detection[@]}"))
-                    if [[ "${#webapp_port_detect[@]}" -ne 0 ]] && [[ -n ${diff_array} ]]; then
+                    if [[ ! "${#webapp_port_detect[@]}" -ne 0 ]] && [[ -n ${diff_array} ]]; then
                         echo -e "You need to specify just sort or long web port detection, not both!\n"
                         unset web_port_detect
                         usage
@@ -214,8 +218,8 @@ menu(){
                 shift
                 ;;
             -wsd|--webapp-short-detection)
-                if [[ "$@" =~ ( -wd | --webapp-discovery | -we | --webapp-enum ) ]]; then
-                    echo echo -e "You need to specify \"--wd|--webapp-discovery\" or \"-we|--webapp-enum\" to perform web application discovery!\n"
+                if [[ ! "$@" =~ ( -wd | --webapp-discovery | -we | --webapp-enum ) ]]; then
+                    echo -e "You need to specify \"--wd|--webapp-discovery\" or \"-we|--webapp-enum\" to perform web application discovery!\n"
                     usage
                 fi
                 if [ "${#webapp_port_detect[@]}" -eq 0 ]; then

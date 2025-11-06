@@ -109,8 +109,8 @@ webapp_enum(){
         fi
     else
         echo "Fail!"
-        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Make sure the ${urls_file} exist and isn't empty."
-        echo -e "Make sure the ${urls_file} exist and isn't empty." | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Make sure the ${urls_file} exist and isn't empty. You probably forgot to add --webapp-discovery option to execute, or really, we have a problem with script execution."
+        echo -e "Make sure the ${urls_file} exist and isn't empty. You probably forgot to add --webapp-discovery option to execute, or really, we have a problem with script execution." | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
         message "${target}" failed
         unset urls_file
         exit 1

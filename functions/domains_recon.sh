@@ -46,15 +46,17 @@ domains_recon(){
         fi
         infra_data
         shodan_recon
-        if [[ "${webapp_discovery=}" == "yes" ]]; then
+        if [[ "${webapp_discovery}" == "yes" ]]; then
             webapp_alive
             webapp_tech "${domain}" "${report_dir}/webapp_urls.txt"
         fi
         [[ "${only_recon}" == "yes" ]] && { message "${domain}" finished; exit 0; }
     fi
 
-    [[ ! -s "${report_dir}/webapp_urls.txt" ]] && webapp_alive
-    webapp_tech "${domain}" "${report_dir}/webapp_urls.txt"
+    if [[ ! -s "${report_dir}/webapp_urls.txt" ]] && [[ "${webapp_discovery}" == "yes" ]]; then
+        webapp_alive
+        webapp_tech "${domain}" "${report_dir}/webapp_urls.txt"
+    fi
     webapp_enum "${domain}" "${report_dir}/webapp_urls.txt"
     robots_txt
     [[ -s "${report_dir}/robots_urls.txt" ]] && webapp_enum "${domain}" "${report_dir}/robots_urls.txt"
