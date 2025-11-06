@@ -35,6 +35,17 @@ domains_recon(){
     # Execute all functions
     message "${domain}" start
 
+    # Only web app discovery
+    if [[ "${webapp_discovery}" == "yes" ]] && \
+        [[ -s "${report_dir}/domains_alive.txt" ]] && \
+        [[ ! -s "${report_dir}/webapp_urls.txt" ]]; then
+        webapp_alive "${domain}" "${report_dir}/domains_alive.txt"
+        webapp_tech "${domain}" "${report_dir}/webapp_urls.txt"
+        message "${domain}" finished
+        exit 0
+    fi
+
+    # Only recon discovery (domain and subdomains)
     if [[ "${only_webapp_enum}" == "no" ]]; then
         subdomains_recon
         joining_subdomains
@@ -53,8 +64,9 @@ domains_recon(){
         [[ "${only_recon}" == "yes" ]] && { message "${domain}" finished; exit 0; }
     fi
 
+    # Only web app enumeration
     if [[ ! -s "${report_dir}/webapp_urls.txt" ]] && [[ "${webapp_discovery}" == "yes" ]]; then
-        webapp_alive
+        webapp_alive "${domain}" "${report_dir}/domains_alive.txt"
         webapp_tech "${domain}" "${report_dir}/webapp_urls.txt"
     fi
 

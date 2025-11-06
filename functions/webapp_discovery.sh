@@ -11,8 +11,10 @@
 ############################################################################### 
 
 webapp_alive(){
+    target="$1"
+    alive_file="$2"
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Testing subdomains to know if it has a web application... "
-    if [ -s "${report_dir}/domains_alive.txt" ]; then
+    if [ -s "${alive_file}" ]; then
 
         if [ -n "${proxy_ip}" ] && [ "${proxy_ip}" == "yes" ]; then
             alias curl="curl --proxy ${proxy_ip}"
@@ -43,7 +45,7 @@ webapp_alive(){
             echo "Fail!"
             echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Something got wrong while checking the status of URLs!"
             echo -e "Something got wrong while checking the status of URLs!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
-            message "${domain}" failed
+            message "${target}" failed
             exit 1
         fi
 
@@ -82,14 +84,14 @@ webapp_alive(){
                 echo "Fail!"
                 echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Could not create file for infrastructure domains, something went wrong."
                 echo -e "Could not create file for infrastructure domains, something went wrong." | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
-                message "${domain}" failed
+                message "${target}" failed
                 exit 1
             fi
         else
             echo "Fail!"
             echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} We probably didn't have any webapp application, something is wrong!"
             echo -e "We probably didn't have any webapp application, something is wrong!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
-            message "${domain}" failed
+            message "${target}" failed
             exit 1
         fi
 
@@ -106,7 +108,7 @@ webapp_alive(){
         echo "Fail!"
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} The ${report_dir}/domains_alive.txt does not exist or is empty."
         echo -e "The ${report_dir}/domains_alive.txt does not exist or is empty." | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
-        message "${domain}" failed
+        message "${target}" failed
         exit 1
     fi
 }
