@@ -53,7 +53,7 @@ domains_recon(){
         [[ "${only_recon}" == "yes" ]] && { message "${domain}" finished; exit 0; }
     fi
 
-    if [[ "${only_webapp_enum}" == "no" ]] && [[ ! -s "${report_dir}/webapp_urls.txt" ]]; then
+    if [[ "${only_webapp_enum}" == "yes" ]] && [[ ! -s "${report_dir}/webapp_urls.txt" ]]; then
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Make sure the ${report_dir}/webapp_urls.txt exist and isn't empty. You probably forgot to add --webapp-discovery option to execute, or really, we have a problem with script execution."
         usage
     fi
