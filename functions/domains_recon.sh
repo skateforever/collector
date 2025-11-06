@@ -54,8 +54,10 @@ domains_recon(){
     fi
 
     if [[ "${only_webapp_enum}" == "yes" ]] && [[ ! -s "${report_dir}/webapp_urls.txt" ]]; then
-        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Make sure the ${report_dir}/webapp_urls.txt exist and isn't empty. You probably forgot to add --webapp-discovery option to execute, or really, we have a problem with script execution."
-        usage
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Make sure the ${red}${report_dir}/webapp_urls.txt${reset} exist and isn't empty. You probably forgot to add --webapp-discovery option to execute, or really, we have a problem with script execution."
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} You probably forgot to add ${yellow}--webapp-discovery${reset} option to execute, or really, we have a problem with script execution."
+        message "${domain}" finished
+        exit 1
     fi
 
     if [[ ! -s "${report_dir}/webapp_urls.txt" ]] && [[ "${webapp_discovery}" == "yes" ]]; then
