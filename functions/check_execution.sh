@@ -45,13 +45,13 @@ check_parameter_dependency_domain(){
     fi
 
     if [[ "$@" =~ ( -wd | --webapp-discovery ) ]] && \
-        [[ ! "$@" == ( -d | --domain | -dl | --domain-list | -we | --webapp-enum )  ]]; then
+        [[ ! "$@" =~ ( -d | --domain | -dl | --domain-list | -we | --webapp-enum )  ]]; then
         echo "You trying to use web app discovery without at least one valid option (domain or web app enum)."
         usage
     fi
 
     if [[ "$@" =~ ( -wd | --webapp-discovery ) ]] && \
-        [[ ! "$@" == ( -wld | --webapp-long-detaction | -wsd | --webapp-short-detection )  ]]; then
+        [[ ! "$@" =~ ( -wld | --webapp-long-detaction | -wsd | --webapp-short-detection )  ]]; then
         echo "You trying to use web app discovery without at least one valid option to port detection."
         usage
     fi
