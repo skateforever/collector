@@ -56,7 +56,8 @@ domains_recon(){
     if [[ "${only_webapp_enum}" == "yes" ]] && [[ ! -s "${report_dir}/webapp_urls.txt" ]]; then
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Make sure the ${red}${report_dir}/webapp_urls.txt${reset} exist and isn't empty. You probably forgot to add --webapp-discovery option to execute, or really, we have a problem with script execution."
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} You probably forgot to add ${yellow}--webapp-discovery${reset} option to execute, or really, we have a problem with script execution."
-        message "${domain}" finished
+        echo -e "Make sure the ${report_dir}/webapp_urls.txt exist and isn't empty. \nYou probably forgot to add --webapp-discovery option to execute, or really, we have a problem with script execution." | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+        message "${domain}" failed
         exit 1
     fi
 
