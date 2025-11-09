@@ -56,9 +56,15 @@ check_parameter_dependency_domain(){
         usage
     fi
 
+    if [[ "$@" =~ ( -we | --webapp-enum ) ]] && \
+        [[ ! "$@" =~ ( -wd | --webapp-discovery )  ]] && \
+        [[ ! -s "${report_dir}/webapp_urls.txt" ]]; then
+        echo "You probably forgot to add ${yellow}--webapp-discovery${reset} option to execute and validate what web app are runnning on ${domain}."
+        usage
+    fi
+
     if [[ "${only_webapp_enum}" == "yes" ]] && [[ ! -s "${report_dir}/webapp_urls.txt" ]]; then
-        echo "Make sure the ${red}${report_dir}/webapp_urls.txt${reset} exist and isn't empty."
-        echo "You probably forgot to add ${yellow}--webapp-discovery${reset} option to execute, or really, we have a problem with script execution."
+        echo "Make sure the ${red}${report_dir}/webapp_urls.txt${reset} exist and isn't empty, or really, we have a problem with script execution."
         usage
     fi
 

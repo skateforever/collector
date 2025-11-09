@@ -64,12 +64,6 @@ domains_recon(){
         [[ "${only_recon}" == "yes" ]] && { message "${domain}" finished; exit 0; }
     fi
 
-    # Only web app enumeration
-    if [[ ! -s "${report_dir}/webapp_urls.txt" ]] && [[ "${webapp_discovery}" == "yes" ]]; then
-        webapp_alive "${domain}" "${report_dir}/domains_alive.txt"
-        webapp_tech "${domain}" "${report_dir}/webapp_urls.txt"
-    fi
-
     webapp_enum "${domain}" "${report_dir}/webapp_urls.txt"
     robots_txt
     [[ -s "${report_dir}/robots_urls.txt" ]] && webapp_enum "${domain}" "${report_dir}/robots_urls.txt"
