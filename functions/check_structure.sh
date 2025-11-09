@@ -21,7 +21,7 @@ create_initial_directories_structure(){
             mkdir -p "${recon_dir}"/{log,tmp}
             mkdir -p "${recon_dir}"/report/{scan/{nmap,nuclei,shodan},webapp/{aquatone,enum,params,tech,javascript}}
         fi
-        [[ -z "${recon_dir}" ]] && { echo "Unable to determine the initial reconnaissance structure, the execution was stopped." ; exit 1 }
+        [[ -z "${recon_dir}" ]] && { echo "Unable to determine the initial reconnaissance structure, the execution was stopped." ; exit 1 ; }
         # log dirs
         log_dir="${recon_dir}/log"
         log_execution_file="${log_dir}/recon_${date_recon}.log"
