@@ -163,7 +163,7 @@ webapp_tech(){
 
 robots_txt(){
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Looking for new URLs on robots.txt... "
-    for file in $(/usr/bin/ls -1A "${webapp_enum_dir}/"); do
+    for file in $("${ls_bin_path}" -1A "${webapp_enum_dir}/"); do
         if grep -E "robots\.txt" "${webapp_enum_dir}/${file}" > /dev/null && [ -s "${file}" ] ; then
             target=$(grep -E "Target:|Url:" "${file}" | sed -e 's/^\[+\] //' | awk '{print $2}' | sed -e 's/\/$//') 
             for url in $(curl "${curl_options[@]}" -s "${target}"/robots.txt | grep -Ev "User-agent: *" | awk '{print $2}' | sed -e "/^\/$/d"); do

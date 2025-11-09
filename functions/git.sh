@@ -14,7 +14,7 @@ git_rebuild(){
     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} This function has no 100% guaranty to completely recover the .git repository."
     count=1
     proxy_port=8118
-    for file in $(/usr/bin/ls -1A "${webapp_enum_dir}"); do
+    for file in $("${ls_bin_path}" -1A "${webapp_enum_dir}"); do
         if grep -q ".git/config" "${webapp_enum_dir}/${file}"; then
             target_dir="${report_dir}/$(grep -E "Target:|Url:" "${webapp_enum_dir}/${file}" | sed -e 's/^\[+\] //' | awk '{print $2}' | sed -e 's/\/$//' -e 's/http:\/\///' -e 's/https:\/\///')"
             target=$(grep -E "Target:|Url:" "${webapp_enum_dir}/${file}" | sed -e 's/^\[+\] //' | awk '{print $2}' | sed -e 's/\/$//')

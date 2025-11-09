@@ -14,7 +14,7 @@ create_initial_directories_structure(){
     if [ "${directories_structure}" == "domain" ]; then
         # Create all main dirs necessaries to report and recon for domain
         if [[ "${webapp_discovery}" == "yes" ]] || [[ "${only_webapp_enum}" == "yes" ]]; then
-            recon_dir="$(/usr/bin/ls -d "${output_dir}/${domain}"/recon_*/ | sort -r | head -n 1)"
+            recon_dir="$("${${ls_bin_path}}" -d "${output_dir}/${domain}"/recon_*/ | sort -r | head -n 1)"
         else
             recon_dir="${output_dir}/${domain}/recon_${date_recon}"
             mkdir -p "${recon_dir}"
@@ -66,7 +66,7 @@ create_initial_directories_structure(){
     fi
 
     if [[ "${only_webapp_enum}" == "yes" ]]; then
-        for d in $(/usr/bin/ls -1t "${output_dir}/${domain}" | grep -Ev "log$"); do
+        for d in $("${ls_bin_path}" -1t "${output_dir}/${domain}" | grep -Ev "log$"); do
             if [[ -s "${output_dir}/${domain}/${d}/report/webapp_urls.txt" ]]; then
                 recon_dir="${output_dir}/${domain}/${d}"
                 break

@@ -10,6 +10,8 @@
 #############################################################
 
 check_binaries(){
+    ls_bin_path="$(type -P ls)"
+
     count=0
     for binary in amass aquatone censys-subdomain-finder.py curl diff dig dirsearch dnssearch \
         git-dumper gobuster host html2text httpx jq katana massdns nmap notify nuclei \
