@@ -19,19 +19,19 @@ check_execution(){
     fi
 
     if [[ "$@" =~ ( -d | --domain ) ]] && [[ "$@" =~ ( -dl | --domain-list | -u | --url ) ]]; then
-        echo "You can not use the option -d|--domain with -dl|--domain-list and vice versa."
+        echo "You can not use the option -d|--domain with -dl|--domain-list or -u|--url and vice versa."
         usage
     fi
 
-    #if [[ "$@" =~ ( -u | --url ) ]] && [[ "$@" =~ ( -d | --domain ) ]]; then
-    #    echo "You can not use the option -u|--url with -d|--domain and vice versa."
-    #    usage
-    #fi
+    if [[ "$@" =~ ( -dl | --domain-list ) ]] && [[ "$@" =~ ( -d | --domain | -u | --url ) ]]; then
+        echo "You can not use the option -dl|--domain-list with -d|--domain or -u|--url and vice versa."
+        usage
+    fi
 
-    #if [[ "$@" =~ ( -u | --url ) ]] && [[ "$@" =~ ( -dl | --domain-list ) ]]; then
-    #    echo "You can not use the option -u|--url with -dl|--domain-list and vice versa."
-    #    usage
-    #fi
+    if [[ "$@" =~ ( -u | --url ) ]] && [[ "$@" =~ ( -d | --domain | -dl | --domain-list ) ]]; then
+        echo "You can not use the option -u|--url with -d|--domain or -dl|--domain-list and vice versa."
+        usage
+    fi
 }
 
 # Checking the runtime parameter dependency for recon
@@ -92,5 +92,8 @@ check_parameter_dependency_domain(){
 check_is_known_target(){
     if [[ -n "$1" ]] && [[ -d "${output_dir}/$1" ]]; then
         echo "This is a known target."
+    else
+        echo "Unable to determine the initial reconnaissance structure, the execution was stopped."
+        exit 1
     fi
 }

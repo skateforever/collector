@@ -14,13 +14,14 @@ create_initial_directories_structure(){
     if [ "${directories_structure}" == "domain" ]; then
         # Create all main dirs necessaries to report and recon for domain
         if [[ "${webapp_discovery}" == "yes" ]] || [[ "${only_webapp_enum}" == "yes" ]]; then
-            recon_dir="$("${${ls_bin_path}}" -d "${output_dir}/${domain}"/recon_*/ | sort -r | head -n 1)"
+            recon_dir="$("${ls_bin_path}" -d "${output_dir}/${domain}"/recon_*/ | sort -r | head -n 1)"
         else
             recon_dir="${output_dir}/${domain}/recon_${date_recon}"
             mkdir -p "${recon_dir}"
             mkdir -p "${recon_dir}"/{log,tmp}
             mkdir -p "${recon_dir}"/report/{scan/{nmap,nuclei,shodan},webapp/{aquatone,enum,params,tech,javascript}}
         fi
+        [[ -z "${recon_dir}" ]] && { echo "Unable to determine the initial reconnaissance structure, the execution was stopped." ; exit 1 }
         # log dirs
         log_dir="${recon_dir}/log"
         log_execution_file="${log_dir}/recon_${date_recon}.log"
