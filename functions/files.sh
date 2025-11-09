@@ -137,7 +137,7 @@ joining_subdomains(){
         fi
 
         if [ ${#dns_wordlists[@]} -gt 0 ]; then
-            files_amass=($(ls -1A "${tmp_dir}/" | grep "amass_brute_output" 2> /dev/null))
+            files_amass=($(/usr/bin/ls -1A "${tmp_dir}/" | grep "amass_brute_output" 2> /dev/null))
             for f in "${files_amass[@]}"; do
                 file="${tmp_dir}"/"${f}"
                 if [[ -s "${file}" ]]; then
@@ -148,7 +148,7 @@ joining_subdomains(){
                 unset file
             done
 
-            files_gobuster_dns=($(ls -1A "${tmp_dir}/" | grep "gobuster_dns_output" 2> /dev/null))
+            files_gobuster_dns=($(/usr/bin/ls -1A "${tmp_dir}/" | grep "gobuster_dns_output" 2> /dev/null))
             for f in "${files_gobuster_dns[@]}"; do
                 file="${tmp_dir}"/"${f}"
                 if [[ -s "${file}" ]]; then
@@ -158,7 +158,7 @@ joining_subdomains(){
                 unset file
             done
 
-            files_dnssearch=($(ls -1A "${tmp_dir}/" | grep "dnssearch_output_" 2> /dev/null))
+            files_dnssearch=($(/usr/bin/ls -1A "${tmp_dir}/" | grep "dnssearch_output_" 2> /dev/null))
             for f in "${files_dnssearch[@]}"; do
                 file="${tmp_dir}"/"${f}"
                 if [[ -s "${file}" ]]; then

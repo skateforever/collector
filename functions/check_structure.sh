@@ -62,7 +62,7 @@ create_initial_directories_structure(){
     fi
 
     if [[ "${only_webapp_enum}" == "yes" ]]; then
-        for d in $(ls -1t "${output_dir}/${domain}" | grep -Ev "log$"); do
+        for d in $(/usr/bin/ls -1t "${output_dir}/${domain}" | grep -Ev "log$"); do
             if [[ -s "${output_dir}/${domain}/${d}/report/webapp_urls.txt" ]]; then
                 recon_dir="${output_dir}/${domain}/${d}"
                 break
