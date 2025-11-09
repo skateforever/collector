@@ -56,6 +56,12 @@ check_parameter_dependency_domain(){
         usage
     fi
 
+    if [[ "$@" =~ ( -wld | --webapp-long-detaction | -wsd | --webapp-short-detection )  ]] && \
+        [[ ! "$@" =~ ( -wd | --webapp-discovery ) ]]; then
+        echo "You trying to use web app discovery without at least one valid option to port detection."
+        usage
+    fi
+
     if [[ "$@" =~ ( -we | --webapp-enum ) ]] && \
         [[ ! "$@" =~ ( -wd | --webapp-discovery )  ]] && \
         [[ ! -s "${report_dir}/webapp_urls.txt" ]]; then
