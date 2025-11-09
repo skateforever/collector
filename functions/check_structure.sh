@@ -13,10 +13,14 @@ create_initial_directories_structure(){
 
     if [ "${directories_structure}" == "domain" ]; then
         # Create all main dirs necessaries to report and recon for domain
-        recon_dir="${output_dir}/${domain}/recon_${date_recon}"
-        mkdir -p "${recon_dir}"
-        mkdir -p "${recon_dir}"/{log,tmp}
-        mkdir -p "${recon_dir}"/report/{scan/{nmap,nuclei,shodan},webapp/{aquatone,enum,params,tech,javascript}}
+        if [[ "${webapp_discovery}" == "yes" ]] || [[ "${only_webapp_enum}" == "yes" ]]; then
+            recon_dir="$(/usr/bin/ls -d "${output_dir}/${domain}"/recon_*/ | sort -r | head -n 1)"
+        else
+            recon_dir="${output_dir}/${domain}/recon_${date_recon}"
+            mkdir -p "${recon_dir}"
+            mkdir -p "${recon_dir}"/{log,tmp}
+            mkdir -p "${recon_dir}"/report/{scan/{nmap,nuclei,shodan},webapp/{aquatone,enum,params,tech,javascript}}
+        fi
         # log dirs
         log_dir="${recon_dir}/log"
         log_execution_file="${log_dir}/recon_${date_recon}.log"
