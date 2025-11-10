@@ -7,7 +7,6 @@
 #                                                           #
 #   * check_execution                                       #
 #   * check_parameter_dependency_domain                     #
-#   * check_is_know_target                                  #
 #                                                           #
 #############################################################
 
@@ -85,14 +84,5 @@ check_parameter_dependency_domain(){
             echo -e "You are trying to pass a number of parameters beyond what is necessary for this collector reconnaissance option \"${yellow}-u|--url${reset}\".\n"
             usage
         fi
-    fi
-}
-
-# Checking if is a know target to get the cursor position
-check_is_known_target(){
-    if [[ -n "$1" ]] && [[ -d "${output_dir}/$1" ]]; then
-        echo "This is a known target."
-    else
-        echo "New target to perform reconnaissance."
     fi
 }

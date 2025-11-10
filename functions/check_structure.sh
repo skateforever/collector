@@ -6,8 +6,18 @@
 # And is responsible to get the functions:                  #
 #                                                           #
 #   * create_initial_directories_structure                  #
+#   * check_is_known_target                                 #
 #                                                           #
 #############################################################
+
+# Checking if is a know target to get the cursor position
+check_is_known_target(){
+    if [[ -n "$1" ]] && [[ -d "${output_dir}/$1" ]]; then
+        echo "This is a known target."
+    else
+        echo "New target to perform reconnaissance."
+    fi
+}
 
 create_initial_directories_structure(){
 
