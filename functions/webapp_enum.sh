@@ -126,7 +126,6 @@ webapp_tech(){
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing web application technology enumeration..."
     if [ -s "${urls_file}" ]; then
         if [ -d "${report_dir}" ] && [ -d "${webapp_tech_dir}" ] ; then
-            echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Getting information about urls from response... "
             httpx -no-color -silent -update > /dev/null 2>&1
             while IFS= read -r url; do
                 name="$(echo "${url}" | sed -e "s/http:\/\//http_/" -e "s/https:\/\//https_/" -e "s/:/_/" -e "s/\/$//" -e "s/\//_/g")"
