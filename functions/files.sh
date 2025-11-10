@@ -34,10 +34,10 @@ joining_subdomains(){
         fi
 
         if [ -s "${tmp_dir}/builtwith_subdomain_output.json" ]; then
-            cat "${tmp_dir}/builtwith_subdomain_output.json" \
-                | jq -r '.Results[].Result.Paths[].SubDomain' \
-                | sort -u \
-                | sed "s/$/\.${domain}/g" >> "${tmp_dir}/domains_found.tmp"
+            for subdomain in $(cat "${tmp_dir}/builtwith_subdomain_output.json" \
+                | jq -r '.Results[].Result.Paths[].SubDomain'); do
+                [[ "${subdomain}" != "${domain}" ]] && echo "${subdomain}" | sed "s/$/\.${domain}/"
+            done | sort -u >> "${tmp_dir}/domains_found.tmp"
         fi
 
         if [ -s "${tmp_dir}/certspotter_output.json" ]; then
@@ -192,12 +192,12 @@ joining_subdomains(){
             echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Joining the subdomains and removing duplicates... "
             # Removing duplicated subdomains
             cp "${tmp_dir}/domains_found.tmp" "${tmp_dir}/domains_found_tmp.old"
-            sed -E -i 's/^@//g ; s/^\.//g ; s/^-//g ; s/^\://g ; s/\.\./\./g ; s/^http(|s):\/\///g ; s/ //g ; s/^$//g ; /^[[:space:]]*$/d' "${tmp_dir}/domains_found.tmp"
+            sed -E -i 's/^\*//g ; s/^@//g ; s/^\.//g ; s//\.$/g ; s/^-//g ; s/^\://g ; s/\.\./\./g ; s/^http(|s):\/\///g ; s/ //g ; s/^$//g ; /^[[:space:]]*$/d' "${tmp_dir}/domains_found.tmp"
             # Removing duplicated domains per subdomain
-            # Example: www.domain.com.domain.com.domain.com
-            sed -i "s/\.${domain}//g" "${tmp_dir}/domains_found.tmp"
-            sed -i "s/\.$//g" "${tmp_dir}/domains_found.tmp"
-            sed -i "s/$/\.${domain}/g" "${tmp_dir}/domains_found.tmp"
+            # Example: www.domain.com.domain.com
+            while grep -qE "${domain}\.${domain}$" "${tmp_dir}/domains_found.tmp"; do
+                sed -i "s/${domain}\.${domain}$/${domain}/" "${tmp_dir}/domains_found.tmp"
+            done
 
             if tr '[:upper:]' '[:lower:]' < "${tmp_dir}/domains_found.tmp" | sort -u > "${report_dir}/domains_found.txt" ; then
                 sed -i '/owasp.*nonce/d ; /_/d ; /\*/d ; /^[[:blank:]]/d ; /</d ; />/d' "${report_dir}/domains_found.txt"
