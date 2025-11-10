@@ -93,7 +93,6 @@ check_is_known_target(){
     if [[ -n "$1" ]] && [[ -d "${output_dir}/$1" ]]; then
         echo "This is a known target."
     else
-        echo "Unable to determine the initial reconnaissance structure, the execution was stopped."
-        exit 1
+        echo "New target to perform reconnaissance."
     fi
 }
