@@ -15,7 +15,7 @@ joining_subdomains(){
     if [ -d "${tmp_dir}" ] && [ -d "${report_dir}" ]; then
         if [ -s "${tmp_dir}/alienvault_output.json" ]; then
             cat "${tmp_dir}/alienvault_output.json" \
-                | jq --raw-output '.passive_dns[]?.hostname' \
+                | jq -r '.passive_dns[]?.hostname' \
                 | sort -u >> "${tmp_dir}/alienvault_output.txt"
         fi
 
@@ -36,20 +36,24 @@ joining_subdomains(){
         if [ -s "${tmp_dir}/builtwith_subdomain_output.json" ]; then
             cat "${tmp_dir}/builtwith_subdomain_output.json" \
                 | jq -r '.Results[].Result.Paths[].SubDomain' \
-                | sort -u | sed "s/$/\.${domain}/g" >> "${tmp_dir}/domains_found.tmp"
+                | sort -u \
+                | sed "s/$/\.${domain}/g" >> "${tmp_dir}/domains_found.tmp"
         fi
 
         if [ -s "${tmp_dir}/certspotter_output.json" ]; then
             cat "${tmp_dir}/certspotter_output.json" \
                 | jq -r '.[].dns_names[]' 2>> ${log_execution_file} \
-                | sed 's/\"//g' | sed 's/\*\.//g' \
-                | sort -u | grep "${domain}" >> "${tmp_dir}/domains_found.tmp"
+                | sed 's/\"//g' \
+                | sed 's/\*\.//g' \
+                | sort -u \
+                | grep "${domain}" >> "${tmp_dir}/domains_found.tmp"
         fi
 
         if [ -s "${tmp_dir}/commoncrawl_output.json" ]; then
             cat "${tmp_dir}/commoncrawl_output.json" \
                 | jq -r '.url?' \
-                | sed 's/\*\.//g' | sed -e 's_https*://__' -e "s/\/.*//" -e 's/:.*//' -e "/@/d" -e 's/\.$//' \
+                | sed 's/\*\.//g' \
+                | sed -e 's_https*://__' -e "s/\/.*//" -e 's/:.*//' -e "/@/d" -e 's/\.$//' \
                 | sort -u >> "${tmp_dir}/domains_found.tmp"
         fi
 
@@ -62,13 +66,15 @@ joining_subdomains(){
         
         if [ -s "${tmp_dir}/dnsdumpster_output.json" ]; then
             cat "${tmp_dir}/dnsdumpster_output.json" \
-                | jq -r '.a[].host' | sed 's/^\*\.//' \
+                | jq -r '.a[].host' \
+                | sed 's/^\*\.//' \
                 | sort -u >> "${tmp_dir}/domains_found.tmp"
         fi
 
         if [ -s "${tmp_dir}/hackertarget_output.txt" ]; then
             grep -v "API count exceeded - Increase Quota with Membership" "${tmp_dir}/hackertarget_output.txt" \
-                | awk -F',' '{print $1}' | sed 's/^\*\.//' \
+                | awk -F',' '{print $1}' \
+                | sed 's/^\*\.//' \
                 | sort -u >> "${tmp_dir}/domains_found.tmp"
         fi
 
@@ -84,10 +90,9 @@ joining_subdomains(){
         fi
 
         if [ -s "${tmp_dir}/securitytrails_output.json" ]; then
-            cat "${tmp_dir}/securitytrails_output.json" \
-                | jq -r '.subdomains[]' \
-                | sed "s/$/\.${domain}/" \
-                | sort -u >> "${tmp_dir}/domains_found.tmp"
+            for subdomain in $(cat "${tmp_dir}/securitytrails_output.json" | jq -r '.subdomains[]'); do
+                [[ "${subdomain}" != "${domain}" ]] && echo "${subdomain}" | sed "s/$/\.${domain}/"
+            done | sort -u >> "${tmp_dir}/domains_found.tmp"
         fi
 
         if [ -s "${tmp_dir}/shodan_output.txt" ]; then
@@ -114,6 +119,7 @@ joining_subdomains(){
 
         if [ -s "${tmp_dir}/waybackurls_output.tmp" ]; then
             awk -F'/' '{print $3}' "${tmp_dir}/waybackurls_output.tmp" \
+                | sed 's/:[0-9]*$//g' \
                 | sort -u >> "${tmp_dir}/domains_found.tmp"
         fi
 
@@ -126,7 +132,10 @@ joining_subdomains(){
         if [ -s "${tmp_dir}/webarchive_output.txt" ]; then
             cat "${tmp_dir}/webarchive_output.txt" \
                 | sed -e 's_https*://__' -e "s/\/.*//" -e 's/:.*//' -e 's/^www\.//' \
-                | sed "/@/d" | sed -e 's/\.$//' | sort -u >> "${tmp_dir}/domains_found.tmp"
+                | sed "/@/d" \
+                | sed -e 's/\.$//' \
+                | sed 's/:[0-9]*$//g' \
+                | sort -u >> "${tmp_dir}/domains_found.tmp"
         fi
 
         if [ -s "${tmp_dir}/whoisxmlapi_output.json" ]; then
@@ -142,7 +151,8 @@ joining_subdomains(){
                 file="${tmp_dir}"/"${f}"
                 if [[ -s "${file}" ]]; then
                     grep -Ev "Starting.*names|Querying.*|Average.*performed" "${file}" \
-                        | grep "${domain}" | awk '{print $2}' | grep -E "^.*\.${domain}" \
+                        | grep "${domain}" | awk '{print $2}' \
+                        | grep -E "^.*\.${domain}" \
                         | sort -u >> "${tmp_dir}/domains_found.tmp"
                 fi
                 unset file
@@ -152,8 +162,10 @@ joining_subdomains(){
             for f in "${files_gobuster_dns[@]}"; do
                 file="${tmp_dir}"/"${f}"
                 if [[ -s "${file}" ]]; then
-                    awk '{print $2}' "${file}" | tr '[:upper:]' '[:lower:]' \
-                        | grep -E "^.*\.${domain}" | sort -u >> "${tmp_dir}/domains_found.tmp"
+                    awk '{print $2}' "${file}" \
+                        | tr '[:upper:]' '[:lower:]' \
+                        | grep -E "^.*\.${domain}" \
+                        | sort -u >> "${tmp_dir}/domains_found.tmp"
                 fi
                 unset file
             done
@@ -162,8 +174,10 @@ joining_subdomains(){
             for f in "${files_dnssearch[@]}"; do
                 file="${tmp_dir}"/"${f}"
                 if [[ -s "${file}" ]]; then
-                    awk '{print $1}' "${file}" | tr '[:upper:]' '[:lower:]' \
-                        | grep -E "^.*\.${domain}" | sort -u >> "${tmp_dir}/domains_found.tmp"
+                    awk '{print $1}' "${file}" \
+                        | tr '[:upper:]' '[:lower:]' \
+                        | grep -E "^.*\.${domain}" \
+                        | sort -u >> "${tmp_dir}/domains_found.tmp"
                 fi
                 unset file
             done
