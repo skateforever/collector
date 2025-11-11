@@ -49,15 +49,15 @@ check_parameter_dependency_domain(){
         usage
     fi
 
-    if [[ "$@" =~ ( -wd | --webapp-discovery ) ]] && \
+    if [[ "$@" =~ ( -d | --domain | -dl | --domain-list | -wd | --webapp-discovery ) ]] && \
         [[ ! "$@" =~ ( -wld | --webapp-long-detaction | -wsd | --webapp-short-detection )  ]]; then
-        echo "You trying to use web app discovery without at least one valid option to port detection."
+        echo "You trying to execute collector with web app discovery without at least one valid option to port detection."
         usage
     fi
 
     if [[ "$@" =~ ( -wld | --webapp-long-detaction | -wsd | --webapp-short-detection )  ]] && \
-        [[ ! "$@" =~ ( -wd | --webapp-discovery ) ]]; then
-        echo "You trying to use web app discovery without at least one valid option to port detection."
+        [[ ! "$@" =~ ( -d | --domain | -dl | --domain-list | -wd | --webapp-discovery ) ]] && \
+        echo "You trying to execute collector with web app discovery without at least one valid option to port detection."
         usage
     fi
 
