@@ -117,15 +117,16 @@ joining_subdomains(){
                 | sort -u >> "${tmp_dir}/domains_found.tmp"
         fi
 
-        if [ -s "${tmp_dir}/waybackurls_output.tmp" ]; then
-            awk -F'/' '{print $3}' "${tmp_dir}/waybackurls_output.tmp" \
-                | sed 's/:[0-9]*$//g' \
-                | sort -u >> "${tmp_dir}/domains_found.tmp"
-        fi
-
         if [ -s "${tmp_dir}/virustotal_output.json" ]; then
             cat "${tmp_dir}/virustotal_output.json" \
                 | jq -r '.data[]?.id' \
+                | sort -u >> "${tmp_dir}/domains_found.tmp"
+        fi
+
+        if [ -s "${tmp_dir}/waybackurls_output.tmp" ]; then
+            awk -F'/' '{print $3}' "${tmp_dir}/waybackurls_output.tmp" \
+                | awk -F'?' '{print $1}' \
+                | sed 's/:[0-9]*$//g' \
                 | sort -u >> "${tmp_dir}/domains_found.tmp"
         fi
 
@@ -268,50 +269,57 @@ organizing_subdomains(){
         # Organizing and handling domain files
         for file_resolution in "${tmp_dir}/domains_massdns_resolution.txt" "${tmp_dir}/domains_dig_command_resolution.txt" "${tmp_dir}/domains_host_command_resolution.txt"; do
             if [[ -s "${file_resolution}" ]];  then
-                cp "${file_resolution}" "${file_resolution}.old"
-                sed -i "s/${domain}\./${domain}/g" "${file_resolution}"
-                sed -i "s/\.$//g" "${file_resolution}"
-                sed -i 's/\.[[:blank:]]/ /g' "${file_resolution}"
-                sed -i "s/^@//g" "${file_resolution}"
-                sed -i "s/^\.//g" "${file_resolution}"
- 
-                # Domains with IPs
+                #sed -i "s/${domain}\./${domain}/g" "${file_resolution}"
+                #sed -i "s/\.$//g" "${file_resolution}"
+                #sed -i 's/\.[[:blank:]]/ /g' "${file_resolution}"
+                #sed -i "s/^@//g" "${file_resolution}"
+                #sed -i "s/^\.//g" "${file_resolution}"
+                #awk '{ sub(/\.$/,"",$1); print $1 "\t" $NF }'
+                #sed -E 's/^([[:alnum:]\.-]+)\.\s+.*\s+([0-9]{1,3}(\.[0-9]{1,3}){3})$/\1\t\2/'
                 grep -E "${IPv4_regex}$" "${file_resolution}" \
-                    | grep "${domain}" | sort -u | awk '{print $1"\t"$NF}' >> "${report_dir}/domains_external_ipv4.txt"
-                #grep -E "${IPv6_regex}$" "${tmp_dir}/domains_massdns_resolution_ipv6.txt" \
-                #    | grep "${domain}" | sort -u | awk '{print $1"\t"$3}' >> "${report_dir}/domains_external_ipv6.txt"
-
-                # Domains aliases
-                grep -E "CNAME|is.an.alias" "${file_resolution}" | grep "${domain}" | sort -u | awk '{print $1"\t"$NF}' >> "${report_dir}/domains_aliases.txt"
+                    | awk '{ sub(/\.$/,"",$1); print $1 "\t" $NF }' >> "${tmp_dir}/domains_external_ipv4.tmp"
+                grep -E "CNAME|is.an.alias" "${file_resolution}" \
+                    | awk '{ sub(/\.$/,"",$1); print $1 "\t" $NF }' | sed 's/\.$//' >> "${tmp_dir}/domains_aliases.tmp"
+                #grep -E "${IPv6_regex}$" "${file_resolution}" \
+                #    | awk '{ sub(/\.$/,"",$1); print $1 "\t" $NF }' >> "${tmp_dir}/domains_external_ipv6.tmp"
             fi
         done
         echo "Done!"
 
         # Removing private IPs
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Separating internal and external IPs... "
-        if [ -s "${report_dir}/domains_external_ipv4.txt" ]; then
-            grep -E '(^\S+\s+\b10\.\b([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])\..*|^\S+\s+(127\..*)\b|^\S+\s+172\.1[6789]\..*|^\S+\s+172\.2[0-9]\..*|^\S+\s+172\.3[01]\..*|^\S+\s+192\.168\..*)'$ "${report_dir}/domains_external_ipv4.txt" >> "${report_dir}/domains_internal_ipv4.txt"
+        if sort -u -o "${report_dir}/domains_external_ipv4.txt" "${tmp_dir}/domains_external_ipv4.tmp"; then
+            grep -E '(^\S+\s+\b10\.\b([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])\..*|^\S+\s+(127\..*)\b|^\S+\s+172\.1[6789]\..*|^\S+\s+172\.2[0-9]\..*|^\S+\s+172\.3[01]\..*|^\S+\s+192\.168\..*)'$ "${report_dir}/domains_external_ipv4.txt" >> "${tmp_dir}/domains_internal_ipv4.tmp"
             sed -i -E '/\b10\.\b([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])\..*$/d ; /^\S+\s+(127\..*)\b$/d; /172\.1[6789]\..*$/d ; /172\.2[0-9]\..*$/d ; /172\.3[01]\..*$/d ; /192\.168\..*$/d' "${report_dir}/domains_external_ipv4.txt"
-            cat "${report_dir}/domains_external_ipv4.txt" | awk '{print $1}' | sort -u >> "${tmp_dir}/domains_alive_tmp.txt"
+            awk '{print $1}' "${report_dir}/domains_external_ipv4.txt" | sort -u >> "${tmp_dir}/domains_alive.tmp"
+            echo "Done!"
+        else
+            echo "Fail!"
+            echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Error organizing and handling subdomain IP files!"
+            echo "Error organizing and handling subdomain IP files!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
         fi
-        echo "Done!"
 
         # Getting sudomain aliases
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Separating subdomain aliases... "
-        if [ -s "${report_dir}/domains_aliases.txt" ]; then
-            cat "${report_dir}/domains_aliases.txt" | awk '{print $1}' | sort -u >> "${tmp_dir}/domains_alive_tmp.txt"
-        fi
-        echo "Done!"
-
-        echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Separating live subdomains from unresponsive subdomains... "
-        if sort -u -o "${report_dir}/domains_alive.txt" "${tmp_dir}/domains_alive_tmp.txt"; then
-            # Unavailable domains
-            cp "${subdomains_file}" "${report_dir}/domains_without_resolution.txt"
-            for d in $(cat "${report_dir}/domains_alive.txt"); do
-                sed -i "/${d}/d" "${report_dir}/domains_without_resolution.txt"
-            done
+        if sort -u -o "${report_dir}/domains_aliases.txt" "${tmp_dir}/domains_aliases.tmp"; then
+            awk '{print $1}' "${report_dir}/domains_aliases.txt" | sort -u >> "${tmp_dir}/domains_alive.tmp"
             echo "Done!"
+        else
+            echo "Fail!"
+            echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Error organizing and handling subdomain aliases files!"
+            echo "Error organizing and handling subdomain IP files!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+        fi
 
+        # Getting alive domains and unavailable domains
+        echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Separating live subdomains from unresponsive subdomains... "
+        if sort -u -o "${report_dir}/domains_alive.txt" "${tmp_dir}/domains_alive.tmp"; then
+            # Unavailable domains
+            if cp "${subdomains_file}" "${report_dir}/domains_without_resolution.txt"; then
+                for d in $(cat "${report_dir}/domains_alive.txt"); do
+                    sed -i "/${d}/d" "${report_dir}/domains_without_resolution.txt"
+                done
+                echo "Done!"
+            fi
         else
             echo "Fail!"
             echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Error organizing and handling subdomain files!\n\tCould not find any live domains, exiting!"
@@ -324,7 +332,7 @@ organizing_subdomains(){
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Removing duplicate subdomains... "
         sort -u -o "${report_dir}/domains_aliases.txt" "${report_dir}/domains_aliases.txt" 2> /dev/null
         sort -u -o "${report_dir}/domains_alive.txt" "${report_dir}/domains_alive.txt" 2> /dev/null
-        sort -u -o "${report_dir}/domains_internal_ipv4.txt" "${tmp_dir}/domains_found_tmp_internal_ips.txt" 2> /dev/null
+        sort -u -o "${report_dir}/domains_internal_ipv4.txt" "${tmp_dir}/domains_internal_ipv4.tmp" 2> /dev/null
         sort -u -o "${report_dir}/domains_external_ipv4.txt" "${report_dir}/domains_external_ipv4.txt" 2> /dev/null
         #sort -u -o "${report_dir}/domains_external_ipv6.txt" "${report_dir}/domains_external_ipv6.txt" 2> /dev/null
         sort -u -o "${report_dir}/domains_without_resolution.txt" "${report_dir}/domains_without_resolution.txt" 2> /dev/null
