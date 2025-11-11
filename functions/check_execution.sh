@@ -43,28 +43,28 @@ check_parameter_dependency_domain(){
         fi
     fi
 
-    if [[ "$@" =~ ( -wd | --webapp-discovery ) ]] && \
-        [[ ! "$@" =~ ( -d | --domain | -dl | --domain-list | -we | --webapp-enum )  ]]; then
-        echo "You trying to use web app discovery without at least one valid option (domain or web app enum)."
+    if [[  "$@" =~ ( -d | --domain | -dl | --domain-list ) ]] && \
+        [[ ! "$@" =~ ( -wd | --webapp-discovery ) ]]; then
+        echo "You are trying to perform a full reconnaissance, including identify web application, scanning, directory and file discovery."
+        echo "You need to specify the -wd|--webapp-discovery option to perform full reconnaissance."
         usage
     fi
 
-    if [[ "$@" =~ ( -d | --domain | -dl | --domain-list | -wd | --webapp-discovery ) ]] && \
+    if [[ "$@" =~ ( -wd | --webapp-discovery ) ]] && \
+        [[ ! "$@" =~ ( -d | --domain | -dl | --domain-list | -we | --webapp-enum )  ]]; then
+        echo "You trying to use the -wd|--web-discovery option without at least one valid option (-d|--domain-list or -we|--webapp-enum)."
+        usage
+    fi
+
+    if [[ "$@" =~ ( -wd | --webapp-discovery ) ]] && \
         [[ ! "$@" =~ ( -wld | --webapp-long-detaction | -wsd | --webapp-short-detection )  ]]; then
-        echo "You trying to execute collector with web app discovery without at least one valid option to port detection."
+        echo "You trying to use the option -wd|--webapp-discovery without even suggesting a valid option for port detection."
         usage
     fi
 
     if [[ "$@" =~ ( -wld | --webapp-long-detaction | -wsd | --webapp-short-detection )  ]] && \
-        [[ ! "$@" =~ ( -d | --domain | -dl | --domain-list | -wd | --webapp-discovery ) ]] && \
+        [[ ! "$@" =~ ( -wd | --webapp-discovery ) ]]; then
         echo "You trying to execute collector with web app discovery without at least one valid option to port detection."
-        usage
-    fi
-
-    if [[ "$@" =~ ( -we | --webapp-enum ) ]] && \
-        [[ ! "$@" =~ ( -wd | --webapp-discovery )  ]] && \
-        [[ ! -s "${report_dir}/webapp_urls.txt" ]]; then
-        echo "You probably forgot to add ${yellow}--webapp-discovery${reset} option to execute and validate what web app are runnning on ${domain}."
         usage
     fi
 
