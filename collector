@@ -38,7 +38,8 @@ for file in kill_collector.sh check_binaries.sh usage.sh message.sh menu.sh chec
 done
 
 check_binaries
-check_execution "$@"
 menu "$@"
-check_parameter_dependency_domain
+check_execution
+check_parameter_conflicts
+check_parameter_dependency
 collector_exec

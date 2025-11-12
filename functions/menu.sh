@@ -1,3 +1,15 @@
+#!/bin/bash
+#############################################################
+# Menu options file for collector script                    #
+#                                                           #
+# This file is an essential part of collector's execution!  #
+# And is responsible to get the functions:                  #
+#                                                           #
+#    * check_argument                                       #
+#    * menu                                                 #
+#                                                           #
+#############################################################
+
 check_argument(){
     options+=(-d --domain -dl --domain-list -e --exclude-domains -el --exclude-domain-list -k -kill -ka --kill-all -l --limit-urls -o --output -p --proxy -r --recon)
     options+=(-s --subdomain-brute -u --url -wd --webapp-discovery -we --webapp-enum -wld --webapp-long-detection -wsd --webapp-short-detection -ww --webapp-wordlists)
@@ -9,13 +21,13 @@ check_argument(){
 }
 
 menu(){
-    args_count=0
+    args="$@"
+    args_count="$#"
     only_recon="no"
     only_webapp_enum="no"
     webapp_discovery="no"
 
     while [ $# -ne 0 ]; do
-        (( args_count += 1 ))
         case $1 in
             -d|--domain)
                 check_argument "$1" "$2"
