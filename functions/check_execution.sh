@@ -13,23 +13,22 @@
 
 # Checking if the script has the main parameters needed
 check_execution(){
-    if [[ ! "${args}" =~ ( -d | --domain | -dl | --domain-list | -u | --url | -k | --kill | -kr | --kill-remove ) ]]; then
+    if [[ ! "${args}" =~ (-d|--domain|-dl|--domain-list|-u|--url) ]]; then
         echo -e "You need at least one option \"-d|--domain\", \"-dl|--domain-list\" OR \"-u|--url\" to execute this script!\n"
-        echo -e "Or you prefer to use -k|--kill or -kr|--kill-remove to stop the collector execution.\n"
         usage
     fi
 
-    if [[ "${args}" =~ ( -d | --domain ) ]] && [[ "${args}" =~ ( -dl | --domain-list | -u | --url ) ]]; then
+    if [[ "${args}" =~ (-d|--domain) ]] && [[ "${args}" =~ (-dl|--domain-list|-u|--url) ]]; then
         echo -e "You can not use the option -d|--domain with -dl|--domain-list or -u|--url and vice versa.\n"
         usage
     fi
 
-    if [[ "${args}" =~ ( -dl | --domain-list ) ]] && [[ "${args}" =~ ( -d | --domain | -u | --url ) ]]; then
+    if [[ "${args}" =~ (-dl|--domain-list) ]] && [[ "${args}" =~ (-d|--domain|-u|--url) ]]; then
         echo -e "You can not use the option -dl|--domain-list with -d|--domain or -u|--url and vice versa.\n"
         usage
     fi
 
-    if [[ "${args}" =~ ( -u | --url ) ]] && [[ "${args}" =~ ( -d | --domain | -dl | --domain-list ) ]]; then
+    if [[ "${args}" =~ (-u|--url) ]] && [[ "${args}" =~ (-d|--domain|-dl|--domain-list) ]]; then
         echo -e "You can not use the option -u|--url with -d|--domain or -dl|--domain-list and vice versa.\n"
         usage
     fi
@@ -38,14 +37,14 @@ check_execution(){
 # Checking the runtime parameter dependency for recon
 check_parameter_conflicts(){
     # Check Conflicts
-    if [[ "${args}" =~ ( -e | --exclude-domain ) ]] && \
-        [[ "${args}" =~ ( -el | --exclude-domain-list ) ]]; then
+    if [[ "${args}" =~ (-e|--exclude-domain) ]] && \
+        [[ "${args}" =~ (-el|--exclude-domain-list) ]]; then
         echo "You are trying to use same domain exclusion options, just pick one."
         usage
     fi
 
-    if [[ "${args}" =~ ( -k | --kill ) ]] && \
-        [[ "${args}" =~ ( -kr | --kill-remove ) ]]; then
+    if [[ "${args}" =~ (-k|--kill) ]] && \
+        [[ "${args}" =~ (-kr|--kill-remove) ]]; then
         echo "You're trying to use same kill options, just pick one."
         usage
     fi
