@@ -13,7 +13,7 @@
 
 # Checking if the script has the main parameters needed
 check_execution(){
-    if [[ ! "${args}" =~ ( -d | --domain | -dl | --domain-list | -u | --url o|  -k | --kill | -kr | --kill-remove ) ]]; then
+    if [[ ! "${args}" =~ ( -d | --domain | -dl | --domain-list | -u | --url | -k | --kill | -kr | --kill-remove ) ]]; then
         echo -e "You need at least one option \"-d|--domain\", \"-dl|--domain-list\" OR \"-u|--url\" to execute this script!\n"
         echo -e "Or you prefer to use -k|--kill or -kr|--kill-remove to stop the collector execution.\n"
         usage
