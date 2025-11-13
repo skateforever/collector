@@ -46,7 +46,7 @@ domains_recon(){
     fi
 
     # Only recon discovery (domain and subdomains)
-    if [[ "${webapp_enum_check}" == "no" || -z "${webapp_enum_check}" ]]; then
+    if [[ "${recon_check}" == "yes" ]]; then
         subdomains_recon
         joining_subdomains
         diff_domains
@@ -61,12 +61,15 @@ domains_recon(){
             webapp_alive
             webapp_tech "${domain}" "${report_dir}/webapp_urls.txt"
         fi
-        [[ "${recon_check}" == "yes" ]] && { message "${domain}" finished; exit 0; }
+        [[ "${webapp_enum_check}" == "no" || -z "${webapp_enum_check}" ]] && [[ "${recon_check}" == "yes" ]] && \
+            { message "${domain}" finished; exit 0; }
     fi
 
-    webapp_enum "${domain}" "${report_dir}/webapp_urls.txt"
-    robots_txt
-    [[ -s "${report_dir}/robots_urls.txt" ]] && webapp_enum "${domain}" "${report_dir}/robots_urls.txt"
+    if [[ "${webapp_enum_check}" == "yes" ]]; then
+        webapp_enum "${domain}" "${report_dir}/webapp_urls.txt"
+        robots_txt
+        [[ -s "${report_dir}/robots_urls.txt" ]] && webapp_enum "${domain}" "${report_dir}/robots_urls.txt"
+    fi
 
     for urls_file in "${report_dir}/webapp_urls.txt" "${report_dir}/robots_urls.txt"; do
         if [[ -s "${urls_file}" ]]; then
