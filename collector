@@ -47,6 +47,7 @@ if [[ -n ${domain} ]] && [[ ! -s "${domain_list}" ]] && [[ -z "${url_2_verify}" 
     check_parameter_conflicts
     check_parameter_dependency
     domains_recon
+    exit 0
 fi
 
 if [[ -z ${domain} ]] && [[ -s "${domain_list}" ]] && [[ -z "${url_2_verify}" ]]; then
@@ -60,9 +61,10 @@ if [[ -z ${domain} ]] && [[ -s "${domain_list}" ]] && [[ -z "${url_2_verify}" ]]
         domains_recon
     done < "${domain_list}"
     unset domain
+    exit 0
 fi
 
-if [[ -n"${url_2_verify}" ]] && [[ -z ${domain} ]] && [[ ! -s "${domain_list}" ]]; then
+if [[ -n "${url_2_verify}" ]] && [[ -z ${domain} ]] && [[ ! -s "${domain_list}" ]]; then
     check_is_known_target "${url_domain}"
     create_initial_directories_structure
     check_execution

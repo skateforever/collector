@@ -73,7 +73,7 @@ check_parameter_dependency(){
     fi
 
     if [[ "${args}" =~ (-wd|--webapp-discovery) ]] && \
-        [[ ! -s "${report_dir}/domain_alive.txt" && ! "${args}" =~ (-r|--recon) ]] ; then
+        [[ ! -s "${report_dir}/domains_alive.txt" && ! "${args}" =~ (-r|--recon) ]] ; then
         echo -e "You are trying to run web application discovery without having previously run recon, use the -r|--recon option and run again.\n"
         usage
     fi
