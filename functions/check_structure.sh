@@ -20,12 +20,16 @@ check_is_known_target(){
 }
 
 create_initial_directories_structure(){
-
     if [ "${directories_structure}" == "domain" ]; then
         # Create all main dirs necessaries to report and recon for domain
         if [[ "${webapp_discovery}" == "yes" ]] || [[ "${only_webapp_enum}" == "yes" ]]; then
             #recon_dir="$("${ls_bin_path}" -d "${output_dir}/${domain}"/recon_*/ | sort -r | head -n 1)"
-            recon_dir="$(find "${output_dir}/${domain}" -type f -path "*/domains_alive.txt" -printf "%h\n" | sed 's|/report$||')"
+            recon_dir="$(find "${output_dir}/${domain}" -type f -path "*/domains_alive.txt" -printf "%h\n" 2>/dev/null | sed 's|/report$||')"
+            if [[ -z "${recon_dir}" ]] ; then
+                echo -e "You are trying to perform recon, but don't have a structure and are using a different parameter than -r|--recon with domain options."
+                echo -e "You need to perform at least a basic run to get the subdomain discovered and continue the rest of the activities.\n"
+                usage
+            fi
         else
             recon_dir="${output_dir}/${domain}/recon_${date_recon}"
             mkdir -p "${recon_dir}"
