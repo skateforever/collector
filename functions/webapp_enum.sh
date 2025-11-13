@@ -14,7 +14,7 @@
 webapp_enum(){
     target="$1"
     urls_file="$2"
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing web application files and dirs enumeration..."
+    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing web application files and dirs enumeration... "
     if [ -s "${urls_file}" ]; then
         if [ -d "${report_dir}" ]  && [ -d "${webapp_enum_dir}" ] ; then
             echo -e "${red}Warning:${reset} It can take a long time to execute the enumeration!"
