@@ -58,7 +58,8 @@ check_parameter_conflicts(){
 check_parameter_dependency(){
     # Basic Execution Check
     if  [[ "${args}" =~ (-d|--domain|-dl|--domain-list) ]] && \
-        [[ ! -s "${report_dir}/domains_alive.txt" && ! "${args}" =~ (-r|--recon) ]]; then
+        [[ ! -s "${report_dir}/domains_alive.txt" && ! "${args}" =~ (-r|--recon) ]] && \
+        [[ ! "${args}" =~ (-wd|--webapp-discovery|-we|--webapp-enum) ]]; then
         echo -e "You are trying to perform recon, but don't have a structure and are using a different parameter than -r|--recon with domain options."
         echo -e "You need to perform at least a basic run to get the subdomain discovered and continue the rest of the activities.\n"
         usage
