@@ -177,8 +177,8 @@ menu(){
                 unset status_code
                 ;;
             -wd|--webapp-discovery)
-                unset webapp_discovery
-                webapp_discovery="yes"
+                unset webapp_discovery_check
+                webapp_discovery_check="yes"
                 shift
                 ;;
             -we|--webapp-enum)
