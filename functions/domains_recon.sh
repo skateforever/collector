@@ -69,15 +69,15 @@ domains_recon(){
         webapp_enum "${domain}" "${report_dir}/webapp_urls.txt"
         robots_txt
         [[ -s "${report_dir}/robots_urls.txt" ]] && webapp_enum "${domain}" "${report_dir}/robots_urls.txt"
-    fi
 
-    for urls_file in "${report_dir}/webapp_urls.txt" "${report_dir}/robots_urls.txt"; do
-        if [[ -s "${urls_file}" ]]; then
-            aquatone_screenshot "${domain}" "${urls_file}"
-            crawler_js "${domain}" "${report_dir}/webapp_url.txt"
-            webapp_scan "${domain}" "${urls_file}"
-        fi
-    done
-    git_rebuild
+        for urls_file in "${report_dir}/webapp_urls.txt" "${report_dir}/robots_urls.txt"; do
+            if [[ -s "${urls_file}" ]]; then
+                aquatone_screenshot "${domain}" "${urls_file}"
+                crawler_js "${domain}" "${report_dir}/webapp_url.txt"
+                webapp_scan "${domain}" "${urls_file}"
+            fi
+        done
+        git_rebuild
+    fi
     message "${domain}" finished) 2>> "${log_execution_file}" | tee -a "${log_execution_file}"
 }
