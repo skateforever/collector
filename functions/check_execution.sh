@@ -57,8 +57,7 @@ check_parameter_conflicts(){
 
 check_parameter_dependency(){
     # Basic Execution Check
-    if [[ "${args_count}" -eq 3 ]] && \
-        [[ "${args}" =~ (-d|--domain|-dl|--domain-list) ]] && \
+    if  [[ "${args}" =~ (-d|--domain|-dl|--domain-list) ]] && \
         [[ ! -s "${report_dir}/domains_alive.txt" && ! "${args}" =~ (-r|--recon) ]]; then
         echo -e "You are trying to perform recon, but don't have a structure and are using a different parameter than -r|--recon.\n"
         echo -e "You need to perform at least a basic run to get the subdomain discovered and continue the rest of the activities.\n"
@@ -66,28 +65,28 @@ check_parameter_dependency(){
     fi
     
     # Web Application Discovery Check
-    if [[ "${args}" =~ ( -wd | --webapp-discovery ) ]] && \
-        [[ ! -s "${report_dir}" || ! "${args}" =~ ( -r | --recon ) ]] ; then
+    if [[ "${args}" =~ (-wd|--webapp-discovery) ]] && \
+        [[ ! -s "${report_dir}/domain_alive.txt" || ! "${args}" =~ (-r|--recon) ]] ; then
         echo -e "You are trying to run web application discovery without having previously run recon, use the -r|--recon option and run again.\n"
         usage
     fi
     
-    if [[ "${args}" =~ ( -wd | --webapp-discovery ) ]] && \
-        [[ ! "${args}" =~ ( -wld | --webapp-long-detaction | -wsd | --webapp-short-detection ) ]]; then
+    if [[ "${args}" =~ (-wd|--webapp-discovery) ]] && \
+        [[ ! "${args}" =~ (-wld|--webapp-long-detaction|-wsd|--webapp-short-detection) ]]; then
         echo -e "You are trying to find out which web applications are active, but forgot to specify which ports to test.\n"
         echo -e "Choose one of the options (-wld|--webapp-long-detection or -wsd|--webapp-short-detection) and run again.\n"
         usage
     fi
 
-    if [[ "${args}" =~ ( -wld | --webapp-long-detaction | -wsd | --webapp-short-detection )  ]] && \
-        [[ ! "${args}" =~ ( -wd | --webapp-discovery ) ]]; then
+    if [[ "${args}" =~ (-wld|--webapp-long-detaction|-wsd|--webapp-short-detection)  ]] && \
+        [[ ! "${args}" =~ (-wd|--webapp-discovery) ]]; then
         echo -e "You trying to execute collector with web app discovery without at least one valid option to port detection.\n"
         usage
     fi
 
     # Web Application Enumeration Check
 
-    if [[ "${only_webapp_enum}" == "yes" ]] && [[ ! "${args}" =~ (-wd | --webapp-discovery ) || ! -s "${report_dir}/webapp_urls.txt" ]]; then
+    if [[ "${only_webapp_enum}" == "yes" ]] && [[ ! "${args}" =~ (-wd|--webapp-discovery) || ! -s "${report_dir}/webapp_urls.txt" ]]; then
         echo -e "Make sure the ${red}${report_dir}/webapp_urls.txt${reset} exist and isn't empty, or really, we have a problem with script execution."
         echo -e "Try running the script with the -wd|--webapp-discovery option and run again.\n"
         usage
