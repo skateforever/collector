@@ -36,7 +36,7 @@ domains_recon(){
     message "${domain}" start
 
     # Only web app discovery
-    if [[ "${webapp_discovery}" == "yes" ]] && \
+    if [[ "${webapp_discovery_check}" == "yes" ]] && \
         [[ -s "${report_dir}/domains_alive.txt" ]] && \
         [[ ! -s "${report_dir}/webapp_urls.txt" ]]; then
         webapp_alive "${domain}" "${report_dir}/domains_alive.txt"
@@ -46,7 +46,7 @@ domains_recon(){
     fi
 
     # Only recon discovery (domain and subdomains)
-    if [[ "${only_webapp_enum}" == "no" ]]; then
+    if [[ "${webapp_enum_check}" == "no" || -z "${webapp_enum_check}" ]]; then
         subdomains_recon
         joining_subdomains
         diff_domains
@@ -57,11 +57,11 @@ domains_recon(){
         fi
         infra_data
         shodan_recon
-        if [[ "${webapp_discovery}" == "yes" ]]; then
+        if [[ "${webapp_discovery_check}" == "yes" ]]; then
             webapp_alive
             webapp_tech "${domain}" "${report_dir}/webapp_urls.txt"
         fi
-        [[ "${only_recon}" == "yes" ]] && { message "${domain}" finished; exit 0; }
+        [[ "${recon_check}" == "yes" ]] && { message "${domain}" finished; exit 0; }
     fi
 
     webapp_enum "${domain}" "${report_dir}/webapp_urls.txt"

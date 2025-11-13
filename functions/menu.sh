@@ -140,8 +140,8 @@ menu(){
                     echo -e "With this option (-re|--recon) You can only use \"-d|--domain\"!\n"
                     usage
                 fi
-                unset only_recon
-                only_recon="yes"
+                unset recon_check
+                recon_check="yes"
                 shift
                 ;;
             -s|--subdomain-brute)
@@ -187,8 +187,8 @@ menu(){
                 shift
                 ;;
             -we|--webapp-enum)
-                unset only_webapp_enum
-                only_webapp_enum=yes
+                unset webapp_enum_check
+                webapp_enum_check=yes
                 shift
                 ;;
             -wld|--webapp-long-detection)
