@@ -57,7 +57,9 @@ check_parameter_conflicts(){
 
 check_parameter_dependency(){
     # Basic Execution Check
-    if [[ "${args_count}" -eq 3 ]] && [[ ! -s "${report_dir}/domains_alive.txt" && ! "${args}" =~ ( -r | --recon ) ]]; then
+    if [[ "${args_count}" -eq 3 ]] && \
+        [[ "${args}" =~ (-d|--domain|-dl|--domain-list) ]] && \
+        [[ ! -s "${report_dir}/domains_alive.txt" && ! "${args}" =~ (-r|--recon) ]]; then
         echo -e "You are trying to perform recon, but don't have a structure and are using a different parameter than -r|--recon.\n"
         echo -e "You need to perform at least a basic run to get the subdomain discovered and continue the rest of the activities.\n"
         usage
