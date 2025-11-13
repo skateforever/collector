@@ -140,10 +140,6 @@ menu(){
                 shift 2
                 ;;
             -r|--recon)
-                if [[ -n "${only_webapp_enum}" ]] && [[ "${only_webapp_enum}" == "yes"  ]]; then
-                    echo -e "You can't use this (-re|--recon) option with \"-we|--webapp-enum\"!\n"
-                    usage
-                fi
                 if [[ -n "${url_2_verify}" ]]; then
                     echo -e "With this option (-re|--recon) You can only use \"-d|--domain\"!\n"
                     usage
@@ -192,14 +188,6 @@ menu(){
                 shift
                 ;;
             -we|--webapp-enum)
-                if [[ -n "${only_recon}" ]] && [[ "${only_recon}" == "yes"  ]]; then
-                    echo -e "You can't use this (-we|--webapp-enum) option with \"-re|--recon\"!\n"
-                    usage
-                fi
-                if [[ -n "${url_2_verify}" ]]; then
-                    echo -e "You can't use this (-we|--webapp-enum) option with \"-u|--url\"!\n"
-                    usage
-                fi
                 only_webapp_enum=yes
                 shift
                 ;;

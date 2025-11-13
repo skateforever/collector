@@ -86,7 +86,14 @@ check_parameter_dependency(){
 
     # Web Application Enumeration Check
 
-    if [[ "${only_webapp_enum}" == "yes" ]] && [[ ! "${args}" =~ (-wd|--webapp-discovery) || ! -s "${report_dir}/webapp_urls.txt" ]]; then
+    if [[ "${args}" =~ (-we|--webapp-enum) ]] && \
+        [[ ! -s "${report_dir}/domain_alive.txt" && ! "${args}" =~ (-r|--recon) ]] ; then
+        echo -e "You are trying to run web application discovery without having previously run recon, use the -r|--recon option and run again.\n"
+        usage
+    fi
+
+    if [[ "${only_webapp_enum}" == "yes" ]] && \
+        [[ ! "${args}" =~ (-wd|--webapp-discovery) && ! -s "${report_dir}/webapp_urls.txt" ]]; then
         echo -e "Make sure the ${red}${report_dir}/webapp_urls.txt${reset} exist and isn't empty, or really, we have a problem with script execution."
         echo -e "Try running the script with the -wd|--webapp-discovery option and run again.\n"
         usage
@@ -94,6 +101,11 @@ check_parameter_dependency(){
 
     if [[ "${only_webapp_enum}" == "yes" ]] && [[ ${#webapp_wordlists[@]} -eq 0 ]]; then
         echo -e "Please, ${yellow}make sure${reset} you have at least one wordlist to web directory and file discovery!\n"
+        usage
+    fi
+
+    if [[ -n "${url_2_verify}" ]]; then
+        echo -e "You can't use this (-we|--webapp-enum) option with \"-u|--url\"!\n"
         usage
     fi
 
