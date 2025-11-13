@@ -23,7 +23,7 @@ else
 fi
 
 # Checking if the essencial functions there are
-for file in kill_collector.sh check_binaries.sh usage.sh message.sh menu.sh check_structure.sh \ 
+for file in kill_collector.sh check_binaries.sh usage.sh message.sh menu.sh check_structure.sh \
     check_execution.sh domains_sources.sh files.sh diff.sh infra.sh webapp_crawler.sh \
     webapp_discovery.sh webapp_scan.sh webapp_enum.sh git.sh domains_recon.sh url_recon.sh; do
     function="${collector_path}/functions/${file}"
