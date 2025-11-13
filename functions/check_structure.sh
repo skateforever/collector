@@ -24,7 +24,8 @@ create_initial_directories_structure(){
     if [ "${directories_structure}" == "domain" ]; then
         # Create all main dirs necessaries to report and recon for domain
         if [[ "${webapp_discovery}" == "yes" ]] || [[ "${only_webapp_enum}" == "yes" ]]; then
-            recon_dir="$("${ls_bin_path}" -d "${output_dir}/${domain}"/recon_*/ | sort -r | head -n 1)"
+            #recon_dir="$("${ls_bin_path}" -d "${output_dir}/${domain}"/recon_*/ | sort -r | head -n 1)"
+            recon_dir="$(find "${output_dir}/${domain}" -type f -path "*/domains_alive.txt" -printf "%h\n" | sed 's|/report$||')"
         else
             recon_dir="${output_dir}/${domain}/recon_${date_recon}"
             mkdir -p "${recon_dir}"
