@@ -23,10 +23,6 @@ check_argument(){
 menu(){
     args="$@"
     args_count="$#"
-    only_recon="no"
-    only_webapp_enum="no"
-    webapp_discovery="no"
-
     while [ $# -ne 0 ]; do
         case $1 in
             -d|--domain)
@@ -174,8 +170,11 @@ menu(){
                         echo -e "You need specify a valid URL!\n"
                         usage
                     else
-                        url_2_verify=$2
+                        unset url_domain
+                        unset url_2_verify
                         unset directories_structure
+                        url_2_verify=$2
+                        url_domain=$(echo "${url_2_verify}" | sed -e 's/http.*\/\///' | awk -F'/' '{print $1}' | xargs -I {} basename {})
                         directories_structure="url"
                         shift 2
                     fi
@@ -188,6 +187,7 @@ menu(){
                 shift
                 ;;
             -we|--webapp-enum)
+                unset only_webapp_enum
                 only_webapp_enum=yes
                 shift
                 ;;

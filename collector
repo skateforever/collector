@@ -23,9 +23,9 @@ else
 fi
 
 # Checking if the essencial functions there are
-for file in kill_collector.sh check_binaries.sh usage.sh message.sh menu.sh check_structure.sh check_execution.sh \
-    domains_sources.sh files.sh diff.sh infra.sh webapp_crawler.sh webapp_discovery.sh webapp_scan.sh webapp_enum.sh git.sh \
-    domains_recon.sh url_recon.sh collector_exec.sh; do
+for file in kill_collector.sh check_binaries.sh usage.sh message.sh menu.sh check_structure.sh \ 
+    check_execution.sh domains_sources.sh files.sh diff.sh infra.sh webapp_crawler.sh \
+    webapp_discovery.sh webapp_scan.sh webapp_enum.sh git.sh domains_recon.sh url_recon.sh; do
     function="${collector_path}/functions/${file}"
     if [ -s "${function}" ]; then
         source "${function}"
@@ -39,7 +39,34 @@ done
 
 check_binaries
 menu "$@"
-check_execution
-check_parameter_conflicts
-check_parameter_dependency
-collector_exec
+
+if [[ -n ${domain} ]] && [[ ! -s "${domain_list}" ]] && [[ -z "${url_2_verify}" ]]; then
+    check_is_known_target "${domain}"
+    create_initial_directories_structure
+    check_execution
+    check_parameter_conflicts
+    check_parameter_dependency
+    domains_recon
+fi
+
+if [[ -z ${domain} ]] && [[ -s "${domain_list}" ]] && [[ -z "${url_2_verify}" ]]; then
+    unset domain
+    while read -r domain; do
+        check_is_known_target "${domain}"
+        create_initial_directories_structure
+        check_execution
+        check_parameter_conflicts
+        check_parameter_dependency
+        domains_recon
+    done < "${domain_list}"
+    unset domain
+fi
+
+if [[ -n"${url_2_verify}" ]] && [[ -z ${domain} ]] && [[ ! -s "${domain_list}" ]]; then
+    check_is_known_target "${url_domain}"
+    create_initial_directories_structure
+    check_execution
+    check_parameter_conflicts
+    check_parameter_dependency
+    url_recon
+fi
