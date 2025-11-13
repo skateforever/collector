@@ -67,7 +67,7 @@ check_parameter_dependency(){
     
     # Web Application Discovery Check
     if [[ "${args}" =~ (-wd|--webapp-discovery) ]] && \
-        [[ ! -s "${report_dir}/domains_alive.txt" && ! "${args}" =~ (-r|--recon) ]] ; then
+        [[ ! -d "${report_dir}" && ! "${args}" =~ (-r|--recon) ]] ; then
         echo -e "You are trying to perform an action where the basic recognition structure does not yet exist; run the collector again with the -r|--recon option.\n"
         usage
     fi
