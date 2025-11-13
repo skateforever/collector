@@ -106,4 +106,10 @@ check_parameter_dependency(){
             usage
         fi
     fi
+    if [[ -n "${url_2_verify}" ]] && [[ -z "${domain}" ]] && [[ ! -s "${domain_list}" ]]; then
+        if [[ "${args_count}" -gt 4 ]] && [[ ! "${args}" =~ (-ww|--webapp-wordlist) ]]; then
+            echo -e "Maybe you forget the -ww|--webapp-wordlist option to use with reconnaissance option \"${yellow}-u|--url${reset}\".\n"
+            usage
+        fi
+    fi
 }
