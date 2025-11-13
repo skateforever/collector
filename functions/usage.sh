@@ -4,7 +4,7 @@ usage(){
     echo "Basic usage:"
     echo -e "       ${yellow}$0${reset} ${green}-d domain.com --recon${reset}"
     echo -e "       ${yellow}$0${reset} ${green}-dl /path/file/domain_list.txt --recon${reset}"
-    echo -e "       ${yellow}$0${reset} ${green}-u http://domain.com --webapp-wordlists /path/file/wordlist.txt${reset}\n"
+    echo -e "       ${yellow}$0${reset} ${green}-u http://domain.com --webapp-wordlists /path/file/wordlist.txt${reset}"
     echo ""
     echo "Advanced usage:"
     echo -e "       ${yellow}$0${reset} ${green}-d domain.com --recon --webapp-discovery --webapp-short-detection${reset}"
