@@ -34,15 +34,10 @@ menu(){
                     echo -e "You can only use \"-d|--domain\" or \"-dl|--domain-list\", never both together!\n"
                     usage
                 else
-                    if [[ $(host -t A "$2" | grep -E "has.address" | awk '{print $4}' | grep -E "${IPv4_regex}$" > /dev/null 2>&1; echo $?) -eq 0 ]]; then
-                        domain="$2"
-                        unset directories_structure
-                        directories_structure="domain"
-                        shift 2
-                    else
-                        echo -e "You need specify a valid domain!\n"
-                        usage
-                    fi
+                    domain="$2"
+                    unset directories_structure
+                    directories_structure="domain"
+                    shift 2
                 fi
                 ;;
             -dl|--domain-list)
