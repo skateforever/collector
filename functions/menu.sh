@@ -18,6 +18,10 @@ check_argument(){
         echo -e "The argument of ${yellow}\"$1\"${reset} it can not be ${red}\"${value}\"${reset}, please, ${yellow}specify a valid one${reset}.\n"
         usage
     fi
+    if [[ ! $1 =~ "${options[@]}" ]]; then
+        echo -e "You are specifying the parameter ${yellow}$1${reset}, which is invalid.\n"
+        usage
+    fi
 }
 
 menu(){
