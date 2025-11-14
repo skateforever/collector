@@ -38,7 +38,7 @@ for file in kill_collector.sh check_binaries.sh usage.sh message.sh menu.sh chec
 done
 
 check_binaries
-[[ $# -eq 0 ]] && {echo -e "You're using the collector without parameters.\n" ; usage ;} || menu "$@"
+[[ $# -eq 0 ]] && { echo -e "You're using the collector without parameters.\n" ; usage ; } || menu "$@"
 
 if [[ -n ${domain} ]] && [[ ! -s "${domain_list}" ]] && [[ -z "${url_2_verify}" ]]; then
     check_is_known_target "${domain}"
