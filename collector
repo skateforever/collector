@@ -57,9 +57,6 @@ if [[ -z ${domain} ]] && [[ -s "${domain_list}" ]] && [[ -z "${url_2_verify}" ]]
     while read -r domain; do
         check_is_known_target "${domain}"
         create_initial_directories_structure
-        check_execution
-        check_parameter_conflicts
-        check_parameter_dependency
         domains_recon
     done < "${domain_list}"
     unset domain
@@ -69,8 +66,5 @@ fi
 if [[ -n "${url_2_verify}" ]] && [[ -z ${domain} ]] && [[ ! -s "${domain_list}" ]]; then
     check_is_known_target "${url_domain}"
     create_initial_directories_structure
-    check_execution
-    check_parameter_conflicts
-    check_parameter_dependency
     url_recon
 fi
