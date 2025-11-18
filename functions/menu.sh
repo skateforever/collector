@@ -15,13 +15,13 @@ check_argument(){
     options+=(-s --subdomain-brute -u --url -wd --webapp-discovery -we --webapp-enum -wld --webapp-long-detection -wsd --webapp-short-detection -ww --webapp-wordlists)
     declare -A valid_option
     for option in "${options[@]}"; do
-        valid_options["${option}"]=1
+        valid_option["${option}"]=1
     done
-    if [[ -z "${valid_options[$1]}" ]]; then
+    if [[ -z "${valid_option[$1]}" ]]; then
         echo -e "You are specifying the parameter ${yellow}$1${reset}, which is invalid.\n"
         usage
     fi
-    if [[ -n  "${valid_options[$2]}" ]]; then
+    if [[ -n  "${valid_option[$2]}" ]]; then
         [[ -z $2 ]] && value="empty" || value="$2"
         echo -e "The argument of ${yellow}\"$1\"${reset} it can not be ${red}\"${value}\"${reset}, please, ${yellow}specify a valid one${reset}.\n"
             usage
