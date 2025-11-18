@@ -17,14 +17,14 @@ check_argument(){
     for option in "${options[@]}"; do
         valid_option["${option}"]=1
     done
-    if [[ -z "${valid_option[$1]}" ]]; then
+    if [[ ! -v "${valid_option[$1]}" ]]; then
         echo -e "You are specifying the parameter ${yellow}$1${reset}, which is invalid.\n"
         usage
     fi
-    if [[ -n  "${valid_option[$2]}" ]]; then
+    if [[ -v "${valid_option[$2]}" ]]; then
         [[ -z $2 ]] && value="empty" || value="$2"
         echo -e "The argument of ${yellow}\"$1\"${reset} it can not be ${red}\"${value}\"${reset}, please, ${yellow}specify a valid one${reset}.\n"
-            usage
+        usage
     fi
 }
 
@@ -229,6 +229,7 @@ menu(){
                 shift 2
                 ;;
             -?*)
+                echo -e "You are specifying the parameter ${yellow}$1${reset}, which is invalid.\n"
                 usage
                 ;;
             *)
