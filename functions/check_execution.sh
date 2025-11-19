@@ -18,12 +18,12 @@ check_execution(){
         usage
     fi
 
-    if [[ -n "${domain_check}" && == "yes" ]] && [[ ( -n "${domainlist_check}" && "${domainlist_check}" == "yes" ) && ( -n "${url_check}" && "${url_check}" == "yes" ) ]]; then
+    if [[ -n "${domain_check}" && "${domain_check}" == "yes" ]] && [[ ( -n "${domainlist_check}" && "${domainlist_check}" == "yes" ) && ( -n "${url_check}" && "${url_check}" == "yes" ) ]]; then
         echo -e "You can not use the option -d|--domain with -dl|--domain-list or -u|--url and vice versa.\n"
         usage
     fi
 
-    if [[ -n "${domainlist_check}" && == "yes" ]] && [[ ( -n "${domain_check}" && "${domain_check}" == "yes" ) && ( -n "${url_check}" && "${url_check}" == "yes" ) ]]; then
+    if [[ -n "${domainlist_check}" && "${domainlist_check}" == "yes" ]] && [[ ( -n "${domain_check}" && "${domain_check}" == "yes" ) && ( -n "${url_check}" && "${url_check}" == "yes" ) ]]; then
         echo -e "You can not use the option -dl|--domain-list with -d|--domain or -u|--url and vice versa.\n"
         usage
     fi
