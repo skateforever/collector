@@ -312,7 +312,9 @@ organizing_subdomains(){
 
         # Getting alive domains and unavailable domains
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Separating live subdomains from unresponsive subdomains... "
-        if sort -u -o "${report_dir}/domains_alive.txt" "${tmp_dir}/domains_alive.tmp"; then
+        #if sort -u -o "${report_dir}/domains_alive.txt" "${tmp_dir}/domains_alive.tmp"; then
+        grep -E "${domain}$" "${tmp_dir}/domains_alive.tmp" | sort -u >> "${report_dir}/domains_alive.txt"
+        if [[ -s "${report_dir}/domains_alive.txt"  ]]; then
             # Unavailable domains
             if cp "${subdomains_file}" "${report_dir}/domains_without_resolution.txt"; then
                 for d in $(cat "${report_dir}/domains_alive.txt"); do
