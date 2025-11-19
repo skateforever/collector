@@ -112,5 +112,5 @@ create_initial_directories_structure(){
     nuclei_scan_file="${nuclei_dir}/nuclei_scan.result"
     nuclei_web_fuzzing_file="${nuclei_dir}/nuclei_web_fuzzing.result"
 
-    echo "Directory structure created and ready to work." | tee -a "${log_execution_file}"
+    echo -e "Directory structure created and ready to work.i\n" | tee -a "${log_execution_file}"
 }

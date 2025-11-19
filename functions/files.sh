@@ -205,9 +205,9 @@ joining_subdomains(){
                 echo "Done!"
             fi
 
-            if [ ${#excluded[@]} -gt 0 ] && [ -s "${report_dir}/domains_found.txt" ]; then
+            if [ ${#excluded_domains[@]} -gt 0 ] && [ -s "${report_dir}/domains_found.txt" ]; then
                 echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Excluding the subdomains from command line option... "
-                for subdomain in "${excluded[@]}"; do
+                for subdomain in "${excluded_domains[@]}"; do
                     sed -i "/^${subdomain}$/d" "${report_dir}/domains_found.txt"
                 done
                 unset subdomain
@@ -216,12 +216,12 @@ joining_subdomains(){
                 echo "Done!"
             fi
 
-            if [ -s "${exclude_domains_list}" ] && [ -s "${report_dir}/domains_found.txt" ]; then
+            if [ -s "${excludedomain_list}" ] && [ -s "${report_dir}/domains_found.txt" ]; then
                 echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Excluding the subdomains from file list option... "
-                cp "${exclude_domains_list}" "${report_dir}/domains_excluded.txt"
+                cp "${excludedomain_list}" "${report_dir}/domains_excluded.txt"
                 while read -r excluded_domain; do
                     sed -i "s/${excluded_domain}//" "${report_dir}/domains_found.txt"
-                done < "${exclude_domains_list}"
+                done < "${excludedomain_list}"
                 # Fixing blank lines after excluding domains
                 sed -i '/^$/d' "${report_dir}/domains_found.txt"
                 echo "Done!"

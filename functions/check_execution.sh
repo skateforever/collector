@@ -37,22 +37,26 @@ check_execution(){
 # Checking the runtime parameter dependency for recon
 check_parameter_conflicts(){
     # Check Conflicts
-    if [[ "${args}" =~ (-e|--exclude-domain) ]] && \
-        [[ "${args}" =~ (-el|--exclude-domain-list) ]]; then
+    if [[ "${excludedomain_check}" == "yes" && "${excludedomainlist_check}" == "yes" ]]; then
         echo "You are trying to use same domain exclusion options, just pick one."
         usage
     fi
 
-    if [[ "${args}" =~ (-k|--kill) ]] && \
-        [[ "${args}" =~ (-kr|--kill-remove) ]]; then
+    if [[ "${kill_ckeck}" == "yes" && "${killremove_check}" == "yes" ]]; then
         echo "You're trying to use same kill options, just pick one."
         usage
     fi
 
-    if [[ "${args_count}" -gt 1 ]] && [[ "${args}" =~ ( -k | --kill | -kr | --kill-remove ) ]]; then
-        echo "You're trying to use kill options and other options, just pick one."
+    if [[ "${limiturls_check}" == "yes" && "${url_check}" == "yes" ]]; then
+        echo -e "You can only use this -l|--limit-urls option with -d|--domain!\n"
         usage
     fi
+
+    if [[ "${subdomainbrute_check}" == "yes" && "${url_check}" == "yes" ]]; then
+        echo -e "You can only use this -s|--subdomain-brute option with -d|--domain!\n"
+        usage
+    fi
+
 }
 
 check_parameter_dependency(){
@@ -79,7 +83,7 @@ check_parameter_dependency(){
 
         if [[ "${webapp_discovery_check}" == "yes" ]] && [[ "${#webapp_port_detect[@]}" -eq 0 ]]; then
             echo -e "You are trying to find out which web applications are active, but forgot to specify which ports to test."
-            echo -e "Choose one of the options (-wld|--webapp-long-detection or -wsd|--webapp-short-detection) and run again.\n"
+            echo -e "Choose one of the options -wld|--webapp-long-detection or -wsd|--webapp-short-detection and run again.\n"
             usage
         fi
 

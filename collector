@@ -46,6 +46,14 @@ check_execution
 check_parameter_conflicts
 check_parameter_dependency
 
+if [[ "${kill_check}" == "yes" ]]; then
+    kill_collector "${domain}"
+fi
+
+if [[ "${killremove_check}" == "yes" ]]; then
+    kill_collector "${domain}"
+fi
+
 if [[ "${domain_check}" == "yes" && -n "${domain}" ]]; then; then
     check_is_known_target "${domain}"
     domains_recon

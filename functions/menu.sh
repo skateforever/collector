@@ -56,14 +56,18 @@ menu(){
                 check_argument "$1" "$2"
                 set -f
                 IFS=","
-                excluded+=("$2")
+                excluded_domains+=("$2")
                 unset IFS
                 shift 2
+                unset excludedomain_check
+                excludedomain_check="yes"
                 ;;
             -el|--exclude-domain-list)
                 if [ -s "$2" ]; then
-                    exclude_domains_list="$2"
+                    excludedomain_list="$2"
                     shift 2
+                    unset excludedomainlist_check
+                    excludedomainlist_check="yes"
                 fi
                 ;;
             -k|--kill)
@@ -72,7 +76,8 @@ menu(){
                     echo "You need to specify a domain to kill the execution!"
                     exit 1
                 else
-                    kill_collector "$2"
+                    unset kill_check
+                    kill_check="yes"
                 fi
                 ;;
             -kr|--kill-remove)
@@ -81,18 +86,16 @@ menu(){
                     echo "You need to specify a domain to kill the execution!"
                     exit 1
                 else
-                    kill_collector "$2"
-                    rm -rf "$(find / -iname "$(find / -iname "$2" -type d -exec ls -1 {} \; 2>/dev/null | grep recon_ | tail -n1)" -type d 2> /dev/null)"
+                    unset killremove_check
+                    killremove_check="yes"
                 fi
                 ;;        
             -l|--limit-urls)
                 check_argument "$1" "$2"
-                if [[ -n "${url_2_verify}" ]]; then
-                    echo -e "You can only use this (-l|--limit-urls) option with \"-d|--domain\"!\n"
-                    usage
-                fi
                 if [[ -n "$2" && "$2" == ?(-)+([0-9]) ]]; then
                     limit_urls="$2"
+                    unset limiturls_check
+                    limiturls_check="yes"
                     shift 2
                 else
                     echo -e "Specify the total number of URLs you want to test!\n"
@@ -129,14 +132,13 @@ menu(){
                 ;;
             -s|--subdomain-brute)
                 check_argument "$1" "$2"
-                if [[ -n "${url_2_verify}" ]]; then
-                    echo -e "You can only use this (-s|--subdomain-brute) option with \"-d|--domain\"!\n"
-                    usage
-                fi
+                unset IFS
                 set -f
                 IFS=","
                 dns_wordlists+=("$2")
                 unset IFS
+                unset subdomainbrute_check
+                subdomainbrute_check="yes"
                 shift 2
                 ;;
             -u|--url)
