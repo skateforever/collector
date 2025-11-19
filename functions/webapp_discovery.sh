@@ -12,6 +12,7 @@
 
 webapp_alive(){
     target="$1"
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Initializing the web application discovery and this might take a certain time!"
     alive_file="$2"
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Testing subdomains to know if it has a web application... "
     if [ -s "${alive_file}" ]; then
