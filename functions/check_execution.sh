@@ -11,14 +11,6 @@
 #                                                           #
 #############################################################
 
-domain_check
-domainlist_check
-recon_check
-url_check
-webapp_discovery_check
-webapp_enum_check
-${#webapp_port_detect[@]}
-
 # Checking if the script has the main parameters needed
 check_execution(){
     if [[ -z "${domain_check}" && -z "${domainlist_check}" && -z "${url_check}" ]]; then
