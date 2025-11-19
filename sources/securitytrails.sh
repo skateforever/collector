@@ -19,9 +19,9 @@ securitytrails-src(){
             curl "${curl_options[@]}" -H 'Accept: application/json' -H "APIKEY: ${securitytrails_api_key}" \
                 "${securitytrails_api_url}/domain/${domain}/subdomains?children_only=false&include_inactive=true" \
                 >> "${tmp_dir}/securitytrails_output.json" 2>> "${log_execution_file}"
-            echo "Done!"
             sleep 1
         fi
+        echo "Done!"
     fi
 }
 
