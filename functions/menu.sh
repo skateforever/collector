@@ -58,17 +58,18 @@ menu(){
                 IFS=","
                 excluded_domains+=("$2")
                 unset IFS
-                shift 2
                 unset excludedomain_check
                 excludedomain_check="yes"
+                shift 2
                 ;;
             -el|--exclude-domain-list)
+                check_argument "$1" "$2"
                 if [ -s "$2" ]; then
                     excludedomain_list="$2"
-                    shift 2
                     unset excludedomainlist_check
                     excludedomainlist_check="yes"
                 fi
+                shift 2
                 ;;
             -k|--kill)
                 check_argument "$1" "$2"
