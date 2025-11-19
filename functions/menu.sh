@@ -39,6 +39,8 @@ menu(){
                     usage
                 else
                     domain="$2"
+                    unset domain_check
+                    domain_check="yes"
                     unset directories_structure
                     directories_structure="domain"
                     shift 2
@@ -55,6 +57,8 @@ menu(){
                 else
                     if [ -s "$2" ]; then
                         domain_list=$2
+                        unset domainlist_check
+                        domainlist_check="yes"
                         unset directories_structure
                         directories_structure="domain"
                         shift 2
@@ -169,11 +173,13 @@ menu(){
                         echo -e "You need specify a valid URL!\n"
                         usage
                     else
-                        unset url_domain
+                        unset url_check
+                        url_check="yes"
                         unset url_2_verify
-                        unset directories_structure
                         url_2_verify=$2
+                        unset url_domain
                         url_domain=$(echo "${url_2_verify}" | sed -e 's/http.*\/\///' | awk -F'/' '{print $1}' | xargs -I {} basename {})
+                        unset directories_structure
                         directories_structure="url"
                         shift 2
                     fi
@@ -191,26 +197,26 @@ menu(){
                 shift
                 ;;
             -wld|--webapp-long-detection)
+                unset web_port_detect
                 if [ "${#webapp_port_detect[@]}" -eq 0 ]; then
                     webapp_port_detect=("${webapp_port_long_detection[@]}")
                 else
                     diff_array=$(diff <(printf "%s\n" "${webapp_port_detect[@]}") <(printf "%s\n" "${webapp_port_long_detection[@]}"))
                     if [[ ! "${#webapp_port_detect[@]}" -ne 0 ]] && [[ -n ${diff_array} ]]; then
                         echo -e "You need to specify just sort or long web port detection, not both!\n"
-                        unset web_port_detect
                         usage
                     fi
                 fi
                 shift
                 ;;
             -wsd|--webapp-short-detection)
+                unset web_port_detect
                 if [ "${#webapp_port_detect[@]}" -eq 0 ]; then
                     webapp_port_detect=("${webapp_port_short_detection[@]}")
                 else
                     diff_array=$(diff <(printf "%s\n" "${webapp_port_detect[@]}") <(printf "%s\n" "${webapp_port_short_detection[@]}"))
                     if [[ "${#webapp_port_detect[@]}" -ne 0 ]] && [[ -n ${diff_array} ]]; then
                         echo -e "You need to specify just sort or long web port detection, not both!\n"
-                        unset webapp_port_detect
                         usage
                     fi
                 fi

@@ -11,24 +11,32 @@
 #                                                           #
 #############################################################
 
+domain_check
+domainlist_check
+recon_check
+url_check
+webapp_discovery_check
+webapp_enum_check
+${#webapp_port_detect[@]}
+
 # Checking if the script has the main parameters needed
 check_execution(){
-    if [[ ! "${args}" =~ (-d|--domain|-dl|--domain-list|-u|--url) ]]; then
+    if [[ -z "${domain_check}" && -z "${domainlist_check}" && -z "${url_check}" ]]; then
         echo -e "You need at least one option \"-d|--domain\", \"-dl|--domain-list\" OR \"-u|--url\" to execute this script!\n"
         usage
     fi
 
-    if [[ "${args}" =~ (-d|--domain) ]] && [[ "${args}" =~ (-dl|--domain-list|-u|--url) ]]; then
+    if [[ -n "${domain_check}" && == "yes" ]] && [[ ( -n "${domainlist_check}" && "${domainlist_check}" == "yes" ) && ( -n "${url_check}" && "${url_check}" == "yes" ) ]]; then
         echo -e "You can not use the option -d|--domain with -dl|--domain-list or -u|--url and vice versa.\n"
         usage
     fi
 
-    if [[ "${args}" =~ (-dl|--domain-list) ]] && [[ "${args}" =~ (-d|--domain|-u|--url) ]]; then
+    if [[ -n "${domainlist_check}" && == "yes" ]] && [[ ( -n "${domain_check}" && "${domain_check}" == "yes" ) && ( -n "${url_check}" && "${url_check}" == "yes" ) ]]; then
         echo -e "You can not use the option -dl|--domain-list with -d|--domain or -u|--url and vice versa.\n"
         usage
     fi
 
-    if [[ "${args}" =~ (-u|--url) ]] && [[ "${args}" =~ (-d|--domain|-dl|--domain-list) ]]; then
+    if [[ -n "${url_check}" && "${url_check}" == "yes" ]] && [[ ( -n "${domain_check}" && "${domain_check}" == "yes" ) && ( -n "${domainlist_check}" && "${domainlist_check}" == "yes" ) ]]; then
         echo -e "You can not use the option -u|--url with -d|--domain or -dl|--domain-list and vice versa.\n"
         usage
     fi
@@ -56,81 +64,69 @@ check_parameter_conflicts(){
 }
 
 check_parameter_dependency(){
-    # Basic Execution Check
-    if  [[ "${args}" =~ (-d|--domain|-dl|--domain-list) ]] && \
-        [[ ! -d "${report_dir}" && ( ! "${args}" =~ (-r|--recon) || -z "${recon_check}" || "${recon_check}" == "no" ) ]]; then
-        echo -e "You are trying to perform recon, but don't have a structure and are using a different parameter than -r|--recon with domain options."
-        echo -e "You need to perform at least a basic run to get the subdomain discovered and continue the rest of the activities.\n"
-        usage
-    fi
-    
-    # Web Application Discovery Check
-    if [[ "${args}" =~ (-d|--domain|-dl|--domain-list) ]] && \
-        [[ "${webapp_discovery_check}" == "yes" || "${args}" =~ (-wd|--webapp-discovery) ]] && \
-        [[ ! -d "${report_dir}" && ( ! "${args}" =~ (-r|--recon) || -z "${recon_check}" || "${recon_check}" == "no" ) ]]; then
-        echo -e "You are trying to perform web application discovery where the basic recognition structure does not yet exist, run the collector again with the -r|--recon option.\n"
-        usage
-    fi
+    if [[ -n "${domain_check}" && "${domain_check}" == "yes" ]] || [[ -n "${domainlist_check}" && "${domainlist_check}" == "yes" ]]; then
+        # Basic Execution Check
+        if [[ ! -d "${report_dir}" && ( -z "${recon_check}" || "${recon_check}" == "no" ) ]]; then
+            echo -e "You are trying to perform recon, but don't have a structure and are using a different parameter than -r|--recon with domain options."
+            echo -e "You need to perform at least a basic run to get the subdomain discovered and continue the rest of the activities.\n"
+            usage
+        fi
 
-    if [[ "${args}" =~ (-d|--domain|-dl|--domain-list) ]] && \
-        [[ "${webapp_discovery_check}" == "yes" || "${args}" =~ (-wd|--webapp-discovery) ]] && \
-        [[ ! -s "${report_dir}/domains_alive.txt" && ! "${args}" =~ (-r|--recon) ]] ; then
-        echo -e "You are trying to run web application discovery without having previously run recon, use the -r|--recon option and run again.\n"
-        usage
-    fi
-    
-    if [[ "${webapp_discovery_check}" == "yes" || "${args}" =~ (-wd|--webapp-discovery) ]] && \
-        [[ ! "${args}" =~ (-wld|--webapp-long-detaction|-wsd|--webapp-short-detection) ]]; then
-        echo -e "You are trying to find out which web applications are active, but forgot to specify which ports to test."
-        echo -e "Choose one of the options (-wld|--webapp-long-detection or -wsd|--webapp-short-detection) and run again.\n"
-        usage
-    fi
+        if [[ "${webapp_discovery_check}" == "yes" || "${webapp_enum_check}" == "yes" ]]; then
+            if [[ ! -d "${report_dir}" && ( -z "${recon_check}" || "${recon_check}" == "no" ) ]]; then
+                echo -e "You are trying to perform web application discovery where the basic recognition structure does not yet exist, run the collector again with the -r|--recon option.\n"
+                usage
+            fi
+        fi
 
-    if [[ "${args}" =~ (-wld|--webapp-long-detaction|-wsd|--webapp-short-detection)  ]] && \
-        [[ ! "${args}" =~ (-wd|--webapp-discovery) ]]; then
-        echo -e "You trying to execute collector to perform web application discovery without setting -wd|--webapp-discovery option.\n"
-        usage
-    fi
+        # Web Application Discovery Check
+        if [[ "${webapp_discovery_check}" == "yes" ]] && [[ ! -s "${report_dir}domains_alive.txt" && ( -z "${recon_check}" || "${recon_check}" == "no" ) ]] ; then
+            echo -e "You are trying to run web application enumeration without having previously web application discovery, use the -r|--recon option and run again.\n"
+            usage
+        fi
 
-    # Web Application Enumeration Check
-    if [[ "${args}" =~ (-d|--domain|-dl|--domain-list) ]] && \
-        [[ "${webapp_enum_check}" == "yes" || "${args}" =~ (-we|--webapp-enum) ]] && \
-        [[ ! -d "${report_dir}" && ( ! "${args}" =~ (-r|--recon) || -z "${recon_check}" || "${recon_check}" == "no" ) ]]; then
-        echo -e "You are trying to perform web application discovery where the basic recognition structure does not yet exist, run the collector again with the -r|--recon option.\n"
-        usage
-    fi
+        if [[ "${webapp_discovery_check}" == "yes" ]] && [[ "${#webapp_port_detect[@]}" -eq 0 ]]; then
+            echo -e "You are trying to find out which web applications are active, but forgot to specify which ports to test."
+            echo -e "Choose one of the options (-wld|--webapp-long-detection or -wsd|--webapp-short-detection) and run again.\n"
+            usage
+        fi
 
-    if [[ "${args}" =~ (-d|--domain|-dl|--domain-list) ]] && \
-        [[ "${webapp_enum_check}" == "yes" || "${args}" =~ (-we|--webapp-enum) ]] && \
-        [[ ! -s "${report_dir}/webapp_urls.txt" && ( ! "${args}" =~ (-wd|--webapp-discovery) || -z "${webapp_discovery_check}" || "${webapp_discovery_check}" == "no" ) ]] ; then
-        echo -e "You are trying to run web application enumeration without having previously web application discovery, use the -wd|--webapp-discovery option and run again.\n"
-        usage
-    fi
+        if [[ "${#webapp_port_detect[@]}" -gt 0 ]] && [[ -z "${webapp_discovery_check}" || "${webapp_discovery_check}" == "no" ]]; then
+            echo -e "You trying to execute collector to perform web application discovery without setting -wd|--webapp-discovery option.\n"
+            usage
+        fi
 
-    if [[ "${webapp_enum_check}" == "yes" || "${args}" =~ (-we|--webapp-enum) ]] && \
-        [[ ${#webapp_wordlists[@]} -eq 0 || ! "${args}" =~ (-wl|--webapp-wordlists) ]]; then
-        echo -e "Please, ${yellow}make sure${reset} you have at least one wordlist to web directory and file discovery!\n"
-        usage
-    fi
+        # Web Application Enumeration Check
+        if [[ "${webapp_enum_check}" == "yes" ]] && [[ ! -s "${report_dir}/webapp_urls.txt" && ( -z "${webapp_discovery_check}" || "${webapp_discovery_check}" == "no" ) ]] ; then
+            echo -e "You are trying to run web application enumeration without having previously web application discovery, use the -wd|--webapp-discovery option and run again.\n"
+            usage
+        fi
 
-    if [[ "${webapp_enum_check}" == "yes" || "${args}" =~ (-we|--webapp-enum) ]] && [[ -n "${url_2_verify}" ]]; then
-        echo -e "You can't use this -we|--webapp-enum option with \"-u|--url\"!\n"
-        usage
+        if [[ "${webapp_enum_check}" == "yes" ]] && [[ ${#webapp_wordlists[@]} -eq 0 ]]; then
+            echo -e "Please, ${yellow}make sure${reset} you have at least one wordlist to web directory and file discovery!\n"
+            usage
+        fi
     fi
 
     # Full Execution Check
 
     # URL
-    if [[ -n "${url_2_verify}" ]] && [[ -z "${domain}" ]] && [[ ! -s "${domain_list}" ]]; then
-        if [[ "${args_count}" -gt 4 ]]; then
-            echo -e "You are trying to pass a number of parameters beyond what is necessary for this collector reconnaissance option \"${yellow}-u|--url${reset}\".\n"
+    if [[ -n "${url_check}" && "${url_check}" == "yes" ]]; then
+        if [[ "${recon_check}" == "yes" || "${webapp_discovery_check}" == "yes" || "${webapp_enum_check}" == "yes" ]]; then
+            echo -e "You are passing parameters that don't work with the -u|--url option.\n"
             usage
         fi
-    fi
-    if [[ -n "${url_2_verify}" ]] && [[ -z "${domain}" ]] && [[ ! -s "${domain_list}" ]]; then
-        if [[ "${args_count}" -gt 4 ]] && [[ ! "${args}" =~ (-ww|--webapp-wordlist) ]]; then
-            echo -e "Maybe you forget the -ww|--webapp-wordlist option to use with reconnaissance option \"${yellow}-u|--url${reset}\".\n"
-            usage
+        if [[ -n "${url_2_verify}" ]]; then
+            if [[ "${args_count}" -gt 4 ]]; then
+                echo -e "You are trying to pass a number of parameters beyond what is necessary for this collector reconnaissance option \"${yellow}-u|--url${reset}\".\n"
+                usage
+            fi
+        fi
+        if [[ -n "${url_2_verify}" ]]; then
+            if [[ "${args_count}" -gt 4 ]] && [[ ${#webapp_wordlists[@]} -eq 0 ]]; then
+                echo -e "Maybe you forget the -ww|--webapp-wordlist option to use with reconnaissance option \"${yellow}-u|--url${reset}\".\n"
+                usage
+            fi
         fi
     fi
 }
