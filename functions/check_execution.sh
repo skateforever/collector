@@ -72,7 +72,7 @@ check_parameter_dependency(){
         fi
 
         # Web Application Discovery Check
-        if [[ "${webapp_discovery_check}" == "yes" ]] && [[ ! -s "${report_dir}domains_alive.txt" && ( -z "${recon_check}" || "${recon_check}" == "no" ) ]] ; then
+        if [[ "${webapp_discovery_check}" == "yes" ]] && [[ ! -s "${report_dir}/domains_alive.txt" && ( -z "${recon_check}" || "${recon_check}" == "no" ) ]] ; then
             echo -e "You are trying to run web application enumeration without having previously web application discovery, use the -r|--recon option and run again.\n"
             usage
         fi

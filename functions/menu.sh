@@ -31,49 +31,29 @@ menu(){
         case $1 in
             -d|--domain)
                 check_argument "$1" "$2"
-                if [[ -n "${url_2_verify}" ]]; then
-                    echo -e "You can only use \"-d|--domain\" or \"-u|--url\", never both together!\n"
-                    usage
-                elif [[ -s "${domain_list}" ]]; then
-                    echo -e "You can only use \"-d|--domain\" or \"-dl|--domain-list\", never both together!\n"
-                    usage
-                else
-                    domain="$2"
-                    unset domain_check
-                    domain_check="yes"
-                    unset directories_structure
-                    directories_structure="domain"
-                    shift 2
-                fi
+                domain="$2"
+                unset domain_check
+                domain_check="yes"
+                unset directories_structure
+                directories_structure="domain"
+                shift 2
                 ;;
             -dl|--domain-list)
                 check_argument "$1" "$2"
-                if [[ -n "${url_2_verify}" ]]; then
-                    echo -e "You can only use \"-dl|--domain-list\" or \"-u|--url\", never both together!\n"
-                    usage
-                elif [[ -s "${domain_list}" ]]; then
-                    echo -e "You can only use \"-dl|--domain-list\" or \"-d|--domain\", never both together!\n"
-                    usage
+                if [ -s "$2" ]; then
+                    domain_list=$2
+                    unset domainlist_check
+                    domainlist_check="yes"
+                    unset directories_structure
+                    directories_structure="domain"
+                    shift 2
                 else
-                    if [ -s "$2" ]; then
-                        domain_list=$2
-                        unset domainlist_check
-                        domainlist_check="yes"
-                        unset directories_structure
-                        directories_structure="domain"
-                        shift 2
-                    else
-                        echo -e "Please provide a valid file with domains.\n"
-                        usage
-                    fi
+                    echo -e "Please provide a valid file with domains.\n"
+                    usage
                 fi
                 ;;
             -e|--exclude-domains)
                 check_argument "$1" "$2"
-                if [[ -n "${url_2_verify}" ]]; then
-                    echo -e "You can only use this (-e|--exlude-domains) option with \"-d|--domain\"!\n"
-                    usage
-                fi
                 set -f
                 IFS=","
                 excluded+=("$2")
@@ -161,28 +141,20 @@ menu(){
                 ;;
             -u|--url)
                 check_argument "$1" "$2"
-                if [[ -n "${domain}" ]]; then
-                    echo -e "You can only use \"-u|--url\" or \"-d|--domain\", never both together!\n"
-                    usage
-                elif [[ -s "${domain_list}" ]]; then
-                    echo -e "You can only use \"-u|--url\" or \"-dl|--domain-list\", never both together!\n"
+                [[ -n "$2" ]] && status_code=$(curl -o /dev/null -kLs -w "%{http_code}" "$2")
+                if [[ -z ${status_code} || "${status_code}" -eq "000" ]];then
+                    echo -e "You need specify a valid URL!\n"
                     usage
                 else
-                    [[ -n "$2" ]] && status_code=$(curl -o /dev/null -kLs -w "%{http_code}" "$2")
-                    if [[ -z ${status_code} || "${status_code}" -eq "000" ]];then
-                        echo -e "You need specify a valid URL!\n"
-                        usage
-                    else
-                        unset url_check
-                        url_check="yes"
-                        unset url_2_verify
-                        url_2_verify=$2
-                        unset url_domain
-                        url_domain=$(echo "${url_2_verify}" | sed -e 's/http.*\/\///' | awk -F'/' '{print $1}' | xargs -I {} basename {})
-                        unset directories_structure
-                        directories_structure="url"
-                        shift 2
-                    fi
+                    unset url_check
+                    url_check="yes"
+                    unset url_2_verify
+                    url_2_verify=$2
+                    unset url_domain
+                    url_domain=$(echo "${url_2_verify}" | sed -e 's/http.*\/\///' | awk -F'/' '{print $1}' | xargs -I {} basename {})
+                    unset directories_structure
+                    directories_structure="url"
+                    shift 2
                 fi
                 unset status_code
                 ;;
