@@ -54,7 +54,7 @@ if [[ "${killremove_check}" == "yes" ]]; then
     kill_collector "${domain}"
 fi
 
-if [[ "${domain_check}" == "yes" && -n "${domain}" ]]; then; then
+if [[ "${domain_check}" == "yes" && -n "${domain}" ]]; then
     check_is_known_target "${domain}"
     domains_recon
     exit 0
