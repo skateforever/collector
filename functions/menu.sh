@@ -11,8 +11,9 @@
 #############################################################
 
 check_argument(){
-    options+=(-d --domain -dl --domain-list -ed --exclude-domains -el --exclude-domain-list -k -kill -kr --kill-remove -l --limit-urls -o --output -p --proxy -r --recon)
-    options+=(-s --subdomain-brute -u --url -wd --webapp-discovery -we --webapp-enum -wld --webapp-long-detection -wsd --webapp-short-detection -ww --webapp-wordlists)
+    options+=(-d --domain -dl --domain-list -ed --exclude-domains -el --exclude-domain-list -h --help -k -kill)
+    options+=(-kr --kill-remove -l --limit-urls -o --output -p --proxy -r --recon -s --subdomain-brute -u --url)
+    options+=(-wd --webapp-discovery -we --webapp-enum -wld --webapp-long-detection -wsd --webapp-short-detection -ww --webapp-wordlists)
     option_arg=$2
     if [[ -z "${option_arg}" ]]; then
         echo -e "The argument of ${yellow}\"$1\"${reset} it can not be ${red}\"empty\"${reset} or you forgot to inform it, please, ${yellow}specify a valid one${reset}.\n"
@@ -76,6 +77,9 @@ menu(){
                     usage
                 fi
                 shift 2
+                ;;
+            -h|--help)
+                usage
                 ;;
             -k|--kill)
                 check_argument "$1" "$2"
