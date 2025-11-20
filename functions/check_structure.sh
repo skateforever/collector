@@ -23,7 +23,7 @@ check_is_known_target(){
 check_directory_permission(){
     [ ! -d "${output_dir}" ] && mkdir -p "${output_dir}" 2> /dev/null
     if [[ $(cd "${output_dir}" > /dev/null 2>&1 ; echo "$?") -eq 0 ]] && \
-        [[ $(touch "${output_dir}/permission_to_write.txt" > /dev/null 2>&1; echo"$?") -eq 0 ]]; then
+        [[ $(touch "${output_dir}/permission_to_write.txt" > /dev/null 2>&1; echo "$?") -eq 0 ]]; then
         rm -rf "${output_dir}/permission_to_write.txt"
     else
         echo -e "Please, you need to specify a ${yellow}valid directory you own or have access permission${reset}!\n"
