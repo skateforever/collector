@@ -38,8 +38,8 @@ menu(){
                 domain="$2"
                 unset domain_check
                 domain_check="yes"
-                unset directories_structure
-                directories_structure="domain"
+                unset directory_structure
+                directory_structure="domain"
                 shift 2
                 ;;
             -dl|--domain-list)
@@ -48,8 +48,8 @@ menu(){
                     domain_list=$2
                     unset domainlist_check
                     domainlist_check="yes"
-                    unset directories_structure
-                    directories_structure="domain"
+                    unset directory_structure
+                    directory_structure="domain"
                     shift 2
                 else
                     echo -e "Please provide a valid file with domains.\n"
@@ -151,22 +151,15 @@ menu(){
                 ;;
             -u|--url)
                 check_argument "$1" "$2"
-                [[ -n "$2" ]] && status_code=$(curl -o /dev/null -kLs -w "%{http_code}" "$2")
-                if [[ -z ${status_code} || "${status_code}" -eq "000" ]];then
-                    echo -e "You need specify a valid URL!\n"
-                    usage
-                else
-                    unset url_check
-                    url_check="yes"
-                    unset url_2_verify
-                    url_2_verify=$2
-                    unset url_domain
-                    url_domain=$(echo "${url_2_verify}" | sed -e 's/http.*\/\///' | awk -F'/' '{print $1}' | xargs -I {} basename {})
-                    unset directories_structure
-                    directories_structure="url"
-                    shift 2
-                fi
-                unset status_code
+                unset url_check
+                url_check="yes"
+                unset directory_structure
+                directory_structure="url"
+                unset url_2_verify
+                url_2_verify=$2
+                unset url_domain
+                url_domain=$(echo "${url_2_verify}" | sed -e 's/http.*\/\///' | awk -F'/' '{print $1}' | xargs -I {} basename {})
+                shift 2
                 ;;
             -wd|--webapp-discovery)
                 unset webapp_discovery_check

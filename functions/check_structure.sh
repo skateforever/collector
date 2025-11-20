@@ -32,7 +32,7 @@ check_directory_permission(){
 }
 
 create_directory_structure(){
-    if [ "${directories_structure}" == "domain" ]; then
+    if [ "${directory_structure}" == "domain" ]; then
         # Create all main dirs necessaries to report and recon for domain
         if [[ "${webapp_discovery}" == "yes" ]] || [[ "${only_webapp_enum}" == "yes" ]]; then
             #recon_dir="$("${ls_bin_path}" -d "${output_dir}/${domain}"/recon_*/ | sort -r | head -n 1)"
@@ -70,7 +70,7 @@ create_directory_structure(){
         webapp_tech_dir="${webapp_dir}/tech"
     fi
 
-    if [ "${directories_structure}" == "url" ]; then
+    if [ "${directory_structure}" == "url" ]; then
         # Create all dirs necessaries to report and recon for url
         recon_dir="${output_dir}/${url_domain}/url_${date_recon}"
         mkdir -p "${recon_dir}"

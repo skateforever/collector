@@ -32,6 +32,14 @@ check_execution(){
         echo -e "You can not use the option -u|--url with -d|--domain or -dl|--domain-list and vice versa.\n"
         usage
     fi
+
+    if [[ -n "${url_check}" && "${url_check}" == "yes" ]] && [[ -n "${url_2_verify}" ]]; then
+        status_code=$(curl "${curl_options[@]}" -o /dev/null -w "%{http_code}" "${url_2_verify}")
+        if [[ -z ${status_code} || "${status_code}" -eq "000" ]];then
+            echo -e "You need specify a valid URL!\n"
+            usage
+        fi
+    fi
 }
 
 # Checking the runtime parameter dependency for recon
