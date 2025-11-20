@@ -72,7 +72,7 @@ menu(){
                     unset excludedomainlist_check
                     excludedomainlist_check="yes"
                 else
-                    echo -e "Please provide a valid file with domains.\n"
+                    echo -e "Please provide a valid file with domains to exclude them.\n"
                     usage
                 fi
                 shift 2
