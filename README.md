@@ -11,145 +11,79 @@ Recommended to run on vps with 1VCPU and 2GB ram.
 
 To run you need to install some tools and get some API keys. </br>
 
-Lists of API/Web Sites for recon used in the collector:</br>
+List of API/Web Sites for recon used in the collector:</br>
 
-    * alienvault
-    * binaryedge
-    * builitwith
-    * censys
-    * certspotter
-    * commoncrawl
-    * crt.sh
-    * dnsdb
-    * dnsdumpster
-    * hackertarget
-    * rapiddns
-    * riskiq
-    * securitytrails
-    * threatcrowd
-    * threatminer
-    * virustotal
-    * webarchive
-    * whoisxmlapi
+* alienvault
+* builitwith
+* certspotter
+* commoncrawl
+* crt.sh
+* dnsdumpster
+* hackertarget
+* rapiddns
+* securitytrails
+* shodan
+* virustotal
+* webarchive
+* whoisxmlapi
 
-Lists of tools for recon used in the collector:</br>
+List of tools for recon used in the collector:</br>
 
-    * amass
-    * dnssearch
-    * gobuster
-    * nmap
-    * shodan
-    * subfinder
+* amass
+* dnssearch
+* gobuster
+* subfinder
+* tlsx
+* wayback
 
-Lists of tools for web data function used in the collector:</br>
+List of tools for infrastructure scan used in the collector:</br>
 
-    * aquatone
-    * chromium
-    * dirsearch
-    * git-dumper
-    * gobuster
-    * httpx
-    * nuclei
-    * wayback
+* nmap
+
+List of tools for webapp discovery:</br>
+
+* aquatone
+* chromium
+* httpx
+
+List of tools for webapp enumeration used in the collector:</br>
+
+* dirsearch
+* git-dumper
+* gobuster
+
+List of tools for webapp scan used in the collector:</br>
+
+* nuclei
+
 </br>
 
-In the future I pretend to use dnsrecon, massdns, sublist3r and others tools to get more subdomains and others information.</br>
+I tried my best to make the collector as simple as possible, but I also tried to ensure that the execution wasn't done haphazardly. Therefore, you'll notice that the execution is somewhat locked into a flow to obtain:
 
-But to facility this work I made another script get those tools:</br>
+1. Domain, subdomains, IPs, and aliases;
+2. Search for active web applications, but this depends on the first step; you need to execute the first step first;
+3. Search for files, directories, and attempt to retrieve a Git repository, but this will only work if you complete step 2.
 
-`curl -kLOs https://raw.githubusercontent.com/skateforever/pentest-scripts/main/useful/get-tools.sh` </br>
-`chmod +x get-tools.sh` </br>
-`./get-tools.sh -u root -l /opt/pentest/ -p web` </br>
-
-You don't need to run the collector or get-tools.sh from root. </br>
-If you'll run the collector with another user, you can try run the get-tool.sh like that: </br>
-
-`sudo -H ./get-tools.sh -u skate4ever -l /opt/pentest/ -p web`
-
-After that, you can configure the collector.cfg and use as below. </br>
+As you can see, I need to follow a logical sequence to obtain the expected result.</br>
 
 ## How collector works?
 
-This is a little manual to use collector.
+First step: **./collector --domain abc.com --recon**</br>
+Second step: **./collector --domain abc.com --webapp-discovery --webapp-short-detection**</br>
 
-By default you have two choices:
+In the second step, we only need to pay attention to specifying which ports we will use to discover which web applications are active.</br>
 
-    1. -u |--url
-    2. -d |--domains
-    3. -dl|--domain-list
+To see which ports you want to analyze, check the **collector.cfg** file and view the options for this action; use **./collector --help**</br>
 
-**Using collector with url (-u|--url option)!**
+![collector-help.png](https://raw.githubusercontent.com/skateforever/collector/main/demo/collector-help.png) </br>
 
-When you use the "-u|--url" option, it just need to call the collector:
+And in the last step: **./collector --domain abc.com --webapp-enum --webapp-wordlist /path/to/wordlist**</br>
 
-    ./collector --url https://domain.com
+Just like in the second step, in the third step we need to specify another option, in order to perform the enumeration action, which is the wordlist.</br>
 
-**Using collector in default reconnaissance with main domain (-d|--domain or -dl|--domain-list options)!**
+And we can combine all option: **./collector --domain abc.com --recon --webapp-discovery --webapp-short-detection --webapp-enum --webapp-wordlist /path/to/wordlist**</br>
 
-You will need to inform some few options to get the collector work properly, below I will show you the basics to use the main recon option of collector.
-
-First you ***NEED*** to choice what tool you want use to identify web ports are open, two values the option "-wtd|--web-tool-detection" accept:
-
-    * curl
-    * httpx
-
-Second you ***NEED*** to inform if the detection will be short (-wsd|--web-short-detection) or long (-wld|--web-long-detection):
-
-    * short detection will test only 80, 443, 8080 and 8443 ports
-    * long detection will test more than hundred ports
-
-Now that you know the important points, the command to perform a simple execution of collector if you put the DNS servers in **collector.cfg** is:
-
-    `./collector --domain domain.com --web-short-detection --web-tool-detection curl`
-    ***OR***
-    `./collector --domain-list domains.txt --web-short-detection --web-tool-detection curl`
-
-If you decide to use the command line to inform the DNS servers the command will be:
-
-    `./collector -d domain.com -ws`
-
-Look at this point, the collector had your execution of recon with some active gathering information trying to determine if a web server/page exist in determinate port beyond to access directories and files in web pages. </br>
-
-To reduce the amount of traffic generated by set of tools used by collector, you will prefer to use the --recon options.</br>
-This options will be execute to determine what is web server/page and stop.</br>
-
-Thus the command to use is (if you have the DNS servers in collector.cfg, see above to know how to use DNS servers with collector):
-
-    `./collector --domain domain.com --web-short-detection --web-tool-detection curl --recon`
-    
-If you decide to perfom a web data collection after use --recon option, you just need to execute the collector with -w|--web-data option, like this:
-
-    `./collector --domain domain.com --web-data`
-
-Now you have the basics funcionality of collector, but if you need or decide to change something on your recon parameters of collector, you can use see the help option:
-
-        -d  |--domain              - Specify a valid domain [needed].
-        -dl |--domain-list         - Specify a valid domain [needed].
-        -e  |--exclude-domains     - Specify excluded subdomains after all treated files [used only with -d|--domain]:
-                                     use -e domain1.com,domain2.com or --exclude-domains domain1.com,domain2.com
-        -k  |--kill                - Will kill the current execution of collector, you need to specify the domain as argument.
-        -ka |--kill-all            - Will kill the current execution of collector and delete the directory of results from current execution, you need to specify the domain as argument.
-        -l  |--limit-urls          - Specify the url quantity to run dirsearch and gobuster for dirs and files enumeration [used only with -d|--domain]:
-                                     use -l 10 or --limit-urls 10
-        -o  |--output              - This option when specified will use the directory to save the output of collector script if omitted the default value is:
-                                     /home/leandro/pentest/scripts/recon/collector
-                                   - This option as well as others can be configured on collector.cfg, variable output_dir or use the parameters like:
-                                     use -o /path/of/output or --output-dir /path/of/output
-        -p  |--proxy               - This option will use a provided proxy (with port) to avoid or bypass WAF block.
-                                     use -p or --proxy
-        -r  |--recon               - Will execute a recon until you find out what domains are webpage: used only with -d|--domain WITHOUT -wd|--web-data.
-        -s  |--subdomain-brute     - Specify the wordlist to put in dns_wordlist array and execute gobuster and dnssearch brute force [used only with -d|--domain]
-                                     by default the array is empty and not execute amass, gobuster and dnssearch. This option take a long time to finish, use this own your need!
-                                     The success of use those tools is a good wordlist:
-                                     use -s /path/to/wordlist1,/path/to/wordlist2 or --subdomain-brute /path/to/wordlist1,/path/to/wordlist2
-        -u  |--url                 - Specify a valid url [needed].
-        -wd |--web-data            - Will execute a web data dig after execution of collector with recon option (--recon): used only with -d|--domain WITHOUT -r|--recon.
-        -wld|--web-long-detection  - Will execute the long list of ports setup in collector.cfg as variable web_port_long_detection.
-        -wsd|--web-short-detection - Will execute the short list of ports setup in collector.cfg as variable web_port_short_detection.
-        -wtd|--web-tool-detection  - You need to inform what tool to perform web application detection the tool can be curl OR httpx.
-        -ww |--web-wordlists       - Specity more wordlists to put in web_wordlist array, by default we use the /dirsearch/db/dicc.txt
-                                     as the first wordlist to enumerate dirs and files from website.
-                                     use -ww /path/to/wordlist1,/path/to/wordlist2 or --web-wordlists /path/to/wordlist1,/path/to/wordlist2
+You can use the collector to enumerate only an url: **./collector --url http://abc.com --webapp-wordlist /path/to/wordlist**
 
 **Use as you need.**
 
@@ -160,9 +94,8 @@ Now you have the basics funcionality of collector, but if you need or decide to 
   - Amass, certspotter, cert.sh, subfinder and Sublist3r
   - Dns bruteforcing using amass, gobuster and dnssearch
 - The diff\_domains function to improve the time of execution, get just what change on target infraestructure
-- Perform nmap to live hosts
 - Probe for live hosts over some ports like 80, 443, 8080, etc
-- The web\_data funtion from collector work when you put a list of URLs from file.
+- The webapp\_enum funtion from collector work when you put a list of URLs from file.
   - Perform dirsearch and gobuster for all subdomains 
   - Scrape wayback
 - Rebuild GIT repository
@@ -212,5 +145,6 @@ https://0xffsec.com/handbook/information-gathering/subdomain-enumeration/#conten
 https://www.ceeyu.io/resources/blog/subdomain-enumeration-tools-and-techniques </br>
 https://securitytrails.com/blog/dns-enumeration </br>
 https://securitytrails.com/blog/whois-records-infosec-industry </br>
+https://thexssrat.medium.com/how-to-automate-your-broad-scope-recon-a4ff998dea0e </br>
 
 **Warning:** The code of all scripts find here was originally created for personal use, it generates a substantial amount of traffic, please use with caution. 
