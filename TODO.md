@@ -15,4 +15,4 @@ emails_recon function:</br>
 * hunter.io
 * lampary
 
-In the future use dnsrecon, massdns, sublist3r and others tools to get more subdomains and others information.</br>
+In the future use dnsrecon, gau, massdns, sublist3r and others tools to get more subdomains and others information.</br>
