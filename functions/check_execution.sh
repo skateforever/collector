@@ -33,8 +33,8 @@ check_execution(){
         usage
     fi
 
-    if [[ -n "${url_check}" && "${url_check}" == "yes" ]] && [[ -n "${url_2_verify}" ]]; then
-        status_code=$(curl "${curl_options[@]}" -o /dev/null -w "%{http_code}" "${url_2_verify}")
+    if [[ -n "${url_check}" && "${url_check}" == "yes" ]] && [[ -n "${url_verify}" ]]; then
+        status_code=$(curl "${curl_options[@]}" -o /dev/null -w "%{http_code}" "${url_verify}")
         if [[ -z ${status_code} || "${status_code}" -eq "000" ]];then
             echo -e "You need specify a valid URL!\n"
             usage
@@ -122,13 +122,13 @@ check_parameter_dependency(){
 
     # URL
     if [[ -n "${url_check}" && "${url_check}" == "yes" ]]; then
-        if [[ -n "${url_2_verify}" ]]; then
+        if [[ -n "${url_verify}" ]]; then
             if [[ "${args_count}" -gt 4 ]]; then
                 echo -e "You are trying to pass a number of parameters beyond what is necessary for this collector reconnaissance option \"${yellow}-u|--url${reset}\".\n"
                 usage
             fi
         fi
-        if [[ -n "${url_2_verify}" ]]; then
+        if [[ -n "${url_verify}" ]]; then
             if [[ "${args_count}" -gt 4 ]] && [[ ${#webapp_wordlists[@]} -eq 0 ]]; then
                 echo -e "Maybe you forget the -ww|--webapp-wordlist option to use with reconnaissance option \"${yellow}-u|--url${reset}\".\n"
                 usage

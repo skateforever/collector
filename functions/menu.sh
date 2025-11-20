@@ -155,10 +155,10 @@ menu(){
                 url_check="yes"
                 unset directory_structure
                 directory_structure="url"
-                unset url_2_verify
-                url_2_verify=$2
+                unset url_verify
+                url_verify=$2
                 unset url_domain
-                url_domain=$(echo "${url_2_verify}" | sed -e 's/http.*\/\///' | awk -F'/' '{print $1}' | xargs -I {} basename {})
+                url_domain=$(echo "${url_verify}" | sed -e 's/http.*\/\///' | awk -F'/' '{print $1}' | xargs -I {} basename {})
                 shift 2
                 ;;
             -wd|--webapp-discovery)

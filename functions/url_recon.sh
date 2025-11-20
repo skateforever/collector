@@ -31,33 +31,33 @@ url_recon(){
     echo -e "\t   If you need look the output in execution time, you need to \"tail\" the files."
     echo " "
     # Executing just the functions necessary to url check
-    [[ -s "${recon_dir}/url_2_test.txt"  ]] && rm "${recon_dir}/url_2_test.txt"
+    [[ -s "${recon_dir}/url_test.txt"  ]] && rm "${recon_dir}/url_test.txt"
     message "${url_domain}" start
     if [ $(host -t A "${url_domain}" | grep -v "Host.*not.found:" | awk '{print $4}' | \
             grep -E "^^([0-9]+(\.|$)){4}|^([0-9a-fA-F]{0,4}:){1,7}([0-9a-fA-F]){0,4}$") ]; then
-       echo "${url_domain}" > "${recon_dir}/url_2_test.txt"
+       echo "${url_domain}" > "${recon_dir}/url_test.txt"
     else
        message ${url_domain} failed
        exit 1
     fi 
 
-    if [[ -s "${recon_dir}/url_2_test.txt" ]]; then
-        webapp_enum "${url_domain}" "${recon_dir}/url_2_test.txt"
+    if [[ -s "${recon_dir}/url_test.txt" ]]; then
+        webapp_enum "${url_domain}" "${recon_dir}/url_test.txt"
         robots_txt
     fi
 
     [[ -s "${report_dir}/robots_urls.txt" ]] && webapp_enum "${report_dir}/robots_urls.txt"
 
-    for file in "${recon_dir}/url_2_test.txt" "${report_dir}/robots_urls.txt"; do
+    for file in "${recon_dir}/url_test.txt" "${report_dir}/robots_urls.txt"; do
         if [[ -s "${file}" ]]; then
-            webapp_tech "${url_domain}" "${recon_dir}/url_2_test.txt"
-            crawler_js "${url_domain}" "${recon_dir}/url_2_test.txt"
-            webapp_scan "${url_domain}" "${recon_dir}/url_2_test.txt"
-            aquatone_screenshot "${recon_dir}/url_2_test.txt"
+            webapp_tech "${url_domain}" "${recon_dir}/url_test.txt"
+            crawler_js "${url_domain}" "${recon_dir}/url_test.txt"
+            webapp_scan "${url_domain}" "${recon_dir}/url_test.txt"
+            aquatone_screenshot "${recon_dir}/url_test.txt"
             git_rebuild
         fi
     done
 
-    message "${url_2_verify}" finished
-    rm "${recon_dir}/url_2_test.txt" > /dev/null 2>&1) 2>> "${log_execution_file}"| tee -a "${log_execution_file}"
+    message "${url_verify}" finished
+    rm "${recon_dir}/url_test.txt" > /dev/null 2>&1) 2>> "${log_execution_file}"| tee -a "${log_execution_file}"
 }
