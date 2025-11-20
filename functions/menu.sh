@@ -11,15 +11,15 @@
 #############################################################
 
 check_argument(){
-    options+=(-d --domain -dl --domain-list -e --exclude-domains -el --exclude-domain-list -k -kill -ka --kill-all -l --limit-urls -o --output -p --proxy -r --recon)
+    options+=(-d --domain -dl --domain-list -ed --exclude-domains -el --exclude-domain-list -k -kill -kr --kill-remove -l --limit-urls -o --output -p --proxy -r --recon)
     options+=(-s --subdomain-brute -u --url -wd --webapp-discovery -we --webapp-enum -wld --webapp-long-detection -wsd --webapp-short-detection -ww --webapp-wordlists)
-    if [[ $# -lt 2 && -z "${2+x}" ]]; then
-        echo -e "The argument of ${yellow}\"$1\"${reset} it can not be ${red}\empty\"${reset} or you forgot to inform it, please, ${yellow}specify a valid one${reset}.\n"
+    option_arg=$2
+    if [[ -z "${option_arg}" ]]; then
+        echo -e "The argument of ${yellow}\"$1\"${reset} it can not be ${red}\"empty\"${reset} or you forgot to inform it, please, ${yellow}specify a valid one${reset}.\n"
         usage
-    fi
-    if [[ $# -eq 2 ]]; then
+    else
         for option in "${options[@]}"; do
-            if [[ "${option}" == "$2" ]]; then
+            if [[ "${option}" == "${option_arg}" ]]; then
                 echo -e "The argument of ${yellow}\"$1\"${reset} it can not be ${red}\"$2\"${reset}, please, ${yellow}specify a valid one${reset}.\n"
                 usage
             fi
@@ -55,11 +55,11 @@ menu(){
                     usage
                 fi
                 ;;
-            -e|--exclude-domains)
+            -ed|--exclude-domains)
                 check_argument "$1" "$2"
                 set -f
                 IFS=","
-                excluded_domains+=("$2")
+                excluded_domains+=($2)
                 unset IFS
                 unset excludedomain_check
                 excludedomain_check="yes"

@@ -9,7 +9,7 @@ usage(){
     echo "Options: "
     echo -e "\t-d  |--domain                 - Specify a valid domain [${red}needed${reset}]."
     echo -e "\t-dl |--domain-list            - Specify a valid domain [${red}needed${reset}]."
-    echo -e "\t-e  |--exclude-domain         - Specify excluded subdomains after all treated files, ${red}used only with${reset} ${yellow}-d|--domain${reset}:"
+    echo -e "\t-ed |--exclude-domain         - Specify excluded subdomains after all treated files, ${red}used only with${reset} ${yellow}-d|--domain${reset}:"
     echo -e "\t\t\t\t        use ${yellow}-e domain1.com,domain2.com${reset} OR ${yellow}--exclude-domains domain1.com,domain2.com${reset}"
     echo -e "\t-el |--exclude-domain-list    - Specify excluded subdomains from a file after all treated files, ${red}used only with${reset} ${yellow}-d|--domain${reset} or ${yellow}-dl|--domain-list${reset}:"
     echo -e "\t\t\t\t        use ${yellow}-el /path/file/excluded_domains_list.txt${reset} OR ${yellow}--exclude-domain-list /path/file/excluded_domains_list.txt${reset}"
