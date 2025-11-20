@@ -41,8 +41,8 @@ check_binaries
 
 [[ $# -eq 0 ]] && { echo -e "You're using the collector without parameters.\n" ; usage ; } || menu "$@"
 
-create_initial_directories_structure
 check_execution
+create_initial_directories_structure
 check_parameter_conflicts
 check_parameter_dependency
 

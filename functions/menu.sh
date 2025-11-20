@@ -13,14 +13,17 @@
 check_argument(){
     options+=(-d --domain -dl --domain-list -e --exclude-domains -el --exclude-domain-list -k -kill -ka --kill-all -l --limit-urls -o --output -p --proxy -r --recon)
     options+=(-s --subdomain-brute -u --url -wd --webapp-discovery -we --webapp-enum -wld --webapp-long-detection -wsd --webapp-short-detection -ww --webapp-wordlists)
-    declare -A valid_option
-    for option in "${options[@]}"; do
-        valid_option["${option}"]=1
-    done
-    if [[ -v "${valid_option[$2]}" ]]; then
-        [[ -z $2 ]] && value="empty" || value="$2"
-        echo -e "The argument of ${yellow}\"$1\"${reset} it can not be ${red}\"${value}\"${reset}, please, ${yellow}specify a valid one${reset}.\n"
+    if [[ $# -lt 2 && -z "${2+x}" ]]; then
+        echo -e "The argument of ${yellow}\"$1\"${reset} it can not be ${red}\empty\"${reset} or you forgot to inform it, please, ${yellow}specify a valid one${reset}.\n"
         usage
+    fi
+    if [[ $# -eq 2 ]]; then
+        for option in "${options[@]}"; do
+            if [[ "${option}" == "$2" ]]; then
+                echo -e "The argument of ${yellow}\"$1\"${reset} it can not be ${red}\"$2\"${reset}, please, ${yellow}specify a valid one${reset}.\n"
+                usage
+            fi
+        done
     fi
 }
 
@@ -68,6 +71,9 @@ menu(){
                     excludedomain_list="$2"
                     unset excludedomainlist_check
                     excludedomainlist_check="yes"
+                else
+                    echo -e "Please provide a valid file with domains.\n"
+                    usage
                 fi
                 shift 2
                 ;;
@@ -109,8 +115,8 @@ menu(){
                 if [[ $(cd "$2" > /dev/null 2>&1 ; echo "$?") -eq 0 ]] && [[ $(touch "$2/permission_to_write.txt" > /dev/null 2>&1; echo "$?") -eq 0 ]]; then
                     unset output_dir
                     output_dir="$(echo "$2" | sed -e 's/\/$//')"
-                    shift 2
                     rm -rf "${output_dir}/permission_to_write.txt"
+                    shift 2
                 else
                     echo -e "Please, you need to specify a ${yellow}valid directory you own or have access permission${reset}!\n"
                     usage
@@ -118,15 +124,12 @@ menu(){
                 ;;
             -p|--proxy)
                 check_argument "$1" "$2"
+                unset use_proxy
                 use_proxy="yes"
                 proxy_ip="$(echo "$2" | sed -E 's/^\s*.*:\/\///g')"
                 shift 2
                 ;;
             -r|--recon)
-                if [[ -n "${url_2_verify}" ]]; then
-                    echo -e "With this option (-re|--recon) You can only use \"-d|--domain\"!\n"
-                    usage
-                fi
                 unset recon_check
                 recon_check="yes"
                 shift
@@ -136,7 +139,14 @@ menu(){
                 unset IFS
                 set -f
                 IFS=","
-                dns_wordlists+=("$2")
+                for dw in $2; do
+                    if [[ -s "${dw}" ]]; then
+                        dns_wordlists+=("$2")
+                    else
+                        echo -e "${dw} is not a valid file, please enter a valid one.\n"
+                        usage
+                    fi
+                done
                 unset IFS
                 unset subdomainbrute_check
                 subdomainbrute_check="yes"
@@ -201,7 +211,14 @@ menu(){
                 check_argument "$1" "$2"
                 set -f
                 IFS=","
-                webapp_wordlists+=("$2")
+                for ww in $2; do
+                    if [[ -s "${ww}" ]]; then
+                        webapp_wordlists+=("$2")
+                    else
+                        echo -e "${ww} is not a valid file, please enter a valid one.\n"
+                        usage
+                    fi
+                done
                 unset IFS
                 shift 2
                 ;;

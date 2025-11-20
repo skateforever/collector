@@ -37,6 +37,13 @@ check_execution(){
 # Checking the runtime parameter dependency for recon
 check_parameter_conflicts(){
     # Check Conflicts
+    if [[ -n "${url_check}" && "${url_check}" == "yes" ]]; then
+        if [[ "${recon_check}" == "yes" || "${webapp_discovery_check}" == "yes" || "${webapp_enum_check}" == "yes" ]]; then
+            echo -e "You are passing parameters that don't work with the -u|--url option.\n"
+            usage
+        fi
+    fi
+
     if [[ "${excludedomain_check}" == "yes" && "${excludedomainlist_check}" == "yes" ]]; then
         echo "You are trying to use same domain exclusion options, just pick one."
         usage
@@ -56,7 +63,6 @@ check_parameter_conflicts(){
         echo -e "You can only use this -s|--subdomain-brute option with -d|--domain!\n"
         usage
     fi
-
 }
 
 check_parameter_dependency(){
@@ -108,10 +114,6 @@ check_parameter_dependency(){
 
     # URL
     if [[ -n "${url_check}" && "${url_check}" == "yes" ]]; then
-        if [[ "${recon_check}" == "yes" || "${webapp_discovery_check}" == "yes" || "${webapp_enum_check}" == "yes" ]]; then
-            echo -e "You are passing parameters that don't work with the -u|--url option.\n"
-            usage
-        fi
         if [[ -n "${url_2_verify}" ]]; then
             if [[ "${args_count}" -gt 4 ]]; then
                 echo -e "You are trying to pass a number of parameters beyond what is necessary for this collector reconnaissance option \"${yellow}-u|--url${reset}\".\n"
