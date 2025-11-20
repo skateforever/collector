@@ -102,7 +102,6 @@ You can use the collector to enumerate only an url: **./collector --url http://a
 
 ![demo\_01.png](https://raw.githubusercontent.com/skateforever/collector/main/demo/demo_01.png) </br>
 ![demo\_02.png](https://raw.githubusercontent.com/skateforever/collector/main/demo/demo_02.png) </br>
-![demo\_03.png](https://raw.githubusercontent.com/skateforever/collector/main/demo/demo_03.png) </br>
 
 ## Thanks
 
