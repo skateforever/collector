@@ -56,8 +56,6 @@ List of tools for webapp scan used in the collector:</br>
 
 * nuclei
 
-</br>
-
 I tried my best to make the collector as simple as possible, but I also tried to ensure that the execution wasn't done haphazardly. Therefore, you'll notice that the execution is somewhat locked into a flow to obtain:
 
 1. Domain, subdomains, IPs, and aliases;
