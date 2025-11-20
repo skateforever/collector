@@ -42,9 +42,9 @@ check_binaries
 [[ $# -eq 0 ]] && { echo -e "You're using the collector without parameters.\n" ; usage ; } || menu "$@"
 
 check_execution
-create_initial_directories_structure
 check_parameter_conflicts
 check_parameter_dependency
+check_directory_permission
 
 if [[ "${kill_check}" == "yes" ]]; then
     kill_collector "${domain}"
@@ -56,6 +56,7 @@ fi
 
 if [[ "${domain_check}" == "yes" && -n "${domain}" ]]; then
     check_is_known_target "${domain}"
+    create_directory_structure
     domains_recon
     exit 0
 fi
@@ -64,13 +65,14 @@ if  [[ "${domainlist_check}" == "yes" && -s "${domain_list}" ]]; then
     unset domain
     while read -r domain; do
         check_is_known_target "${domain}"
+        create_directory_structure
         domains_recon
     done < "${domain_list}"
-    unset domain
     exit 0
 fi
 
 if [[ "${url_check}" == "yes" && -n "${url_2_verify}" ]]; then
     check_is_known_target "${url_domain}"
+    create_directory_structure
     url_recon
 fi

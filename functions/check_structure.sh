@@ -5,8 +5,9 @@
 # This file is an essential part of collector's execution!  #
 # And is responsible to get the functions:                  #
 #                                                           #
-#   * create_initial_directories_structure                  #
 #   * check_is_known_target                                 #
+#   * check_directory_permission                            #
+#   * create_directory_structure                            #
 #                                                           #
 #############################################################
 
@@ -19,7 +20,18 @@ check_is_known_target(){
     fi
 }
 
-create_initial_directories_structure(){
+check_directory_permission(){
+    [ ! -d "${output_dir}" ] && mkdir -p "${output_dir}" 2> /dev/null
+    if [[ $(cd "${output_dir}" > /dev/null 2>&1 ; echo "$?") -eq 0 ]] && \
+        [[ $(touch "${output_dir}/permission_to_write.txt" > /dev/null 2>&1; echo"$?") -eq 0 ]]; then
+        rm -rf "${output_dir}/permission_to_write.txt"
+    else
+        echo -e "Please, you need to specify a ${yellow}valid directory you own or have access permission${reset}!\n"
+        usage
+    fi
+}
+
+create_directory_structure(){
     if [ "${directories_structure}" == "domain" ]; then
         # Create all main dirs necessaries to report and recon for domain
         if [[ "${webapp_discovery}" == "yes" ]] || [[ "${only_webapp_enum}" == "yes" ]]; then
@@ -112,5 +124,5 @@ create_initial_directories_structure(){
     nuclei_scan_file="${nuclei_dir}/nuclei_scan.result"
     nuclei_web_fuzzing_file="${nuclei_dir}/nuclei_web_fuzzing.result"
 
-    echo -e "Directory structure created and ready to work.i\n" | tee -a "${log_execution_file}"
+    echo -e "Directory structure created and ready to work.\n" | tee -a "${log_execution_file}"
 }

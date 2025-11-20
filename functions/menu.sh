@@ -111,16 +111,9 @@ menu(){
                 ;;
             -o|--output)
                 check_argument "$1" "$2"
-                [ ! -d "$2" ] && mkdir -p "$2" 2> /dev/null
-                if [[ $(cd "$2" > /dev/null 2>&1 ; echo "$?") -eq 0 ]] && [[ $(touch "$2/permission_to_write.txt" > /dev/null 2>&1; echo "$?") -eq 0 ]]; then
-                    unset output_dir
-                    output_dir="$(echo "$2" | sed -e 's/\/$//')"
-                    rm -rf "${output_dir}/permission_to_write.txt"
-                    shift 2
-                else
-                    echo -e "Please, you need to specify a ${yellow}valid directory you own or have access permission${reset}!\n"
-                    usage
-                fi
+                unset output_dir
+                output_dir="$2"
+                shift 2
                 ;;
             -p|--proxy)
                 check_argument "$1" "$2"
