@@ -9,11 +9,58 @@
 #                                                           #
 #############################################################            
 
+# Starting with HTTP 1.1, the server takes the header into 
+# account to internally route to which site it should respond 
+# to, and if the server is prepared to respond for that host, 
+# it will do so. To verify if the hosts we're not getting a 
+# response from are actually offline, we can use the client 
+# (curl or httpx) to search for the IPs we know.
+
+# There are two ways to do this:
+# curl -k -H 'Host: www.abc.com' https://32.21.169.52
+# curl -k --resolve www.abc.com:443:32.21.169.52 https://www.abc.com
+
+# In the first way The TCP connection will occur to IP regardless 
+# of DNS resolution, however, the HTTP header will send the host www.abc.com. 
+# Therefore, we will obtain the same response result.
+
+# However, in this way we can change the IP address to any other, and if 
+# the server at this IP exists and is prepared to respond to the website 
+# www.abc.com, the response (HTTP Status code and size) will be the same.
+
+# However, in this scenario, the Subject Name provided via SNI will 
+# be the IP address instead of the hostname. Therefore, in scenarios 
+# where TLS requires SNI, this approach may not work.
+
+# In the second way Therefore, we use the second approach which, similarly 
+# to the first method, necessarily establishes a TCP connection to the 
+# IP address because the `--resolve` parameter ignores name resolution 
+# via DNS. The Host header and the Subject Name of the SNI will necessarily 
+# be correctly defined.
+
+# Thus, we can use this technique and pass a list of IP addresses and 
+# check if they are configured to respond for a specific website.
+
+# In this way, discovering possible vhosts
+
 vhost_check(){
+    echo -n "Looking for vhost with dead subdomains... "
+    if [[ -s "${report_dir}/domains_external_ipv4.txt" && -s "${report_dir}/domains_without_resolution.txt" ]]; then
+        for subdomain in $(cat "${report_dir}/domains_without_resolution.txt"); do
+            for IP in $(awk '{print $2}' "${report_dir}/domains_external_ipv4.txt"); do
+                curl "${curl_options[@]}" --resolve "${subdomain}":80:"${IP}" http://"${subdomain}"
+                curl "${curl_options[@]}" --resolve "${subdomain}":443:"${IP}" https://"${subdomain}"
+            done
+        done
+    fi
+    
+
+
+
+
 
         vhost_original="$(timeout --signal=9 1 curl -siLk -o /dev/null -w "%{response_code}","%{size_download}" "$IP" --no-keepalive)"
 
-    echo -n "Looking for vhost with dead subdomains... "
 
     if [[ -s "${report_dir}/domains_without_resolution.txt" ]] && [[ -s "${report_dir}/domains_external_ipv4.txt" ]]; then
         # Getting the IPs
@@ -38,3 +85,6 @@ vhost_check(){
     #echo "The error occurred in the function emails_recon.sh!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
     #echo -e "The message was: \n\tMake sure the directories structure was created. Stopping the script." |
     #echo "The reconnaissance for ${domain} failed at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+
+
+    webfinder -t https://x.com/ -ip tst.txt -o x.txt --random-agent
