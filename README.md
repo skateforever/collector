@@ -144,5 +144,6 @@ https://securitytrails.com/blog/dns-enumeration </br>
 https://securitytrails.com/blog/whois-records-infosec-industry </br>
 https://thexssrat.medium.com/how-to-automate-your-broad-scope-recon-a4ff998dea0e </br>
 https://github.com/JoshuaMart/ScopesExtractor </br>
+https://blog.ethiack.com/blog/supercharging-bug-bounty-hunting-with-ai </br>
 
 **Warning:** The code of all scripts find here was originally created for personal use, it generates a substantial amount of traffic, please use with caution. 
