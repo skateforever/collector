@@ -15,26 +15,18 @@ check_argument(){
     options+=(-kr --kill-remove -l --limit-urls -o --output -p --proxy -r --recon -s --subdomain-brute -u --url)
     options+=(-wc --webapp-crawler -wd --webapp-discovery -we --webapp-enum -ws --webapp-scan)
     options+=(-wld --webapp-long-detection -wsd --webapp-short-detection -ww --webapp-wordlists)
-    param=$1
-    param_arg=$2
-    for option in in "${options[@]}"; do
-        if [[ "${option}" == "${param}" ]]; then
-            if [[ -z "${param_arg}" ]]; then
-                echo -e "The argument of ${yellow}\"$1\"${reset} it can not be ${red}\"empty\"${reset} or you forgot to inform it, please, ${yellow}specify a valid one${reset}.\n"
+    argument=$2
+    if [[ -z "${argument}" ]]; then
+        echo -e "The argument of ${yellow}\"$1\"${reset} it can not be ${red}\"empty\"${reset} or you forgot to inform it, please, ${yellow}specify a valid one${reset}.\n"
+        usage
+    else
+        for option in "${options[@]}"; do
+            if [[ "${option}" == "${argument}" ]]; then
+                echo -e "The argument of ${yellow}\"$1\"${reset} it can not be ${red}\"$2\"${reset}, please, ${yellow}specify a valid one${reset}.\n"
                 usage
-            else
-                for option in "${options[@]}"; do
-                    if [[ "${option}" == "${param_arg}" ]]; then
-                        echo -e "The argument of ${yellow}\"${param}\"${reset} it can not be ${red}\"${param_arg}\"${reset}, please, ${yellow}specify a valid one${reset}.\n"
-                        usage
-                    fi
-                done
-           fi
-        else
-            echo -e "You're passing a parameter ${param} that doesn't exist.\n"
-            usage
-        fi
-    done
+            fi
+        done
+    fi
 }
 
 menu(){
@@ -231,11 +223,9 @@ menu(){
                 unset IFS
                 shift 2
                 ;;
-            -?*)
+            *)
                 echo -e "You are specifying the parameter ${yellow}$1${reset}, which is invalid.\n"
                 usage
-                ;;
-            *)
                 break
         esac
     done
