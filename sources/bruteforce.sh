@@ -18,16 +18,19 @@ bruteforce-src(){
             if [ -s "${list}" ]; then
                 echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Execution number ${index}... "
                 echo -e "\namass enum -src -w ${list} -d ${domain}" >> "${log_execution_file}" 
-                amass enum -src -w "${list}" -d "${domain}" >> "${tmp_dir}/amass_brute_output_${index}.txt" 2>> "${log_execution_file}"
-
-                echo "gobuster dns -z -q -t ${gobuster_threads} -d ${domain} -w ${list}" >> "${log_execution_file}"
-                gobuster dns -z -q -t "${gobuster_threads}" -d "${domain}" -w "${list}" >> "${tmp_dir}/gobuster_dns_output_${index}.txt" 2>> "${log_execution_file}"
+                amass enum -active -src -ip -brute -d "${domain}" -w "${list}" >> "${tmp_dir}/amass_brute_output_${index}.txt" 2>> "${log_execution_file}"
 
                 echo "dnssearch -consumers 600 -domain ${domain} -wordlist ${list}" >> "${log_execution_file}"
                 dnssearch -consumers 600 -domain "${domain}" -wordlist "${list}" | \
                     grep "${domain}" >> "${tmp_dir}/dnssearch_output_${index}.txt" 2>> "${log_execution_file}"
 
                 echo "Done!"
+
+                #ffuf -c -u https://FUZZ."${domain}" -w "${list}" -mc 200 -rate 100 -v results.txt
+
+                echo "gobuster dns -q -t ${gobuster_threads} --domain ${domain} --wordlist ${list}" >> "${log_execution_file}"
+                gobuster dns -q -t "${gobuster_threads}" --domain "${domain}" --wordlist "${list}" >> "${tmp_dir}/gobuster_dns_output_${index}.txt" 2>> "${log_execution_file}"
+
                 sleep 1
             else
                 echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Execution number ${index}, error: ${list} does not exist or is empty!"

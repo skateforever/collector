@@ -43,20 +43,52 @@
 
 # In this way, discovering possible vhosts
 
+# Pro Tips:
+# Use multiple techniques: Combine vhost discovery with DNS enumeration
+# Try different protocols: HTTP vs HTTPS might reveal different results
+# Check for header injection: Add X-Forwarded-Host and other headers
+# Use auto-calibration: Helps filter out common false positives
+# Look for subtle differences: Even small size/word count differences can indicate valid vhosts
+
 vhost_check(){
     echo -n "Looking for vhost with dead subdomains... "
     if [[ -s "${report_dir}/domains_external_ipv4.txt" && -s "${report_dir}/domains_without_resolution.txt" ]]; then
         for subdomain in $(cat "${report_dir}/domains_without_resolution.txt"); do
-            for IP in $(awk '{print $2}' "${report_dir}/domains_external_ipv4.txt"); do
+            for IP in $(awk '{print $2}' "${report_dir}/domains_external_ipv4.txt" | sort -u); do
                 curl "${curl_options[@]}" --resolve "${subdomain}":80:"${IP}" http://"${subdomain}"
                 curl "${curl_options[@]}" --resolve "${subdomain}":443:"${IP}" https://"${subdomain}"
             done
         done
+        gobuster vhost -u https://example.com -w /path/to/wordlist.txt
+        webfinder -t https://x.com/ -ip tst.txt -o x.txt --random-agent
     fi
     
 
+# Basic vhost discovery with a wordlist
+ffuf -w subdomains.txt -u https://TARGET -H "Host: FUZZ.TARGET" -mc all
 
+# With common response code filtering
+ffuf -w subdomains.txt -u https://TARGET -H "Host: FUZZ.TARGET" -mc 200,204,301,302,307,401,403,405
 
+# Using IP address instead of domain (bypasses some load balancers)
+ffuf -w subdomains.txt -u http://TARGET_IP -H "Host: FUZZ.TARGET" -mc all
+
+# With auto-calibration to filter out false positives
+ffuf -w subdomains.txt -u https://TARGET -H "Host: FUZZ.TARGET" -ac -mc all
+
+# Multiple host header techniques
+ffuf -w subdomains.txt -u https://TARGET -H "Host: FUZZ.TARGET" -H "X-Forwarded-Host: FUZZ.TARGET" -mc all
+
+# With size and word count filtering to find subtle differences
+ffuf -w subdomains.txt -u https://TARGET -H "Host: FUZZ.TARGET" -mc all -fs 0 -fw 0
+
+ffuf -w subdomains.txt -u https://target.com \
+    -H "Host: FUZZ.target.com" \
+    -ac \
+    -mc 200,204,301,302,307,401,403,405,500 \
+    -o vhost_results.txt \
+    -of json \
+    -v
 
 
         vhost_original="$(timeout --signal=9 1 curl -siLk -o /dev/null -w "%{response_code}","%{size_download}" "$IP" --no-keepalive)"
@@ -77,14 +109,8 @@ vhost_check(){
     fi
 
     echo "Done!"
-
-}
-
-
-#utilizar gobuster para detecção de vhost
     #echo "The error occurred in the function emails_recon.sh!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
     #echo -e "The message was: \n\tMake sure the directories structure was created. Stopping the script." |
     #echo "The reconnaissance for ${domain} failed at $(date +"%Y%m%d %H:%M")" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
 
-
-    webfinder -t https://x.com/ -ip tst.txt -o x.txt --random-agent
+}
