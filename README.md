@@ -145,5 +145,9 @@ https://securitytrails.com/blog/whois-records-infosec-industry </br>
 https://thexssrat.medium.com/how-to-automate-your-broad-scope-recon-a4ff998dea0e </br>
 https://github.com/JoshuaMart/ScopesExtractor </br>
 https://blog.ethiack.com/blog/supercharging-bug-bounty-hunting-with-ai </br>
+https://github.com/bhavesh-pardhi/Wordlist-Hub </br>
+https://github.com/XploitPoy-777/All-In-One-DNS-Wordlist </br>
+https://github.com/vavkamil/awesome-bugbounty-tools </br>
+https://www.helviojunior.com.br/security/osint/localizando-ips-que-respondem-para-uma-url/ </br>
 
 **Warning:** The code of all scripts find here was originally created for personal use, it generates a substantial amount of traffic, please use with caution. 
