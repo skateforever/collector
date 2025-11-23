@@ -69,6 +69,6 @@ acunetix_scan(){
     urls_file="$2"
     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Initializing the web application scan with acunetix and this might take a certain time!"
     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing acunetix web application vulnerability scan..."
-    if [ "$#" != 2 ] && [ ! -s "${urls_file}" ]; then
-    fi
+    #if [ "$#" != 2 ] && [ ! -s "${urls_file}" ]; then
+    #fi
 }
