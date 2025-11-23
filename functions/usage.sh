@@ -34,7 +34,7 @@ usage(){
     echo -e "\t-we |--webapp-enum            - By default, a function called webapp_enum will be executed, ${red}unless${reset} the collector is run recon-only option (${yellow}-r${reset} OR ${yellow}--recon${reset})."
     echo -e "\t\t\t\t        After the use the collector with the recon-only option (${yellow}-r${reset} OR ${yellow}--recon${reset}) you can use this option (${yellow}-we${reset} OR ${yellow}--web-enum${reset}) retrieve information from the web application:"
     echo -e "\t\t\t\t        ${red}used only with${reset} ${yellow}-d|--domain${reset}"
-    echo -e "\t-ws |--webapp-scan  r         - Will execute web application scan with nuclei and acunetix${reset},"
+    echo -e "\t-ws |--webapp-scan            - Will execute web application scan with nuclei and acunetix${reset},"
     echo -e "\t-wld|--webapp-long-detection  - Will execute the long list of ports setup in collector.cfg as variable web_port_long_detection." 
     echo -e "\t-wsd|--webapp-short-detection - Will execute the short list of ports setup in collector.cfg as variable web_port_short_detection."
     echo -e "\t-ww |--webapp-wordlists       - Specity more wordlists to put in web_wordlist array as the first wordlist to enumerate dirs and files from website."
