@@ -52,7 +52,9 @@ url_recon(){
         if [[ -s "${file}" ]]; then
             webapp_tech "${url_domain}" "${recon_dir}/url_test.txt"
             crawler_js "${url_domain}" "${recon_dir}/url_test.txt"
-            webapp_scan "${url_domain}" "${recon_dir}/url_test.txt"
+            #crawler_params "${url_domain}" "${recon_dir}/url_test.txt"
+            nuclei_scan "${url_domain}" "${recon_dir}/url_test.txt"
+            #acunetix_scan "${url_domain}" "${recon_dir}/url_test.txt"
             aquatone_screenshot "${recon_dir}/url_test.txt"
             git_rebuild
         fi

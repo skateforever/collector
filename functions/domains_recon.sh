@@ -45,6 +45,26 @@ domains_recon(){
         exit 0
     fi
 
+    # Only web app crawler
+    if [[ "${webapp_crawler_check}" == "yes" ]] && \
+        [[ -s "${report_dir}/webapp_urls.txt" ]] && \
+        [[ "${recon_check}" == "no" || -z "${recon_check}" ]]; then
+        crawler_js "${domain}" "${report_dir}/webapp_urls.txt"
+        #crawler_params "${domain}" "${report_dir}/webapp_urls.txt"
+        message "${domain}" finished
+        exit 0
+    fi
+
+    # Only web app scan
+    if [[ "${webapp_scanr_check}" == "yes" ]] && \
+        [[ -s "${report_dir}/webapp_urls.txt" ]] && \
+        [[ "${recon_check}" == "no" || -z "${recon_check}" ]]; then
+        nuclei_scan "${domain}" "${report_dir}/webapp_urls.txt"
+        #acunetix_scan "${domain}" "${report_dir}/webapp_urls.txt"
+        message "${domain}" finished
+        exit 0
+    fi
+
     # Only recon discovery (domain and subdomains)
     if [[ "${recon_check}" == "yes" ]]; then
         subdomains_recon
@@ -58,10 +78,18 @@ domains_recon(){
         infra_data
         shodan_recon
         if [[ "${webapp_discovery_check}" == "yes" ]]; then
-            webapp_alive
+            webapp_alive "${domain}" "${report_dir}/domains_alive.txt"
             webapp_tech "${domain}" "${report_dir}/webapp_urls.txt"
         fi
-        [[ "${webapp_enum_check}" == "no" || -z "${webapp_enum_check}" ]] && [[ "${recon_check}" == "yes" ]] && \
+        if [[ "${webapp_crawler_check}" == "yes" && "${webapp_enum_check}" != "yes" ]]; then
+            crawler_js "${domain}" "${report_dir}/webapp_urls.txt"
+            #crawler_params "${domain}" "${report_dir}/webapp_urls.txt"
+        fi
+        if [[ "${webapp_scan_check}" == "yes" && "${webapp_enum_check}" != "yes" ]]; then
+            nuclei_scan "${domain}" "${report_dir}/webapp_urls.txt"
+            #acunetix_scan "${domain}" "${report_dir}/webapp_urls.txt"
+        fi
+        [[ "${recon_check}" == "yes" && "${webapp_enum_check}" != "yes" ]] && \
             { message "${domain}" finished; exit 0; }
     fi
 
@@ -71,10 +99,16 @@ domains_recon(){
         [[ -s "${report_dir}/robots_urls.txt" ]] && webapp_enum "${domain}" "${report_dir}/robots_urls.txt"
 
         for urls_file in "${report_dir}/webapp_urls.txt" "${report_dir}/robots_urls.txt"; do
-            if [[ -s "${urls_file}" ]]; then
-                aquatone_screenshot "${domain}" "${urls_file}"
-                crawler_js "${domain}" "${report_dir}/webapp_url.txt"
-                webapp_scan "${domain}" "${urls_file}"
+            if [[ -s "${url_file}" ]]; then
+                aquatone_screenshot "${domain}" "${url_file}"
+                if [[ "${webapp_crawler_check}" == "yes" ]]; then
+                    crawler_js "${domain}" "${url_file}"
+                    #crawler_js "${domain}" "${url_file}"
+                fi
+                if [[ "${webapp_scan_check}" == "yes" ]]; then
+                    nuclei_scan "${domain}" "${url_file}"
+                    #acunetix_scan "${domain}" "${url_file}"
+                fi
             fi
         done
         git_rebuild

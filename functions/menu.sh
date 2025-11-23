@@ -13,7 +13,8 @@
 check_argument(){
     options+=(-d --domain -dl --domain-list -ed --exclude-domains -el --exclude-domain-list -h --help -k -kill)
     options+=(-kr --kill-remove -l --limit-urls -o --output -p --proxy -r --recon -s --subdomain-brute -u --url)
-    options+=(-wd --webapp-discovery -we --webapp-enum -wld --webapp-long-detection -wsd --webapp-short-detection -ww --webapp-wordlists)
+    options+=(-wc --webapp-crawler -wd --webapp-discovery -we --webapp-enum -ws --webapp-scan)
+    options+=(-wld --webapp-long-detection -wsd --webapp-short-detection -ww --webapp-wordlists)
     option_arg=$2
     if [[ -z "${option_arg}" ]]; then
         echo -e "The argument of ${yellow}\"$1\"${reset} it can not be ${red}\"empty\"${reset} or you forgot to inform it, please, ${yellow}specify a valid one${reset}.\n"
@@ -161,6 +162,11 @@ menu(){
                 url_domain=$(echo "${url_verify}" | sed -e 's/http.*\/\///' | awk -F'/' '{print $1}' | xargs -I {} basename {})
                 shift 2
                 ;;
+            -wc|--webapp-crawler)
+                unset webapp_crawler_check
+                webapp_crawler_check="yes"
+                shift
+                ;;
             -wd|--webapp-discovery)
                 unset webapp_discovery_check
                 webapp_discovery_check="yes"
@@ -171,8 +177,13 @@ menu(){
                 webapp_enum_check=yes
                 shift
                 ;;
+            -ws|--webapp-scan)
+                unset webapp_scan_check
+                webapp_scan_check="yes"
+                shift
+                ;;
             -wld|--webapp-long-detection)
-                unset web_port_detect
+                unset webapp_port_detect
                 if [ "${#webapp_port_detect[@]}" -eq 0 ]; then
                     webapp_port_detect=("${webapp_port_long_detection[@]}")
                 else
@@ -185,7 +196,7 @@ menu(){
                 shift
                 ;;
             -wsd|--webapp-short-detection)
-                unset web_port_detect
+                unset webapp_port_detect
                 if [ "${#webapp_port_detect[@]}" -eq 0 ]; then
                     webapp_port_detect=("${webapp_port_short_detection[@]}")
                 else

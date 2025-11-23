@@ -5,14 +5,16 @@
 # This file is an essential part of collector's execution!                #
 # And is responsible to get the functions:                                #
 #                                                                         #
-#   * webapp_scan                                                         #
+#   * nuclei_scan                                                         #
+#   * acunetix_scan                                                       #
 #                                                                         #
 ########################################################################### 
 
-webapp_scan(){
+nuclei_scan(){
     target="$1"
     urls_file="$2"
-    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing web application vulnerability scan..."
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Initializing the web application scan with nuclei and this might take a certain time!"
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing nuclei web application vulnerability scan..."
     if [ "$#" != 2 ] && [ ! -s "${urls_file}" ]; then
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Please, especify just 1 file to get URL from."
         echo -e "Please, especify just 1 file to get URL from." | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
@@ -60,4 +62,13 @@ webapp_scan(){
         unset urls_file
     fi
     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Web application vunerability scan is done!"
+}
+
+acunetix_scan(){
+    target="$1"
+    urls_file="$2"
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Initializing the web application scan with acunetix and this might take a certain time!"
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing acunetix web application vulnerability scan..."
+    if [ "$#" != 2 ] && [ ! -s "${urls_file}" ]; then
+    fi
 }

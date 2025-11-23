@@ -74,46 +74,58 @@ check_parameter_conflicts(){
 }
 
 check_parameter_dependency(){
-    if [[ -n "${domain_check}" && "${domain_check}" == "yes" ]] || [[ -n "${domainlist_check}" && "${domainlist_check}" == "yes" ]]; then
+    if [[ "${domain_check}" == "yes" || "${domainlist_check}" == "yes" ]]; then
         # Basic Execution Check
-        if [[ ! -d "${report_dir}" && ( -z "${recon_check}" || "${recon_check}" == "no" ) ]]; then
+        if [[ ! -d "${report_dir}" && "${recon_check}" != "yes" ) ]]; then
             echo -e "You are trying to perform recon, but don't have a structure and are using a different parameter than -r|--recon with domain options."
             echo -e "You need to perform at least a basic run to get the subdomain discovered and continue the rest of the activities.\n"
             usage
         fi
 
-        if [[ "${webapp_discovery_check}" == "yes" || "${webapp_enum_check}" == "yes" ]]; then
-            if [[ ! -d "${report_dir}" && ( -z "${recon_check}" || "${recon_check}" == "no" ) ]]; then
+        if [[ "${webapp_crawler_check}" == "yes" || "${webapp_discovery_check}" == "yes" || "${webapp_enum_check}" == "yes" || "${webapp_scan_check}" == "yes" ]]; then
+            if [[ ! -d "${report_dir}" && "${recon_check}" != "yes" ]]; then
                 echo -e "You are trying to perform web application discovery where the basic recognition structure does not yet exist, run the collector again with the -r|--recon option.\n"
                 usage
             fi
         fi
 
+        # Web Application Crawler Check
+        if [[ "${webapp_crawler_check}" == "yes" && ( ! -s "${report_dir}/webapp_urls.txt" && "${webapp_discovery_check}" != "yes" ) ]] ; then
+            echo -e "You are trying to run web application crawler without having previously web application discovery, use the -wd|--webapp-discovery option and run again.\n"
+            usage
+        fi
+
         # Web Application Discovery Check
-        if [[ "${webapp_discovery_check}" == "yes" ]] && [[ ! -s "${report_dir}/domains_alive.txt" && ( -z "${recon_check}" || "${recon_check}" == "no" ) ]] ; then
+        if [[ "${webapp_discovery_check}" == "yes" && ( ! -s "${report_dir}/domains_alive.txt" && "${recon_check}" != "yes" ) ]] ; then
             echo -e "You are trying to run web application enumeration without having previously web application discovery, use the -r|--recon option and run again.\n"
             usage
         fi
 
-        if [[ "${webapp_discovery_check}" == "yes" ]] && [[ "${#webapp_port_detect[@]}" -eq 0 ]]; then
+        if [[ "${webapp_discovery_check}" == "yes" && ${#webapp_port_detect[@]} -eq 0 ]]; then
             echo -e "You are trying to find out which web applications are active, but forgot to specify which ports to test."
             echo -e "Choose one of the options -wld|--webapp-long-detection or -wsd|--webapp-short-detection and run again.\n"
             usage
         fi
 
-        if [[ "${#webapp_port_detect[@]}" -gt 0 ]] && [[ -z "${webapp_discovery_check}" || "${webapp_discovery_check}" == "no" ]]; then
+        if [[ "${webapp_discovery_check}" != "yes" && ${#webapp_port_detect[@]} -gt 0 ]]; then
             echo -e "You trying to execute collector to perform web application discovery without setting -wd|--webapp-discovery option.\n"
             usage
         fi
 
         # Web Application Enumeration Check
-        if [[ "${webapp_enum_check}" == "yes" ]] && [[ ! -s "${report_dir}/webapp_urls.txt" && ( -z "${webapp_discovery_check}" || "${webapp_discovery_check}" == "no" ) ]] ; then
+        if [[ "${webapp_enum_check}" == "yes" && ( ! -s "${report_dir}/webapp_urls.txt" && "${webapp_discovery_check}" != "yes" ) ]] ; then
             echo -e "You are trying to run web application enumeration without having previously web application discovery, use the -wd|--webapp-discovery option and run again.\n"
             usage
         fi
 
-        if [[ "${webapp_enum_check}" == "yes" ]] && [[ ${#webapp_wordlists[@]} -eq 0 ]]; then
+        if [[ "${webapp_enum_check}" == "yes" && ${#webapp_wordlists[@]} -eq 0 ]]; then
             echo -e "Please, ${yellow}make sure${reset} you have at least one wordlist to web directory and file discovery!\n"
+            usage
+        fi
+
+        # Web Application Scan Check
+        if [[ "${webapp_scan_check}" == "yes" && ( ! -s "${report_dir}/webapp_urls.txt" && "${webapp_discovery_check}" != "yes" ) ]] ; then
+            echo -e "You are trying to run web application scan without having previously web application discovery, use the -wd|--webapp-discovery option and run again.\n"
             usage
         fi
     fi

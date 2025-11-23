@@ -13,6 +13,7 @@
 crawler_js(){
     target="$1"
     urls_file="$2"
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Initializing the web application js crawler and this might take a certain time!"
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing js crawler... "
     if [ "$#" != 2 ] && [ ! -s "${urls_file}" ]; then
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Please, especify just 1 file to get URL from."
@@ -72,6 +73,7 @@ crawler_js(){
 
 crawler_params() {
     # TODO: Put gospider to get more params
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Initializing the web application params crawler and this might take a certain time!"
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing params crawler... "
     while IFS= read -r url; do
         name=$(echo "${url}" | sed -e "s/http:\/\//http_/" -e "s/https:\/\//https_/" -e "s/:/_/" -e "s/\/$//" -e "s/\//_/g")
