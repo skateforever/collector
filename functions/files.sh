@@ -107,6 +107,11 @@ joining_subdomains(){
                 | grep -E "^.*\.${domain}" >> "${tmp_dir}/domains_found.tmp"
         fi
 
+        if [ -s "${tmp_dir}/subdomaincenter_output.json" ]; then
+            jq -r '.[]' "${tmp_dir}/subdomaincenter_output.json" \
+                | sort -u >> "${tmp_dir}/domains_found.tmp"
+        fi
+
         if [ -s "${tmp_dir}/subfinder_output.txt" ]; then
             grep -E "^.*\.${domain}" "${tmp_dir}/subfinder_output.txt" \
                 >> "${tmp_dir}/domains_found.tmp"
