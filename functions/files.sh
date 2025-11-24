@@ -117,6 +117,11 @@ joining_subdomains(){
                 | sort -u >> "${tmp_dir}/domains_found.tmp"
         fi
 
+        if [ -s "${tmp_dir}/urlscan-tmp.json" ]; then
+            jq -r '.results[].task.domain' "${tmp_dir}/urlscan-tmp.json" \
+                | sort -u >> "${tmp_dir}/domains_found.tmp"
+        fi
+
         if [ -s "${tmp_dir}/virustotal_output.json" ]; then
             cat "${tmp_dir}/virustotal_output.json" \
                 | jq -r '.data[]?.id' \
