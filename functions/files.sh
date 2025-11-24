@@ -77,6 +77,12 @@ joining_subdomains(){
                 | sort -u >> "${tmp_dir}/domains_found.tmp"
         fi
 
+        if [ -s "${tmp_dir}/dnsrepo_output.html" ]; then
+            grep -Ei "domain=.*\.${domain}" "${tmp_dir}/dnsrepo_output.html" \
+                | sed 's/\.<.*//g ; s/.*<.*>//g' \
+                | sort -u >> "${tmp_dir}/domains_found.tmp"
+        fi
+
         if [ -s "${tmp_dir}/hackertarget_output.txt" ]; then
             grep -v "API count exceeded - Increase Quota with Membership" "${tmp_dir}/hackertarget_output.txt" \
                 | awk -F',' '{print $1}' \
