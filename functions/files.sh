@@ -16,7 +16,13 @@ joining_subdomains(){
         if [ -s "${tmp_dir}/alienvault_output.json" ]; then
             cat "${tmp_dir}/alienvault_output.json" \
                 | jq -r '.passive_dns[]?.hostname' \
-                | sort -u >> "${tmp_dir}/alienvault_output.txt"
+                | sort -u >> "${tmp_dir}/domains_found.tmp"
+        fi
+
+        if [ -s "${tmp_dir}/anubis_output.json" ]; then
+            cat "${tmp_dir}/anubis_output.json" \
+                | jq -r '.[]' \
+                | sort -u >> "${tmp_dir}/domains_found.tmp"
         fi
 
         if [ -s "${tmp_dir}/amass_active_output.txt" ]; then
@@ -117,8 +123,8 @@ joining_subdomains(){
                 | sort -u >> "${tmp_dir}/domains_found.tmp"
         fi
 
-        if [ -s "${tmp_dir}/urlscan-output.json" ]; then
-            jq -r '.results[].task.domain' "${tmp_dir}/urlscan-output.json" \
+        if [ -s "${tmp_dir}/urlscan_output.json" ]; then
+            jq -r '.results[].task.domain' "${tmp_dir}/urlscan_output.json" \
                 | sort -u >> "${tmp_dir}/domains_found.tmp"
         fi
 
