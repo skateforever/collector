@@ -13,9 +13,9 @@
 subdomains_recon(){
     if [ -d "${tmp_dir}" ]; then
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Initializing the subdomains discovery and this might take a certain time!"
-        source_files=(alienvault.sh amass.sh bruteforce.sh builtwith.sh certspotter.sh commoncrawl.sh crt.sh dnsdumpster.sh hackertarget.sh katana.sh \
-            netcraft.sh rapiddns.sh securitytrails.sh shodan.sh subdomaincenter.sh subfinder.sh tlsx.sh urlfinder.sh urlscan.sh virustotal.sh \
-            waybackurls.sh webarchive.sh whoisxmlapi.sh zonetransfer.sh)
+        source_files=(alienvault.sh amass.sh anubis.sh bruteforce.sh builtwith.sh certspotter.sh commoncrawl.sh crt.sh dnsdumpster.sh dnsrepo.sh \
+            hackerone.sh hackertarget.sh katana.sh netcraft.sh netlas.sh rapiddns.sh robtex.sh securitytrails.sh shodan.sh subdomaincenter.sh \
+            subfinder.sh tlsx.sh urlfinder.sh urlscan.sh vhost.sh virustotal.sh waybackurls.sh webarchive.sh whoisxmlapi.sh zonetransfer.sh)    
         for src in "${source_files[@]}"; do
             source "${collector_path}/sources/${src}"
         done

@@ -14,14 +14,12 @@ joining_subdomains(){
     echo -en "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Putting all domain search results in one file... "
     if [ -d "${tmp_dir}" ] && [ -d "${report_dir}" ]; then
         if [ -s "${tmp_dir}/alienvault_output.json" ]; then
-            cat "${tmp_dir}/alienvault_output.json" \
-                | jq -r '.passive_dns[]?.hostname' \
+            jq -r '.passive_dns[]?.hostname' "${tmp_dir}/alienvault_output.json" \
                 | sort -u >> "${tmp_dir}/domains_found.tmp"
         fi
 
         if [ -s "${tmp_dir}/anubis_output.json" ]; then
-            cat "${tmp_dir}/anubis_output.json" \
-                | jq -r '.[]' \
+            jq -r '.[]' "${tmp_dir}/anubis_output.json" \
                 | sort -u >> "${tmp_dir}/domains_found.tmp"
         fi
 
@@ -40,15 +38,13 @@ joining_subdomains(){
         fi
 
         if [ -s "${tmp_dir}/builtwith_subdomain_output.json" ]; then
-            for subdomain in $(cat "${tmp_dir}/builtwith_subdomain_output.json" \
-                | jq -r '.Results[].Result.Paths[].SubDomain'); do
+            for subdomain in $(jq -r '.Results[].Result.Paths[].SubDomain' "${tmp_dir}/builtwith_subdomain_output.json"); do
                 [[ "${subdomain}" != "${domain}" ]] && echo "${subdomain}" | sed "s/$/\.${domain}/"
             done | sort -u >> "${tmp_dir}/domains_found.tmp"
         fi
 
         if [ -s "${tmp_dir}/certspotter_output.json" ]; then
-            cat "${tmp_dir}/certspotter_output.json" \
-                | jq -r '.[].dns_names[]' 2>> ${log_execution_file} \
+            jq -r '.[].dns_names[]' "${tmp_dir}/certspotter_output.json" \
                 | sed 's/\"//g' \
                 | sed 's/\*\.//g' \
                 | sort -u \
@@ -56,26 +52,33 @@ joining_subdomains(){
         fi
 
         if [ -s "${tmp_dir}/commoncrawl_output.json" ]; then
-            cat "${tmp_dir}/commoncrawl_output.json" \
-                | jq -r '.url?' \
+            jq -r '.url?' "${tmp_dir}/commoncrawl_output.json" \
                 | sed 's/\*\.//g' \
                 | sed -e 's_https*://__' -e "s/\/.*//" -e 's/:.*//' -e "/@/d" -e 's/\.$//' \
                 | sort -u >> "${tmp_dir}/domains_found.tmp"
         fi
 
         if [ -s "${tmp_dir}/crtsh_output.json" ]; then
-            cat "${tmp_dir}/crtsh_output.json" \
-                | jq -r '.[].name_value' \
+            jq -r '.[].name_value' "${tmp_dir}/crtsh_output.json" \
                 | sed 's/\*\.//g' \
                 | sort -u >> "${tmp_dir}/domains_found.tmp"
         fi
         
         if [ -s "${tmp_dir}/dnsdumpster_output.json" ]; then
-            cat "${tmp_dir}/dnsdumpster_output.json" \
-                | jq -r '.a[].host' \
+            jq -r '.a[].host' "${tmp_dir}/dnsdumpster_output.json" \
                 | sed 's/^\*\.//' \
                 | sort -u >> "${tmp_dir}/domains_found.tmp"
         fi
+
+        if [ -s "${tmp_dir}/dnsrepo_output.html" ]; then
+            grep -Ei "domain=.*\.${domain}" "${tmp_dir}/dnsrepo_output.html" \
+                | sed 's/\.<.*//g ; s/.*<.*>//g' \
+                | sort -u >> "${tmp_dir}/domains_found.tmp"
+        fi
+
+        #if [ -s "${tmp_dir}/hackerone_output.json" ]; then
+        #    jq -r ${tmp_dir}/hackerone_output.json
+        #fi
 
         if [ -s "${tmp_dir}/hackertarget_output.txt" ]; then
             grep -v "API count exceeded - Increase Quota with Membership" "${tmp_dir}/hackertarget_output.txt" \
@@ -89,14 +92,24 @@ joining_subdomains(){
                 | sort -u >> "${tmp_dir}/domains_found.tmp"
         fi
 
+        if [ -s "${tmp_dir}/netlas_output.json" ]; then
+            jq -r '.items[].data.domain' "${tmp_dir}/netlas_output.json" \
+                | sort -u >> "${tmp_dir}/domains_found.tmp"
+        fi
+
         if [ -s "${tmp_dir}/rapiddns_output.txt" ]; then
             grep -Ei "<td>.*${domain}</td>" "${tmp_dir}/rapiddns_output.txt" \
                 | sed 's/<td>// ; s/<\/td>//' \
                 | sort -u >> "${tmp_dir}/domains_found.tmp"
         fi
 
+        if [ -s "${tmp_dir}/robtex_output.json" ]; then
+            jq -r '.rrname' "${tmp_dir}/robtex_output.json" \
+                | sort -u >> "${tmp_dir}/domains_found.tmp"
+        fi
+
         if [ -s "${tmp_dir}/securitytrails_output.json" ]; then
-            for subdomain in $(cat "${tmp_dir}/securitytrails_output.json" | jq -r '.subdomains[]'); do
+            for subdomain in $(jq -r '.subdomains[]' "${tmp_dir}/securitytrails_output.json"); do
                 [[ "${subdomain}" != "${domain}" ]] && echo "${subdomain}" | sed "s/$/\.${domain}/"
             done | sort -u >> "${tmp_dir}/domains_found.tmp"
         fi
@@ -118,8 +131,7 @@ joining_subdomains(){
         fi
 
         if [ -s "${tmp_dir}/tlsx_output.json" ]; then
-            cat "${tmp_dir}/tlsx_output.json" \
-                | jq -r '.subject_an[]' \
+            jq -r '.subject_an[]' "${tmp_dir}/tlsx_output.json" \
                 | grep -E "^.*\.${domain}" >> "${tmp_dir}/domains_found.tmp"
         fi
 
@@ -134,8 +146,7 @@ joining_subdomains(){
         fi
 
         if [ -s "${tmp_dir}/virustotal_output.json" ]; then
-            cat "${tmp_dir}/virustotal_output.json" \
-                | jq -r '.data[]?.id' \
+            jq -r '.data[]?.id' "${tmp_dir}/virustotal_output.json" \
                 | sort -u >> "${tmp_dir}/domains_found.tmp"
         fi
 
@@ -156,8 +167,7 @@ joining_subdomains(){
         fi
 
         if [ -s "${tmp_dir}/whoisxmlapi_output.json" ]; then
-            cat "${tmp_dir}/whoisxmlapi_output.json" \
-                | jq -r '.domainsList[]' \
+           jq -r '.domainsList[]' "${tmp_dir}/whoisxmlapi_output.json" \
                 | sort -u \
                 | grep -E "^.*\.${domain}" 2> /dev/null >> "${tmp_dir}/domains_found.tmp"
         fi
