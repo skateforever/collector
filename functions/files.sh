@@ -317,7 +317,7 @@ organizing_subdomains(){
         if sort -u -o "${report_dir}/domains_external_ipv4.txt" "${tmp_dir}/domains_external_ipv4.tmp"; then
             grep -E '(^\S+\s+\b10\.\b([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])\..*|^\S+\s+(127\..*)\b|^\S+\s+172\.1[6789]\..*|^\S+\s+172\.2[0-9]\..*|^\S+\s+172\.3[01]\..*|^\S+\s+192\.168\..*)'$ "${report_dir}/domains_external_ipv4.txt" >> "${tmp_dir}/domains_internal_ipv4.tmp"
             sed -i -E '/\b10\.\b([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])\..*$/d ; /^\S+\s+(127\..*)\b$/d; /172\.1[6789]\..*$/d ; /172\.2[0-9]\..*$/d ; /172\.3[01]\..*$/d ; /192\.168\..*$/d' "${report_dir}/domains_external_ipv4.txt"
-            awk '{print $1}' "${report_dir}/domains_external_ipv4.txt" | sort -u >> "${tmp_dir}/domains_alive.tmp"
+            awk '{print $1}' "${report_dir}/domains_external_ipv4.txt" | sort -u | grep -E "${domain}$" >> "${tmp_dir}/domains_alive.tmp"
             echo "Done!"
         else
             echo "Fail!"
@@ -328,7 +328,7 @@ organizing_subdomains(){
         # Getting sudomain aliases
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Separating subdomain aliases... "
         if sort -u -o "${report_dir}/domains_aliases.txt" "${tmp_dir}/domains_aliases.tmp"; then
-            awk '{print $1}' "${report_dir}/domains_aliases.txt" | sort -u >> "${tmp_dir}/domains_alive.tmp"
+            awk '{print $1}' "${report_dir}/domains_aliases.txt" | sort -u | grep -E "${domain}$" >> "${tmp_dir}/domains_alive.tmp"
             echo "Done!"
         else
             echo "Fail!"
@@ -338,8 +338,6 @@ organizing_subdomains(){
 
         # Getting alive domains and unavailable domains
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Separating live subdomains from unresponsive subdomains... "
-        #grep -E "${domain}$" "${tmp_dir}/domains_alive.tmp" | sort -u >> "${report_dir}/domains_alive.txt"
-        #if [[ -s "${report_dir}/domains_alive.txt"  ]]; then
         if sort -u -o "${report_dir}/domains_alive.txt" "${tmp_dir}/domains_alive.tmp"; then
             # Unavailable domains
             if cp "${subdomains_file}" "${report_dir}/domains_without_resolution.txt"; then
