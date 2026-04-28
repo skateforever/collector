@@ -14,34 +14,49 @@
 infra_data(){
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Getting information about infrastructure... "
     if [ -s "${report_dir}/domains_external_ipv4.txt" ]; then
+        echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Getting AS information... "
         # To avoid the warning message: "Warning: RIPE flags used with a traditional server."
         # The -- option is needed.
-        echo "AS      | IP               | BGP Prefix          | CC | Registry | Allocated  | AS Name" >> "${report_dir}/infra_data.txt"
+        echo "AS      | IP               | BGP Prefix          | CC | Registry | Allocated  | AS Name" >> "${report_dir}/infra_as.txt"
         while IFS= read -r IP; do
-            whois -h whois.cymru.com -- "-v ${IP}" | tail -n +2 >> "${report_dir}/infra_data.txt"
+            whois -h whois.cymru.com -- "-v ${IP}" | tail -n +2 >> "${report_dir}/infra_as.txt"
         done < <(awk '{print $2}' "${report_dir}/domains_external_ipv4.txt" | sort -u)
         echo "Done!"
 
-        echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Getting target ownwer IP and blocks... "
-        if [ -s "${report_dir}/infra_data.txt" ]; then
-            awk '{print $3}' "${report_dir}/infra_data.txt" | tail -n +2 | sort -u >> "${report_dir}/infra_ipv4.txt"
-            awk '{print $5}' "${report_dir}/infra_data.txt" | tail -n +2 | sort -u >> "${report_dir}/infra_ipv4_blocks.txt"
+        echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Getting target IPs... "
+        if [ -s "${report_dir}/domains_external_ipv4.txt" ] ; then
+            awk '{print $2}' "${report_dir}/domains_external_ipv4.txt" | sort -u >> "${tmp_dir}/infra_ipv4.tmp"
+            if [[ -s "${tmp_dir}/infra_ipv4.tmp" ]]; then
+                sort -u -o "${report_dir}/infra_ipv4.txt" "${tmp_dir}/infra_ipv4.tmp"
+            fi
+            awk '{print $2}' "${report_dir}/domains_external_ipv6.txt" | sort -u >> "${tmp_dir}/infra_ipv6.tmp"
+            if [[ -s "${tmp_dir}/infra_ipv6.tmp" ]]; then
+                sort -u -o "${report_dir}/infra_ipv6.txt" "${tmp_dir}/infra_ipv6.tmp"
+            fi
+            echo "Done!"
+        else
+            echo "Fail!"
         fi
         
-        ownerid=$(whois "${domain}" 2> /dev/null | grep -E "^ownerid:" | awk '{print $2}')
-        if [[ -n "${ownerid}" ]] && [[ -s "${report_dir}/infra_ipv4_blocks.txt" ]]; then
-            for block in $(cat "${report_dir}/infra_ipv4_blocks.txt" | awk '{print $1}'); do
-                if whois "${block}" 2> /dev/null | grep -q "${ownerid}"; then
-                    sleep 3
-                    echo -e "${block}\t$(whois "${block}" 2> /dev/null | grep -E "^OrgName:|^CustName:|^owner:" | sed 's/^.*:[[:blank:]]*//')"
-                    sed -i "/${block::-3}/d" "${report_dir}/infra_ipv4_blocks.txt"
+        echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Getting target blocks... "
+        if [ -s "${report_dir}/infra_as.txt" ]; then
+            for IP in $(grep -Ev "Google|Microsoft|Azure|AWS|Amazon|Cloudflare" "${report_dir}/infra_as.txt" | tail -n+2 | awk '{print $3}'); do
+                ownerid=$(whois "${domain}" 2> /dev/null | grep -E "^ownerid:" | awk '{print $2}')
+                if [[ -n "${ownerid}" ]]; then
+                    if whois "${IP}" 2> /dev/null | grep -q "${ownerid}"; then
+                        sleep 3
+                        # IPv4 block
+                        whois "${IP}" | grep -E "${IP%%.*}.*\/[0-9]{2}$" >> "${tmp_dir}/infra_blocks.tmp"
+                        # IPv6 block
+                        # ?
+                    fi
                 fi
-                unset block
-            done | sort -u >> "${tmp_dir}/tmp_infra_owner_blocks.txt"
+            done
         fi
         unset ownerid
 
-        [[ -s "${tmp_dir}/tmp_infra_owner_blocks.txt" ]] && sort -u -o "${report_dir}/infra_owner_blocks.txt" "${tmp_dir}/tmp_infra_owner_blocks.txt"
+        [[ -s "${tmp_dir}/infra_blocks.tmp" ]] && \
+            sort -u -o "${report_dir}/infra_blocks.txt" "${tmp_dir}/infra_blocks.tmp"
         echo "Done!"
     else
         echo "Fail!"
@@ -50,41 +65,19 @@ infra_data(){
 }
 
 nmap_scan(){
-        if [ -s "${report_dir}/infra_owner_blocks.txt" ]; then
-            echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Getting IPs from blocks with nmap -sn \"block\"... "
-            count=0
-            while IFS= read -r block; do
-                block=$(echo "${block}" | awk '{print $1}')
-                block_file=infra_nmap_$(echo "${block}" | sed -e 's/\//_/').txt
-                cidr=$(echo "${block}" | awk -F'/' '{print $2}')
-                if [[ ${cidr} -ge 24 ]]; then
-                    nmap -sn "${block}" --exclude 10.0.0.0/8,172.16.0.0/12,192.168.0.0/16 --max-retries 3 --host-timeout 3 2> /dev/null \
-                        | grep -E "Nmap.*for" | awk '{print $6}' | sed -e 's/(//' -e 's/)//' > "${report_dir}/${block_file}"
-                    sed -i '/^$/d' "${report_dir}/${block_file}"
-                    (( count+=1 ))
-                else
-                    continue
-                fi
-                unset block
-                unset block_file
-                unset cidr
-            done < "${report_dir}/infra_owner_blocks.txt"
+        if [ -s "${report_dir}/infra_ipv4.txt" ]; then
+            echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Getting information about IPs with nmap... "
+            nmap -n -PN -sT -iL "${report_dir}/infra_ipv4.txt" \
+                --exclude 10.0.0.0/8,172.16.0.0/12,192.168.0.0/16 \
+                --max-retries 3 --host-timeout 3 > "${report_dir}/nmap_scan.txt"
             echo "Done!"
-
         fi
-        #echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Getting open ports from IPs... "
-        #if [ -s "${report_dir}/infra_ips.txt" ]; then
-        #    for IP in $(cat ${report_dir}/infra_ips.txt); do
-        #        "nmap" "${nmap_default_options}" "${nmap_furtive_options}" -oA "${nmap_dir}/$(echo ${IP} | sed 's/\./-/g')" "${IP}" > /dev/null 2>&1 &
-        #    done
-        #fi
-        #echo "Done!"
 }
 
 shodan_recon(){
-    if [ "${shodan_use}" == "yes" ] && [ -s "${report_dir}/infra_owner_blocks.txt" ]; then
+    if [ "${shodan_use}" == "yes" ] && [ -s "${report_dir}/infra_blocks.txt" ]; then
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing shodan network scan... " 
-        for block in $(cat "${report_dir}/infra_owner_blocks.txt" | awk '{print $1}'); do
+        for block in $(cat "${report_dir}/infra_blocks.txt" | awk '{print $1}'); do
             network=$(echo ${block} | awk -F'/' '{print $1}')
             cidr=$(echo ${block} | awk -F'/' '{print $2}')
             rm_network=$(echo ${network} | awk -F'.' '{print $1"."$2"."$3"."}')
