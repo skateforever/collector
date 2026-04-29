@@ -111,6 +111,16 @@ shodan_recon(){
 
 vhost_check(){
     echo -n "Looking for vhost with dead subdomains... "
+
+    curl_base
+
+
+
+
+
+
+
+
     if [[ -s "${report_dir}/domains_external_ipv4.txt" && -s "${report_dir}/domains_without_resolution.txt" ]]; then
         for subdomain in $(cat "${report_dir}/domains_without_resolution.txt"); do
             for IP in $(awk '{print $2}' "${report_dir}/domains_external_ipv4.txt" | sort -u); do
@@ -153,9 +163,10 @@ ffuf -w subdomains.txt -u https://target.com \
         vhost_original="$(timeout --signal=9 1 curl -siLk -o /dev/null -w "%{response_code}","%{size_download}" "$IP" --no-keepalive)"
 
 
-    if [[ -s "${report_dir}/domains_without_resolution.txt" ]] && [[ -s "${report_dir}/domains_external_ipv4.txt" ]]; then
-        # Getting the IPs
-        for IP in $(awk '{print $2}' "${report_dir}/domains_external_ipv4.txt" | sort -u) ; do
-            #Getting the ports
-            for PORT in ${web_port_detect[@]}; do
-                # Getting the dead subdomains
+#    if [[ -s "${report_dir}/domains_without_resolution.txt" ]] && [[ -s "${report_dir}/domains_external_ipv4.txt" ]]; then
+#        # Getting the IPs
+#        for IP in $(awk '{print $2}' "${report_dir}/domains_external_ipv4.txt" | sort -u) ; do
+#            #Getting the ports
+#            for PORT in ${web_port_detect[@]}; do
+#                # Getting the dead subdomains
+}
