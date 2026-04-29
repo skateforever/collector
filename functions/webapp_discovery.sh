@@ -5,10 +5,16 @@
 # This file is an essential part of collector's execution!                    #
 # And is responsible to get the functions:                                    #
 #                                                                             #
+#   * get_user_agent                                                          #
 #   * webapp_alive                                                            #
 #   * aquatone_screeshot                                                      #
 #                                                                             #
 ############################################################################### 
+
+get_user_agent(){
+    user_agent_file="${collector_path}/support/user-agents.txt"
+    shuf -n 1 "${user_agent_file}"
+}
 
 webapp_alive(){
     target="$1"
@@ -24,12 +30,14 @@ webapp_alive(){
         
         for subdomain in $(cat "${report_dir}/domains_alive.txt"); do
             for port in "${webapp_port_detect[@]}"; do
-                echo "curl ${curl_options[@]} -L -w \"%{response_code}\n\" \"http://${subdomain}:${port}\" -o /dev/null" >> "${log_execution_file}"
-                http_status_code=$(curl "${curl_options[@]}" -L -w "%{response_code}\n" "http://${subdomain}:${port}" -o /dev/null 2>> "${log_execution_file}")
+                unset user_agent
+                user_agent="$(get_user_agent)"
+                echo "curl ${curl_options[@]} -H "User-agent: ${user_agent}" -L -w \"%{response_code}\n\" \"http://${subdomain}:${port}\" -o /dev/null" >> "${log_execution_file}"
+                http_status_code=$(curl "${curl_options[@]}" -H "User-agent: ${user_agent}" -L -w "%{response_code}\n" "http://${subdomain}:${port}" -o /dev/null 2>> "${log_execution_file}")
                 [[ "${http_status_code}" =~ ^[1-5][0-9]{2}$ ]] && \
                     echo "http://${subdomain}:${port}" >> "${tmp_dir}/webapp_urls.tmp" 2>> "${log_execution_file}"
-                echo "curl ${curl_options[@]} -L -w \"%{response_code}\n\" \"https://${subdomain}:${port}\" -o /dev/null" >> "${log_execution_file}"
-                https_status_code=$(curl "${curl_options[@]}" -L -w "%{response_code}\n" "https://${subdomain}:${port}" -o /dev/null 2>> "${log_execution_file}")
+                echo "curl ${curl_options[@]} -H "User-agent: ${user_agent}" -L -w \"%{response_code}\n\" \"https://${subdomain}:${port}\" -o /dev/null" >> "${log_execution_file}"
+                https_status_code=$(curl "${curl_options[@]}" -H "User-agent: ${user_agent}" -L -w "%{response_code}\n" "https://${subdomain}:${port}" -o /dev/null 2>> "${log_execution_file}")
                 [[ "${http_status_code}" =~ ^[1-5][0-9]{2}$ ]] && \
                     echo "https://${subdomain}:${port}" >> "${tmp_dir}/webapp_urls.tmp" 2>> "${log_execution_file}"
             done
@@ -52,15 +60,14 @@ webapp_alive(){
 
         if [[ -s "${tmp_dir}/webapp_urls.tmp" ]]; then
             for url in $(cat "${tmp_dir}/webapp_urls.tmp"); do
+                unset user_agent
+                user_agent="$(get_user_agent)"
                 tmp_file=$(mktemp)
-                curl "${curl_options[@]}" "$url" 2>/dev/null > "${tmp_file}"
+                curl "${curl_options[@]}" -H "User-agent: ${user_agent}" "$url" 2>/dev/null > "${tmp_file}"
                 content="$(cat ${tmp_file})"
-                #content_length=${#content}
-                #if [[ ${content_length} -lt 50 ]] || ! echo "${content}" | grep -qiE "<html|<body|<title|<!DOCTYPE"; then
-                    if ! echo "${content}" | grep -qiE "${webapp_waf_regex}" > /dev/null 2>&1; then
-		                echo ${url}
-                    fi
-                #fi
+                if ! echo "${content}" | grep -qiE "${webapp_waf_regex}" > /dev/null 2>&1; then
+                    echo ${url}
+                fi
                 rm -f ${tmp_file}
             done | sort -u > "${report_dir}/webapp_urls.txt"
         fi

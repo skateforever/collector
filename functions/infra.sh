@@ -78,11 +78,13 @@ shodan_recon(){
     if [ "${shodan_use}" == "yes" ] && [ -s "${report_dir}/infra_blocks.txt" ]; then
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing shodan network scan... " 
         for block in $(cat "${report_dir}/infra_blocks.txt" | awk '{print $1}'); do
+            unset user_agent
+            user_agent="$(get_user_agent)"
             network=$(echo ${block} | awk -F'/' '{print $1}')
             cidr=$(echo ${block} | awk -F'/' '{print $2}')
             rm_network=$(echo ${network} | awk -F'.' '{print $1"."$2"."$3"."}')
-            ip_range=$(curl "${curl_options[@]}" -s "http://jodies.de/ipcalc" -d "host=${network}&mask1=${cidr}" 2> /dev/null | sed 's/<font color="#000000">/\\\n/g ; s/\\//g' | grep -E "HostMin:|HostMax:" | awk '{print $3}' | sed 's/.*>//' | tr '\n' ' ' | sed "s/${rm_network}//g ; s/.$//")
-            total_ip=$(curl "${curl_options[@]}" -s "http://jodies.de/ipcalc" -d "host=${network}&mask1=${cidr}" 2> /dev/null | sed 's/<font color="#000000">/\\\n/g ; s/\\//g' | grep -E "Hosts/Net:" | awk '{print $3}' | sed 's/.*>//' | tr '\n' ' ')
+            ip_range=$(curl "${curl_options[@]}" -H "User-agent: ${user_agent}" -s "http://jodies.de/ipcalc" -d "host=${network}&mask1=${cidr}" 2> /dev/null | sed 's/<font color="#000000">/\\\n/g ; s/\\//g' | grep -E "HostMin:|HostMax:" | awk '{print $3}' | sed 's/.*>//' | tr '\n' ' ' | sed "s/${rm_network}//g ; s/.$//")
+            total_ip=$(curl "${curl_options[@]}" -H "User-agent: ${user_agent}" -s "http://jodies.de/ipcalc" -d "host=${network}&mask1=${cidr}" 2> /dev/null | sed 's/<font color="#000000">/\\\n/g ; s/\\//g' | grep -E "Hosts/Net:" | awk '{print $3}' | sed 's/.*>//' | tr '\n' ' ')
             shodan_recons=$(shodan info 2> /dev/null | grep "Scan.*:" | awk '{print $4}')
             shodan_count=0
             if [ "${shodan_recons}" -gt "${total_ip}" ]; then
@@ -106,3 +108,54 @@ shodan_recon(){
     fi
         
 }
+
+vhost_check(){
+    echo -n "Looking for vhost with dead subdomains... "
+    if [[ -s "${report_dir}/domains_external_ipv4.txt" && -s "${report_dir}/domains_without_resolution.txt" ]]; then
+        for subdomain in $(cat "${report_dir}/domains_without_resolution.txt"); do
+            for IP in $(awk '{print $2}' "${report_dir}/domains_external_ipv4.txt" | sort -u); do
+                curl "${curl_options[@]}" --resolve "${subdomain}":80:"${IP}" http://"${subdomain}"
+                curl "${curl_options[@]}" --resolve "${subdomain}":443:"${IP}" https://"${subdomain}"
+            done
+        done
+        gobuster vhost -u https://example.com -w /path/to/wordlist.txt
+        webfinder -t https://x.com/ -ip tst.txt -o x.txt --random-agent
+    fi
+    
+
+# Basic vhost discovery with a wordlist
+ffuf -w subdomains.txt -u https://TARGET -H "Host: FUZZ.TARGET" -mc all
+
+# With common response code filtering
+ffuf -w subdomains.txt -u https://TARGET -H "Host: FUZZ.TARGET" -mc 200,204,301,302,307,401,403,405
+
+# Using IP address instead of domain (bypasses some load balancers)
+ffuf -w subdomains.txt -u http://TARGET_IP -H "Host: FUZZ.TARGET" -mc all
+
+# With auto-calibration to filter out false positives
+ffuf -w subdomains.txt -u https://TARGET -H "Host: FUZZ.TARGET" -ac -mc all
+
+# Multiple host header techniques
+ffuf -w subdomains.txt -u https://TARGET -H "Host: FUZZ.TARGET" -H "X-Forwarded-Host: FUZZ.TARGET" -mc all
+
+# With size and word count filtering to find subtle differences
+ffuf -w subdomains.txt -u https://TARGET -H "Host: FUZZ.TARGET" -mc all -fs 0 -fw 0
+
+ffuf -w subdomains.txt -u https://target.com \
+    -H "Host: FUZZ.target.com" \
+    -ac \
+    -mc 200,204,301,302,307,401,403,405,500 \
+    -o vhost_results.txt \
+    -of json \
+    -v
+
+
+        vhost_original="$(timeout --signal=9 1 curl -siLk -o /dev/null -w "%{response_code}","%{size_download}" "$IP" --no-keepalive)"
+
+
+    if [[ -s "${report_dir}/domains_without_resolution.txt" ]] && [[ -s "${report_dir}/domains_external_ipv4.txt" ]]; then
+        # Getting the IPs
+        for IP in $(awk '{print $2}' "${report_dir}/domains_external_ipv4.txt" | sort -u) ; do
+            #Getting the ports
+            for PORT in ${web_port_detect[@]}; do
+                # Getting the dead subdomains

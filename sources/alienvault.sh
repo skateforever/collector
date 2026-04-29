@@ -10,8 +10,10 @@
 
 alienvault-src(){
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing alienvault... "
-    echo -e "\ncurl ${curl_options[@]} \"https://otx.alienvault.com/api/v1/indicators/domain/${domain}/passive_dns\" | jq --raw-output '.passive_dns[]?.hostname'" >> "${log_execution_file}"
-    curl "${curl_options[@]}" "https://otx.alienvault.com/api/v1/indicators/domain/${domain}/passive_dns" > "${tmp_dir}/alienvault_output.json" 2>> ${log_execution_file}
+    unset user_agent
+    user_agent="$(get_user_agent)"
+    echo -e "\ncurl ${curl_options[@]} -H \"User-agent: ${user_agent}\" \"https://otx.alienvault.com/api/v1/indicators/domain/${domain}/passive_dns\" | jq --raw-output '.passive_dns[]?.hostname'" >> "${log_execution_file}"
+    curl "${curl_options[@]}" -H "User-agent: ${user_agent}" "https://otx.alienvault.com/api/v1/indicators/domain/${domain}/passive_dns" > "${tmp_dir}/alienvault_output.json" 2>> ${log_execution_file}
     echo "Done!"
     sleep 1
 }

@@ -23,9 +23,11 @@ crawler_js(){
     else
         if [ -d "${report_dir}" ] && [ -d "${webapp_js_dir}" ] ; then
             for subdomain in $(cat "${report_dir}/webapp_urls.txt"); do
+                unset user_agent
+                user_agent="$(get_user_agent)"
                 # curl
                 # Extract all links to .js files from the URL
-                curl "${curl_options[@]}" -L "${subdomain}" | grep -Eo 'src="[^"]*\.js"' | sed 's/src="//g' | sed 's/"$//g' | while read -r js_url; do
+                curl "${curl_options[@]}" -H "User-agent: ${user_agent}" -L "${subdomain}" | grep -Eo 'src="[^"]*\.js"' | sed 's/src="//g' | sed 's/"$//g' | while read -r js_url; do
                     # Convert relative URL to absolute
                     if [[ "${js_url}" == //* ]]; then
                         js_url="https:${js_url}"
@@ -38,6 +40,12 @@ crawler_js(){
                         echo "${js_url}" >> "${tmp_dir}/js_files.tmp"
                     fi
                 done
+
+                # getJS
+                echo "${subdomain}" | getJS -complete >> "${tmp_dir}/js_files.tmp"
+
+                # jsfinder
+                echo "${subdomain}" | jsfinder -read -s -o "${tmp_dir}/js_files.tmp" > /dev/null
 
                 # katana
                 echo -e "\n katana ${katana_options[@]} -u ${subdomain} >> ${tmp_dir}/js_files.tmp" >> "${log_execution_file}"
@@ -52,16 +60,18 @@ crawler_js(){
                 echo "${subdomain}" | waybackurls >> "${tmp_dir}/js_files.tmp" 2>> "${log_execution_file}"
 
                 for js_url in $(grep -E '\.js([?#].*)?$' "${tmp_dir}/js_files.tmp"); do
-                    js_file_dir="$(echo "${js_url}" | awk -F'/' '{print $3}')"
+                    unset user_agent
+                    user_agent="$(get_user_agent)"
+                    js_file_dir="$(echo "${js_url}" | sed 's/http.*:\/\///' | awk -F'/' '{print $3}')"
                     js_file_name=$(basename "${js_url}")
                     [[ ! -d "${webapp_js_dir}/${js_file_dir}" ]] && mkdir -p "${webapp_js_dir}/${js_file_dir}"
 
                     # Checks if the URL returns HTTP status 200
-                    js_status=$(curl "${curl_options[@]}" -L -o /dev/null -w "%{http_code}" --head "${js_url}")
+                    js_status=$(curl "${curl_options[@]}" -H "User-agent: ${user_agent}" -L -o /dev/null -w "%{http_code}" --head "${js_url}")
                     if [[ "${js_status}" -eq 200 ]]; then
                         if [ ! -s "${webapp_js_dir}/${js_file_dir}/${js_file_name}" ]; then
-                            echo "curl ${curl_options[@]} ${js_url} > ${webapp_js_dir}/${js_file_dir}/${js_file_name}" >> "${log_execution_file}"
-                            curl "${curl_options[@]}" "${js_url}" > "${webapp_js_dir}/${js_file_dir}/${js_file_name}" 2>> "${log_execution_file}"
+                            echo "curl ${curl_options[@]} -H "User-agent: ${user_agent}" ${js_url} > ${webapp_js_dir}/${js_file_dir}/${js_file_name}" >> "${log_execution_file}"
+                            curl "${curl_options[@]}" -H "User-agent: ${user_agent}" "${js_url}" > "${webapp_js_dir}/${js_file_dir}/${js_file_name}" 2>> "${log_execution_file}"
                         fi
                     fi
                 done
