@@ -129,6 +129,8 @@ webapp_tech(){
         if [ -d "${report_dir}" ] && [ -d "${webapp_tech_dir}" ] ; then
             httpx -no-color -silent -update > /dev/null 2>&1
             while IFS= read -r url; do
+                unset user_agent
+                user_agent="$(get_user_agent)"
                 name="$(echo "${url}" | sed -e "s/http:\/\//http_/" -e "s/https:\/\//https_/" -e "s/:/_/" -e "s/\/$//" -e "s/\//_/g")"
                 file_tech_by_headers="${name}.tech"
                 if [ -n "${use_proxy}" ] && [ "${use_proxy}" == "yes" ]; then
@@ -136,8 +138,8 @@ webapp_tech(){
                     alias httpx="httpx -http-proxy ${proxy_ip}"
                 fi
                 
-                echo "curl ${curl_options[@]} -I ${url}" >> "${log_execution_file}"
-                curl ${curl_options[@]} -I "${url}" >> "${webapp_tech_dir}/${file_tech_by_headers}" 2>> "${log_execution_file}"
+                echo "curl ${curl_options[@]} -H "User-agent: ${user_agent}" -I ${url}" >> "${log_execution_file}"
+                curl ${curl_options[@]} -H "User-agent: ${user_agent}" -I "${url}" >> "${webapp_tech_dir}/${file_tech_by_headers}" 2>> "${log_execution_file}"
                 
                 echo "echo ${url} | httpx ${httpx_options[@]} -title -tech-detect" >> "${log_execution_file}"
                 echo "${url}" | httpx "${httpx_options[@]}" -title -tech-detect >> "${webapp_tech_dir}/${file_tech_by_headers}" 2>> "${log_execution_file}"
@@ -164,9 +166,11 @@ webapp_tech(){
 robots_txt(){
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Looking for new URLs on robots.txt... "
     for file in $("${ls_bin_path}" -1A "${webapp_enum_dir}/"); do
+        unset user_agent
+        user_agent="$(get_user_agent)"
         if grep -E "robots\.txt" "${webapp_enum_dir}/${file}" > /dev/null && [ -s "${file}" ] ; then
             target=$(grep -E "Target:|Url:" "${file}" | sed -e 's/^\[+\] //' | awk '{print $2}' | sed -e 's/\/$//') 
-            for url in $(curl "${curl_options[@]}" -s "${target}"/robots.txt | grep -Ev "User-agent: *" | awk '{print $2}' | sed -e "/^\/$/d"); do
+            for url in $(curl "${curl_options[@]}" -H "User-agent: ${user_agent}" -s "${target}"/robots.txt | grep -Ev "User-agent: *" | awk '{print $2}' | sed -e "/^\/$/d"); do
                 echo "${target}${url}" >> "${report_dir}/robots_urls.txt"
                 sed -i -e 's/\r//g' -e 's/\/$//g' "${report_dir}/robots_urls.txt"
             done

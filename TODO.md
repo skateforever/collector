@@ -14,5 +14,9 @@ emails_recon function:</br>
 * intelx
 * hunter.io
 * lampary
+* snov
 
 In the future use dnsrecon, gau, massdns, sublist3r and others tools to get more subdomains and others information.</br>
+
+https://synapsint.com/api.php
+https://github.com/Vyntral/god-eye

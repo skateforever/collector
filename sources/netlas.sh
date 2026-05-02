@@ -4,20 +4,18 @@
 # This file is an essential part of collector's execution!  #
 # And is responsible to get the functions:                  #
 #                                                           #
-#   * crt-src                                               #
+#   * netlas-src                                           #
 #                                                           #
 #############################################################            
 
-crt-src(){
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing crt.sh... "
+netlas-src(){
+    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing netlas... "
     unset user_agent
     user_agent="$(get_user_agent)"
-    echo -e "\ncurl ${curl_options[@]} -H \"User-agent: ${user_agent}\" \"https://crt.sh/?q=%25.${domain}&output=json\" | jq -r '.[].name_value'" >> "${log_execution_file}"
-    curl "${curl_options[@]}" -H "User-agent: ${user_agent}" "https://crt.sh/?q=%25.${domain}&output=json" \
-        > "${tmp_dir}/crtsh_output.json" \
-        2>> "${log_execution_file}"
+    echo -e "\ncurl ${curl_options[@]} -H \"User-agent: ${user_agent}\" https://app.netlas.io/api/domains/?q=*.${domain}" >> "${log_execution_file}"
+    curl "${curl_options[@]}" -H "User-agent: ${user_agent}" "https://app.netlas.io/api/domains/?q=*.${domain}" -o "${tmp_dir}/netlas_output.json" 2>> "${log_execution_file}"
     echo "Done!"
     sleep 1
 }
 
-crt-src
+netlas-src

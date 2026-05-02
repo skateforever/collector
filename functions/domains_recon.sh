@@ -56,7 +56,7 @@ domains_recon(){
     fi
 
     # Only web app scan
-    if [[ "${webapp_scanr_check}" == "yes" ]] && \
+    if [[ "${webapp_scan_check}" == "yes" ]] && \
         [[ -s "${report_dir}/webapp_urls.txt" ]] && \
         [[ "${recon_check}" == "no" || -z "${recon_check}" ]]; then
         nuclei_scan "${domain}" "${report_dir}/webapp_urls.txt"
@@ -76,10 +76,13 @@ domains_recon(){
             organizing_subdomains "${report_dir}/domains_found.txt"
         fi
         infra_data
-        shodan_recon
+        nmap_scan
+        shodan_scan
         if [[ "${webapp_discovery_check}" == "yes" ]]; then
             webapp_alive "${domain}" "${report_dir}/domains_alive.txt"
             webapp_tech "${domain}" "${report_dir}/webapp_urls.txt"
+            vhost_check "${domain}" "${report_dir}/webapp_urls.txt" \
+                "${report_dir}/domains_without_resolution.txt" "${report_dir}/infra_ipv4.txt"
         fi
         if [[ "${webapp_crawler_check}" == "yes" && "${webapp_enum_check}" != "yes" ]]; then
             crawler_js "${domain}" "${report_dir}/webapp_urls.txt"
