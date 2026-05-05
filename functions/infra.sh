@@ -8,6 +8,7 @@
 #   * infra_data                                            #
 #   * nmap_scan                                             #
 #   * shodan_scan                                           #
+#   * vhost_check                                           #
 #                                                           #
 ############################################################# 
 
@@ -93,41 +94,47 @@ shodan_scan(){
 }
 
 vhost_check(){
-    echo -n "Looking for vhost with dead subdomains... "
+    echo -ne "Looking for vhost with dead subdomains... "
 
     target="$1"
-    vhost_principal_name="$2"
-    vhost_name_file="$3"
-    vhost_ip_file="$4"
+    vhost_name_file="$2"
+    vhost_ip_file="$3"
 
-    if [[ -s "${report_dir}/domains_external_ipv4.txt" && -s "${report_dir}/domains_without_resolution.txt" ]]; then
-        for subdomain in "$(cat ${vhost_principal_name})"; do
-            vhost_original="$(timeout --signal=9 1 curl -siLk -o /dev/null -w "%{response_code}","%{size_download}" "$IP" --no-keepalive)"
-            subdomain_validation=$(curl -s -k -A "$ua" "${subdomain}")
-            subdomain_size=$(echo "${subdomain_validation}" | wc -c)
-            subdomain_hash=$(echo "${subdomain_validation}" | md5sum | awk '{print $1}')
-            
-            for vhost in "$(cat ${vhost_name_file})"; do
-                for IP in "$(cat ${vhost_name_file})"; do
-                    for port in "${PORTS[@]}"; do
-                        user_agent=$(get_user_agent)
-                        vhost_validation=$(curl -s -k -A "$ua" -H "Host: $vhost" http://$ip:$port)
-                        vhost_size=$(echo "${vhost_validation}" | wc -c)
-                        vhost_hash=$(echo "${vhost_validation}" | md5sum | awk '{print $1}')
-                        
-                        key="${ip}:${port}"
-                        base_size=${BASE_SIZE[$key]}
-                        base_hash=${BASE_HASH[$key]}
-                        
-                        if [[ "${subdomain_size}" != "${vhost_size}" ]] || [[ "${subdomain_hash}" != "${vhost_hash}" ]]; then
-                            echo -e "${vhost}\t${IP}:${port}"
-                        fi
-                        ffuf -w subdomains.txt -u https://TARGET -H "Host: FUZZ.TARGET" -mc all
-                        gobuster vhost -u https://example.com -w /path/to/wordlist.txt
-                    done
+    if [[ -s "${vhost_ip_file}" && -s "${report_dir}/infra_ipv4.txt" ]]; then
+        for IP in "$(cat ${vhost_name_file})"; do
+            for port in "${#webapp_port_detect[@]}"; do
+                user_agent=$(get_user_agent)
+                unresponsive_vhost="$(tr -dc 'a-z' </dev/urandom | fold -w 20 | head -n1).huebr"
+                # curl
+                curl_unresponsive_validation=$(curl "${curl_options[@]}" -L -H "User-Agent: ${user_agent}" -H "Host: ${unresponsive_vhost}" http://${IP}:${port})
+                curl_unresponsive_size=$(echo "${curl_unresponsive_validation}" | wc -c)
+                curl_unresponsive_hash=$(echo "${curl_unresponsive_validation}" | md5sum | awk '{print $1}')
+                # httpx
+                httpx_unresponsive_size=$(echo "${IP}:${port}" | httpx -silent -H "Host: ${unresponsive_vhost}" -H "User-Agent: ${user_agent}" -content-length -hash md5 | awk '{print $2}' | sed 's/\[// ; s/\]//')
+                httpx_unresponsive_hash=$(echo "${IP}:${port}" | httpx -silent -H "Host: ${unresponsive_vhost}" -H "User-Agent: ${user_agent}" -content-length -hash md5 | awk '{print $3}' | sed 's/\[// ; s/\]//')
+
+                for vhost in "$(cat ${vhost_name_file})"; do
+                    user_agent=$(get_user_agent)
+                    curl_vhost_validation=$(curl "${curl_option[@]}" -L -H "User-Agent: ${user_agent}" -H "Host: ${vhost}" http://${IP}:${port})
+                    curl_vhost_size=$(echo "${vhost_validation}" | wc -c)
+                    curl_vhost_hash=$(echo "${vhost_validation}" | md5sum | awk '{print $1}')
+
+                    if [[ "${curl_unresponsive_size}" != "${curl_vhost_size}"  && "${curl_unresponsive_hash}" != "${curl_vhost_hash}" ]]; then
+                        echo -e "${vhost}\t${IP}:${port}" >> "${tmp_dir}/vhost_subdomains.tmp"
+                    fi
+
+                    httpx_vhost_size=$(echo "${IP}:${port}" | httpx -silent -H "Host: ${vhost}" -H "User-Agent: ${user_agent}" -content-length -hash md5 | awk '{print $2}' | sed 's/\[// ; s/\]//')
+                    httpx_vhost_md5=$(echo "${IP}:${port}" | httpx -silent -H "Host: ${vhost}" -H "User-Agent: ${user_agent}" -content-length -hash md5 | awk '{print $3}' | sed 's/\[// ; s/\]//')
+                    if [[ "${httpx_unresponsive_size}" != "${httpx_vhost_size}" && "${httpx_unresponsive_hash}" != "${httpx_vhost_hash}" ]]; then
+                        echo -e "${vhost}\t${IP}:${port}" >> "${tmp_dir}/vhost_subdomains.tmp"
+                    fi
                 done
             done
         done
+        if [[ -s "${tmp_dir}/vhost_subdomains.tmp" ]]; then
+            sort -u -o "${report_dir}/vhost_subdomains.txt" "${tmp_dir}/vhost_subdomains.tmp"
+        fi
+        echo "Done!"
     else
         echo "Fail!"
     fi
