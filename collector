@@ -9,8 +9,9 @@
 collector_command_line="$0 $*"
 collector_path=$(dirname "$0")
 
-[[ -s "${collector_path}/functions/banner.sh" ]] && source "${collector_path}/functions/banner.sh"
+[[ -s "${collector_path}/functions/utils.sh" ]] && source "${collector_path}/functions/utils.sh"
 banner
+reset_vars
 
 if [ -s "${collector_path}/collector.cfg" ]; then
     source "${collector_path}/collector.cfg"

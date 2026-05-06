@@ -30,26 +30,22 @@ check_argument(){
 }
 
 menu(){
-    args="$@"
+    args=("$@")
     args_count="$#"
     while [ $# -ne 0 ]; do
         case $1 in
             -d|--domain)
                 check_argument "$1" "$2"
                 domain="$2"
-                unset domain_check
                 domain_check="yes"
-                unset directory_structure
-                directory_structure="domain"
+                [[ -n "${domain}" && "${domain_check}" == "yes" ]] && directory_structure="domain"
                 shift 2
                 ;;
             -dl|--domain-list)
                 check_argument "$1" "$2"
                 if [ -s "$2" ]; then
                     domain_list=$2
-                    unset domainlist_check
                     domainlist_check="yes"
-                    unset directory_structure
                     directory_structure="domain"
                     shift 2
                 else
@@ -63,7 +59,6 @@ menu(){
                 IFS=","
                 excluded_domains+=($2)
                 unset IFS
-                unset excludedomain_check
                 excludedomain_check="yes"
                 shift 2
                 ;;
@@ -71,7 +66,6 @@ menu(){
                 check_argument "$1" "$2"
                 if [ -s "$2" ]; then
                     excludedomain_list="$2"
-                    unset excludedomainlist_check
                     excludedomainlist_check="yes"
                 else
                     echo -e "Please provide a valid file with domains to exclude them.\n"
@@ -88,7 +82,6 @@ menu(){
                     echo "You need to specify a domain to kill the execution!"
                     exit 1
                 else
-                    unset kill_check
                     kill_check="yes"
                 fi
                 ;;
@@ -98,7 +91,6 @@ menu(){
                     echo "You need to specify a domain to kill the execution!"
                     exit 1
                 else
-                    unset killremove_check
                     killremove_check="yes"
                 fi
                 ;;        
@@ -106,7 +98,6 @@ menu(){
                 check_argument "$1" "$2"
                 if [[ -n "$2" && "$2" == ?(-)+([0-9]) ]]; then
                     limit_urls="$2"
-                    unset limiturls_check
                     limiturls_check="yes"
                     shift 2
                 else
@@ -116,19 +107,16 @@ menu(){
                 ;;
             -o|--output)
                 check_argument "$1" "$2"
-                unset output_dir
                 output_dir="$2"
                 shift 2
                 ;;
             -p|--proxy)
                 check_argument "$1" "$2"
-                unset use_proxy
                 use_proxy="yes"
                 proxy_ip="$(echo "$2" | sed -E 's/^\s*.*:\/\///g')"
                 shift 2
                 ;;
             -r|--recon)
-                unset recon_check
                 recon_check="yes"
                 shift
                 ;;
@@ -146,66 +134,48 @@ menu(){
                     fi
                 done
                 unset IFS
-                unset subdomainbrute_check
                 subdomainbrute_check="yes"
                 shift 2
                 ;;
             -u|--url)
                 check_argument "$1" "$2"
-                unset url_check
+                url_verify="$2"
                 url_check="yes"
-                unset directory_structure
-                directory_structure="url"
-                unset url_verify
-                url_verify=$2
-                unset url_domain
+                [[ -n "${url_verify}" && "${url_check}" == "yes" ]] && directory_structure="url"
                 url_domain=$(echo "${url_verify}" | sed -e 's/http.*\/\///' | awk -F'/' '{print $1}' | xargs -I {} basename {})
                 shift 2
                 ;;
             -wc|--webapp-crawler)
-                unset webapp_crawler_check
                 webapp_crawler_check="yes"
                 shift
                 ;;
             -wd|--webapp-discovery)
-                unset webapp_discovery_check
                 webapp_discovery_check="yes"
+                if [[ -z "${webapp_port_detect[@]}" ]]; then
+                    for arg in "${args[@]}"; do
+                        if [[ "${arg}" =~ ^(-wld|--webapp-long-detection|-wsd|--webapp-short-detection)$ ]]; then
+                            break
+                        else
+                            usage
+                        fi
+                    done
+                fi
                 shift
                 ;;
             -we|--webapp-enum)
-                unset webapp_enum_check
                 webapp_enum_check=yes
                 shift
                 ;;
             -ws|--webapp-scan)
-                unset webapp_scan_check
                 webapp_scan_check="yes"
                 shift
                 ;;
             -wld|--webapp-long-detection)
-                unset webapp_port_detect
-                if [ "${#webapp_port_detect[@]}" -eq 0 ]; then
-                    webapp_port_detect=("${webapp_port_long_detection[@]}")
-                else
-                    diff_array=$(diff <(printf "%s\n" "${webapp_port_detect[@]}") <(printf "%s\n" "${webapp_port_long_detection[@]}"))
-                    if [[ ! "${#webapp_port_detect[@]}" -ne 0 ]] && [[ -n ${diff_array} ]]; then
-                        echo -e "You need to specify just sort or long web port detection, not both!\n"
-                        usage
-                    fi
-                fi
+                webapp_port_detect=("${webapp_port_long_detection[@]}")
                 shift
                 ;;
             -wsd|--webapp-short-detection)
-                unset webapp_port_detect
-                if [ "${#webapp_port_detect[@]}" -eq 0 ]; then
-                    webapp_port_detect=("${webapp_port_short_detection[@]}")
-                else
-                    diff_array=$(diff <(printf "%s\n" "${webapp_port_detect[@]}") <(printf "%s\n" "${webapp_port_short_detection[@]}"))
-                    if [[ "${#webapp_port_detect[@]}" -ne 0 ]] && [[ -n ${diff_array} ]]; then
-                        echo -e "You need to specify just sort or long web port detection, not both!\n"
-                        usage
-                    fi
-                fi
+                webapp_port_detect=("${webapp_port_short_detection[@]}")
                 shift
                 ;;
             -ww|--webapp-wordlists)
