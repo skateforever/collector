@@ -81,8 +81,7 @@ domains_recon(){
         if [[ "${webapp_discovery_check}" == "yes" ]]; then
             webapp_alive "${domain}" "${report_dir}/domains_alive.txt"
             webapp_tech "${domain}" "${report_dir}/webapp_urls.txt"
-            vhost_check "${domain}" "${report_dir}/webapp_urls.txt" \
-                "${report_dir}/domains_without_resolution.txt" "${report_dir}/infra_ipv4.txt"
+            vhost_check "${report_dir}/domains_without_resolution.txt" "${report_dir}/infra_ipv4.txt"
         fi
         if [[ "${webapp_crawler_check}" == "yes" && "${webapp_enum_check}" != "yes" ]]; then
             crawler_js "${domain}" "${report_dir}/webapp_urls.txt"

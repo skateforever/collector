@@ -96,15 +96,14 @@ shodan_scan(){
 vhost_check(){
     echo -ne "Looking for vhost with dead subdomains... "
 
-    target="$1"
-    vhost_name_file="$2"
-    vhost_ip_file="$3"
+    vhost_name_file="$1"
+    vhost_ip_file="$2"
 
     if [[ -s "${vhost_ip_file}" && -s "${report_dir}/infra_ipv4.txt" ]]; then
         for IP in "$(cat ${vhost_name_file})"; do
             for port in "${#webapp_port_detect[@]}"; do
                 user_agent=$(get_user_agent)
-                unresponsive_vhost="$(tr -dc 'a-z' </dev/urandom | fold -w 20 | head -n1).huebr"
+                unresponsive_vhost="$(tr -dc 'a-z' </dev/urandom | fold -w 10 | head -n1).${domain}"
                 # curl
                 curl_unresponsive_validation=$(curl "${curl_options[@]}" -L -H "User-Agent: ${user_agent}" -H "Host: ${unresponsive_vhost}" http://${IP}:${port})
                 curl_unresponsive_size=$(echo "${curl_unresponsive_validation}" | wc -c)
@@ -115,14 +114,14 @@ vhost_check(){
 
                 for vhost in "$(cat ${vhost_name_file})"; do
                     user_agent=$(get_user_agent)
+                    # curl
                     curl_vhost_validation=$(curl "${curl_option[@]}" -L -H "User-Agent: ${user_agent}" -H "Host: ${vhost}" http://${IP}:${port})
                     curl_vhost_size=$(echo "${vhost_validation}" | wc -c)
                     curl_vhost_hash=$(echo "${vhost_validation}" | md5sum | awk '{print $1}')
-
                     if [[ "${curl_unresponsive_size}" != "${curl_vhost_size}"  && "${curl_unresponsive_hash}" != "${curl_vhost_hash}" ]]; then
                         echo -e "${vhost}\t${IP}:${port}" >> "${tmp_dir}/vhost_subdomains.tmp"
                     fi
-
+                    # httpx
                     httpx_vhost_size=$(echo "${IP}:${port}" | httpx -silent -H "Host: ${vhost}" -H "User-Agent: ${user_agent}" -content-length -hash md5 | awk '{print $2}' | sed 's/\[// ; s/\]//')
                     httpx_vhost_md5=$(echo "${IP}:${port}" | httpx -silent -H "Host: ${vhost}" -H "User-Agent: ${user_agent}" -content-length -hash md5 | awk '{print $3}' | sed 's/\[// ; s/\]//')
                     if [[ "${httpx_unresponsive_size}" != "${httpx_vhost_size}" && "${httpx_unresponsive_hash}" != "${httpx_vhost_hash}" ]]; then
