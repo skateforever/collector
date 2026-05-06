@@ -69,12 +69,11 @@ infra_data(){
 nmap_scan(){
         if [ -s "${report_dir}/infra_ipv4.txt" ]; then
             echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Getting information about IPs with nmap... "
-            echo "nmap -n -PN -sT -iL \"${report_dir}/infra_ipv4.txt\" \
+            echo "nmap ${nmap_options[@]} -iL \"${report_dir}/infra_ipv4.txt\" \
                 --exclude 10.0.0.0/8,172.16.0.0/12,192.168.0.0/16 \
-                --max-retries 3 --host-timeout 3 > \"${report_dir}/nmap_scan.txt\"" >> "${log_execution_file}"
-            nmap -n -PN -sT -iL "${report_dir}/infra_ipv4.txt" \
-                --exclude 10.0.0.0/8,172.16.0.0/12,192.168.0.0/16 \
-                --max-retries 3 --host-timeout 3 > "${report_dir}/nmap_scan.txt"
+                > \"${report_dir}/nmap_scan.txt\"" >> "${log_execution_file}"
+            nmap "${nmap_options[@]}" -iL "${report_dir}/infra_ipv4.txt" \
+                --exclude 10.0.0.0/8,172.16.0.0/12,192.168.0.0/16 > "${report_dir}/nmap_scan.txt"
             echo "Done!"
         fi
 }
