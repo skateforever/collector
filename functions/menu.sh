@@ -154,11 +154,11 @@ menu(){
                 if [[ -z "${webapp_port_detect[@]}" ]]; then
                     for arg in "${args[@]}"; do
                         if [[ "${arg}" =~ ^(-wld|--webapp-long-detection|-wsd|--webapp-short-detection)$ ]]; then
+                            port_found="yes"
                             break
-                        else
-                            usage
                         fi
                     done
+                    [[ -z "${port_found}" ]] && usage
                 fi
                 shift
                 ;;
