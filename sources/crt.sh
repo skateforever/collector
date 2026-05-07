@@ -12,8 +12,8 @@ crt-src(){
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing crt.sh... "
     unset user_agent
     user_agent="$(get_user_agent)"
-    echo -e "\ncurl ${curl_options[@]} -H \"User-agent: ${user_agent}\" \"https://crt.sh/?q=%25.${domain}&output=json\" | jq -r '.[].name_value'" >> "${log_execution_file}"
-    curl "${curl_options[@]}" -H "User-agent: ${user_agent}" "https://crt.sh/?q=%25.${domain}&output=json" \
+    echo -e "\ncurl ${curl_options[@]} -H \"User-agent: ${user_agent}\" \"https://crt.sh/?CN=${domain}&output=json\" | jq -r '.[].name_value'" >> "${log_execution_file}"
+    curl "${curl_options[@]}" -H "User-agent: ${user_agent}" "https://crt.sh/?CN=${domain}&output=json" \
         > "${tmp_dir}/crtsh_output.json" \
         2>> "${log_execution_file}"
     echo "Done!"
