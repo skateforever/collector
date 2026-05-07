@@ -313,6 +313,7 @@ organizing_subdomains(){
     if [ -s "${subdomains_file}" ]; then
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Getting the IPs and aliases of the domain and subdomains... "
         # Domains and subdomains resolution
+        echo "Domains and subdomains resolution" >> "${log_execution_file}"
         if [ -s "${massdns_resolvers_file}" ]; then
             "massdns" -q -r "${massdns_resolvers_file}" -t A -o S \
                 -w "${tmp_dir}/resolution_massdns.tmp" "${subdomains_file}" > /dev/null 2>&1
@@ -327,22 +328,24 @@ organizing_subdomains(){
         done
 
         # Organizing and handling domain files
+        echo "Organizing and handling domain files" >> "${log_execution_file}"
         for file_resolution in "${tmp_dir}/resolution_massdns.tmp" "${tmp_dir}/resolution_dig.tmp" "${tmp_dir}/resolution_host.tmp"; do
             if [[ -s "${file_resolution}" ]];  then
                 # Only subdomain owned by domain with IPv4
                 grep -E "${IPv4_regex}$" "${file_resolution}" \
                     | awk '{ sub(/\.$/,"",$1); print $1 "\t" $NF }' \
-                    | grep -EF "${domain}" >> "${tmp_dir}/domains_external_ipv4.tmp"
+                    | grep -F "${domain}" >> "${tmp_dir}/domains_external_ipv4.tmp"
                 # Only subdomain owned by domain with IPv6
                 grep -E "${IPv6_regex}$" "${file_resolution}" \
-                    | awk '{ sub(/\.$/,"",$1); print $1 "\t" $NF }' >> "${tmp_dir}/domains_external_ipv6.tmp"
+                    | awk '{ sub(/\.$/,"",$1); print $1 "\t" $NF }' \
+                    | grep -F "${domain}" >> "${tmp_dir}/domains_external_ipv6.tmp"
                 # Only alias
                 grep -E "CNAME|is.an.alias" "${file_resolution}" \
                     | awk '{ sub(/\.$/,"",$1); print $1 "\t" $NF }' \
                     | awk -v dom="${domain}" '$1 == dom || substr($1, length($1)-length(dom)) == "." dom' \
                     | sed 's/\.$//' >> "${tmp_dir}/domains_aliases.tmp"
                 # Only third party subdomain and domains
-                grep -EFv "${domain}" "${file_resolution}" \
+                grep -Fv "${domain}" "${file_resolution}" \
                     | awk '{print $1}' | sed 's/\.$//' \
                     | sort -u >> "${tmp_dir}/domains_thirdpart.tmp"
             fi
