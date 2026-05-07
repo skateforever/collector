@@ -10,7 +10,7 @@
 
 subfinder-src(){
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing subfinder... "
-    echo -e "\n subfinder ${subfinder_options[@]} -d ${domain}" >> "${log_execution_file}"
+    echo -e "\nsubfinder ${subfinder_options[@]} -d ${domain}" >> "${log_execution_file}"
     subfinder "${subfinder_options[@]}" -d "${domain}" > "${tmp_dir}/subfinder_output.txt" 2>> "${log_execution_file}"
     echo "Done!"
     sleep 1

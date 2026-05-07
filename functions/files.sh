@@ -14,66 +14,76 @@ joining_subdomains(){
     echo -en "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Putting all domain search results in one file... "
     if [ -d "${tmp_dir}" ] && [ -d "${report_dir}" ]; then
         if [ -s "${tmp_dir}/alienvault_output.json" ]; then
+            echo "Parsing alivenvault" >> "${log_execution_file}"
             jq -r '.passive_dns[]?.hostname' "${tmp_dir}/alienvault_output.json" \
-                | sort -u >> "${tmp_dir}/domains_found.tmp"
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
         if [ -s "${tmp_dir}/anubis_output.json" ]; then
+            echo "Parsing anubis" >> "${log_execution_file}"
             jq -r '.[]' "${tmp_dir}/anubis_output.json" \
-                | sort -u >> "${tmp_dir}/domains_found.tmp"
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
         if [ -s "${tmp_dir}/amass_active_output.txt" ]; then
+            echo "Parsing amass active search" >> "${log_execution_file}"
             grep FQDN "${tmp_dir}/amass_active_output.txt" \
                 | awk '{print $1, ORS="\n"; $6}'\
                 | grep "${domain}" \
-                | sort -u >> "${tmp_dir}/domains_found.tmp"
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
         if [ -s "${tmp_dir}/amass_passive_output.txt" ]; then
+            echo "Parsing amass passive search" >> "${log_execution_file}"
             grep FQDN "${tmp_dir}/amass_passive_output.txt" \
                 | awk '{print $1, ORS="\n"; $6}'\
                 | grep "${domain}" \
-                | sort -u >> "${tmp_dir}/domains_found.tmp"
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
         if [ -s "${tmp_dir}/builtwith_subdomain_output.json" ]; then
+            echo "Parsing builtwith" >> "${log_execution_file}"
             for subdomain in $(jq -r '.Results[].Result.Paths[].SubDomain' "${tmp_dir}/builtwith_subdomain_output.json"); do
                 [[ "${subdomain}" != "${domain}" ]] && echo "${subdomain}" | sed "s/$/\.${domain}/"
-            done | sort -u >> "${tmp_dir}/domains_found.tmp"
+            done | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
         if [ -s "${tmp_dir}/certspotter_output.json" ]; then
+            echo "Parsing cert spotter" >> "${log_execution_file}"
             jq -r '.[].dns_names[]' "${tmp_dir}/certspotter_output.json" \
                 | sed 's/\"//g' \
                 | sed 's/\*\.//g' \
                 | sort -u \
-                | grep "${domain}" >> "${tmp_dir}/domains_found.tmp"
+                | grep "${domain}" >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
         if [ -s "${tmp_dir}/commoncrawl_output.json" ]; then
+            echo "Parsing common crawl" >> "${log_execution_file}"
             jq -r '.url?' "${tmp_dir}/commoncrawl_output.json" \
                 | sed 's/\*\.//g' \
                 | sed -e 's_https*://__' -e "s/\/.*//" -e 's/:.*//' -e "/@/d" -e 's/\.$//' \
-                | sort -u >> "${tmp_dir}/domains_found.tmp"
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
         if [ -s "${tmp_dir}/crtsh_output.json" ]; then
+            echo "Parsing crt sh" >> "${log_execution_file}"
             jq -r '.[].name_value' "${tmp_dir}/crtsh_output.json" \
                 | sed 's/\*\.//g' \
-                | sort -u >> "${tmp_dir}/domains_found.tmp"
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
         
         if [ -s "${tmp_dir}/dnsdumpster_output.json" ]; then
+            echo "Parsing dns dumpster" >> "${log_execution_file}"
             jq -r '.a[].host' "${tmp_dir}/dnsdumpster_output.json" \
                 | sed 's/^\*\.//' \
-                | sort -u >> "${tmp_dir}/domains_found.tmp"
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
         if [ -s "${tmp_dir}/dnsrepo_output.html" ]; then
+            echo "Parsing dnsrepo" >> "${log_execution_file}"
             grep -Ei "domain=.*\.${domain}" "${tmp_dir}/dnsrepo_output.html" \
                 | sed 's/\.<.*//g ; s/.*<.*>//g' \
-                | sort -u >> "${tmp_dir}/domains_found.tmp"
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
         #if [ -s "${tmp_dir}/hackerone_output.json" ]; then
@@ -81,98 +91,116 @@ joining_subdomains(){
         #fi
 
         if [ -s "${tmp_dir}/hackertarget_output.txt" ]; then
+            echo "Parsing hackertarget" >> "${log_execution_file}"
             grep -v "API count exceeded - Increase Quota with Membership" "${tmp_dir}/hackertarget_output.txt" \
                 | awk -F',' '{print $1}' \
                 | sed 's/^\*\.//' \
-                | sort -u >> "${tmp_dir}/domains_found.tmp"
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
         if [ -s "${tmp_dir}/katana_output.tmp" ]; then
+            echo "Parsing katana" >> "${log_execution_file}"
             awk -F'/' '{print $3}' "${tmp_dir}/katana_output.tmp" \
-                | sort -u >> "${tmp_dir}/domains_found.tmp"
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
         if [ -s "${tmp_dir}/netlas_output.json" ]; then
+            echo "Parsing  netlas" >> "${log_execution_file}"
             jq -r '.items[].data.domain' "${tmp_dir}/netlas_output.json" \
-                | sort -u >> "${tmp_dir}/domains_found.tmp"
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
         if [ -s "${tmp_dir}/rapiddns_output.txt" ]; then
+            echo "Parsing rapiddns" >> "${log_execution_file}"
             grep -Ei "<td>.*${domain}</td>" "${tmp_dir}/rapiddns_output.txt" \
                 | sed 's/<td>// ; s/<\/td>//' \
-                | sort -u >> "${tmp_dir}/domains_found.tmp"
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
         if [ -s "${tmp_dir}/robtex_output.json" ]; then
+            echo "Parsing robtex" >> "${log_execution_file}"
             jq -r '.rrname' "${tmp_dir}/robtex_output.json" \
-                | sort -u >> "${tmp_dir}/domains_found.tmp"
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
         if [ -s "${tmp_dir}/securitytrails_output.json" ]; then
+            echo "Parsing security trails" >> "${log_execution_file}"
             for subdomain in $(jq -r '.subdomains[]' "${tmp_dir}/securitytrails_output.json"); do
                 [[ "${subdomain}" != "${domain}" ]] && echo "${subdomain}" | sed "s/$/\.${domain}/"
-            done | sort -u >> "${tmp_dir}/domains_found.tmp"
+            done | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
         if [ -s "${tmp_dir}/shodan_output.txt" ]; then
+            echo "Parsing shodan" >> "${log_execution_file}"
             sed -i -e 's/;/\n/g' -e '/^$/d' "${tmp_dir}/shodan_output.txt"
             sort -u "${tmp_dir}/shodan_output.txt" \
-                | grep -E "^.*\.${domain}" >> "${tmp_dir}/domains_found.tmp"
+                | grep -E "^.*\.${domain}" >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
         if [ -s "${tmp_dir}/subdomaincenter_output.json" ]; then
+            echo "Parsing subdomain center" >> "${log_execution_file}"
             jq -r '.[]' "${tmp_dir}/subdomaincenter_output.json" \
-                | sort -u >> "${tmp_dir}/domains_found.tmp"
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
         if [ -s "${tmp_dir}/subfinder_output.txt" ]; then
+            echo "Parsing subfinder" >> "${log_execution_file}"
             grep -E "^.*\.${domain}" "${tmp_dir}/subfinder_output.txt" \
-                >> "${tmp_dir}/domains_found.tmp"
+                >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
         if [ -s "${tmp_dir}/tlsx_output.json" ]; then
+            echo "Parsing tlsx" >> "${log_execution_file}"
             jq -r '.subject_an[]' "${tmp_dir}/tlsx_output.json" \
-                | grep -E "^.*\.${domain}" >> "${tmp_dir}/domains_found.tmp"
+                | grep -E "^.*\.${domain}" >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
         if [ -s "${tmp_dir}/urlfinder_output.tmp" ]; then
+            echo "Parsing urlfinder" >> "${log_execution_file}"
             awk -F'/' '{print $3}' "${tmp_dir}/urlfinder_output.tmp" \
-                | sort -u >> "${tmp_dir}/domains_found.tmp"
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
         if [ -s "${tmp_dir}/urlscan_output.json" ]; then
+            echo "Parsing urlscan" >> "${log_execution_file}"
             jq -r '.results[].task.domain' "${tmp_dir}/urlscan_output.json" \
-                | sort -u >> "${tmp_dir}/domains_found.tmp"
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
         if [ -s "${tmp_dir}/virustotal_output.json" ]; then
+            echo "Parsing virus total" >> "${log_execution_file}"
             jq -r '.data[]?.id' "${tmp_dir}/virustotal_output.json" \
-                | sort -u >> "${tmp_dir}/domains_found.tmp"
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
         if [ -s "${tmp_dir}/waybackurls_output.tmp" ]; then
+            echo "Parsing waybackurls" >> "${log_execution_file}"
             awk -F'/' '{print $3}' "${tmp_dir}/waybackurls_output.tmp" \
                 | awk -F'?' '{print $1}' \
                 | sed 's/:[0-9]*$//g' \
-                | sort -u >> "${tmp_dir}/domains_found.tmp"
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
         if [ -s "${tmp_dir}/webarchive_output.txt" ]; then
+            echo "Parsing webarchive" >> "${log_execution_file}"
             cat "${tmp_dir}/webarchive_output.txt" \
                 | sed -e 's_https*://__' -e "s/\/.*//" -e 's/:.*//' -e 's/^www\.//' \
                 | sed "/@/d" \
                 | sed -e 's/\.$//' \
                 | sed 's/:[0-9]*$//g' \
-                | sort -u >> "${tmp_dir}/domains_found.tmp"
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
         if [ -s "${tmp_dir}/whoisxmlapi_output.json" ]; then
+           echo "Parsing whoisxmlapi" >> "${log_execution_file}"
            jq -r '.domainsList[]' "${tmp_dir}/whoisxmlapi_output.json" \
                 | sort -u \
-                | grep -E "^.*\.${domain}" 2> /dev/null >> "${tmp_dir}/domains_found.tmp"
+                | grep -E "^.*\.${domain}" 2> /dev/null >> "${tmp_dir}/domains_found.tmp" \
+                2>> "${log_execution_file}"
         fi
 
         if [ ${#dns_wordlists[@]} -gt 0 ]; then
+            echo "Parsing amass brute" >> "${log_execution_file}"
             files_amass=($("${ls_bin_path}" -1A "${tmp_dir}/" | grep "amass_brute_output" 2> /dev/null))
             for f in "${files_amass[@]}"; do
                 file="${tmp_dir}"/"${f}"
@@ -180,11 +208,13 @@ joining_subdomains(){
                     grep -Ev "Starting.*names|Querying.*|Average.*performed" "${file}" \
                         | grep "${domain}" | awk '{print $2}' \
                         | grep -E "^.*\.${domain}" \
-                        | sort -u >> "${tmp_dir}/domains_found.tmp"
+                        | sort -u >> "${tmp_dir}/domains_found.tmp" \
+                        2>> "${log_execution_file}"
                 fi
                 unset file
             done
 
+            echo "Parsing gobuster brute" >> "${log_execution_file}"
             files_gobuster_dns=($("${ls_bin_path}" -1A "${tmp_dir}/" | grep "gobuster_dns_output" 2> /dev/null))
             for f in "${files_gobuster_dns[@]}"; do
                 file="${tmp_dir}"/"${f}"
@@ -192,11 +222,13 @@ joining_subdomains(){
                     awk '{print $2}' "${file}" \
                         | tr '[:upper:]' '[:lower:]' \
                         | grep -E "^.*\.${domain}" \
-                        | sort -u >> "${tmp_dir}/domains_found.tmp"
+                        | sort -u >> "${tmp_dir}/domains_found.tmp" \
+                        2>> "${log_execution_file}"
                 fi
                 unset file
             done
 
+            echo "Parsing dnssearch" >> "${log_execution_file}"
             files_dnssearch=($("${ls_bin_path}" -1A "${tmp_dir}/" | grep "dnssearch_output_" 2> /dev/null))
             for f in "${files_dnssearch[@]}"; do
                 file="${tmp_dir}"/"${f}"
@@ -204,7 +236,8 @@ joining_subdomains(){
                     awk '{print $1}' "${file}" \
                         | tr '[:upper:]' '[:lower:]' \
                         | grep -E "^.*\.${domain}" \
-                        | sort -u >> "${tmp_dir}/domains_found.tmp"
+                        | sort -u >> "${tmp_dir}/domains_found.tmp" \
+                        2>> "${log_execution_file}"
                 fi
                 unset file
             done
@@ -214,8 +247,9 @@ joining_subdomains(){
             echo "Done!"
             echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Joining the subdomains and removing duplicates... "
             # Removing duplicated subdomains
-            cp "${tmp_dir}/domains_found.tmp" "${tmp_dir}/domains_found_tmp.old"
-            sed -E -i 's/^\*//g ; s/^@//g ; s/^\.//g ; s//\.$/g ; s/^-//g ; s/^\://g ; s/\.\./\./g ; s/^http(|s):\/\///g ; s/ //g ; s/^$//g ; /^[[:space:]]*$/d' "${tmp_dir}/domains_found.tmp"
+            cp "${tmp_dir}/domains_found.tmp" "${tmp_dir}/domains_found.tmp.old"
+            sed -E -i 's/^null$//g ; s/^\*//g ; s/^@//g ; s/^\.//g ; s//\.$/g ; s/^-//g ; s/^\://g' "${tmp_dir}/domains_found.tmp"
+            sed -E -i 's/\.\./\./g ; s/^http(|s):\/\///g ; s/ //g ; s/^$//g ; /^[[:space:]]*$/d' "${tmp_dir}/domains_found.tmp"
             # Removing duplicated domains per subdomain
             # Example: www.domain.com.domain.com
             while grep -qE "${domain}\.${domain}$" "${tmp_dir}/domains_found.tmp"; do
@@ -250,6 +284,10 @@ joining_subdomains(){
             fi
         else
             echo "Fail!"
+            echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Make sure all necessary files exist to get all the found domains. Stopping the script."
+            echo -e "Make sure all necessary files exist to get all the found domains. Stopping the script." | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+            message "${domain}" failed
+            exit 1
         fi
 
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Looking for Zone Transfer... "

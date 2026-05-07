@@ -10,7 +10,7 @@
 
 katana-src(){
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing katana... "
-    echo -e "\n katana ${katana_options[@]} -u ${domain}" >> "${log_execution_file}"
+    echo -e "\nkatana ${katana_options[@]} -u ${domain}" >> "${log_execution_file}"
     katana "${katana_options[@]}" -u "${domain}" > "${tmp_dir}/katana_output.tmp" 2>> "${log_execution_file}"
     echo "Done!"
     sleep 1
