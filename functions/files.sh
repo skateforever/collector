@@ -312,8 +312,6 @@ organizing_subdomains(){
     subdomains_file="$1"
     if [ -s "${subdomains_file}" ]; then
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Getting the IPs and aliases of the domain and subdomains... "
-        # Domains and subdomains resolution
-        echo "Domains and subdomains resolution" >> "${log_execution_file}"
         if [ -s "${massdns_resolvers_file}" ]; then
             "massdns" -q -r "${massdns_resolvers_file}" -t A -o S \
                 -w "${tmp_dir}/resolution_massdns.tmp" "${subdomains_file}" > /dev/null 2>&1
@@ -326,9 +324,9 @@ organizing_subdomains(){
         for d in $(cat "${subdomains_file}"); do
             host -W 2 -t A "${d}" >> "${tmp_dir}/resolution_host.tmp"
         done
+        echo "Done!"
 
-        # Organizing and handling domain files
-        echo "Organizing and handling domain files" >> "${log_execution_file}"
+        echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Organizing and handling domain files... "
         for file_resolution in "${tmp_dir}/resolution_massdns.tmp" "${tmp_dir}/resolution_dig.tmp" "${tmp_dir}/resolution_host.tmp"; do
             if [[ -s "${file_resolution}" ]];  then
                 # Only subdomain owned by domain with IPv4
