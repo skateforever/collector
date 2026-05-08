@@ -12,7 +12,7 @@ netlas-src(){
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing netlas... "
     unset user_agent
     user_agent="$(get_user_agent)"
-    echo -e "\ncurl ${curl_options[@]} -H \"User-agent: ${user_agent}\" https://app.netlas.io/api/domains/?q=*.${domain}" >> "${log_execution_file}"
+    echo -e "\ncurl ${curl_options[@]} -H \"User-agent: ${user_agent}\" \"https://app.netlas.io/api/domains/?q=*.${domain}\"" >> "${log_execution_file}"
     curl "${curl_options[@]}" -H "User-agent: ${user_agent}" "https://app.netlas.io/api/domains/?q=*.${domain}" -o "${tmp_dir}/netlas_output.json" 2>> "${log_execution_file}"
     echo "Done!"
     sleep 1
