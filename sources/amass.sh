@@ -13,11 +13,6 @@ amass-src(){
     
     echo -e "\namass enum ${amass_options[@]} -d ${domain}" >> "${log_execution_file}"
     echo "amass enum ${amass_options[@]} -passive -d ${domain}" >> "${log_execution_file}"
-    
-    # ADICIONE ESTA LINHA PARA DEBUG
-    echo "DEBUG: Dominio é ${domain} e TMP é ${tmp_dir}" >> "${log_execution_file}"
-    
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing amass... "
 
     amass enum "${amass_options[@]}" -d "${domain}" 2>> "${log_execution_file}"
     amass enum "${amass_options[@]}" -passive -d "${domain}" 2>> "${log_execution_file}"
