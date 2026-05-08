@@ -27,17 +27,14 @@ joining_subdomains(){
 
         if [ -s "${tmp_dir}/amass_active_output.txt" ]; then
             echo "Parsing amass active search" >> "${log_execution_file}"
-            grep FQDN "${tmp_dir}/amass_active_output.txt" \
-                | awk '{print $1, ORS="\n"; $6}'\
-                | grep "${domain}" \
+            # Na v5 a saída já vem limpa, apenas filtramos pelo domínio correto
+            grep -E "^.*\.${domain}" "${tmp_dir}/amass_active_output.txt" \
                 | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
         if [ -s "${tmp_dir}/amass_passive_output.txt" ]; then
             echo "Parsing amass passive search" >> "${log_execution_file}"
-            grep FQDN "${tmp_dir}/amass_passive_output.txt" \
-                | awk '{print $1, ORS="\n"; $6}'\
-                | grep "${domain}" \
+            grep -E "^.*\.${domain}" "${tmp_dir}/amass_passive_output.txt" \
                 | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
@@ -85,10 +82,6 @@ joining_subdomains(){
                 | sed 's/\.<.*//g ; s/.*<.*>//g' \
                 | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
-
-        #if [ -s "${tmp_dir}/hackerone_output.json" ]; then
-        #    jq -r ${tmp_dir}/hackerone_output.json
-        #fi
 
         if [ -s "${tmp_dir}/hackertarget_output.txt" ]; then
             echo "Parsing hackertarget" >> "${log_execution_file}"
@@ -205,9 +198,8 @@ joining_subdomains(){
             for f in "${files_amass[@]}"; do
                 file="${tmp_dir}"/"${f}"
                 if [[ -s "${file}" ]]; then
-                    grep -Ev "Starting.*names|Querying.*|Average.*performed" "${file}" \
-                        | grep "${domain}" | awk '{print $2}' \
-                        | grep -E "^.*\.${domain}" \
+                    # Ajustado para ler a saída limpa do Amass v5
+                    grep -E "^.*\.${domain}" "${file}" \
                         | sort -u >> "${tmp_dir}/domains_found.tmp" \
                         2>> "${log_execution_file}"
                 fi
