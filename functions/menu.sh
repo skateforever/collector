@@ -151,15 +151,6 @@ menu(){
                 ;;
             -wd|--webapp-discovery)
                 webapp_discovery_check="yes"
-                if [[ -z "${webapp_port_detect[@]}" ]]; then
-                    for arg in "${args[@]}"; do
-                        if [[ "${arg}" =~ ^(-wld|--webapp-long-detection|-wsd|--webapp-short-detection)$ ]]; then
-                            port_found="yes"
-                            break
-                        fi
-                    done
-                    [[ -z "${port_found}" ]] && usage
-                fi
                 shift
                 ;;
             -we|--webapp-enum)
