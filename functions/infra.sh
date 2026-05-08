@@ -92,6 +92,7 @@ shodan_scan(){
 
 vhost_check(){
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Looking for vhost with dead subdomains... "
+    echo -e "\n" >> "${log_execution_file}"
 
     vhost_name_file="$1"
     vhost_ip_file="$2"
