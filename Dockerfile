@@ -36,7 +36,8 @@ RUN go install github.com/projectdiscovery/tlsx/cmd/tlsx@latest && \
     go install github.com/OJ/gobuster/v3@latest && \
     CGO_ENABLED=1 go install github.com/projectdiscovery/katana/cmd/katana@latest && \
     CGO_ENABLED=0 go install github.com/owasp-amass/amass/v5/cmd/amass@main && \
-    go install github.com/evilsocket/dnssearch@master
+    go install github.com/evilsocket/dnssearch@master && \
+    go install github.com/003random/getJS@latest
 
 # 4. Ferramentas Python
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
