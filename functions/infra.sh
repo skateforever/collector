@@ -104,29 +104,30 @@ vhost_check(){
                 user_agent=$(get_user_agent)
                 unresponsive_vhost="$(tr -dc 'a-z' </dev/urandom | fold -w 10 | head -n1).${domain}"
                 # curl
-                # message log here
-                curl_unresponsive_validation=$(curl "${curl_options[@]}" -L -H "User-Agent: ${user_agent}" -H "Host: ${unresponsive_vhost}" http://${IP}:${port})
-                curl_unresponsive_size=$(echo "${curl_unresponsive_validation}" | wc -c)
-                curl_unresponsive_hash=$(echo "${curl_unresponsive_validation}" | md5sum | awk '{print $1}')
+                echo "curl ${curl_options[@]} -L -H \"User-Agent: ${user_agent}\" -H \"Host: ${unresponsive_vhost}\" \"http://${IP}:${port}\"" >> "${log_execution_file}"
+                curl_unresponsive_content=$(curl "${curl_options[@]}" -L -H "User-Agent: ${user_agent}" -H "Host: ${unresponsive_vhost}" http://${IP}:${port} 2>> "${log_execution_file}")
+                curl_unresponsive_size=$(echo "${curl_unresponsive_content}" | wc -c)
+                curl_unresponsive_hash=$(echo "${curl_unresponsive_content}" | md5sum | awk '{print $1}')
                 # httpx
                 # message log here
-                httpx_unresponsive_size=$(echo "${IP}:${port}" | httpx -silent -H "Host: ${unresponsive_vhost}" -H "User-Agent: ${user_agent}" -content-length -hash md5 | awk '{print $2}' | sed 's/\[// ; s/\]//')
-                httpx_unresponsive_hash=$(echo "${IP}:${port}" | httpx -silent -H "Host: ${unresponsive_vhost}" -H "User-Agent: ${user_agent}" -content-length -hash md5 | awk '{print $3}' | sed 's/\[// ; s/\]//')
+                echo "echo \"${IP}:${port}\" | httpx -silent -H \"Host: ${unresponsive_vhost}\" -H \"User-Agent: ${user_agent}\"" >> "${log_execution_file}"
+                httpx_unresponsive_size=$(echo "${IP}:${port}" | httpx -silent -H "Host: ${unresponsive_vhost}" -H "User-Agent: ${user_agent}" -content-length -hash md5 2>> "${log_execution_file}" | awk '{print $2}' | sed 's/\[// ; s/\]//')
+                httpx_unresponsive_hash=$(echo "${IP}:${port}" | httpx -silent -H "Host: ${unresponsive_vhost}" -H "User-Agent: ${user_agent}" -content-length -hash md5 2>> "${log_execution_file}" | awk '{print $3}' | sed 's/\[// ; s/\]//')
 
                 for vhost in "$(cat ${vhost_name_file})"; do
                     user_agent=$(get_user_agent)
                     # curl
-                    # message log here
-                    curl_vhost_validation=$(curl "${curl_options[@]}" -L -H "User-Agent: ${user_agent}" -H "Host: ${vhost}" "http://${IP}:${port}")
-                    curl_vhost_size=$(echo "${curl_vhost_validation}" | wc -c)
-                    curl_vhost_hash=$(echo "${curl_vhost_validation}" | md5sum | awk '{print $1}')
+                    echo "curl \"${curl_options[@]}\" -L -H \"User-Agent: ${user_agent}\" -H \"Host: ${vhost}\" \"http://${IP}:${port}\"" >> "${log_execution_file}"
+                    curl_vhost_content=$(curl "${curl_options[@]}" -L -H "User-Agent: ${user_agent}" -H "Host: ${vhost}" "http://${IP}:${port}" 2>> "${log_execution_file}")
+                    curl_vhost_size=$(echo "${curl_vhost_content}" | wc -c)
+                    curl_vhost_hash=$(echo "${curl_vhost_content}" | md5sum | awk '{print $1}')
                     if [[ "${curl_unresponsive_size}" != "${curl_vhost_size}"  && "${curl_unresponsive_hash}" != "${curl_vhost_hash}" ]]; then
                         echo -e "${vhost}\t${IP}:${port}" >> "${tmp_dir}/vhost_subdomains.tmp"
                     fi
                     # httpx
-                    # message log here
-                    httpx_vhost_size=$(echo "${IP}:${port}" | httpx -silent -H "Host: ${vhost}" -H "User-Agent: ${user_agent}" -content-length -hash md5 | awk '{print $2}' | sed 's/\[// ; s/\]//')
-                    httpx_vhost_md5=$(echo "${IP}:${port}" | httpx -silent -H "Host: ${vhost}" -H "User-Agent: ${user_agent}" -content-length -hash md5 | awk '{print $3}' | sed 's/\[// ; s/\]//')
+                    echo "echo \"${IP}:${port}\" | httpx -silent -H \"Host: ${vhost}\" -H \"User-Agent: ${user_agent}\"" >> "${log_execution_file}"
+                    httpx_vhost_size=$(echo "${IP}:${port}" | httpx -silent -H "Host: ${vhost}" -H "User-Agent: ${user_agent}" -content-length -hash md5 2>> "${log_execution_file}" | awk '{print $2}' | sed 's/\[// ; s/\]//')
+                    httpx_vhost_md5=$(echo "${IP}:${port}" | httpx -silent -H "Host: ${vhost}" -H "User-Agent: ${user_agent}" -content-length -hash md5 2>> "${log_execution_file}" | awk '{print $3}' | sed 's/\[// ; s/\]//')
                     if [[ "${httpx_unresponsive_size}" != "${httpx_vhost_size}" && "${httpx_unresponsive_hash}" != "${httpx_vhost_hash}" ]]; then
                         echo -e "${vhost}\t${IP}:${port}" >> "${tmp_dir}/vhost_subdomains.tmp"
                     fi
