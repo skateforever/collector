@@ -21,6 +21,7 @@ webapp_alive(){
     alive_file="$2"
     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Initializing the web application discovery and this might take a certain time!"
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Testing subdomains to know if it has a web application... "
+    echo -e "\n" >> "${log_execution_file}"
     if [ -s "${alive_file}" ]; then
 
         if [ -n "${proxy_ip}" ] && [ "${proxy_ip}" == "yes" ]; then
@@ -32,11 +33,11 @@ webapp_alive(){
             for port in "${webapp_port_detect[@]}"; do
                 unset user_agent
                 user_agent="$(get_user_agent)"
-                echo "curl ${curl_options[@]} -H "User-agent: ${user_agent}" -L -w \"%{response_code}\n\" \"http://${subdomain}:${port}\" -o /dev/null" >> "${log_execution_file}"
+                echo "curl ${curl_options[@]} -H \"User-agent: ${user_agent}\" -L -w \"%{response_code}\n\" \"http://${subdomain}:${port}\" -o /dev/null" >> "${log_execution_file}"
                 http_status_code=$(curl "${curl_options[@]}" -H "User-agent: ${user_agent}" -L -w "%{response_code}\n" "http://${subdomain}:${port}" -o /dev/null 2>> "${log_execution_file}")
                 [[ "${http_status_code}" =~ ^[1-5][0-9]{2}$ ]] && \
                     echo "http://${subdomain}:${port}" >> "${tmp_dir}/webapp_urls.tmp" 2>> "${log_execution_file}"
-                echo "curl ${curl_options[@]} -H "User-agent: ${user_agent}" -L -w \"%{response_code}\n\" \"https://${subdomain}:${port}\" -o /dev/null" >> "${log_execution_file}"
+                echo "curl ${curl_options[@]} -H \"User-agent: ${user_agent}\" -L -w \"%{response_code}\n\" \"https://${subdomain}:${port}\" -o /dev/null" >> "${log_execution_file}"
                 https_status_code=$(curl "${curl_options[@]}" -H "User-agent: ${user_agent}" -L -w "%{response_code}\n" "https://${subdomain}:${port}" -o /dev/null 2>> "${log_execution_file}")
                 [[ "${http_status_code}" =~ ^[1-5][0-9]{2}$ ]] && \
                     echo "https://${subdomain}:${port}" >> "${tmp_dir}/webapp_urls.tmp" 2>> "${log_execution_file}"
@@ -59,7 +60,7 @@ webapp_alive(){
         fi
 
         if [[ -s "${tmp_dir}/webapp_urls.tmp" ]]; then
-            for url in $(cat "${tmp_dir}/webapp_urls.tmp"); do
+            for url in $(cat "${tmp_dir}/webapp_urls.tmp" | sort -u); do
                 unset user_agent
                 user_agent="$(get_user_agent)"
                 tmp_file=$(mktemp)

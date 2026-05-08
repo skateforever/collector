@@ -20,6 +20,7 @@ infra_data(){
         # The -- option is needed.
         echo "AS      | IP               | BGP Prefix          | CC | Registry | Allocated  | AS Name" >> "${report_dir}/infra_as.txt"
         while IFS= read -r IP; do
+            echo -e "\n" >> "${log_execution_file}"
             echo "whois -h whois.cymru.com -- \"-v ${IP}\" | tail -n +2 >> \"${report_dir}/infra_as.txt\"" >> "${log_execution_file}"
             whois -h whois.cymru.com -- "-v ${IP}" | tail -n +2 >> "${report_dir}/infra_as.txt"
         done < <(awk '{print $2}' "${report_dir}/domains_external_ipv4.txt" | sort -u)
@@ -69,7 +70,7 @@ infra_data(){
 nmap_scan(){
         if [ -s "${report_dir}/infra_ipv4.txt" ]; then
             echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Getting information about IPs with nmap... "
-            echo "nmap ${nmap_options[@]} -iL \"${report_dir}/infra_ipv4.txt\" > \"${report_dir}/nmap_scan.txt\"" >> "${log_execution_file}"
+            echo -e "\nnmap ${nmap_options[@]} -iL \"${report_dir}/infra_ipv4.txt\" > \"${report_dir}/nmap_scan.txt\"" >> "${log_execution_file}"
             nmap "${nmap_options[@]}" -iL "${report_dir}/infra_ipv4.txt" > "${report_dir}/nmap_scan.txt"
             echo "Done!"
         fi
