@@ -390,9 +390,11 @@ organizing_subdomains(){
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Separating unresponsive subdomains... "
         if [ -s "${tmp_dir}/domains_alive.tmp" ]; then
             if cp "${subdomains_file}" "${tmp_dir}/domains_without_resolution.tmp"; then
-                for d in $(cat "${tmp_dir}/domains_alive.tmp" | sort -u); do
-                    sed -i "/${d}/d" "${report_dir}/domains_without_resolution.tmp"
-                done
+                if [[ -f "${tmp_dir}/domains_without_resolution.tmp" ]]; then
+                    for d in $(cat "${tmp_dir}/domains_alive.tmp" | sort -u); do
+                        sed -i "/${d}/d" "${report_dir}/domains_without_resolution.tmp"
+                    done
+                fi
                 echo "Done!"
             fi
         else

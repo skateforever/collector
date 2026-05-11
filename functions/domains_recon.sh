@@ -101,15 +101,15 @@ domains_recon(){
         [[ -s "${report_dir}/robots_urls.txt" ]] && webapp_enum "${domain}" "${report_dir}/robots_urls.txt"
 
         for urls_file in "${report_dir}/webapp_urls.txt" "${report_dir}/robots_urls.txt"; do
-            if [[ -s "${url_file}" ]]; then
-                aquatone_screenshot "${domain}" "${url_file}"
+            if [[ -s "${urls_file}" ]]; then
+                aquatone_screenshot "${domain}" "${urls_file}"
                 if [[ "${webapp_crawler_check}" == "yes" ]]; then
-                    crawler_js "${domain}" "${url_file}"
-                    #crawler_js "${domain}" "${url_file}"
+                    crawler_js "${domain}" "${urls_file}"
+                    #crawler_js "${domain}" "${urls_file}"
                 fi
                 if [[ "${webapp_scan_check}" == "yes" ]]; then
-                    nuclei_scan "${domain}" "${url_file}"
-                    #acunetix_scan "${domain}" "${url_file}"
+                    nuclei_scan "${domain}" "${urls_file}"
+                    #acunetix_scan "${domain}" "${urls_file}"
                 fi
             fi
         done

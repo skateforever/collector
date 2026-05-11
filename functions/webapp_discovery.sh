@@ -24,10 +24,6 @@ webapp_alive(){
     echo -e "\n" >> "${log_execution_file}"
     if [ -s "${alive_file}" ]; then
 
-        if [ -n "${proxy_ip}" ] && [ "${proxy_ip}" == "yes" ]; then
-            alias curl="curl --proxy ${proxy_ip}"
-            alias httpx="httpx -http-proxy ${proxy_ip}"
-        fi
         
         for subdomain in $(cat "${report_dir}/domains_alive.txt"); do
             for port in "${webapp_port_detect[@]}"; do
@@ -73,8 +69,6 @@ webapp_alive(){
             done | sort -u > "${report_dir}/webapp_urls.txt"
         fi
 
-        unalias curl > /dev/null 2>&1
-        unalias httpx > /dev/null 2>&1
 
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Separating infrastructure from web application... "
         if [ -s "${report_dir}/webapp_urls.txt" ]; then
@@ -122,7 +116,7 @@ webapp_alive(){
     fi
 }
 
-aquatone_screeshot(){
+aquatone_screenshot(){
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Starting aquatone screenshot... "
     target="$1"
     urls_file="$2"

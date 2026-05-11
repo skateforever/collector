@@ -133,13 +133,8 @@ webapp_tech(){
                 user_agent="$(get_user_agent)"
                 name="$(echo "${url}" | sed -e "s/http:\/\//http_/" -e "s/https:\/\//https_/" -e "s/:/_/" -e "s/\/$//" -e "s/\//_/g")"
                 file_tech_by_headers="${name}.tech"
-                if [ -n "${use_proxy}" ] && [ "${use_proxy}" == "yes" ]; then
-                    alias curl="curl --proxy ${proxy_ip}"
-                    alias httpx="httpx -http-proxy ${proxy_ip}"
-                fi
-                
-                echo "curl ${curl_options[@]} -H "User-agent: ${user_agent}" -I ${url}" >> "${log_execution_file}"
-                curl ${curl_options[@]} -H "User-agent: ${user_agent}" -I "${url}" >> "${webapp_tech_dir}/${file_tech_by_headers}" 2>> "${log_execution_file}"
+                echo "curl ${curl_options[@]} -H \"User-agent: ${user_agent}\" -I \"${url}\"" >> "${log_execution_file}"
+                curl ${curl_options[@]} -H \"User-agent: ${user_agent}\" -I \"${url}\" >> "${webapp_tech_dir}/${file_tech_by_headers}" 2>> "${log_execution_file}"
                 
                 echo "echo ${url} | httpx ${httpx_options[@]} -title -tech-detect" >> "${log_execution_file}"
                 echo "${url}" | httpx "${httpx_options[@]}" -title -tech-detect >> "${webapp_tech_dir}/${file_tech_by_headers}" 2>> "${log_execution_file}"
@@ -148,8 +143,6 @@ webapp_tech(){
                 unset name
                 unset url
             done < "${urls_file}"
-            unalias curl > /dev/null 2>&1
-            unalias httpx > /dev/null 2>&1
             echo "Done!"
         fi
     else
