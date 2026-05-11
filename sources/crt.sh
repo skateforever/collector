@@ -16,7 +16,10 @@ crt-src(){
     curl "${curl_options[@]}" -H "User-agent: ${user_agent}" "https://crt.sh/?CN=${domain}&output=json" \
         > "${tmp_dir}/crtsh_output.json" \
         2>> "${log_execution_file}"
-    echo "Done!"
+    
+    if [ -s "${tmp_dir}/crtsh_output.json" ]; then
+        jq -r '.[].name_value' "${tmp_dir}/crtsh_output.json" 2>/dev/null | sed 's/\*\.//g' | sort -u > "${tmp_dir}/crtsh.tmp"
+    fi
     sleep 1
 }
 
