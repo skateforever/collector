@@ -132,7 +132,7 @@ joining_subdomains(){
 
         if [ -s "${tmp_dir}/subdomaincenter_output.json" ]; then
             echo "Parsing subdomain center" >> "${log_execution_file}"
-            jq -r '.[]' "${tmp_dir}/subdomaincenter_output.json" \
+            jq -r '.[]' "${tmp_dir}/subdomaincenter_output.json" 2>/dev/null \
                 | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
@@ -277,7 +277,7 @@ joining_subdomains(){
         else
             echo "Fail!"
             echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Make sure all necessary files exist to get all the found domains. Stopping the script."
-            echo -e "Make sure all necessary files exist to get all the found domains. Stopping the script." | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+            echo -e "Make sure all necessary files exist to get all the found domains. Stopping the script." | notify -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
             message "${domain}" failed
             exit 1
         fi
@@ -294,7 +294,7 @@ joining_subdomains(){
     else
         echo "Fail!"
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Make sure the directories structure was created. Stopping the script."
-        echo -e "Make sure the directories structure was created. Stopping the script." | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+        echo -e "Make sure the directories structure was created. Stopping the script." | notify -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
         message "${domain}" failed
         exit 1
     fi
@@ -351,7 +351,7 @@ organizing_subdomains(){
         else
             echo "Fail!"
             echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Error organizing and handling subdomain IP files!"
-            echo "Error organizing and handling subdomain IP files!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+            echo "Error organizing and handling subdomain IP files!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
             message "${domain}" failed
             exit 1
         fi
@@ -364,7 +364,7 @@ organizing_subdomains(){
         else
             echo "Fail!"
             echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Error organizing and handling subdomain aliases file!"
-            echo "Error organizing and handling subdomain aliases file!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+            echo "Error organizing and handling subdomain aliases file!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
             message "${domain}" failed
             exit 1
         fi
@@ -381,7 +381,7 @@ organizing_subdomains(){
         else
             echo "Fail!"
             echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Error organizing and handling subdomain alive file!"
-            echo "Error organizing and handling subdomain alive file!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+            echo "Error organizing and handling subdomain alive file!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
             message "${domain}" failed
             exit 1
         fi
@@ -392,7 +392,7 @@ organizing_subdomains(){
             if cp "${subdomains_file}" "${tmp_dir}/domains_without_resolution.tmp"; then
                 if [[ -f "${tmp_dir}/domains_without_resolution.tmp" ]]; then
                     for d in $(cat "${tmp_dir}/domains_alive.tmp" | sort -u); do
-                        sed -i "/${d}/d" "${report_dir}/domains_without_resolution.tmp"
+                        sed -i "/${d}/d" "${tmp_dir}/domains_without_resolution.tmp"
                     done
                 fi
                 echo "Done!"
@@ -400,7 +400,7 @@ organizing_subdomains(){
         else
             echo "Fail!"
             echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Error organizing and handling subdomain unresponsive file!"
-            echo "Error organizing and handling subdomain unresponsive file!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+            echo "Error organizing and handling subdomain unresponsive file!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
             message "${domain}" failed
             exit 1
         fi
@@ -419,7 +419,7 @@ organizing_subdomains(){
     else
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} The file with all domains from initial recon does not exist or is empty."
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Look all files from initial recon in ${tmp_dir} and fix the problem!"
-        echo -e "The file with all domains from initial recon does not exist or is empty.\n\tLook all files from initial recon in ${tmp_dir} and fix the problem!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+        echo -e "The file with all domains from initial recon does not exist or is empty.\n\tLook all files from initial recon in ${tmp_dir} and fix the problem!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
         message "${domain}" failed
         exit 1
     fi    
