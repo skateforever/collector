@@ -98,7 +98,7 @@ vhost_check(){
     vhost_ip_file="$2"
 
     if [[ -s "${vhost_ip_file}" && -s "${report_dir}/infra_ipv4.txt" ]]; then
-        for IP in "$(cat ${vhost_name_file})"; do
+        for IP in $(cat "${vhost_ip_file}"); do
             for port in "${#webapp_port_detect[@]}"; do
                 user_agent=$(get_user_agent)
                 unresponsive_vhost="$(tr -dc 'a-z' </dev/urandom | fold -w 10 | head -n1).${domain}"
@@ -113,7 +113,7 @@ vhost_check(){
                 httpx_unresponsive_size=$(echo "${IP}:${port}" | httpx -silent -H "Host: ${unresponsive_vhost}" -H "User-Agent: ${user_agent}" -content-length -hash md5 2>> "${log_execution_file}" | awk '{print $2}' | sed 's/\[// ; s/\]//')
                 httpx_unresponsive_hash=$(echo "${IP}:${port}" | httpx -silent -H "Host: ${unresponsive_vhost}" -H "User-Agent: ${user_agent}" -content-length -hash md5 2>> "${log_execution_file}" | awk '{print $3}' | sed 's/\[// ; s/\]//')
 
-                for vhost in "$(cat ${vhost_name_file})"; do
+                for vhost in $(cat "${vhost_name_file}"); do
                     user_agent=$(get_user_agent)
                     # curl
                     echo "curl \"${curl_options[@]}\" -L -H \"User-Agent: ${user_agent}\" -H \"Host: ${vhost}\" \"http://${IP}:${port}\"" >> "${log_execution_file}"
