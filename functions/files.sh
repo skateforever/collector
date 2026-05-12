@@ -410,7 +410,7 @@ organizing_subdomains(){
         sort -u -o "${report_dir}/domains_internal_ipv4.txt" "${tmp_dir}/domains_internal_ipv4.tmp" 2> /dev/null
         sort -u -o "${report_dir}/domains_external_ipv4.txt" "${tmp_dir}/domains_external_ipv4.tmp" 2> /dev/null
         sort -u -o "${report_dir}/domains_external_ipv6.txt" "${tmp_dir}/domains_external_ipv6.tmp" 2> /dev/null
-        sort -u -o "${report_dir}/domains_without_resolution.txt" "${tmp_dir}/domains_without_resolution.tmp" 2> /dev/null
+        sort -u "${tmp_dir}/domains_without_resolution.tmp" | grep -E "${domain}$" > "${report_dir}/domains_without_resolution.txt" 2> /dev/null
         sort -u -o "${report_dir}/domains_thirdpart.txt" "${tmp_dir}/domains_thirdpart.tmp" 2> /dev/null
         echo "Done!"
 
