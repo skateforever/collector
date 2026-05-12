@@ -15,14 +15,15 @@ crawler_js(){
     urls_file="$2"
     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Initializing the web application js crawler and this might take a certain time!"
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing js crawler... "
-    if [ "$#" != 2 ] && [ ! -s "${urls_file}" ]; then
+    if [ "$#" != 2 ] || [ ! -s "${urls_file}" ]; then
+        echo "Fail!"
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Please, especify just 1 file to get URL from."
-        echo -e "Please, especify just 1 file to get URL from." | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+        echo -e "Please, especify just 1 file to get URL from." | notify -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
         message "${target}" failed
         exit 1
     else
         if [ -d "${report_dir}" ] && [ -d "${webapp_js_dir}" ] ; then
-            for subdomain in $(cat "${report_dir}/webapp_urls.txt"); do
+            while IFS= read -r subdomain; do
                 unset user_agent
                 user_agent="$(get_user_agent)"
                 # curl
@@ -42,10 +43,9 @@ crawler_js(){
                 done
 
                 # getJS
-                echo "${subdomain}" | getJS -complete >> "${tmp_dir}/js_files.tmp"
-
-                # jsfinder
-                echo "${subdomain}" | jsfinder -read -s -o "${tmp_dir}/js_files.tmp" > /dev/null
+                echo "echo ${subdomain} | getJS -complete >> ${tmp_dir}/js_file.tmp" >> "${log_execution_file}"
+                echo "http://${subdomain}" | getJS -complete >> "${tmp_dir}/js_files.tmp" 2>> "${log_execution_file}"
+                echo "https://${subdomain}" | getJS -complete >> "${tmp_dir}/js_files.tmp" 2>> "${log_execution_file}"
 
                 # katana
                 echo -e "\n katana ${katana_options[@]} -u ${subdomain} >> ${tmp_dir}/js_files.tmp" >> "${log_execution_file}"
@@ -70,12 +70,12 @@ crawler_js(){
                     js_status=$(curl "${curl_options[@]}" -H "User-agent: ${user_agent}" -L -o /dev/null -w "%{http_code}" --head "${js_url}")
                     if [[ "${js_status}" -eq 200 ]]; then
                         if [ ! -s "${webapp_js_dir}/${js_file_dir}/${js_file_name}" ]; then
-                            echo "curl ${curl_options[@]} -H "User-agent: ${user_agent}" ${js_url} > ${webapp_js_dir}/${js_file_dir}/${js_file_name}" >> "${log_execution_file}"
+                            echo "curl ${curl_options[@]} -H \"User-agent: ${user_agent}\" ${js_url} > ${webapp_js_dir}/${js_file_dir}/${js_file_name}" >> "${log_execution_file}"
                             curl "${curl_options[@]}" -H "User-agent: ${user_agent}" "${js_url}" > "${webapp_js_dir}/${js_file_dir}/${js_file_name}" 2>> "${log_execution_file}"
                         fi
                     fi
                 done
-            done
+            done < "${urls_file}"
         fi
     fi
     echo "Done!"
