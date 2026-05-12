@@ -98,8 +98,8 @@ vhost_check(){
     vhost_ip_file="$2"
 
     if [[ -s "${vhost_ip_file}" && -s "${report_dir}/infra_ipv4.txt" ]]; then
-        for IP in "$(cat ${vhost_name_file})"; do
-            for port in "${#webapp_port_detect[@]}"; do
+        for IP in "$(cat ${vhost_ip_file})"; do
+            for port in "${webapp_port_detect[@]}"; do
                 user_agent=$(get_user_agent)
                 unresponsive_vhost="$(tr -dc 'a-z' </dev/urandom | fold -w 10 | head -n1).${domain}"
                 # curl

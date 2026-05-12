@@ -92,19 +92,19 @@ webapp_enum(){
 
                 # Notifying the finds
                 echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Sending files search notification... "
-                grep --color=never -Ehr "^\[.*\] 200 -" "${webapp_enum_dir}/" | awk '{print $6}' | grep -E "($(echo ${webapp_file_extensions} | sed 's/,/|/g'))$" | notify -nc -silent -id "${notify_files_channel}" > /dev/null
-                grep --color=never -Ehr "\(Status: 200\)" "${webapp_enum_dir}/" | awk '{print $1}' | grep -E "($(echo ${webapp_file_extensions} | sed 's/,/|/g'))$" | notify -nc -silent -id "${notify_files_channel}" > /dev/null
+                grep --color=never -Ehr "^\[.*\] 200 -" "${webapp_enum_dir}/" | awk '{print $6}' | grep -E "($(echo ${webapp_file_extensions} | sed 's/,/|/g'))$" | notify -nc -silent -id "${notify_files_channel}" > /dev/null 2>&1
+                grep --color=never -Ehr "\(Status: 200\)" "${webapp_enum_dir}/" | awk '{print $1}' | grep -E "($(echo ${webapp_file_extensions} | sed 's/,/|/g'))$" | notify -nc -silent -id "${notify_files_channel}" > /dev/null 2>&1
                 echo "Done!"
             else
                 echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Array of wordlists is empty. Stopping the script!"
-                echo -e "Array of wordlists is empty. Stopping the script!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+                echo -e "Array of wordlists is empty. Stopping the script!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
                 message "${target}" failed
                 exit 1
             fi
         else
             echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Make sure the directories structure was created. Stopping the script!"
             unset urls_file
-            echo -e "Make sure the directories structure was created. Stopping the script!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+            echo -e "Make sure the directories structure was created. Stopping the script!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
             message "${target}" failed
             exit 1
         fi
@@ -112,7 +112,7 @@ webapp_enum(){
         echo "Fail!"
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Make sure the ${urls_file} exist and isn't empty. You probably forgot to add --webapp-discovery option to execute, or really, we have a problem with script execution."
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} You probably forgot to add --webapp-discovery option to execute, or really, we have a problem with script execution."
-        echo -e "Make sure the ${urls_file} exist and isn't empty. \nYou probably forgot to add --webapp-discovery option to execute, or really, we have a problem with script execution." | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+        echo -e "Make sure the ${urls_file} exist and isn't empty. \nYou probably forgot to add --webapp-discovery option to execute, or really, we have a problem with script execution." | notify -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
         message "${target}" failed
         unset urls_file
         exit 1
@@ -138,7 +138,7 @@ webapp_tech(){
                     alias httpx="httpx -http-proxy ${proxy_ip}"
                 fi
                 
-                echo "curl ${curl_options[@]} -H "User-agent: ${user_agent}" -I ${url}" >> "${log_execution_file}"
+                echo "curl ${curl_options[@]} -H \"User-agent: ${user_agent}\" -I \"${url}\"" >> "${log_execution_file}"
                 curl ${curl_options[@]} -H "User-agent: ${user_agent}" -I "${url}" >> "${webapp_tech_dir}/${file_tech_by_headers}" 2>> "${log_execution_file}"
                 
                 echo "echo ${url} | httpx ${httpx_options[@]} -title -tech-detect" >> "${log_execution_file}"
@@ -155,7 +155,7 @@ webapp_tech(){
     else
         echo "Fail!"
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Make sure the ${urls_file} exist and isn't empty."
-        echo -e "Make sure the ${urls_file} exist and isn't empty." | notify -nc -silent -id "${notify_recon_channel}" > /dev/null
+        echo -e "Make sure the ${urls_file} exist and isn't empty." | notify -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
         message "${target}" failed
         unset urls_file
         exit 1
