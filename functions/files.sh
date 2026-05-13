@@ -25,7 +25,7 @@ joining_subdomains(){
                 | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
-        if [ -s "${tmp_dir}/amass_active_output.txt" ]; then
+        if [ -s "${tmp_dir}/amass_output.tmp" ]; then
             echo "Parsing amass search" >> "${log_execution_file}"
             # Na v5 a saída já vem limpa, apenas filtramos pelo domínio correto
             grep -E "^.*\.${domain}" "${tmp_dir}/amass_output.tmp" \
@@ -130,9 +130,9 @@ joining_subdomains(){
                 | sort -u >> "${tmp_dir}/domains_found.tmp"
         fi
 
-        if [ -s "${tmp_dir}/subfinder_output.txt" ]; then
+        if [ -s "${tmp_dir}/subfinder_output.tmp" ]; then
             echo "Parsing subfinder" >> "${log_execution_file}"
-            grep -E "^.*\.${domain}" "${tmp_dir}/subfinder_output.txt" \
+            grep -E "^.*\.${domain}" "${tmp_dir}/subfinder_output.tmp" \
                 >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
