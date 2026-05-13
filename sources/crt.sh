@@ -9,7 +9,7 @@
 #############################################################            
 
 crt-src(){
-    cho -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing crt.sh... "
+    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing crt.sh... "
     unset user_agent
     user_agent="$(get_user_agent)"
     echo -e "\ncurl -k -s -H \"User-agent: ${user_agent}\" \"https://crt.sh/?CN=${domain}&output=json\"" \
