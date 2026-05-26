@@ -20,7 +20,9 @@ git_rebuild(){
             target_dir="${report_dir}/$(grep -E "Target:|Url:" "${webapp_enum_dir}/${file}" | sed -e 's/^\[+\] //' | awk '{print $2}' | sed -e 's/\/$//' -e 's/http:\/\///' -e 's/https:\/\///')"
             target=$(grep -E "Target:|Url:" "${webapp_enum_dir}/${file}" | sed -e 's/^\[+\] //' | awk '{print $2}' | sed -e 's/\/$//')
             if [ -n "${proxy_ip}" ] && [ "${proxy_ip}" == "yes" ]; then
-                if [[ "200" -eq "$(curl "${curl_options[@]}" -H "User-agent: ${user_agent}" --proxy "${proxy_ip}" -o /tmp/git_config -w "%{http_code}\n" "${target}/.git/config")" ]] && \
+                # Probe for .git/config: fast profile — a slow target here is
+                # effectively a dead one and would stall the whole sweep.
+                if [[ "200" -eq "$(curl "${curl_options_fast[@]}" -H "User-agent: ${user_agent}" --proxy "${proxy_ip}" -o /tmp/git_config -w "%{http_code}\n" "${target}/.git/config")" ]] && \
                     [[ $(grep -Eq  "^\[core\]|^\[remote.*\]|^\[branch.*\]" /tmp/git_config; echo "$?") -eq "0" ]]; then
                     rm -rf /tmp/git_config
                     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Found .git on ${green}${target}${reset}!"
@@ -48,7 +50,8 @@ git_rebuild(){
                     cd "${dir_origem}" || exit
                 fi
             else
-                if [[ "200" -eq "$(curl "${curl_options[@]}" -H "User-agent: ${user_agent}" -o /tmp/git_config -s -w "%{http_code}" "${target}/.git/config")" ]] && \
+                # Probe for .git/config: fast profile (see comment above).
+                if [[ "200" -eq "$(curl "${curl_options_fast[@]}" -H "User-agent: ${user_agent}" -o /tmp/git_config -s -w "%{http_code}" "${target}/.git/config")" ]] && \
                     [[ $(grep -Eq "^\[core\]|^\[remote.*\]|^\[branch.*\]" /tmp/git_config; echo "$?") -eq "0" ]]; then
                     rm -rf /tmp/git_config
                     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Found .git on ${green}${target}${reset}!"

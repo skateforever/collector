@@ -66,8 +66,11 @@ crawler_js(){
                     js_file_name=$(basename "${js_url}")
                     [[ ! -d "${webapp_js_dir}/${js_file_dir}" ]] && mkdir -p "${webapp_js_dir}/${js_file_dir}"
 
-                    # Checks if the URL returns HTTP status 200
-                    js_status=$(curl "${curl_options[@]}" -H "User-agent: ${user_agent}" -L -o /dev/null -w "%{http_code}" --head "${js_url}")
+                    # Checks if the URL returns HTTP status 200. HEAD probe
+                    # uses the fast profile — slow JS hosts are skipped rather
+                    # than holding up the crawl. The full GET below keeps the
+                    # default profile so larger bundles can finish downloading.
+                    js_status=$(curl "${curl_options_fast[@]}" -H "User-agent: ${user_agent}" -L -o /dev/null -w "%{http_code}" --head "${js_url}")
                     if [[ "${js_status}" -eq 200 ]]; then
                         if [ ! -s "${webapp_js_dir}/${js_file_dir}/${js_file_name}" ]; then
                             echo "curl ${curl_options[@]} -H \"User-agent: ${user_agent}\" ${js_url} > ${webapp_js_dir}/${js_file_dir}/${js_file_name}" >> "${log_execution_file}"

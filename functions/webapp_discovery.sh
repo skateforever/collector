@@ -33,12 +33,15 @@ webapp_alive(){
             for port in "${webapp_port_detect[@]}"; do
                 unset user_agent
                 user_agent="$(get_user_agent)"
-                echo "curl ${curl_options[@]} -H \"User-agent: ${user_agent}\" -L -w \"%{response_code}\n\" \"http://${subdomain}:${port}\" -o /dev/null" >> "${log_execution_file}"
-                http_status_code=$(curl "${curl_options[@]}" -H "User-agent: ${user_agent}" -L -w "%{response_code}\n" "http://${subdomain}:${port}" -o /dev/null 2>> "${log_execution_file}")
+                # Alive check across many subdomain x port combinations: use the
+                # fast profile so unresponsive targets fail quickly instead of
+                # adding up to a multi-hour stall.
+                echo "curl ${curl_options_fast[@]} -H \"User-agent: ${user_agent}\" -L -w \"%{response_code}\n\" \"http://${subdomain}:${port}\" -o /dev/null" >> "${log_execution_file}"
+                http_status_code=$(curl "${curl_options_fast[@]}" -H "User-agent: ${user_agent}" -L -w "%{response_code}\n" "http://${subdomain}:${port}" -o /dev/null 2>> "${log_execution_file}")
                 [[ "${http_status_code}" =~ ^[1-5][0-9]{2}$ ]] && \
                     echo "http://${subdomain}:${port}" >> "${tmp_dir}/webapp_urls.tmp" 2>> "${log_execution_file}"
-                echo "curl ${curl_options[@]} -H \"User-agent: ${user_agent}\" -L -w \"%{response_code}\n\" \"https://${subdomain}:${port}\" -o /dev/null" >> "${log_execution_file}"
-                https_status_code=$(curl "${curl_options[@]}" -H "User-agent: ${user_agent}" -L -w "%{response_code}\n" "https://${subdomain}:${port}" -o /dev/null 2>> "${log_execution_file}")
+                echo "curl ${curl_options_fast[@]} -H \"User-agent: ${user_agent}\" -L -w \"%{response_code}\n\" \"https://${subdomain}:${port}\" -o /dev/null" >> "${log_execution_file}"
+                https_status_code=$(curl "${curl_options_fast[@]}" -H "User-agent: ${user_agent}" -L -w "%{response_code}\n" "https://${subdomain}:${port}" -o /dev/null 2>> "${log_execution_file}")
                 [[ "${http_status_code}" =~ ^[1-5][0-9]{2}$ ]] && \
                     echo "https://${subdomain}:${port}" >> "${tmp_dir}/webapp_urls.tmp" 2>> "${log_execution_file}"
             done
