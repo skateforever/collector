@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Runs · collector{% endblock %}
+{% block content %}
+<div class="mb-4 flex items-center justify-between">
+  <h1 class="text-2xl font-bold">Runs</h1>
+  <span class="text-sm text-slate-500">{{ total }} total</span>
+</div>
+
+<form class="bg-white rounded-lg shadow p-4 mb-4 flex flex-wrap gap-3 items-end"
+      hx-get="/runs" hx-target="#runs-table" hx-trigger="submit, change from:select"
+      hx-push-url="true">
+  <label class="flex flex-col text-xs text-slate-600">Domain
+    <input name="domain" value="{{ domain }}" placeholder="example.com"
+           class="border rounded px-2 py-1 text-sm w-56"
+           hx-get="/runs" hx-target="#runs-table" hx-trigger="keyup changed delay:400ms"
+           hx-include="closest form" hx-push-url="true">
+  </label>
+  <label class="flex flex-col text-xs text-slate-600">Mode
+    <select name="mode" class="border rounded px-2 py-1 text-sm">
+      <option value="">all</option>
+      {% for m in modes %}
+      <option value="{{ m }}" {% if m == mode %}selected{% endif %}>{{ m }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <button class="bg-slate-900 text-white text-sm px-3 py-1.5 rounded">Apply</button>
+</form>
+
+<div id="runs-table">
+  {% include "_runs_table.html" %}
+</div>
+{% endblock %}

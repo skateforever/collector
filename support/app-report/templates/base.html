@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{% block title %}collector report{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    [x-cloak]{display:none}
+    .sev-critical{color:#7f1d1d;background:#fee2e2}
+    .sev-high{color:#9a3412;background:#ffedd5}
+    .sev-medium{color:#92400e;background:#fef3c7}
+    .sev-low{color:#1e40af;background:#dbeafe}
+    .sev-info{color:#374151;background:#f3f4f6}
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+  <header class="bg-slate-900 text-slate-100 shadow">
+    <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+      <a href="/" class="font-bold text-lg tracking-tight">collector <span class="text-emerald-400">·</span> report</a>
+      <nav class="flex gap-4 text-sm">
+        <a class="hover:text-emerald-300" href="/">Dashboard</a>
+        <a class="hover:text-emerald-300" href="/runs">Runs</a>
+        <a class="hover:text-emerald-300" href="/health">Health</a>
+      </nav>
+    </div>
+  </header>
+  <main class="max-w-7xl mx-auto px-4 py-6">
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="max-w-7xl mx-auto px-4 py-6 text-xs text-slate-500">
+    Read-only view over <code>{{ db_path or 'collector-results-db' }}</code>.
+  </footer>
+</body>
+</html>

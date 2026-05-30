@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}{{ target.domain }} · collector{% endblock %}
+{% block content %}
+<div class="mb-4 flex items-center justify-between">
+  <div>
+    <h1 class="text-2xl font-bold">{{ target.domain }}</h1>
+    <div class="text-sm text-slate-500">
+      first seen {{ target.first_seen|fmt_dt }} · last seen {{ target.last_seen|fmt_dt }} · {{ runs|length }} run(s)
+    </div>
+  </div>
+  <a href="/runs?domain={{ target.domain }}" class="text-sm text-emerald-700 hover:underline">All runs →</a>
+</div>
+
+<section class="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6">
+  <div class="bg-white rounded-lg shadow p-3"><div class="text-xs text-slate-500">Subs alive</div><div class="text-xl font-semibold">{{ latest.subdomains_alive }}<span class="text-slate-400 text-sm"> / {{ latest.subdomains }}</span></div></div>
+  <div class="bg-white rounded-lg shadow p-3"><div class="text-xs text-slate-500">IPs</div><div class="text-xl font-semibold">{{ latest.ips }}</div></div>
+  <div class="bg-white rounded-lg shadow p-3"><div class="text-xs text-slate-500">URLs</div><div class="text-xl font-semibold">{{ latest.webapp_urls }}</div></div>
+  <div class="bg-white rounded-lg shadow p-3"><div class="text-xs text-slate-500">Emails</div><div class="text-xl font-semibold">{{ latest.emails }}</div></div>
+  <div class="bg-white rounded-lg shadow p-3"><div class="text-xs text-slate-500">JS secrets</div><div class="text-xl font-semibold {% if latest.js_secrets %}text-red-700{% endif %}">{{ latest.js_secrets }}</div></div>
+  <div class="bg-white rounded-lg shadow p-3"><div class="text-xs text-slate-500">JS params</div><div class="text-xl font-semibold">{{ latest.js_params }}</div></div>
+</section>
+
+<section class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+  <div class="rounded-lg p-3 sev-critical"><div class="text-xs uppercase">Critical</div><div class="text-2xl font-bold">{{ latest.findings_critical }}</div></div>
+  <div class="rounded-lg p-3 sev-high"><div class="text-xs uppercase">High</div><div class="text-2xl font-bold">{{ latest.findings_high }}</div></div>
+  <div class="rounded-lg p-3 sev-medium"><div class="text-xs uppercase">Medium</div><div class="text-2xl font-bold">{{ latest.findings_medium }}</div></div>
+  <div class="rounded-lg p-3 sev-low"><div class="text-xs uppercase">Low</div><div class="text-2xl font-bold">{{ latest.findings_low }}</div></div>
+  <div class="rounded-lg p-3 sev-info"><div class="text-xs uppercase">Info</div><div class="text-2xl font-bold">{{ latest.findings_info }}</div></div>
+</section>
+
+<section class="bg-white rounded-lg shadow p-4 mb-6">
+  <h2 class="font-semibold mb-3">Trend</h2>
+  <canvas id="trend" height="90"></canvas>
+</section>
+
+<section class="bg-white rounded-lg shadow overflow-hidden">
+  <div class="px-4 py-3 border-b"><h2 class="font-semibold">Run history</h2></div>
+  <div class="overflow-x-auto">
+    <table class="min-w-full text-sm">
+      <thead class="bg-slate-100 text-slate-600">
+        <tr>
+          <th class="text-left px-3 py-2">Run</th>
+          <th class="text-left px-3 py-2">Date</th>
+          <th class="text-left px-3 py-2">Mode</th>
+          <th class="text-right px-3 py-2">Subs</th>
+          <th class="text-right px-3 py-2">URLs</th>
+          <th class="text-right px-3 py-2">Crit</th>
+          <th class="text-right px-3 py-2">High</th>
+          <th class="text-right px-3 py-2">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in runs %}
+        <tr class="border-t">
+          <td class="px-3 py-2 font-mono text-xs">{{ r.run_id }}</td>
+          <td class="px-3 py-2">{{ r.run_date|fmt_dt }}</td>
+          <td class="px-3 py-2">{{ r.mode or '—' }}</td>
+          <td class="px-3 py-2 text-right">{{ r.subdomains }}</td>
+          <td class="px-3 py-2 text-right">{{ r.webapp_urls }}</td>
+          <td class="px-3 py-2 text-right {% if r.findings_critical %}text-red-700 font-semibold{% endif %}">{{ r.findings_critical }}</td>
+          <td class="px-3 py-2 text-right {% if r.findings_high %}text-orange-700{% endif %}">{{ r.findings_high }}</td>
+          <td class="px-3 py-2 text-right text-slate-600">{{ r.status or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<script>
+  const chartData = {{ chart|tojson }};
+  new Chart(document.getElementById('trend'), {
+    type: 'line',
+    data: {
+      labels: chartData.labels,
+      datasets: [
+        {label: 'Subdomains', data: chartData.subdomains, borderColor: '#0ea5e9', tension: .3},
+        {label: 'URLs', data: chartData.webapp_urls, borderColor: '#10b981', tension: .3},
+        {label: 'Critical', data: chartData.findings_critical, borderColor: '#dc2626', tension: .3},
+        {label: 'High', data: chartData.findings_high, borderColor: '#f97316', tension: .3},
+        {label: 'JS secrets', data: chartData.js_secrets, borderColor: '#7c3aed', tension: .3},
+      ]
+    },
+    options: {responsive: true, plugins: {legend: {position: 'bottom'}}, scales: {y: {beginAtZero: true}}}
+  });
+</script>
+{% endblock %}

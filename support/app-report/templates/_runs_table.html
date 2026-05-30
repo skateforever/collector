@@ -1,0 +1,56 @@
+<div class="bg-white rounded-lg shadow overflow-hidden">
+  <div class="overflow-x-auto">
+    <table class="min-w-full text-sm">
+      <thead class="bg-slate-100 text-slate-600">
+        <tr>
+          <th class="text-left px-3 py-2">Domain</th>
+          <th class="text-left px-3 py-2">Run</th>
+          <th class="text-left px-3 py-2">Date</th>
+          <th class="text-left px-3 py-2">Mode</th>
+          <th class="text-right px-3 py-2">Subs</th>
+          <th class="text-right px-3 py-2">URLs</th>
+          <th class="text-right px-3 py-2">Crit</th>
+          <th class="text-right px-3 py-2">High</th>
+          <th class="text-right px-3 py-2">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr class="border-t hover:bg-slate-50">
+          <td class="px-3 py-2"><a class="text-emerald-700 hover:underline" href="/targets/{{ r.domain }}">{{ r.domain }}</a></td>
+          <td class="px-3 py-2 font-mono text-xs">{{ r.run_id }}</td>
+          <td class="px-3 py-2">{{ r.run_date|fmt_dt }}</td>
+          <td class="px-3 py-2">{{ r.mode or '—' }}</td>
+          <td class="px-3 py-2 text-right">{{ r.subdomains }}</td>
+          <td class="px-3 py-2 text-right">{{ r.webapp_urls }}</td>
+          <td class="px-3 py-2 text-right {% if r.findings_critical %}text-red-700 font-semibold{% endif %}">{{ r.findings_critical }}</td>
+          <td class="px-3 py-2 text-right {% if r.findings_high %}text-orange-700{% endif %}">{{ r.findings_high }}</td>
+          <td class="px-3 py-2 text-right text-slate-600">{{ r.status or '—' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="9" class="px-3 py-6 text-center text-slate-500">No matching runs.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% set pages = ((total + per_page - 1) // per_page) if per_page else 1 %}
+  {% if pages > 1 %}
+  <nav class="flex items-center justify-between px-4 py-3 border-t text-sm">
+    <span class="text-slate-500">Page {{ page }} of {{ pages }}</span>
+    <div class="flex gap-2">
+      {% if page > 1 %}
+      <a class="px-3 py-1 border rounded hover:bg-slate-50"
+         hx-get="/runs?domain={{ domain }}&mode={{ mode }}&page={{ page - 1 }}"
+         hx-target="#runs-table" hx-push-url="true"
+         href="/runs?domain={{ domain }}&mode={{ mode }}&page={{ page - 1 }}">Prev</a>
+      {% endif %}
+      {% if page < pages %}
+      <a class="px-3 py-1 border rounded hover:bg-slate-50"
+         hx-get="/runs?domain={{ domain }}&mode={{ mode }}&page={{ page + 1 }}"
+         hx-target="#runs-table" hx-push-url="true"
+         href="/runs?domain={{ domain }}&mode={{ mode }}&page={{ page + 1 }}">Next</a>
+      {% endif %}
+    </div>
+  </nav>
+  {% endif %}
+</div>

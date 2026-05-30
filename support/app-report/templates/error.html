@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}{{ code }} · collector{% endblock %}
+{% block content %}
+<div class="bg-white rounded-lg shadow p-8 text-center">
+  <div class="text-5xl font-bold text-slate-300 mb-2">{{ code }}</div>
+  <p class="text-slate-700">{{ message }}</p>
+  <a href="/" class="inline-block mt-4 text-emerald-700 hover:underline">Back to dashboard</a>
+</div>
+{% endblock %}
