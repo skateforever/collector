@@ -10,6 +10,27 @@
 #                                                           #
 #############################################################
 
+# Validates a domain/hostname string before it is interpolated into URLs
+# and filesystem paths. Allows: letters, digits, hyphen, underscore, dot.
+# Rejects path separators, shell metacharacters, whitespace, schemes, etc.
+# Returns 0 on valid, 1 on invalid (and prints to stderr).
+validate_domain(){
+    local _candidate="$1"
+    if [[ -z "${_candidate}" ]]; then
+        echo -e "Empty domain is not allowed." >&2
+        return 1
+    fi
+    if [[ ${#_candidate} -gt 253 ]]; then
+        echo -e "Domain is too long (>253 chars): ${_candidate}" >&2
+        return 1
+    fi
+    if ! [[ "${_candidate}" =~ ^[A-Za-z0-9]([A-Za-z0-9_-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9_-]*[A-Za-z0-9])?)*$ ]]; then
+        echo -e "Invalid domain format: ${yellow}${_candidate}${reset}" >&2
+        return 1
+    fi
+    return 0
+}
+
 check_argument(){
     options+=(-d --domain -dl --domain-list -ed --exclude-domains -el --exclude-domain-list -h --help -k -kill)
     options+=(-kr --kill-remove -l --limit-urls -o --output -p --proxy -r --recon -s --subdomain-brute -u --url)
@@ -36,6 +57,9 @@ menu(){
         case $1 in
             -d|--domain)
                 check_argument "$1" "$2"
+                if ! validate_domain "$2"; then
+                    usage
+                fi
                 domain="$2"
                 domain_check="yes"
                 [[ -n "${domain}" && "${domain_check}" == "yes" ]] && directory_structure="domain"

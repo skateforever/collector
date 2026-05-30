@@ -15,9 +15,7 @@ emails_recon(){
     if [ -n ${hunterio_api} ]; then
         unset user_agent
         user_agent="$(get_user_agent)"
-        echo "
-        curl ${curl_options[@]} -H \"User-agent: ${user_agent}\" \
-            \"https://api.hunter.io/v2/domain-search?domain=${domain}&api_key=${hunterio_api}\"" 
+        echo "$(redact_secrets "curl ${curl_options[@]} -H \"User-agent: ${user_agent}\" \"https://api.hunter.io/v2/domain-search?domain=${domain}&api_key=${hunterio_api}\"")" \
            >> "${log_execution_file}"
         curl "${curl_options[@]}" -H "User-agent: ${user_agent}" \
             "https://api.hunter.io/v2/domain-search?domain=${domain}&api_key=${hunterio_api}" \
@@ -33,8 +31,7 @@ emails_recon(){
     if [ -n ${lampyre_api_key} ]; then
         unset user_agent
         user_agent="$(get_user_agent)"
-        echo "curl ${curl_options[@]} -H \"User-agent: ${user_agent}\" \
-            \"lampyre.io/domain=${domain}&${lampyre_api_key}\"" 
+        echo "$(redact_secrets "curl ${curl_options[@]} -H \"User-agent: ${user_agent}\" \"lampyre.io/domain=${domain}&${lampyre_api_key}\"")" \
             >> "${log_execution_file}"
         curl "${curl_options[@]}" -H "User-agent: ${user_agent}" \
             "lampyre.io/domain=${domain}&${lampyre_api_key}" \

@@ -139,7 +139,7 @@ webapp_tech(){
                 fi
                 
                 echo "curl ${curl_options[@]} -H \"User-agent: ${user_agent}\" -I \"${url}\"" >> "${log_execution_file}"
-                curl ${curl_options[@]} -H "User-agent: ${user_agent}" -I "${url}" >> "${webapp_tech_dir}/${file_tech_by_headers}" 2>> "${log_execution_file}"
+                curl "${curl_options[@]}" -H "User-agent: ${user_agent}" -I "${url}" >> "${webapp_tech_dir}/${file_tech_by_headers}" 2>> "${log_execution_file}"
                 
                 echo "echo ${url} | httpx ${httpx_options[@]} -title -tech-detect" >> "${log_execution_file}"
                 echo "${url}" | httpx "${httpx_options[@]}" -title -tech-detect >> "${webapp_tech_dir}/${file_tech_by_headers}" 2>> "${log_execution_file}"

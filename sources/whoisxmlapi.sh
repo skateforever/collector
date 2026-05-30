@@ -13,11 +13,7 @@ whoisxmlapi-src(){
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing whoisxmlapi... "
         unset user_agent
         user_agent="$(get_user_agent)"
-        echo -e "\ncurl ${curl_options[@]} -H \"User-agent: ${user_agent}\" \
-            -X POST \"${whoisxmlapi_subdomain_url}\" -H \"Content-Type: application/json\" \
-                --data \
-                '{\"apiKey\": \"${whoisxmlapi_api_key}\", \"domains\": {\"include\": [\"${domain}\"]},\"subdomains\": {\"include\": [],\"exclude\": []}}' \
-                | jq -r '.domainsList[]'" >> "${log_execution_file}"
+        echo -e "\n$(redact_secrets "curl ${curl_options[@]} -H \"User-agent: ${user_agent}\" -X POST \"${whoisxmlapi_subdomain_url}\" -H \"Content-Type: application/json\" --data '{\"apiKey\": \"${whoisxmlapi_api_key}\", \"domains\": {\"include\": [\"${domain}\"]},\"subdomains\": {\"include\": [],\"exclude\": []}}' | jq -r '.domainsList[]'")" >> "${log_execution_file}"
         curl "${curl_options[@]}" -H "User-agent: ${user_agent}" \
             -X POST "${whoisxmlapi_subdomain_url}" -H "Content-Type: application/json" \
             --data \
