@@ -113,10 +113,6 @@ crawler_js(){
     # Post-process: scan everything we just downloaded for hardcoded
     # credentials, API keys, JWTs, etc.
     scan_js_secrets "${webapp_js_dir}" "${report_dir}/webapp_js_secrets.txt"
-
-    # And: flag parameter names / DOM sinks that mark injection-prone code
-    # paths (SQLi, XSS, SSRF, XXE, command injection, open redirect, ...).
-    scan_js_params "${webapp_js_dir}" "${report_dir}/webapp_js_params.txt"
 }
 
 crawler_params(){
@@ -160,4 +156,8 @@ crawler_params(){
     done < "${urls_file}"
 
     echo "Done!"
+
+    # Post-process: flag parameter names / DOM sinks in the JS that
+    # crawler_js already downloaded — SQLi/XSS/SSRF/XXE/CMD/etc candidates.
+    scan_js_params "${webapp_js_dir}" "${report_dir}/webapp_js_params.txt"
 }
