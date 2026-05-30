@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · collector{% endblock %}
+{% block content %}
+<section class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+  <div class="bg-white rounded-lg shadow p-4">
+    <div class="text-xs uppercase tracking-wide text-slate-500">Targets</div>
+    <div class="text-3xl font-semibold">{{ targets_total }}</div>
+  </div>
+  <div class="bg-white rounded-lg shadow p-4">
+    <div class="text-xs uppercase tracking-wide text-slate-500">Runs</div>
+    <div class="text-3xl font-semibold">{{ runs_total }}</div>
+  </div>
+  <div class="bg-white rounded-lg shadow p-4">
+    <div class="text-xs uppercase tracking-wide text-slate-500">Subdomains alive</div>
+    <div class="text-3xl font-semibold">{{ totals.subdomains_alive }} <span class="text-sm text-slate-400">/ {{ totals.subdomains }}</span></div>
+  </div>
+  <div class="bg-white rounded-lg shadow p-4">
+    <div class="text-xs uppercase tracking-wide text-slate-500">Webapp URLs</div>
+    <div class="text-3xl font-semibold">{{ totals.webapp_urls }}</div>
+  </div>
+</section>
+
+<section class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8">
+  <div class="rounded-lg p-3 sev-critical"><div class="text-xs uppercase">Critical</div><div class="text-2xl font-bold">{{ totals.findings_critical }}</div></div>
+  <div class="rounded-lg p-3 sev-high"><div class="text-xs uppercase">High</div><div class="text-2xl font-bold">{{ totals.findings_high }}</div></div>
+  <div class="rounded-lg p-3 sev-medium"><div class="text-xs uppercase">Medium</div><div class="text-2xl font-bold">{{ totals.findings_medium }}</div></div>
+  <div class="rounded-lg p-3 sev-low"><div class="text-xs uppercase">Low</div><div class="text-2xl font-bold">{{ totals.findings_low }}</div></div>
+  <div class="rounded-lg p-3 sev-info"><div class="text-xs uppercase">Info</div><div class="text-2xl font-bold">{{ totals.findings_info }}</div></div>
+</section>
+
+<section class="bg-white rounded-lg shadow overflow-hidden">
+  <div class="px-4 py-3 border-b flex items-center justify-between">
+    <h2 class="font-semibold">Targets — latest run</h2>
+    <span class="text-xs text-slate-500">sorted by criticality</span>
+  </div>
+  <div class="overflow-x-auto">
+    <table class="min-w-full text-sm">
+      <thead class="bg-slate-100 text-slate-600">
+        <tr>
+          <th class="text-left px-3 py-2">Domain</th>
+          <th class="text-left px-3 py-2">Last run</th>
+          <th class="text-right px-3 py-2">Subs alive</th>
+          <th class="text-right px-3 py-2">URLs</th>
+          <th class="text-right px-3 py-2">JS secrets</th>
+          <th class="text-right px-3 py-2">Crit</th>
+          <th class="text-right px-3 py-2">High</th>
+          <th class="text-right px-3 py-2">Med</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr class="border-t hover:bg-slate-50">
+          <td class="px-3 py-2"><a class="text-emerald-700 hover:underline" href="/targets/{{ r.domain }}">{{ r.domain }}</a></td>
+          <td class="px-3 py-2 text-slate-600">{{ r.run_date|fmt_dt }}</td>
+          <td class="px-3 py-2 text-right">{{ r.subdomains_alive }}<span class="text-slate-400 text-xs"> / {{ r.subdomains }}</span></td>
+          <td class="px-3 py-2 text-right">{{ r.webapp_urls }}</td>
+          <td class="px-3 py-2 text-right">{{ r.js_secrets }}</td>
+          <td class="px-3 py-2 text-right font-semibold {% if r.findings_critical %}text-red-700{% endif %}">{{ r.findings_critical }}</td>
+          <td class="px-3 py-2 text-right {% if r.findings_high %}text-orange-700{% endif %}">{{ r.findings_high }}</td>
+          <td class="px-3 py-2 text-right">{{ r.findings_medium }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" class="px-3 py-6 text-center text-slate-500">No runs ingested yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}
