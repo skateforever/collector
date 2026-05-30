@@ -52,7 +52,7 @@ domains_recon(){
         [[ -s "${report_dir}/webapp_urls.txt" ]] && \
         [[ "${recon_check}" == "no" || -z "${recon_check}" ]]; then
         crawler_js "${domain}" "${report_dir}/webapp_urls.txt"
-        #crawler_params "${domain}" "${report_dir}/webapp_urls.txt"
+        crawler_params "${domain}" "${report_dir}/webapp_urls.txt"
         diff_artifacts
         record_history
         message "${domain}" finished
@@ -92,7 +92,7 @@ domains_recon(){
         fi
         if [[ "${webapp_crawler_check}" == "yes" && "${webapp_enum_check}" != "yes" ]]; then
             crawler_js "${domain}" "${report_dir}/webapp_urls.txt"
-            #crawler_params "${domain}" "${report_dir}/webapp_urls.txt"
+            crawler_params "${domain}" "${report_dir}/webapp_urls.txt"
         fi
         if [[ "${webapp_scan_check}" == "yes" && "${webapp_enum_check}" != "yes" ]]; then
             nuclei_scan "${domain}" "${report_dir}/webapp_urls.txt"
@@ -112,7 +112,7 @@ domains_recon(){
                 aquatone_screenshot "${domain}" "${urls_file}"
                 if [[ "${webapp_crawler_check}" == "yes" ]]; then
                     crawler_js "${domain}" "${urls_file}"
-                    #crawler_js "${domain}" "${urls_file}"
+                    crawler_params "${domain}" "${urls_file}"
                 fi
                 if [[ "${webapp_scan_check}" == "yes" ]]; then
                     nuclei_scan "${domain}" "${urls_file}"
