@@ -148,65 +148,21 @@ scan_js_secrets(){
 scan_js_params(){
     local scan_dir="${1:-${webapp_js_dir}}"
     local out_file="${2:-${report_dir}/webapp_js_params.txt}"
-    local label regex hits line total i
+    local patterns_file="${collector_path}/support/params-patterns.txt"
+    local label regex hits line total
     local channel="${notify_recon_channel}"
 
     [[ ! -d "${scan_dir}" ]] && return 0
-
-    # Two layers of patterns:
-    #   1. Param-name patterns — fire when a sensitive parameter NAME appears
-    #      (`?id=`, `&redirect=`, `userInput`, request.body.url, etc.).
-    #   2. Sink patterns — fire when JS reaches a dangerous DOM/JS API
-    #      regardless of where the data came from.
-    #
-    # `\b` is GNU-grep specific; the patterns below stick to portable ERE so
-    # they also work on macOS BSD grep.
-    local -a patterns=(
-        # ---- SQLi-flavored param names commonly reflected in queries ----
-        "SQLi"           '[?&"'\'']((id|uid|user_?id|account_?id|order_?id|product_?id|item_?id|cat|category|sort|order|filter|search|q|query|sql|where|select|table|column|page|per_?page|limit|offset)=|\.(id|userId|accountId|orderId)[[:space:]]*[=:])'
-
-        # ---- XSS sources / sinks ----
-        "XSS_SOURCE"     '(location\.(search|hash|href|pathname)|document\.(URL|documentURI|baseURI|referrer|cookie)|window\.name|history\.(state|pushState|replaceState))'
-        "XSS_SINK"       '(\.innerHTML|\.outerHTML|document\.write(ln)?|\.insertAdjacentHTML|\$\([^)]*\)\.html\(|\.setAttribute\([[:space:]]*["'\''](src|href|action|formaction|data|on[a-z]+)["'\'']|\.srcdoc|element\.html\()'
-
-        # ---- SSRF-shaped param names + URL-fetching sinks ----
-        "SSRF_PARAM"     '[?&"'\'']((url|uri|next|redirect|redirect_?uri|return|return_?url|callback|callback_?url|continue|dest|destination|target|target_?url|to|forward|forward_?url|fetch|fetch_?url|webhook|proxy|proxy_?url|src|source|image|img|avatar|file|filename|path|page|domain|host|hostname|address|api|api_?url|endpoint)=)'
-        "SSRF_SINK"      '(fetch[[:space:]]*\(|new[[:space:]]+XMLHttpRequest|\.open[[:space:]]*\([[:space:]]*["'\''](GET|POST|PUT|DELETE|PATCH)["'\'']|axios\.(get|post|put|delete|patch|request)|\$\.(ajax|get|post)|navigator\.sendBeacon|EventSource\(|new[[:space:]]+WebSocket\()'
-
-        # ---- Open redirect sinks ----
-        "OPEN_REDIRECT"  '(location[[:space:]]*=|location\.(href|assign|replace)[[:space:]]*=?[[:space:]]*\(?|window\.open[[:space:]]*\()'
-
-        # ---- XXE / XML parsers reachable from JS ----
-        "XXE"            '(DOMParser\(\)\.parseFromString|new[[:space:]]+DOMParser\(\)|loadXML[[:space:]]*\(|XMLHttpRequest.*responseXML|libxmljs|fast-xml-parser|xml2js)'
-
-        # ---- Command-injection / server-side template flavored names ----
-        "CMD_PARAM"      '[?&"'\'']((cmd|command|exec|run|do|action|task|operation|shell|ip|host|ping|domain|name|file|filename)=|`[^`]*\$\{)'
-        "CMD_SINK"       '(child_process\.(exec|execSync|spawn|spawnSync|fork)|require\(["'\'']child_process|process\.exec|new[[:space:]]+Function\(|eval[[:space:]]*\()'
-
-        # ---- Path-traversal flavored names + Node fs sinks ----
-        "PATH_PARAM"     '[?&"'\'']((file|filepath|path|dir|folder|root|template|include|require|load|page|view|theme|module|locale)=)'
-        "PATH_SINK"      '(fs\.(readFile|readFileSync|createReadStream|writeFile|writeFileSync|unlink|unlinkSync|stat|lstat|access|exists)|require\([[:space:]]*[a-zA-Z_$])'
-
-        # ---- DOM clobbering / DOM-XSS specific ----
-        "DOM_SINK"       '(eval[[:space:]]*\(|setTimeout[[:space:]]*\([[:space:]]*["'\''`]|setInterval[[:space:]]*\([[:space:]]*["'\''`]|new[[:space:]]+Function\(|Function[[:space:]]*\([[:space:]]*["'\''`])'
-
-        # ---- postMessage handlers without origin checks ----
-        "POSTMSG"        '(addEventListener[[:space:]]*\([[:space:]]*["'\'']message["'\'']|window\.onmessage[[:space:]]*=)'
-
-        # ---- Weak crypto / homegrown auth ----
-        "CRYPTO_WEAK"    '(\.createHash\([[:space:]]*["'\''](md5|sha1)["'\'']|CryptoJS\.(MD5|SHA1)|Math\.random\([[:space:]]*\)[[:space:]]*\.toString)'
-
-        # ---- Prototype pollution sinks ----
-        "PROTO_POLLUTION" '(__proto__|constructor\.prototype|Object\.assign\([[:space:]]*[a-zA-Z_$])'
-
-        # ---- Hardcoded internal hosts that often hint at SSRF reach ----
-        "INTERNAL_HOST"  '(localhost|127\.0\.0\.1|169\.254\.169\.254|metadata\.google\.internal|\.consul|\.svc\.cluster\.local|10\.[0-9]+\.[0-9]+\.[0-9]+|192\.168\.[0-9]+\.[0-9]+|172\.(1[6-9]|2[0-9]|3[0-1])\.[0-9]+\.[0-9]+)'
-    )
+    if [[ ! -s "${patterns_file}" ]]; then
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} JS sinks: pattern file missing → ${patterns_file}"
+        return 1
+    fi
 
     : > "${out_file}"
     {
         echo "# JS param/sink scan report for ${domain}"
         echo "# scan_dir: ${scan_dir}"
+        echo "# patterns: ${patterns_file}"
         echo "# date: $(date +"%Y-%m-%d %H:%M:%S")"
         echo "# format: <category>:<file>:<line>:<match>"
         echo "# NOTE: a hit means \"worth a manual look\", not \"vulnerable\"."
@@ -214,9 +170,8 @@ scan_js_params(){
     } >> "${out_file}"
 
     total=0
-    for ((i=0; i<${#patterns[@]}; i+=2)); do
-        label="${patterns[i]}"
-        regex="${patterns[i+1]}"
+    while IFS='|' read -r label regex; do
+        [[ -z "${label}" || "${label}" =~ ^[[:space:]]*# || -z "${regex}" ]] && continue
         hits="$(grep -rEHnIoi --include='*.js' "${regex}" "${scan_dir}" 2>/dev/null)"
         [[ -z "${hits}" ]] && continue
         while IFS= read -r line; do
@@ -224,7 +179,7 @@ scan_js_params(){
             printf '%s:%s\n' "${label}" "${line}" >> "${out_file}"
             total=$((total+1))
         done <<< "${hits}"
-    done
+    done < "${patterns_file}"
 
     if [[ "${total}" -gt 0 ]]; then
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} JS sinks: ${total} candidate(s) flagged → ${out_file}"
