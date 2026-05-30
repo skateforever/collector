@@ -41,7 +41,8 @@ RUN go install github.com/projectdiscovery/tlsx/cmd/tlsx@latest && \
 
 # 4. Ferramentas Python
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
-    pip install --no-cache-dir dirsearch git-dumper requests shodan sublist3r
+    pip install --no-cache-dir dirsearch git-dumper requests shodan sublist3r \
+                                flask gunicorn
 
 RUN wget -q https://raw.githubusercontent.com/christophetd/censys-subdomain-finder/master/censys-subdomain-finder.py -O /usr/local/bin/censys-subdomain-finder.py && \
     chmod +x /usr/local/bin/censys-subdomain-finder.py
