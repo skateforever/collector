@@ -15,7 +15,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc git curl wget unzip xz-utils make build-essential procps \
     libpcap-dev libssl-dev libffi-dev libcurl4-openssl-dev \
-    jq dnsutils whois html2text chromium nmap \
+    jq dnsutils whois html2text chromium nmap sqlite3 \
     nano vim iputils-ping \
     && rm -rf /var/lib/apt/lists/*
 
