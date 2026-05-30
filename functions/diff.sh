@@ -150,21 +150,120 @@ diff_artifacts(){
 
 # Append one observability row per execution to the per-domain history CSV.
 # Always called, regardless of whether there was a diff this run.
+#
+# The file is named ${domain}_history.csv and lives at the per-target root
+# (${output_dir}/${domain}/). It is the canonical input for loading collector
+# results into any database: each row is one run, fully self-describing
+# (target, run id/date, counts, deltas, paths to the underlying artifacts,
+# bundle pointer, status). Loaders can COPY/INSERT it directly with the
+# domain column as the foreign key.
+#
+# Schema (one row per run, header on first write):
+#   domain               target FQDN — PK on the parent table
+#   run_id               recon_YYYYMMDD basename (unique per domain+day)
+#   run_date             ISO date YYYY-MM-DD
+#   started_at           ISO 8601 with timezone
+#   finished_at          ISO 8601 with timezone
+#   mode                 recon|webapp-discovery|webapp-crawler|webapp-scan|webapp-enum|url
+#   subdomains           count of domains_found.txt
+#   subdomains_alive     count of domains_alive.txt
+#   subdomains_added     count of domains_diff.txt (added since previous run)
+#   ips                  count of infra_ipv4.txt
+#   ips_added            count of infra_ipv4_diff.txt
+#   webapp_urls          count of webapp_urls.txt
+#   webapp_urls_added    count of webapp_urls_diff.txt
+#   vhosts_strong        count of vhost_subdomains.txt
+#   vhosts_weak          count of vhost_subdomains_weak.txt
+#   vhosts_added         count of vhost_subdomains_diff.txt
+#   emails               count of email_recon.txt
+#   emails_added         count of email_recon_diff.txt
+#   js_secrets           count of webapp_js_secrets.txt (excluding header lines)
+#   js_params            count of webapp_js_params.txt (excluding header lines)
+#   findings_info        count of [info]     entries in nuclei_scan.result
+#   findings_low         count of [low]      entries
+#   findings_medium      count of [medium]   entries
+#   findings_high        count of [high]     entries
+#   findings_critical    count of [critical] entries
+#   report_dir           absolute path to this run's report/ directory
+#   llm_prompt_path      absolute path to llm-prompt.txt (empty if not built)
+#   status               finished|partial
 record_history(){
-    local hist="${output_dir}/${domain}/_history.csv"
-    local subs ips vhosts_strong vhosts_weak emails high crit urls
+    local hist="${output_dir}/${domain}/${domain}_history.csv"
+    local target="${domain:-${url_domain}}"
+    local run_id finished_at mode
+    local subs subs_alive subs_added ips ips_added urls urls_added
+    local vhosts_strong vhosts_weak vhosts_added emails emails_added
+    local secrets params info low med high crit
+    local llm_prompt status
 
-    subs="0";          [[ -s "${report_dir}/domains_found.txt"        ]] && subs="$(wc -l < "${report_dir}/domains_found.txt"        | awk '{print $1}')"
-    ips="0";           [[ -s "${report_dir}/infra_ipv4.txt"           ]] && ips="$(wc -l < "${report_dir}/infra_ipv4.txt"           | awk '{print $1}')"
-    vhosts_strong="0"; [[ -s "${report_dir}/vhost_subdomains.txt"     ]] && vhosts_strong="$(wc -l < "${report_dir}/vhost_subdomains.txt"     | awk '{print $1}')"
-    vhosts_weak="0";   [[ -s "${report_dir}/vhost_subdomains_weak.txt" ]] && vhosts_weak="$(wc -l < "${report_dir}/vhost_subdomains_weak.txt" | awk '{print $1}')"
-    urls="0";          [[ -s "${report_dir}/webapp_urls.txt"          ]] && urls="$(wc -l < "${report_dir}/webapp_urls.txt"          | awk '{print $1}')"
-    emails="0";        [[ -s "${report_dir}/email_recon.txt"          ]] && emails="$(wc -l < "${report_dir}/email_recon.txt"          | awk '{print $1}')"
-    high="0";          [[ -n "${nuclei_scan_file}" && -s "${nuclei_scan_file}" ]] && high="$(grep -c '\[high\]'     "${nuclei_scan_file}" || true)"
-    crit="0";          [[ -n "${nuclei_scan_file}" && -s "${nuclei_scan_file}" ]] && crit="$(grep -c '\[critical\]' "${nuclei_scan_file}" || true)"
+    run_id="$(basename "${recon_dir}")"
+    finished_at="$(date +"%Y-%m-%dT%H:%M:%S%z")"
+
+    # Best-effort mode label so a DB can group runs by intent.
+    if [[ "${url_check}" == "yes" ]]; then
+        mode="url"
+    elif [[ "${webapp_enum_check}" == "yes" ]]; then
+        mode="webapp-enum"
+    elif [[ "${webapp_scan_check}" == "yes" && "${recon_check}" != "yes" ]]; then
+        mode="webapp-scan"
+    elif [[ "${webapp_crawler_check}" == "yes" && "${recon_check}" != "yes" ]]; then
+        mode="webapp-crawler"
+    elif [[ "${webapp_discovery_check}" == "yes" && "${recon_check}" != "yes" ]]; then
+        mode="webapp-discovery"
+    elif [[ "${recon_check}" == "yes" ]]; then
+        mode="recon"
+    else
+        mode="unknown"
+    fi
+
+    count_lines(){ [[ -s "$1" ]] && wc -l < "$1" | awk '{print $1}' || echo 0; }
+    count_match(){ [[ -s "$1" ]] && grep -c "$2" "$1" 2>/dev/null || echo 0; }
+    count_body(){ [[ -s "$1" ]] && grep -cv -E '^(#|$)' "$1" 2>/dev/null || echo 0; }
+
+    subs="$(count_lines        "${report_dir}/domains_found.txt")"
+    subs_alive="$(count_lines  "${report_dir}/domains_alive.txt")"
+    subs_added="$(count_lines  "${report_dir}/domains_diff.txt")"
+    ips="$(count_lines         "${report_dir}/infra_ipv4.txt")"
+    ips_added="$(count_lines   "${report_dir}/infra_ipv4_diff.txt")"
+    urls="$(count_lines        "${report_dir}/webapp_urls.txt")"
+    urls_added="$(count_lines  "${report_dir}/webapp_urls_diff.txt")"
+    vhosts_strong="$(count_lines "${report_dir}/vhost_subdomains.txt")"
+    vhosts_weak="$(count_lines   "${report_dir}/vhost_subdomains_weak.txt")"
+    vhosts_added="$(count_lines  "${report_dir}/vhost_subdomains_diff.txt")"
+    emails="$(count_lines        "${report_dir}/email_recon.txt")"
+    emails_added="$(count_lines  "${report_dir}/email_recon_diff.txt")"
+    secrets="$(count_body        "${report_dir}/webapp_js_secrets.txt")"
+    params="$(count_body         "${report_dir}/webapp_js_params.txt")"
+
+    info="0"; low="0"; med="0"; high="0"; crit="0"
+    if [[ -n "${nuclei_scan_file}" && -s "${nuclei_scan_file}" ]]; then
+        info="$(count_match "${nuclei_scan_file}" '\[info\]')"
+        low="$(count_match  "${nuclei_scan_file}" '\[low\]')"
+        med="$(count_match  "${nuclei_scan_file}" '\[medium\]')"
+        high="$(count_match "${nuclei_scan_file}" '\[high\]')"
+        crit="$(count_match "${nuclei_scan_file}" '\[critical\]')"
+    fi
+
+    llm_prompt=""
+    [[ -s "${report_dir}/llm-prompt.txt" ]] && llm_prompt="${report_dir}/llm-prompt.txt"
+
+    # Status is "finished" when build_llm_prompt produced its bundle —
+    # that's the last step of every successful flow. Otherwise the run
+    # ended early (failure / partial mode).
+    status="partial"
+    [[ -n "${llm_prompt}" ]] && status="finished"
 
     if [[ ! -s "${hist}" ]]; then
-        echo "date_recon,subdomains,ips,webapp_urls,vhosts_strong,vhosts_weak,emails,findings_high,findings_critical" > "${hist}"
+        echo "domain,run_id,run_date,started_at,finished_at,mode,subdomains,subdomains_alive,subdomains_added,ips,ips_added,webapp_urls,webapp_urls_added,vhosts_strong,vhosts_weak,vhosts_added,emails,emails_added,js_secrets,js_params,findings_info,findings_low,findings_medium,findings_high,findings_critical,report_dir,llm_prompt_path,status" > "${hist}"
     fi
-    printf '%s,%s,%s,%s,%s,%s,%s,%s,%s\n' "${date_recon}" "${subs}" "${ips}" "${urls}" "${vhosts_strong}" "${vhosts_weak}" "${emails}" "${high}" "${crit}" >> "${hist}"
+    printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' \
+        "${target}" "${run_id}" "${run_date:-${date_recon}}" "${started_at:-}" "${finished_at}" "${mode}" \
+        "${subs}" "${subs_alive}" "${subs_added}" \
+        "${ips}" "${ips_added}" \
+        "${urls}" "${urls_added}" \
+        "${vhosts_strong}" "${vhosts_weak}" "${vhosts_added}" \
+        "${emails}" "${emails_added}" \
+        "${secrets}" "${params}" \
+        "${info}" "${low}" "${med}" "${high}" "${crit}" \
+        "${report_dir}" "${llm_prompt}" "${status}" >> "${hist}"
 }
