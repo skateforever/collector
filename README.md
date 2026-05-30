@@ -143,6 +143,7 @@ A successful recon run produces the following tree under `${output_dir}/<domain>
         ├── vhost_subdomains_diff.txt
         ├── email_recon.txt
         ├── email_recon_diff.txt
+        ├── webapp_js_secrets.txt                  hardcoded keys/tokens/JWTs found in downloaded JS
         ├── robots_urls.txt
         ├── scan/
         │   ├── nmap/nmap_scan.txt

@@ -109,6 +109,10 @@ crawler_js(){
     fi
 
     echo "Done!"
+
+    # Post-process: scan everything we just downloaded for hardcoded
+    # credentials, API keys, JWTs, etc.
+    scan_js_secrets "${webapp_js_dir}" "${report_dir}/webapp_js_secrets.txt"
 }
 
 crawler_params(){
