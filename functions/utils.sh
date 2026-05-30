@@ -59,7 +59,8 @@ redact_secrets(){
     for _var in builtwith_api_key censys_api_id censys_api_secret \
                 dnsdumpster_api_key hunterio_api lampyre_api_key \
                 riskiq_api_key riskiq_api_secret securitytrails_api_key \
-                shodan_apikey virustotal_api_key whoisxmlapi_api_key; do
+                shodan_apikey snov_api_token virustotal_api_key \
+                whoisxmlapi_api_key; do
         _val="${!_var}"
         if [[ -n "${_val}" ]]; then
             _line="${_line//${_val}/***REDACTED***}"
