@@ -196,3 +196,205 @@ scan_js_params(){
         } | notify -nc -silent -id "${channel}" > /dev/null 2>&1
     fi
 }
+
+# Bundle every artifact produced under ${report_dir} into a single text file
+# an LLM can ingest as context for follow-up pentest work. The output is
+# self-describing: a system-style preamble explains what collector is and
+# how the data is laid out, followed by named sections, one per artifact.
+#
+# Large files are truncated head+tail to keep the bundle within typical
+# context windows; the truncation is annotated so the model knows it's
+# looking at a sample, not the full file. Operator API keys are redacted
+# from the body — the bundle is meant to leave the host.
+#
+# Output: ${report_dir}/llm-prompt.txt
+build_llm_prompt(){
+    local out_file="${report_dir}/llm-prompt.txt"
+    local max_lines="${llm_prompt_max_lines:-400}"
+    local f rel size lines head_n tail_n cut line
+
+    [[ ! -d "${report_dir}" ]] && return 0
+
+    # Order matters: high-signal artifacts first so a truncated context
+    # window still keeps the most actionable data.
+    local -a artifacts=(
+        "domains_found.txt"
+        "domains_diff.txt"
+        "domains_alive.txt"
+        "domains_without_resolution.txt"
+        "domains_excluded.txt"
+        "domains_aliases.txt"
+        "domains_thirdpart.txt"
+        "domains_infrastructure.txt"
+        "domains_internal_ipv4.txt"
+        "domains_external_ipv4.txt"
+        "domains_external_ipv6.txt"
+        "zone_transfer.txt"
+        "infra_as.txt"
+        "infra_ipv4.txt"
+        "infra_ipv4_diff.txt"
+        "infra_ipv6.txt"
+        "infra_blocks.txt"
+        "webapp_urls.txt"
+        "webapp_urls_diff.txt"
+        "vhost_subdomains.txt"
+        "vhost_subdomains_weak.txt"
+        "vhost_subdomains_diff.txt"
+        "email_recon.txt"
+        "email_recon_diff.txt"
+        "robots_urls.txt"
+        "webapp_js_secrets.txt"
+        "webapp_js_params.txt"
+        "scan/nmap/nmap_scan.txt"
+        "scan/nuclei/nuclei_scan.result"
+        "scan/nuclei/nuclei_scan_diff.txt"
+        "scan/nuclei/nuclei_web_fuzzing.result"
+        "scan/shodan/shodan_scan.txt"
+    )
+
+    : > "${out_file}"
+
+    {
+        echo "########################################################################"
+        echo "# COLLECTOR RECON BUNDLE — context for an LLM-driven pentest follow-up"
+        echo "########################################################################"
+        echo "#"
+        echo "# Target domain : ${domain:-${url_domain:-unknown}}"
+        echo "# Generated at  : $(date +"%Y-%m-%d %H:%M:%S %z")"
+        echo "# Source tool   : collector (https://github.com/skateforever/collector)"
+        echo "# Report dir    : ${report_dir}"
+        echo "#"
+        echo "# WHAT THIS FILE IS"
+        echo "# -----------------"
+        echo "# A consolidated, plain-text dump of the artifacts produced by a"
+        echo "# collector recon run against the target above. Each artifact is"
+        echo "# enclosed in a delimited section so it can be parsed back out by"
+        echo "# string matching:"
+        echo "#"
+        echo "#     ===== BEGIN <relative/path> ====="
+        echo "#     ... raw file content ..."
+        echo "#     ===== END <relative/path> ====="
+        echo "#"
+        echo "# Files larger than ${max_lines} lines are truncated head+tail and the cut"
+        echo "# is annotated inline (\"... [TRUNCATED N lines] ...\")."
+        echo "# Empty or missing artifacts are listed in the INDEX but their body"
+        echo "# is omitted from the bundle."
+        echo "#"
+        echo "# HOW TO USE THIS FILE (instructions for the receiving LLM)"
+        echo "# --------------------------------------------------------"
+        echo "# You are an offensive-security assistant. Treat this bundle as the"
+        echo "# ground-truth result of a passive + active reconnaissance phase"
+        echo "# performed with explicit authorization on the target domain."
+        echo "# Do not invent hosts, IPs, URLs, secrets or findings that are not"
+        echo "# present in this bundle — operate strictly on the data below plus"
+        echo "# any prompts the operator provides next."
+        echo "#"
+        echo "# Typical follow-up tasks the operator will ask you to perform:"
+        echo "#   * Prioritize subdomains / URLs / IPs by likely impact and reach"
+        echo "#   * Identify lateral surface (vhosts, internal IPs, AS context)"
+        echo "#   * Triage nuclei findings: severity, exploitability, prerequisites"
+        echo "#   * Triage webapp_js_secrets.txt and webapp_js_params.txt — propose"
+        echo "#     concrete manual tests (parameter names, sinks, sample payloads)"
+        echo "#   * Suggest next active steps: auth bypass attempts, SSRF probes,"
+        echo "#     IDOR test cases, business-logic abuse, supply-chain checks"
+        echo "#   * Draft client-facing write-ups (executive summary + technical"
+        echo "#     detail + reproduction steps + remediation)"
+        echo "#"
+        echo "# CONSTRAINTS"
+        echo "# -----------"
+        echo "# * Stay within the scope implied by the artifacts (target domain"
+        echo "#   and its discovered subdomains / netblocks). Flag — do not act"
+        echo "#   on — anything that looks out-of-scope (3rd-party CDNs,"
+        echo "#   unrelated ASNs, etc.)."
+        echo "# * Treat any token / key / JWT in webapp_js_secrets.txt as a hint,"
+        echo "#   not a guaranteed live credential. Recommend validation steps"
+        echo "#   instead of assuming compromise."
+        echo "# * webapp_js_params.txt categories (SQLi, XSS_*, SSRF_*, XXE,"
+        echo "#   CMD_*, PATH_*, DOM_SINK, POSTMSG, CRYPTO_WEAK, PROTO_POLLUTION,"
+        echo "#   INTERNAL_HOST) mark code paths worth poking at; they are NOT"
+        echo "#   confirmed vulnerabilities. Translate each into a concrete"
+        echo "#   manual test plan when the operator asks."
+        echo "# * Internal/RFC1918 hosts and metadata IPs (169.254.169.254 etc.)"
+        echo "#   surfaced in JS or configs are SSRF-relevant and should be"
+        echo "#   highlighted, never reached out to."
+        echo "#"
+        echo "# ARTIFACT GLOSSARY"
+        echo "# -----------------"
+        echo "# domains_found / _diff           — union of all subdomain sources"
+        echo "# domains_alive                   — subdomains that resolve"
+        echo "# domains_without_resolution      — candidates for vhost probing"
+        echo "# domains_aliases / _thirdpart    — CNAME/external delegation hints"
+        echo "# domains_infrastructure          — A/AAAA/MX/NS landing IPs"
+        echo "# domains_internal_ipv4           — RFC1918 / link-local exposure"
+        echo "# domains_external_ipv4 / _ipv6   — public IPs the target lives on"
+        echo "# zone_transfer                   — AXFR results (rare, high signal)"
+        echo "# infra_as / infra_blocks         — AS / BGP / netblock ownership"
+        echo "# infra_ipv4 / _ipv4_diff         — consolidated IP universe + delta"
+        echo "# webapp_urls / _diff             — live HTTP(S) URLs (scheme://host[:port])"
+        echo "# vhost_subdomains / _weak / _diff — vhost discovery (STRONG vs WEAK confidence)"
+        echo "# email_recon / _diff             — emails harvested per source"
+        echo "# robots_urls                     — paths extracted from robots.txt"
+        echo "# webapp_js_secrets               — hardcoded keys/tokens/JWTs in JS"
+        echo "# webapp_js_params                — param names + DOM/JS sinks worth poking"
+        echo "# scan/nmap/nmap_scan             — port + service fingerprints"
+        echo "# scan/nuclei/nuclei_scan*        — template-based findings"
+        echo "# scan/nuclei/nuclei_web_fuzzing  — fuzzing-template findings"
+        echo "# scan/shodan/shodan_scan         — Shodan host facts"
+        echo "#"
+        echo "########################################################################"
+        echo
+    } >> "${out_file}"
+
+    # Index of artifacts present / absent so the model can plan up front.
+    {
+        echo "===== INDEX ====="
+        for rel in "${artifacts[@]}"; do
+            f="${report_dir}/${rel}"
+            if [[ -s "${f}" ]]; then
+                lines=$(wc -l < "${f}" 2>/dev/null | tr -d ' ')
+                size=$(wc -c < "${f}" 2>/dev/null | tr -d ' ')
+                printf '  [present] %-44s lines=%s size=%s\n' "${rel}" "${lines}" "${size}"
+            else
+                printf '  [empty]   %s\n' "${rel}"
+            fi
+        done
+        echo "===== END INDEX ====="
+        echo
+    } >> "${out_file}"
+
+    # Emit each artifact in a delimited section. Truncate aggressively so
+    # the bundle stays digestible by typical LLM context windows.
+    for rel in "${artifacts[@]}"; do
+        f="${report_dir}/${rel}"
+        [[ ! -s "${f}" ]] && continue
+
+        echo "===== BEGIN ${rel} =====" >> "${out_file}"
+        lines=$(wc -l < "${f}" 2>/dev/null | tr -d ' ')
+        if [[ "${lines:-0}" -gt "${max_lines}" ]]; then
+            head_n=$(( max_lines / 2 ))
+            tail_n=$(( max_lines - head_n ))
+            cut=$(( lines - max_lines ))
+            while IFS= read -r line; do
+                redact_secrets "${line}"; echo
+            done < <(head -n "${head_n}" "${f}") >> "${out_file}"
+            echo "... [TRUNCATED ${cut} lines] ..." >> "${out_file}"
+            while IFS= read -r line; do
+                redact_secrets "${line}"; echo
+            done < <(tail -n "${tail_n}" "${f}") >> "${out_file}"
+        else
+            while IFS= read -r line; do
+                redact_secrets "${line}"; echo
+            done < "${f}" >> "${out_file}"
+        fi
+        echo "===== END ${rel} =====" >> "${out_file}"
+        echo >> "${out_file}"
+    done
+
+    {
+        echo "===== END OF BUNDLE ====="
+        echo "# Total artifacts included : $(grep -c '^===== BEGIN ' "${out_file}")"
+        echo "# Bundle size              : $(wc -c < "${out_file}" | tr -d ' ') bytes"
+    } >> "${out_file}"
+
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} LLM prompt bundle written → ${out_file}"
+}

@@ -60,6 +60,7 @@ url_recon(){
         fi
     done
 
+    build_llm_prompt
     message "${url_verify}" finished
     rm "${recon_dir}/url_test.txt" > /dev/null 2>&1) 2>> "${log_execution_file}"| tee -a "${log_execution_file}"
 }
