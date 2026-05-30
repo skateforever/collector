@@ -19,12 +19,15 @@ git_rebuild(){
         if grep -q ".git/config" "${webapp_enum_dir}/${file}"; then
             target_dir="${report_dir}/$(grep -E "Target:|Url:" "${webapp_enum_dir}/${file}" | sed -e 's/^\[+\] //' | awk '{print $2}' | sed -e 's/\/$//' -e 's/http:\/\///' -e 's/https:\/\///')"
             target=$(grep -E "Target:|Url:" "${webapp_enum_dir}/${file}" | sed -e 's/^\[+\] //' | awk '{print $2}' | sed -e 's/\/$//')
+            # Use a private temp file (700 perms) so a hostile local user
+            # can't symlink-attack a fixed /tmp path or read the response.
+            git_config_tmp=$(mktemp -t collector_git_config.XXXXXX) || continue
             if [ -n "${proxy_ip}" ] && [ "${proxy_ip}" == "yes" ]; then
                 # Probe for .git/config: fast profile — a slow target here is
                 # effectively a dead one and would stall the whole sweep.
-                if [[ "200" -eq "$(curl "${curl_options_fast[@]}" -H "User-agent: ${user_agent}" --proxy "${proxy_ip}" -o /tmp/git_config -w "%{http_code}\n" "${target}/.git/config")" ]] && \
-                    [[ $(grep -Eq  "^\[core\]|^\[remote.*\]|^\[branch.*\]" /tmp/git_config; echo "$?") -eq "0" ]]; then
-                    rm -rf /tmp/git_config
+                if [[ "200" -eq "$(curl "${curl_options_fast[@]}" -H "User-agent: ${user_agent}" --proxy "${proxy_ip}" -o "${git_config_tmp}" -w "%{http_code}\n" "${target}/.git/config")" ]] && \
+                    [[ $(grep -Eq  "^\[core\]|^\[remote.*\]|^\[branch.*\]" "${git_config_tmp}"; echo "$?") -eq "0" ]]; then
+                    rm -f "${git_config_tmp}"
                     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Found .git on ${green}${target}${reset}!"
                     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Creating the .git directory structure for ${green}${target}${reset}... "
                     echo "Done!"
@@ -51,9 +54,9 @@ git_rebuild(){
                 fi
             else
                 # Probe for .git/config: fast profile (see comment above).
-                if [[ "200" -eq "$(curl "${curl_options_fast[@]}" -H "User-agent: ${user_agent}" -o /tmp/git_config -s -w "%{http_code}" "${target}/.git/config")" ]] && \
-                    [[ $(grep -Eq "^\[core\]|^\[remote.*\]|^\[branch.*\]" /tmp/git_config; echo "$?") -eq "0" ]]; then
-                    rm -rf /tmp/git_config
+                if [[ "200" -eq "$(curl "${curl_options_fast[@]}" -H "User-agent: ${user_agent}" -o "${git_config_tmp}" -s -w "%{http_code}" "${target}/.git/config")" ]] && \
+                    [[ $(grep -Eq "^\[core\]|^\[remote.*\]|^\[branch.*\]" "${git_config_tmp}"; echo "$?") -eq "0" ]]; then
+                    rm -f "${git_config_tmp}"
                     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Found .git on ${green}${target}${reset}!"
                     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Creating the .git directory structure for ${green}${target}${reset}... "
                     echo "Done!"
@@ -79,6 +82,9 @@ git_rebuild(){
                     cd "${dir_origem}" || exit
                 fi
             fi
+            # Defensive cleanup if the probe didn't match and the file was
+            # left behind by either branch above.
+            rm -f "${git_config_tmp}"
         fi
     done
 }

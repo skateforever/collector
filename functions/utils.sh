@@ -49,3 +49,21 @@ reset_vars(){
     unset webapp_port_detect
     unset webapp_wordlists
 }
+
+# Replace any occurrence of the configured API keys with a redacted marker.
+# Use before writing curl command lines or response bodies to log files,
+# so that sharing the log for debugging doesn't leak credentials.
+redact_secrets(){
+    local _line="$1"
+    local _var _val
+    for _var in builtwith_api_key censys_api_id censys_api_secret \
+                dnsdumpster_api_key hunterio_api lampyre_api_key \
+                riskiq_api_key riskiq_api_secret securitytrails_api_key \
+                shodan_apikey virustotal_api_key whoisxmlapi_api_key; do
+        _val="${!_var}"
+        if [[ -n "${_val}" ]]; then
+            _line="${_line//${_val}/***REDACTED***}"
+        fi
+    done
+    printf '%s' "${_line}"
+}

@@ -65,6 +65,14 @@ fi
 if  [[ "${domainlist_check}" == "yes" && -s "${domain_list}" ]]; then
     unset domain
     while read -r domain; do
+        # Skip blank lines and comments, and reject malformed entries instead
+        # of letting them flow into URLs and filesystem paths.
+        [[ -z "${domain}" || "${domain}" =~ ^[[:space:]]*# ]] && continue
+        domain="${domain//[[:space:]]/}"
+        if ! validate_domain "${domain}"; then
+            echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Skipping invalid domain from ${domain_list}: ${domain}"
+            continue
+        fi
         check_is_known_target "${domain}"
         create_directory_structure
         domains_recon
