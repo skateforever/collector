@@ -1,0 +1,46 @@
+# Param/sink scan patterns for scan_js_params.
+# Format: <category>|<ERE regex>
+# Lines starting with # and blank lines are ignored.
+# A hit means "worth a manual look", not "vulnerable".
+# Patterns are portable ERE so they work on both GNU and BSD grep
+# (no \b word boundaries).
+
+# ---- SQLi-flavored param names commonly reflected in queries ----
+SQLi|[?&"']((id|uid|user_?id|account_?id|order_?id|product_?id|item_?id|cat|category|sort|order|filter|search|q|query|sql|where|select|table|column|page|per_?page|limit|offset)=|\.(id|userId|accountId|orderId)[[:space:]]*[=:])
+
+# ---- XSS sources / sinks ----
+XSS_SOURCE|(location\.(search|hash|href|pathname)|document\.(URL|documentURI|baseURI|referrer|cookie)|window\.name|history\.(state|pushState|replaceState))
+XSS_SINK|(\.innerHTML|\.outerHTML|document\.write(ln)?|\.insertAdjacentHTML|\$\([^)]*\)\.html\(|\.setAttribute\([[:space:]]*["'](src|href|action|formaction|data|on[a-z]+)["']|\.srcdoc|element\.html\()
+
+# ---- SSRF-shaped param names + URL-fetching sinks ----
+SSRF_PARAM|[?&"']((url|uri|next|redirect|redirect_?uri|return|return_?url|callback|callback_?url|continue|dest|destination|target|target_?url|to|forward|forward_?url|fetch|fetch_?url|webhook|proxy|proxy_?url|src|source|image|img|avatar|file|filename|path|page|domain|host|hostname|address|api|api_?url|endpoint)=)
+SSRF_SINK|(fetch[[:space:]]*\(|new[[:space:]]+XMLHttpRequest|\.open[[:space:]]*\([[:space:]]*["'](GET|POST|PUT|DELETE|PATCH)["']|axios\.(get|post|put|delete|patch|request)|\$\.(ajax|get|post)|navigator\.sendBeacon|EventSource\(|new[[:space:]]+WebSocket\()
+
+# ---- Open redirect sinks ----
+OPEN_REDIRECT|(location[[:space:]]*=|location\.(href|assign|replace)[[:space:]]*=?[[:space:]]*\(?|window\.open[[:space:]]*\()
+
+# ---- XXE / XML parsers reachable from JS ----
+XXE|(DOMParser\(\)\.parseFromString|new[[:space:]]+DOMParser\(\)|loadXML[[:space:]]*\(|XMLHttpRequest.*responseXML|libxmljs|fast-xml-parser|xml2js)
+
+# ---- Command-injection / server-side template flavored names ----
+CMD_PARAM|[?&"']((cmd|command|exec|run|do|action|task|operation|shell|ip|host|ping|domain|name|file|filename)=|`[^`]*\$\{)
+CMD_SINK|(child_process\.(exec|execSync|spawn|spawnSync|fork)|require\(["']child_process|process\.exec|new[[:space:]]+Function\(|eval[[:space:]]*\()
+
+# ---- Path-traversal flavored names + Node fs sinks ----
+PATH_PARAM|[?&"']((file|filepath|path|dir|folder|root|template|include|require|load|page|view|theme|module|locale)=)
+PATH_SINK|(fs\.(readFile|readFileSync|createReadStream|writeFile|writeFileSync|unlink|unlinkSync|stat|lstat|access|exists)|require\([[:space:]]*[a-zA-Z_$])
+
+# ---- DOM clobbering / DOM-XSS specific ----
+DOM_SINK|(eval[[:space:]]*\(|setTimeout[[:space:]]*\([[:space:]]*["'`]|setInterval[[:space:]]*\([[:space:]]*["'`]|new[[:space:]]+Function\(|Function[[:space:]]*\([[:space:]]*["'`])
+
+# ---- postMessage handlers without origin checks ----
+POSTMSG|(addEventListener[[:space:]]*\([[:space:]]*["']message["']|window\.onmessage[[:space:]]*=)
+
+# ---- Weak crypto / homegrown auth ----
+CRYPTO_WEAK|(\.createHash\([[:space:]]*["'](md5|sha1)["']|CryptoJS\.(MD5|SHA1)|Math\.random\([[:space:]]*\)[[:space:]]*\.toString)
+
+# ---- Prototype pollution sinks ----
+PROTO_POLLUTION|(__proto__|constructor\.prototype|Object\.assign\([[:space:]]*[a-zA-Z_$])
+
+# ---- Hardcoded internal hosts that often hint at SSRF reach ----
+INTERNAL_HOST|(localhost|127\.0\.0\.1|169\.254\.169\.254|metadata\.google\.internal|\.consul|\.svc\.cluster\.local|10\.[0-9]+\.[0-9]+\.[0-9]+|192\.168\.[0-9]+\.[0-9]+|172\.(1[6-9]|2[0-9]|3[0-1])\.[0-9]+\.[0-9]+)
