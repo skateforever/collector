@@ -414,7 +414,7 @@ build_llm_prompt(){
 db_usage(){
     local target="${domain:-${url_domain}}"
     local hist="${output_dir}/${target}/${target}_history.csv"
-    local db="${collector_db:-${output_dir}/collector-results-db}"
+    local db="${collector_db:-${output_dir}/${collector_db_name:-collector-results-db}}"
     local schema="${collector_db_schema:-support/collector-sqlite-schema.sqlite}"
     [[ "${schema}" != /* ]] && schema="${collector_path:-.}/${schema}"
     local fresh=0
@@ -558,13 +558,16 @@ SQL
 # if a previous recon run already started it, this is a no-op so multiple
 # concurrent runs don't fight over the socket.
 start_app_report(){
+    if [[ "${app_report_enabled:-yes}" != "yes" ]]; then
+        return 0
+    fi
     local app_dir="${app_report_dir:-support/app-report}"
     [[ "${app_dir}" != /* ]] && app_dir="${collector_path:-.}/${app_dir}"
     local host="${app_report_host:-127.0.0.1}"
     local port="${app_report_port:-8000}"
-    local pidfile="${app_report_pidfile:-${output_dir}/.app-report.pid}"
-    local logfile="${app_report_logfile:-${output_dir}/.app-report.log}"
-    local db="${collector_db:-${output_dir}/collector-results-db}"
+    local pidfile="${app_report_pidfile:-${output_dir}/${app_report_pidfile_name:-.app-report.pid}}"
+    local logfile="${app_report_logfile:-${output_dir}/${app_report_logfile_name:-.app-report.log}}"
+    local db="${collector_db:-${output_dir}/${collector_db_name:-collector-results-db}}"
 
     if [[ ! -d "${app_dir}" ]]; then
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} start_app_report: ${app_dir} not found, skipping."

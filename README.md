@@ -56,6 +56,11 @@ List of tools for webapp scan used in the collector:</br>
 
 * nuclei
 
+Persistence and reporting (optional but enabled by default):</br>
+
+* sqlite3 — every run is appended to `${output_dir}/collector-results-db` by `db_usage()`
+* python3 + flask + gunicorn — `start_app_report()` serves a read-only web UI at `http://127.0.0.1:8000` from `support/app-report/`
+
 I tried my best to make the collector as simple as possible, but I also tried to ensure that the execution wasn't done haphazardly. Therefore, you'll notice that the execution is somewhat locked into a flow to obtain:
 
 1. Domain, subdomains, IPs, and aliases;
@@ -106,6 +111,9 @@ For unattended execution, drop-in `collector-cron` (cron) and `collector-systemd
 - Nuclei scan
 - Git repository rebuild via git-dumper
 - Per-target lockfile (flock) so concurrent invocations for the same domain abort instead of corrupting state
+- `llm-prompt.txt` per run: a self-describing bundle of the run's artifacts (with secret redaction and per-section truncation) ready to paste into any LLM for follow-up pentest analysis
+- SQLite ingestion: each run is upserted into `${output_dir}/collector-results-db` (idempotent, write-only-on-change) by `db_usage()` — single file, WAL journaling, FK-protected, `latest_run` view shipped
+- Flask + HTMX read-only web UI at `http://127.0.0.1:8000` (`support/app-report/`) auto-started by `start_app_report()` after each run; PID-file gated so concurrent runs don't fight over the socket
 
 ### Output layout
 
@@ -162,6 +170,44 @@ A successful recon run produces the following tree under `${output_dir}/<domain>
 ```
 
 URL-only mode (`--url`) writes under `${output_dir}/<url_domain>/url_<date>/` with the same `report/` shape (no `nmap`/`shodan` since infra discovery is skipped).
+
+### Results database (SQLite)
+
+After every successful run, `db_usage()` ingests the latest row from `${domain}_history.csv` into `${output_dir}/collector-results-db` (override with `collector_db` in `collector.cfg`). Bootstrap is automatic from `support/collector-sqlite-schema.sqlite` on first use.
+
+The schema is intentionally narrow:
+
+* `targets(domain PK, first_seen, scope_notes)` — one row per FQDN.
+* `recon_runs(domain, run_id, run_date, started_at, finished_at, mode, subdomains, subdomains_alive, subdomains_added, ips, ips_added, webapp_urls, webapp_urls_added, vhosts_strong, vhosts_weak, vhosts_added, emails, emails_added, js_secrets, js_params, findings_info/low/medium/high/critical, report_dir, llm_prompt_path, status, ingested_at)` with composite PK `(domain, run_id)` and FK on `targets`.
+* Indexes on `run_date`, `(domain, run_date)`, `(mode, run_date)`.
+* `latest_run` view — most recent execution per target.
+
+Ingestion is idempotent: re-importing the same `run_id` only writes when payload columns actually differ. WAL journaling lets readers (the web UI, your own queries) work concurrently with the writer. Backup is `cp collector-results-db ...` or `sqlite3 collector-results-db ".backup '...'"`.
+
+Quick queries:
+
+```bash
+sqlite3 collector-results-db "SELECT domain, run_date, findings_critical, findings_high, js_secrets FROM latest_run ORDER BY findings_critical DESC, findings_high DESC;"
+sqlite3 collector-results-db "SELECT run_date, subdomains, webapp_urls, findings_critical FROM recon_runs WHERE domain='example.com' ORDER BY run_date DESC LIMIT 10;"
+```
+
+### Web UI (`support/app-report/`)
+
+A single-file Flask + HTMX read-only viewer over `collector-results-db`. After `db_usage` finishes, `start_app_report()` launches `gunicorn` on `${app_report_host}:${app_report_port}` (default `127.0.0.1:8000`) in the background, gated by `${output_dir}/.app-report.pid` so multiple recon runs share one server. To skip the launcher entirely, set `app_report_enabled="no"` in `collector.cfg`.
+
+Routes:
+
+* `/` — KPIs (targets, runs, totals, severity breakdown) + per-target latest-run table sorted by criticality.
+* `/targets/<domain>` — counters, severity badges, Chart.js trend line over the run history, full run timeline.
+* `/runs` — filterable, paginated run list (HTMX-backed: live filtering by domain/mode without full-page reload).
+* `/health` — JSON liveness probe (`{"ok": true, "targets": N}`).
+
+Config is environment-driven (`COLLECTOR_DB`, `COLLECTOR_OUTPUT_DIR`, `APP_REPORT_HOST`, `APP_REPORT_PORT`) — `start_app_report` populates the env from `collector.cfg`. The DB connection is opened with `mode=ro` URI mode so a misbehaving worker can't corrupt the file `db_usage` writes to. To run it manually for development:
+
+```bash
+cd support/app-report && pip install -r requirements.txt
+COLLECTOR_DB=/path/to/collector-results-db python3 app.py
+```
 
 ### Screenshots
 
