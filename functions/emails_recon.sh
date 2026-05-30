@@ -36,8 +36,10 @@ emails_recon(){
         return 1
     fi
 
-    local _emails_tmp
-    _emails_tmp="$(mktemp "${tmp_dir}/emails_recon.XXXXXX")"
+    # All intermediate hits (from every phase) accumulate here. Truncated at
+    # the start of each run so reruns don't carry stale data.
+    local _emails_tmp="${tmp_dir}/email_recon.tmp"
+    : > "${_emails_tmp}"
 
     ###########################################################
     # 1) Hunter.io                                            #
@@ -90,39 +92,36 @@ emails_recon(){
     ###########################################################
     local _urls_file="${report_dir}/webapp_urls.txt"
     if [[ -s "${_urls_file}" ]]; then
-        local _crawl_tmp
-        _crawl_tmp="$(mktemp "${tmp_dir}/emails_crawl.XXXXXX")"
-        local _js_tmp
-        _js_tmp="$(mktemp "${tmp_dir}/emails_crawl_js.XXXXXX")"
         local _max_js="${webapp_email_max_js_per_url:-20}"
+        local _body_file="${tmp_dir}/email_recon_body.tmp"
+        local _js_file="${tmp_dir}/email_recon_js.tmp"
 
-        local url body_file js_url js_count js_abs scheme host base
+        local url js_url js_count js_abs scheme host base
         while IFS= read -r url; do
             [[ -z "${url}" ]] && continue
             unset user_agent
             user_agent="$(get_user_agent)"
 
-            # Fetch page root HTML.
-            body_file="$(mktemp "${tmp_dir}/emails_body.XXXXXX")"
+            # Fetch page root HTML into the shared scratch body file.
+            : > "${_body_file}"
             echo "curl ${curl_options[@]} -L -H \"User-agent: ${user_agent}\" \"${url}\"" \
                 >> "${log_execution_file}"
             curl "${curl_options[@]}" -L -H "User-agent: ${user_agent}" \
-                "${url}" -o "${body_file}" 2>> "${log_execution_file}" || true
+                "${url}" -o "${_body_file}" 2>> "${log_execution_file}" || true
 
-            # Mine emails from the page itself.
-            _emails_filter_to_target "${body_file}" "${_crawl_tmp}"
+            # Mine emails from the page itself into the unified .tmp.
+            _emails_filter_to_target "${_body_file}" "${_emails_tmp}"
 
             # Derive base URL (scheme://host[:port]) for resolving relative JS srcs.
             scheme="$(echo "${url}" | awk -F: '{print $1}')"
             host="$(echo "${url}" | awk -F/ '{print $3}')"
             base="${scheme}://${host}"
 
-            # Extract referenced .js URLs from the HTML (src="...js..." or
-            # src='...js...'). Cap to webapp_email_max_js_per_url.
+            # Extract referenced .js URLs (src="...js..." or src='...js...').
+            # Cap to webapp_email_max_js_per_url.
             js_count=0
             while IFS= read -r js_url; do
                 [[ -z "${js_url}" ]] && continue
-                # Resolve relative URLs against the page base.
                 if [[ "${js_url}" =~ ^https?:// ]]; then
                     js_abs="${js_url}"
                 elif [[ "${js_url}" == //* ]]; then
@@ -135,37 +134,33 @@ emails_recon(){
 
                 echo "curl ${curl_options[@]} -L -H \"User-agent: ${user_agent}\" \"${js_abs}\"" \
                     >> "${log_execution_file}"
-                : > "${_js_tmp}"
+                : > "${_js_file}"
                 curl "${curl_options[@]}" -L -H "User-agent: ${user_agent}" \
-                    "${js_abs}" -o "${_js_tmp}" 2>> "${log_execution_file}" || true
-                _emails_filter_to_target "${_js_tmp}" "${_crawl_tmp}"
+                    "${js_abs}" -o "${_js_file}" 2>> "${log_execution_file}" || true
+                _emails_filter_to_target "${_js_file}" "${_emails_tmp}"
 
                 (( js_count+=1 ))
                 [[ "${js_count}" -ge "${_max_js}" ]] && break
-            done < <(grep -EohI 'src=["'\''][^"'\'' >]+\.js[^"'\'' >]*' "${body_file}" 2>/dev/null \
+            done < <(grep -EohI 'src=["'\''][^"'\'' >]+\.js[^"'\'' >]*' "${_body_file}" 2>/dev/null \
                         | sed -E 's/^src=["'\'']//' | sort -u)
 
-            rm -f "${body_file}"
-            unset url body_file js_url js_count js_abs scheme host base
+            unset url js_url js_count js_abs scheme host base
         done < "${_urls_file}"
 
-        # Append crawl findings to main pool.
-        cat "${_crawl_tmp}" >> "${_emails_tmp}" 2>/dev/null || true
-        rm -f "${_crawl_tmp}" "${_js_tmp}"
+        rm -f "${_body_file}" "${_js_file}"
     fi
 
     ###########################################################
-    # Consolidate                                             #
+    # Consolidate -> ${report_dir}/email_recon.txt            #
     ###########################################################
     if [[ -s "${_emails_tmp}" ]]; then
-        # Lowercase, strip junk, dedupe.
+        # Lowercase, strip junk, dedupe into the final report file.
         tr '[:upper:]' '[:lower:]' < "${_emails_tmp}" \
             | grep -EohI "${webapp_email_regex}" \
-            | sort -u >> "${report_dir}/emails.txt"
+            | sort -u >> "${report_dir}/email_recon.txt"
         # Final dedupe in case the file already existed.
-        sort -u -o "${report_dir}/emails.txt" "${report_dir}/emails.txt"
+        sort -u -o "${report_dir}/email_recon.txt" "${report_dir}/email_recon.txt"
     fi
-    rm -f "${_emails_tmp}"
 
     echo "Done!"
 }
