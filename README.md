@@ -66,37 +66,100 @@ As you can see, I need to follow a logical sequence to obtain the expected resul
 
 ## How collector works?
 
-First step: **./collector --domain abc.com --recon**</br>
-Second step: **./collector --domain abc.com --webapp-discovery --webapp-short-detection**</br>
+First step (passive + active subdomain discovery, infra, alive check):</br>
+**./collector -d abc.com --recon --webapp-discovery**</br>
 
-In the second step, we only need to pay attention to specifying which ports we will use to discover which web applications are active.</br>
+Second step (web enumeration over the URLs found in step 1):</br>
+**./collector -d abc.com --webapp-enum --webapp-wordlist /path/to/wordlist**</br>
 
-To see which ports you want to analyze, check the **collector.cfg** file and view the options for this action; use **./collector --help**</br>
+You can combine everything in a single run:</br>
+**./collector -d abc.com --recon --webapp-discovery --webapp-enum --webapp-wordlist /path/to/wordlist --webapp-scan**</br>
+
+Run against a list of targets (one domain per line, `#` for comments):</br>
+**./collector -dl /etc/collector/targets.list --recon --webapp-discovery**</br>
+
+Or enumerate a single URL only:</br>
+**./collector --url http://abc.com --webapp-wordlist /path/to/wordlist**</br>
+
+To see which ports are probed and tweak tool parameters, check **collector.cfg**. Use **./collector --help** for the full flag list.</br>
 
 ![collector-help.png](https://raw.githubusercontent.com/skateforever/collector/main/demo/collector-help.png) </br>
 
-And in the last step: **./collector --domain abc.com --webapp-enum --webapp-wordlist /path/to/wordlist**</br>
-
-Just like in the second step, in the third step we need to specify another option, in order to perform the enumeration action, which is the wordlist.</br>
-
-And we can combine all option: **./collector --domain abc.com --recon --webapp-discovery --webapp-short-detection --webapp-enum --webapp-wordlist /path/to/wordlist**</br>
-
-You can use the collector to enumerate only an url: **./collector --url http://abc.com --webapp-wordlist /path/to/wordlist**
+For unattended execution, drop-in `collector-cron` (cron) and `collector-systemd-timer` (systemd template units) are shipped at the repo root — daily light recon + weekly heavy run, with per-target locking so overlapping invocations abort cleanly.
 
 **Use as you need.**
 
 ### Main features
 
-- Create a dated folder with recon notes
-- Grab subdomains using:
-  - Amass, certspotter, cert.sh, subfinder and Sublist3r
-  - Dns bruteforcing using amass, gobuster and dnssearch
-- The diff\_domains function to improve the time of execution, get just what change on target infraestructure
-- Probe for live hosts over some ports like 80, 443, 8080, etc
-- The webapp\_enum funtion from collector work when you put a list of URLs from file.
-  - Perform dirsearch and gobuster for all subdomains 
-  - Scrape wayback
-- Rebuild GIT repository
+- Per-run dated folder (`recon_YYYYMMDD`) with logs, tmp, and a structured report tree
+- Subdomain discovery via amass, subfinder, certspotter, crt.sh, dnsdumpster, hackertarget, rapiddns, securitytrails, virustotal, webarchive, builtwith, whoisxmlapi, and others
+- DNS bruteforce via amass, gobuster, dnssearch
+- Infrastructure enrichment: AS / IPv4 / IPv6 / netblocks / nmap / shodan
+- Per-artifact diff vs. the previous run (subdomains, IPs, webapp URLs, vhosts, emails, nuclei findings) — only deltas are pushed to the notify channel
+- `_history.csv` per target: one row per execution with subdomain / IP / URL / vhost / email / finding counts (always written, even when there is no diff)
+- Live-host detection over the ports listed in `webapp_port_detect`
+- vhost discovery (parallel curl + httpx, STRONG vs. WEAK confidence)
+- Email recon: Hunter.io, Lampyre, Snov.io, plus crawl of `webapp_urls.txt` (page root + referenced JS) filtered to the target domain
+- Webapp enumeration with dirsearch and gobuster, plus `robots.txt` URL extraction
+- JS scraping (katana) and parameter mining (waybackurls)
+- Aquatone screenshots
+- Nuclei scan
+- Git repository rebuild via git-dumper
+- Per-target lockfile (flock) so concurrent invocations for the same domain abort instead of corrupting state
+
+### Output layout
+
+A successful recon run produces the following tree under `${output_dir}/<domain>/recon_<date>/`:
+
+```
+<domain>/
+├── _history.csv                                  per-run trend log (always appended)
+├── domains_ignore.txt                            (optional, user-maintained allowlist)
+└── recon_YYYYMMDD/
+    ├── log/recon_YYYYMMDD.log
+    ├── tmp/                                       intermediate files (json/tmp/html from each source)
+    └── report/
+        ├── domains_found.txt                      union of every subdomain source
+        ├── domains_diff.txt                       added/removed vs. previous run
+        ├── domains_alive.txt                      subdomains that resolve
+        ├── domains_without_resolution.txt         candidates for vhost probing
+        ├── domains_excluded.txt
+        ├── domains_aliases.txt
+        ├── domains_thirdpart.txt
+        ├── domains_infrastructure.txt
+        ├── domains_internal_ipv4.txt
+        ├── domains_external_ipv4.txt
+        ├── domains_external_ipv6.txt
+        ├── zone_transfer.txt
+        ├── infra_as.txt                           AS / BGP prefix info from team-cymru
+        ├── infra_ipv4.txt
+        ├── infra_ipv4_diff.txt
+        ├── infra_ipv6.txt
+        ├── infra_blocks.txt                       owned netblocks
+        ├── webapp_urls.txt                        live HTTP(S) URLs
+        ├── webapp_urls_diff.txt
+        ├── vhost_subdomains.txt                   STRONG hits (curl AND httpx differ from baseline)
+        ├── vhost_subdomains_weak.txt              WEAK hits (only one probe differs)
+        ├── vhost_subdomains_diff.txt
+        ├── email_recon.txt
+        ├── email_recon_diff.txt
+        ├── robots_urls.txt
+        ├── scan/
+        │   ├── nmap/nmap_scan.txt
+        │   ├── nuclei/nuclei_scan.result
+        │   ├── nuclei/nuclei_scan_diff.txt
+        │   ├── nuclei/nuclei_web_fuzzing.result
+        │   └── shodan/shodan_scan.txt
+        └── webapp/
+            ├── aquatone/                          screenshots + aquatone report
+            ├── enum/<host>.gobuster.N             one file per (host, port)
+            ├── enum/<host>.dirsearch.N
+            ├── javascript/<host>/<file>.js        downloaded JS for offline review
+            ├── params/                            katana / waybackurls output
+            └── tech/<host>.tech                   response headers for fingerprinting
+```
+
+URL-only mode (`--url`) writes under `${output_dir}/<url_domain>/url_<date>/` with the same `report/` shape (no `nmap`/`shodan` since infra discovery is skipped).
 
 ### Screenshots
 
