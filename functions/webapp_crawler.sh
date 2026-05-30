@@ -8,103 +8,148 @@
 #   * crawler_js                                                          #
 #   * crawler_params                                                      #
 #                                                                         #
-########################################################################### 
+###########################################################################
 
 crawler_js(){
-    target="$1"
-    urls_file="$2"
+    local target="$1"
+    local urls_file="$2"
+    local js_files="${tmp_dir}/js_files.tmp"
+    local domain_re="${target//./\\.}"
+    local user_agent subdomain js_url js_abs js_file_dir js_file_name js_status scheme host base
+
     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Initializing the web application js crawler and this might take a certain time!"
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing js crawler... "
+
     if [ "$#" != 2 ] || [ ! -s "${urls_file}" ]; then
         echo "Fail!"
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Please, especify just 1 file to get URL from."
         echo -e "Please, especify just 1 file to get URL from." | notify -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
         message "${target}" failed
-        exit 1
-    else
-        if [ -d "${report_dir}" ] && [ -d "${webapp_js_dir}" ] ; then
-            while IFS= read -r subdomain; do
-                unset user_agent
-                user_agent="$(get_user_agent)"
-                # curl
-                # Extract all links to .js files from the URL
-                curl "${curl_options[@]}" -H "User-agent: ${user_agent}" -L "${subdomain}" | grep -Eo 'src="[^"]*\.js"' | sed 's/src="//g' | sed 's/"$//g' | while read -r js_url; do
-                    # Convert relative URL to absolute
-                    if [[ "${js_url}" == //* ]]; then
-                        js_url="https:${js_url}"
-                    elif [[ "${js_url}" != http* ]]; then
-                        js_url="${subdomain}/${js_url}"
-                    fi
-
-                    # Checks if it is a JavaScript file
-                    if [[ "${js_url}" == *.js ]]; then
-                        echo "${js_url}" >> "${tmp_dir}/js_files.tmp"
-                    fi
-                done
-
-                # getJS
-                echo "echo ${subdomain} | getJS -complete >> ${tmp_dir}/js_file.tmp" >> "${log_execution_file}"
-                echo "http://${subdomain}" | getJS -complete >> "${tmp_dir}/js_files.tmp" 2>> "${log_execution_file}"
-                echo "https://${subdomain}" | getJS -complete >> "${tmp_dir}/js_files.tmp" 2>> "${log_execution_file}"
-
-                # katana
-                echo -e "\n katana ${katana_options[@]} -u ${subdomain} >> ${tmp_dir}/js_files.tmp" >> "${log_execution_file}"
-                katana "${katana_options[@]}" -u "${subdomain}" >> "${tmp_dir}/js_files.tmp" 2>> "${log_execution_file}"
-
-                # urlfinder
-                echo -e "\n urlfinder ${urlfinder_options[@]} -d ${subdomain} >> ${tmp_dir}/js_files.tmp" >> "${log_execution_file}"
-                urlfinder "${urlfinder_options[@]}" -d "${subdomain}" >> "${tmp_dir}/js_files.tmp" 2>> "${log_execution_file}"
-
-                # waybackurls
-                echo -e "\n echo \"${subdomain}\" | waybackurls >> ${tmp_dir}/js_files.tmp" >> "${log_execution_file}"
-                echo "${subdomain}" | waybackurls >> "${tmp_dir}/js_files.tmp" 2>> "${log_execution_file}"
-
-                for js_url in $(grep -E '\.js([?#].*)?$' "${tmp_dir}/js_files.tmp"); do
-                    unset user_agent
-                    user_agent="$(get_user_agent)"
-                    js_file_dir="$(echo "${js_url}" | sed 's/http.*:\/\///' | awk -F'/' '{print $3}')"
-                    js_file_name=$(basename "${js_url}")
-                    [[ ! -d "${webapp_js_dir}/${js_file_dir}" ]] && mkdir -p "${webapp_js_dir}/${js_file_dir}"
-
-                    # Checks if the URL returns HTTP status 200. HEAD probe
-                    # uses the fast profile — slow JS hosts are skipped rather
-                    # than holding up the crawl. The full GET below keeps the
-                    # default profile so larger bundles can finish downloading.
-                    js_status=$(curl "${curl_options_fast[@]}" -H "User-agent: ${user_agent}" -L -o /dev/null -w "%{http_code}" --head "${js_url}")
-                    if [[ "${js_status}" -eq 200 ]]; then
-                        if [ ! -s "${webapp_js_dir}/${js_file_dir}/${js_file_name}" ]; then
-                            echo "curl ${curl_options[@]} -H \"User-agent: ${user_agent}\" ${js_url} > ${webapp_js_dir}/${js_file_dir}/${js_file_name}" >> "${log_execution_file}"
-                            curl "${curl_options[@]}" -H "User-agent: ${user_agent}" "${js_url}" > "${webapp_js_dir}/${js_file_dir}/${js_file_name}" 2>> "${log_execution_file}"
-                        fi
-                    fi
-                done
-            done < "${urls_file}"
-        fi
+        return 1
     fi
+
+    if [ ! -d "${report_dir}" ] || [ ! -d "${webapp_js_dir}" ]; then
+        echo "Fail!"
+        return 1
+    fi
+
+    while IFS= read -r subdomain; do
+        [[ -z "${subdomain}" ]] && continue
+
+        # webapp_urls.txt entries already carry scheme://host[:port]. Derive
+        # the base URL once so relative srcs resolve correctly.
+        scheme="$(echo "${subdomain}" | awk -F: '{print $1}')"
+        host="$(echo "${subdomain}" | awk -F/ '{print $3}')"
+        base="${scheme}://${host}"
+
+        user_agent="$(get_user_agent)"
+
+        # Source 1: parse <script src="..."> from the page itself.
+        echo "curl ${curl_options[@]} -H \"User-agent: ${user_agent}\" -L \"${subdomain}\"" >> "${log_execution_file}"
+        while IFS= read -r js_url; do
+            [[ -z "${js_url}" ]] && continue
+            if [[ "${js_url}" =~ ^https?:// ]]; then
+                js_abs="${js_url}"
+            elif [[ "${js_url}" == //* ]]; then
+                js_abs="${scheme}:${js_url}"
+            elif [[ "${js_url}" == /* ]]; then
+                js_abs="${base}${js_url}"
+            else
+                js_abs="${base}/${js_url}"
+            fi
+            echo "${js_abs}" >> "${js_files}"
+        done < <(curl "${curl_options[@]}" -H "User-agent: ${user_agent}" -L "${subdomain}" 2>> "${log_execution_file}" \
+                    | grep -Eohi 'src=["'\''][^"'\'' >]+\.js[^"'\'' >]*' \
+                    | sed -E 's/^src=["'\'']//')
+
+        # Source 2: getJS. webapp_urls.txt already has scheme, no double prefix.
+        echo "echo \"${subdomain}\" | getJS -complete >> ${js_files}" >> "${log_execution_file}"
+        echo "${subdomain}" | getJS -complete >> "${js_files}" 2>> "${log_execution_file}"
+
+        # Source 3: katana.
+        echo "katana ${katana_options[@]} -u ${subdomain} >> ${js_files}" >> "${log_execution_file}"
+        katana "${katana_options[@]}" -u "${subdomain}" >> "${js_files}" 2>> "${log_execution_file}"
+
+        # Source 4: urlfinder. Pass just the host to -d.
+        echo "urlfinder ${urlfinder_options[@]} -d ${host} >> ${js_files}" >> "${log_execution_file}"
+        urlfinder "${urlfinder_options[@]}" -d "${host}" >> "${js_files}" 2>> "${log_execution_file}"
+
+        # Source 5: waybackurls. Feed the host, not the URL with scheme.
+        echo "echo \"${host}\" | waybackurls >> ${js_files}" >> "${log_execution_file}"
+        echo "${host}" | waybackurls >> "${js_files}" 2>> "${log_execution_file}"
+    done < "${urls_file}"
+
+    # Fetch every unique .js URL whose host matches the target (any subdomain
+    # of ${target}). 3rd-party CDN bundles are ignored to keep the report
+    # focused on the target's own code.
+    if [[ -s "${js_files}" ]]; then
+        while IFS= read -r js_url; do
+            [[ -z "${js_url}" ]] && continue
+            [[ "${js_url}" =~ ^https?:// ]] || continue
+
+            js_file_dir="$(echo "${js_url}" | awk -F/ '{print $3}')"
+            [[ "${js_file_dir}" =~ (^|\.)${domain_re}(:[0-9]+)?$ ]] || continue
+
+            js_file_name="$(basename "${js_url}" | awk -F'?' '{print $1}' | awk -F'#' '{print $1}')"
+            [[ -z "${js_file_name}" ]] && continue
+            [[ ! -d "${webapp_js_dir}/${js_file_dir}" ]] && mkdir -p "${webapp_js_dir}/${js_file_dir}"
+            [[ -s "${webapp_js_dir}/${js_file_dir}/${js_file_name}" ]] && continue
+
+            user_agent="$(get_user_agent)"
+
+            # Probe with the fast profile so dead/slow hosts don't stall the
+            # crawl. Use GET with --range 0-0 instead of HEAD: many CDNs lie
+            # to HEAD or 405 it.
+            js_status=$(curl "${curl_options_fast[@]}" -H "User-agent: ${user_agent}" -L -o /dev/null -w "%{http_code}" --range 0-0 "${js_url}" 2>> "${log_execution_file}")
+            if [[ "${js_status}" =~ ^2[0-9]{2}$ ]]; then
+                echo "curl ${curl_options[@]} -H \"User-agent: ${user_agent}\" -L \"${js_url}\" > \"${webapp_js_dir}/${js_file_dir}/${js_file_name}\"" >> "${log_execution_file}"
+                curl "${curl_options[@]}" -H "User-agent: ${user_agent}" -L "${js_url}" > "${webapp_js_dir}/${js_file_dir}/${js_file_name}" 2>> "${log_execution_file}"
+            fi
+        done < <(grep -Eoi 'https?://[^[:space:]"'\''<>]+\.js([?#][^[:space:]"'\''<>]*)?' "${js_files}" | sort -u)
+    fi
+
     echo "Done!"
 }
 
-crawler_params() {
-    # TODO: Put gospider to get more params
+crawler_params(){
+    local target="$1"
+    local urls_file="$2"
+    local url name file
+
     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Initializing the web application params crawler and this might take a certain time!"
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing params crawler... "
+
+    if [ "$#" != 2 ] || [ ! -s "${urls_file}" ]; then
+        echo "Fail!"
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Please, especify just 1 file to get URL from."
+        echo -e "Please, especify just 1 file to get URL from." | notify -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
+        message "${target}" failed
+        return 1
+    fi
+
+    if [ ! -d "${webapp_params_dir}" ]; then
+        echo "Fail!"
+        return 1
+    fi
+
     while IFS= read -r url; do
-        name=$(echo "${url}" | sed -e "s/http:\/\//http_/" -e "s/https:\/\//https_/" -e "s/:/_/" -e "s/\/$//" -e "s/\//_/g")
-        file="${name}.params"
-        echo "echo ${url} | waybackurls >> ${web_params_dir}/${file}" >> "${log_execution_file}"
-        echo "${url}" | waybackurls >> "${web_params_dir}/${file}" 2>> "${log_execution_file}"
-        echo "echo ${url} | katana -silent -nc -timeout ${katana_timeout} -c ${katana_threads} -p ${katana_threads} -f qurl -d 10 | grep -E \"^http\" | sort -u >> ${web_params_dir}/${file}" >> "${log_execution_file}"
-        echo "${url}" | katana -silent -nc -timeout "${katana_timeout}" -c ${katana_threads} -p ${katana_threads} -f qurl -d 10 | grep -E "^http" | sort -u >> "${web_params_dir}/${file}" 2>> "${log_execution_file}"
-        #katana -silent -nc -timeout "${katana_timeout}" -c ${katana_threads} -p ${katana_threads} -jc
-        #katana -silent -nc -timeout "${katana_timeout}" -c ${katana_threads} -p ${katana_threads} -f qpath -d 10
-        #www.example.com/path/arquivo.js
-        #www.example.com/path/
-        #www.example.com/path/1/
-        #www.example.com/path/2/
-        #www.example.com/path/3/
-        unset file
+        [[ -z "${url}" ]] && continue
+        name="$(echo "${url}" | sed -e "s/http:\/\//http_/" -e "s/https:\/\//https_/" -e "s/:/_/" -e "s/\/$//" -e "s/\//_/g")"
+        file="${webapp_params_dir}/${name}.params"
+
+        # Truncate the per-URL output so reruns don't accumulate stale entries.
+        : > "${file}"
+
+        echo "echo ${url} | waybackurls >> ${file}" >> "${log_execution_file}"
+        echo "${url}" | waybackurls >> "${file}" 2>> "${log_execution_file}"
+
+        echo "echo ${url} | katana -silent -nc -timeout ${katana_timeout} -c ${katana_threads} -p ${katana_threads} -f qurl -d 10 >> ${file}" >> "${log_execution_file}"
+        echo "${url}" | katana -silent -nc -timeout "${katana_timeout}" -c "${katana_threads}" -p "${katana_threads}" -f qurl -d 10 2>> "${log_execution_file}" \
+            | grep -E "^http" >> "${file}"
+
+        # Final dedupe in place.
+        [[ -s "${file}" ]] && sort -u -o "${file}" "${file}"
     done < "${urls_file}"
-    unset url
+
     echo "Done!"
 }
-
