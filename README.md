@@ -96,7 +96,7 @@ For unattended execution, drop-in `collector-cron` (cron) and `collector-systemd
 - DNS bruteforce via amass, gobuster, dnssearch
 - Infrastructure enrichment: AS / IPv4 / IPv6 / netblocks / nmap / shodan
 - Per-artifact diff vs. the previous run (subdomains, IPs, webapp URLs, vhosts, emails, nuclei findings) — only deltas are pushed to the notify channel
-- `_history.csv` per target: one row per execution with subdomain / IP / URL / vhost / email / finding counts (always written, even when there is no diff)
+- `${domain}_history.csv` per target: one row per execution with run metadata (domain, run_id, ISO timestamps, mode), counts (subdomains / alive / IPs / URLs / vhosts / emails / JS secrets / JS params), per-artifact deltas, nuclei severity counts, and absolute paths to the run's `report/` and `llm-prompt.txt`. Designed as a drop-in input for a database — `domain` is the natural primary key and `run_id` (`recon_YYYYMMDD` / `url_YYYYMMDD`) is unique per run.
 - Live-host detection over the ports listed in `webapp_port_detect`
 - vhost discovery (parallel curl + httpx, STRONG vs. WEAK confidence)
 - Email recon: Hunter.io, Lampyre, Snov.io, plus crawl of `webapp_urls.txt` (page root + referenced JS) filtered to the target domain
@@ -113,7 +113,7 @@ A successful recon run produces the following tree under `${output_dir}/<domain>
 
 ```
 <domain>/
-├── _history.csv                                  per-run trend log (always appended)
+├── <domain>_history.csv                          per-run trend log + DB ingestion input (always appended)
 ├── domains_ignore.txt                            (optional, user-maintained allowlist)
 └── recon_YYYYMMDD/
     ├── log/recon_YYYYMMDD.log
