@@ -31,20 +31,24 @@ webapp_alive(){
         
         for subdomain in $(cat "${report_dir}/domains_alive.txt"); do
             for port in "${webapp_port_detect[@]}"; do
-                unset user_agent
-                user_agent="$(get_user_agent)"
-                # Alive check across many subdomain x port combinations: use the
-                # fast profile so unresponsive targets fail quickly instead of
-                # adding up to a multi-hour stall.
-                echo "curl ${curl_options_fast[@]} -H \"User-agent: ${user_agent}\" -L -w \"%{response_code}\n\" \"http://${subdomain}:${port}\" -o /dev/null" >> "${log_execution_file}"
-                http_status_code=$(curl "${curl_options_fast[@]}" -H "User-agent: ${user_agent}" -L -w "%{response_code}\n" "http://${subdomain}:${port}" -o /dev/null 2>> "${log_execution_file}")
-                [[ "${http_status_code}" =~ ^[1-5][0-9]{2}$ ]] && \
-                    echo "http://${subdomain}:${port}" >> "${tmp_dir}/webapp_urls.tmp" 2>> "${log_execution_file}"
-                echo "curl ${curl_options_fast[@]} -H \"User-agent: ${user_agent}\" -L -w \"%{response_code}\n\" \"https://${subdomain}:${port}\" -o /dev/null" >> "${log_execution_file}"
-                https_status_code=$(curl "${curl_options_fast[@]}" -H "User-agent: ${user_agent}" -L -w "%{response_code}\n" "https://${subdomain}:${port}" -o /dev/null 2>> "${log_execution_file}")
-                [[ "${http_status_code}" =~ ^[1-5][0-9]{2}$ ]] && \
-                    echo "https://${subdomain}:${port}" >> "${tmp_dir}/webapp_urls.tmp" 2>> "${log_execution_file}"
+                (
+                    user_agent="$(get_user_agent)"
+ 
+                    echo "curl ${curl_options[@]} -H \"User-agent: ${user_agent}\" -L -w \"%{response_code}\n\" \"http://${subdomain}:${port}\" -o /dev/null" >> "${log_execution_file}"
+                    http_status_code=$(curl "${curl_options[@]}" -H "User-agent: ${user_agent}" -L -w "%{response_code}\n" "http://${subdomain}:${port}" -o /dev/null 2>> "${log_execution_file}")
+                    if [[ "${http_status_code}" =~ ^[1-5][0-9]{2}$ ]]; then
+                        echo "http://${subdomain}:${port}" >> "${tmp_dir}/webapp_urls.tmp"
+                    fi
+
+                    echo "curl ${curl_options[@]} -H \"User-agent: ${user_agent}\" -L -w \"%{response_code}\n\" \"https://${subdomain}:${port}\" -o /dev/null" >> "${log_execution_file}"
+                    https_status_code=$(curl "${curl_options[@]}" -H "User-agent: ${user_agent}" -L -w "%{response_code}\n" "https://${subdomain}:${port}" -o /dev/null 2>> "${log_execution_file}")
+                    if [[ "${https_status_code}" =~ ^[1-5][0-9]{2}$ ]]; then
+                        echo "https://${subdomain}:${port}" >> "${tmp_dir}/webapp_urls.tmp"
+                    fi
+                ) &
             done
+            # Wait for all prots in this subdomain to finish before moving
+            wait
             sleep 1
         done
 
@@ -63,17 +67,14 @@ webapp_alive(){
         fi
 
         if [[ -s "${tmp_dir}/webapp_urls.tmp" ]]; then
+            # sort -u will remove the port if curl and httpx find the same open port
             for url in $(cat "${tmp_dir}/webapp_urls.tmp" | sort -u); do
-                unset user_agent
                 user_agent="$(get_user_agent)"
-                tmp_file=$(mktemp)
-                curl "${curl_options[@]}" -H "User-agent: ${user_agent}" "$url" 2>/dev/null > "${tmp_file}"
-                content="$(cat ${tmp_file})"
-                if ! echo "${content}" | grep -qiE "${webapp_waf_regex}" > /dev/null 2>&1; then
-                    echo ${url}
+
+                if ! curl "${curl_options[@]}" -H "User-agent: ${user_agent}" "${url}" 2>/dev/null | grep -qiE "${webapp_waf_regex}"; then
+                    echo "${url}"
                 fi
-                rm -f ${tmp_file}
-            done | sort -u > "${report_dir}/webapp_urls.txt"
+            done > "${report_dir}/webapp_urls.txt"
         fi
 
         unalias curl > /dev/null 2>&1
@@ -125,7 +126,7 @@ webapp_alive(){
     fi
 }
 
-aquatone_screeshot(){
+aquatone_screenshot(){
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Starting aquatone screenshot... "
     target="$1"
     urls_file="$2"

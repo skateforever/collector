@@ -366,7 +366,7 @@ organizing_subdomains(){
         # Getting alive subdomains
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Separating live subdomains... "
         if [ -s "${tmp_dir}/domains_external_ipv4.tmp" ] || \
-            [ -s "${tmp_dir}/domains_external_ipv6.tmp"] || \
+            [ -s "${tmp_dir}/domains_external_ipv6.tmp" ] || \
             [ -s "${tmp_dir}/domains_aliases.tmp" ]; then
             awk '{print $1}' "${tmp_dir}/domains_external_ipv4.tmp" \
                 "${tmp_dir}/domains_external_ipv6.tmp" \
