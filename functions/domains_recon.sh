@@ -44,6 +44,7 @@ domains_recon(){
         diff_artifacts
         record_history
         build_llm_prompt
+        db_usage
         message "${domain}" finished
         exit 0
     fi
@@ -57,6 +58,7 @@ domains_recon(){
         diff_artifacts
         record_history
         build_llm_prompt
+        db_usage
         message "${domain}" finished
         exit 0
     fi
@@ -70,6 +72,7 @@ domains_recon(){
         diff_artifacts
         record_history
         build_llm_prompt
+        db_usage
         message "${domain}" finished
         exit 0
     fi
@@ -102,7 +105,7 @@ domains_recon(){
             #acunetix_scan "${domain}" "${report_dir}/webapp_urls.txt"
         fi
         [[ "${recon_check}" == "yes" && "${webapp_enum_check}" != "yes" ]] && \
-            { diff_artifacts; record_history; build_llm_prompt; message "${domain}" finished; exit 0; }
+            { diff_artifacts; record_history; build_llm_prompt; db_usage; message "${domain}" finished; exit 0; }
     fi
 
     if [[ "${webapp_enum_check}" == "yes" ]]; then
@@ -128,5 +131,6 @@ domains_recon(){
     diff_artifacts
     record_history
     build_llm_prompt
+    db_usage
     message "${domain}" finished) 2>> "${log_execution_file}" | tee -a "${log_execution_file}"
 }

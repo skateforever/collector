@@ -1,0 +1,72 @@
+-- collector-sqlite-schema.sqlite
+--
+-- Schema for the SQLite database that ingests ${domain}_history.csv.
+-- Designed for low-resource VPSes (1 vCPU / 2 GB RAM): no daemon, WAL
+-- journaling so readers don't block the per-run writer, JSON1 + FTS5
+-- already shipped with libsqlite3 if a future detail-level loader needs
+-- them. The DB file is canonical: backup is `cp collector-results-db ...`
+-- or `sqlite3 collector-results-db ".backup '...'"`.
+
+PRAGMA journal_mode = WAL;
+PRAGMA synchronous  = NORMAL;
+PRAGMA foreign_keys = ON;
+
+-- One row per target domain. Domain is the natural primary key — every
+-- collector artifact is scoped to a target FQDN.
+CREATE TABLE IF NOT EXISTS targets (
+    domain      TEXT PRIMARY KEY COLLATE NOCASE,
+    first_seen  TEXT NOT NULL DEFAULT (datetime('now')),
+    scope_notes TEXT
+);
+
+-- One row per collector execution. Mirrors the columns of
+-- ${domain}_history.csv 1:1, with (domain, run_id) as composite PK.
+-- run_id is the per-run directory basename (recon_YYYYMMDD or
+-- url_YYYYMMDD), unique per domain per day.
+CREATE TABLE IF NOT EXISTS recon_runs (
+    domain              TEXT    NOT NULL COLLATE NOCASE,
+    run_id              TEXT    NOT NULL,
+    run_date            TEXT,
+    started_at          TEXT,
+    finished_at         TEXT,
+    mode                TEXT,
+    subdomains          INTEGER,
+    subdomains_alive    INTEGER,
+    subdomains_added    INTEGER,
+    ips                 INTEGER,
+    ips_added           INTEGER,
+    webapp_urls         INTEGER,
+    webapp_urls_added   INTEGER,
+    vhosts_strong       INTEGER,
+    vhosts_weak         INTEGER,
+    vhosts_added        INTEGER,
+    emails              INTEGER,
+    emails_added        INTEGER,
+    js_secrets          INTEGER,
+    js_params           INTEGER,
+    findings_info       INTEGER,
+    findings_low        INTEGER,
+    findings_medium     INTEGER,
+    findings_high       INTEGER,
+    findings_critical   INTEGER,
+    report_dir          TEXT,
+    llm_prompt_path     TEXT,
+    status              TEXT,
+    ingested_at         TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (domain, run_id),
+    FOREIGN KEY (domain) REFERENCES targets(domain) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_recon_runs_date   ON recon_runs(run_date DESC);
+CREATE INDEX IF NOT EXISTS idx_recon_runs_domain ON recon_runs(domain, run_date DESC);
+CREATE INDEX IF NOT EXISTS idx_recon_runs_mode   ON recon_runs(mode, run_date DESC);
+
+-- Convenience view: most recent run per target.
+CREATE VIEW IF NOT EXISTS latest_run AS
+SELECT r.*
+FROM recon_runs r
+JOIN (
+    SELECT domain, MAX(run_date || '|' || run_id) AS k
+    FROM recon_runs
+    GROUP BY domain
+) m ON m.domain = r.domain AND (r.run_date || '|' || r.run_id) = m.k;
