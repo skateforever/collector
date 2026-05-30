@@ -55,7 +55,43 @@ if [[ "${killremove_check}" == "yes" ]]; then
     kill_collector "${domain}"
 fi
 
+# Acquire an exclusive per-target lock for the duration of a recon run.
+# Uses flock when available (atomic, releases on FD close even if the script
+# crashes). Falls back to mkdir-based locking if flock is missing.
+# A second concurrent execution for the same target aborts immediately
+# instead of corrupting shared report/tmp files.
+#
+# Args: $1 = target name used as the lock key (domain or url_domain)
+collector_acquire_lock(){
+    local _key="$1"
+    [[ -z "${_key}" ]] && return 0
+    [[ ! -d "${output_dir}/${_key}" ]] && mkdir -p "${output_dir}/${_key}" 2>/dev/null
+    local _lockfile="${output_dir}/${_key}/.collector.lock"
+
+    if command -v flock >/dev/null 2>&1; then
+        # Open FD 9 on the lockfile and try to grab an exclusive,
+        # non-blocking lock. The FD stays open for the rest of the script;
+        # the kernel releases the lock when the process exits.
+        exec 9>"${_lockfile}" || return 1
+        if ! flock -n 9; then
+            echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Another collector run is already in progress for ${_key} (lock: ${_lockfile}). Aborting."
+            exit 1
+        fi
+        # Stamp the lockfile with pid + start time for diagnostics.
+        printf 'pid=%s\nstart=%s\ncmd=%s\n' "$$" "$(date +"%Y-%m-%d %H:%M:%S")" "${collector_command_line}" >&9
+    else
+        local _lockdir="${output_dir}/${_key}/.collector.lockdir"
+        if ! mkdir "${_lockdir}" 2>/dev/null; then
+            echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Another collector run is already in progress for ${_key} (lockdir: ${_lockdir}). Aborting."
+            exit 1
+        fi
+        # Best-effort cleanup on normal exit / signal.
+        trap "rmdir '${_lockdir}' 2>/dev/null" EXIT INT TERM
+    fi
+}
+
 if [[ "${domain_check}" == "yes" && -n "${domain}" ]]; then
+    collector_acquire_lock "${domain}"
     check_is_known_target "${domain}"
     create_directory_structure
     domains_recon
@@ -73,14 +109,20 @@ if  [[ "${domainlist_check}" == "yes" && -s "${domain_list}" ]]; then
             echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Skipping invalid domain from ${domain_list}: ${domain}"
             continue
         fi
-        check_is_known_target "${domain}"
-        create_directory_structure
-        domains_recon
+        # In list mode the lock is acquired/released per-target via a
+        # subshell so flock's FD goes out of scope when the target finishes.
+        (
+            collector_acquire_lock "${domain}"
+            check_is_known_target "${domain}"
+            create_directory_structure
+            domains_recon
+        )
     done < "${domain_list}"
     exit 0
 fi
 
 if [[ "${url_check}" == "yes" && -n "${url_verify}" ]]; then
+    collector_acquire_lock "${url_domain}"
     check_is_known_target "${url_domain}"
     create_directory_structure
     url_recon

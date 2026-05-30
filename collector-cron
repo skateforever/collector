@@ -1,0 +1,60 @@
+# =============================================================================
+# collector — cron schedule
+# =============================================================================
+#
+# Drop this file into /etc/cron.d/collector (preferred) or splice the entries
+# into the crontab of the user that should run collector:
+#
+#     sudo install -m 0644 collector-cron /etc/cron.d/collector
+#
+# Notes:
+#   * /etc/cron.d entries take a USER column (between schedule and command),
+#     unlike user crontabs. Adjust if you paste these into `crontab -e`.
+#   * Times are LOCAL to the machine. Verify with `timedatectl`.
+#   * The leading sleep introduces jitter so a fleet of hosts/targets does
+#     not hammer OSINT APIs at the exact same minute.
+#   * collector now uses a per-target lockfile, so overlapping invocations
+#     for the same domain abort cleanly instead of corrupting state.
+#   * Adjust COLLECTOR_HOME and COLLECTOR_USER below to your install.
+# -----------------------------------------------------------------------------
+
+# Environment for every line below. cron's default PATH is minimal — extend
+# it so collector finds amass, httpx, nuclei, jq, etc. installed in /usr/local
+# or in the user's $HOME/go/bin.
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/collector:/home/collector/go/bin
+MAILTO=""
+
+# .------------ minute (0-59)
+# |   .--------- hour (0-23)
+# |   |   .------ day of month (1-31)
+# |   |   |   .--- month (1-12)
+# |   |   |   |  .- day of week (0-6, Sun=0)
+# |   |   |   |  |  user        command
+# v   v   v   v  v  v           v
+
+# -----------------------------------------------------------------------------
+# DAILY recon (light): subdomain discovery + alive + tech detection.
+# Each target runs at a slightly different minute to spread load. Add up to
+# ~30 min of random jitter via the leading `sleep $((RANDOM \% 1800))`.
+# -----------------------------------------------------------------------------
+0  3  *  *  *  collector  cd /opt/collector && sleep $((RANDOM \% 1800)) && ./collector -d acme.com     --recon --webapp-discovery >> /var/log/collector/acme.log     2>&1
+5  3  *  *  *  collector  cd /opt/collector && sleep $((RANDOM \% 1800)) && ./collector -d example.org  --recon --webapp-discovery >> /var/log/collector/example.log  2>&1
+
+# Or, if you keep targets in a list file (one domain per line, # for comments):
+# 30 3 *  *  *  collector  cd /opt/collector && ./collector -dl /etc/collector/targets.list --recon --webapp-discovery >> /var/log/collector/list.log 2>&1
+
+# -----------------------------------------------------------------------------
+# WEEKLY heavy run: enum (gobuster/dirsearch) + full nuclei pass.
+# Sunday 02:00, with up to 1h of jitter. Skip these on the daily slot to keep
+# it fast and to avoid hammering OSINT API quotas.
+# -----------------------------------------------------------------------------
+0  2  *  *  0  collector  cd /opt/collector && sleep $((RANDOM \% 3600)) && ./collector -d acme.com     --recon --webapp-discovery --webapp-enum --webapp-scan >> /var/log/collector/acme-weekly.log     2>&1
+0  2  *  *  0  collector  cd /opt/collector && sleep $((RANDOM \% 3600)) && ./collector -d example.org  --recon --webapp-discovery --webapp-enum --webapp-scan >> /var/log/collector/example-weekly.log  2>&1
+
+# -----------------------------------------------------------------------------
+# Housekeeping: prune run directories older than 60 days. Compress before
+# delete so you keep a long tail of summaries (history.csv lives at the
+# domain root and is not touched by this).
+# -----------------------------------------------------------------------------
+0  4  *  *  *  collector  find /opt/collector/output -mindepth 2 -maxdepth 2 -type d -mtime +60 -print -exec tar -czf {}.tar.gz -C $(dirname {}) $(basename {}) \; -exec rm -rf {} \; >> /var/log/collector/housekeeping.log 2>&1

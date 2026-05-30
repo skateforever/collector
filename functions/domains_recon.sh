@@ -41,6 +41,8 @@ domains_recon(){
         [[ ! -s "${report_dir}/webapp_urls.txt" ]]; then
         webapp_alive "${domain}" "${report_dir}/domains_alive.txt"
         webapp_tech "${domain}" "${report_dir}/webapp_urls.txt"
+        diff_artifacts
+        record_history
         message "${domain}" finished
         exit 0
     fi
@@ -51,6 +53,8 @@ domains_recon(){
         [[ "${recon_check}" == "no" || -z "${recon_check}" ]]; then
         crawler_js "${domain}" "${report_dir}/webapp_urls.txt"
         #crawler_params "${domain}" "${report_dir}/webapp_urls.txt"
+        diff_artifacts
+        record_history
         message "${domain}" finished
         exit 0
     fi
@@ -61,6 +65,8 @@ domains_recon(){
         [[ "${recon_check}" == "no" || -z "${recon_check}" ]]; then
         nuclei_scan "${domain}" "${report_dir}/webapp_urls.txt"
         #acunetix_scan "${domain}" "${report_dir}/webapp_urls.txt"
+        diff_artifacts
+        record_history
         message "${domain}" finished
         exit 0
     fi
@@ -93,7 +99,7 @@ domains_recon(){
             #acunetix_scan "${domain}" "${report_dir}/webapp_urls.txt"
         fi
         [[ "${recon_check}" == "yes" && "${webapp_enum_check}" != "yes" ]] && \
-            { message "${domain}" finished; exit 0; }
+            { diff_artifacts; record_history; message "${domain}" finished; exit 0; }
     fi
 
     if [[ "${webapp_enum_check}" == "yes" ]]; then
@@ -116,5 +122,7 @@ domains_recon(){
         done
         git_rebuild
     fi
+    diff_artifacts
+    record_history
     message "${domain}" finished) 2>> "${log_execution_file}" | tee -a "${log_execution_file}"
 }
