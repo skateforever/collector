@@ -82,7 +82,7 @@ redact_secrets(){
 scan_js_secrets(){
     local scan_dir="${1:-${webapp_js_dir}}"
     local out_file="${2:-${report_dir}/webapp_js_secrets.txt}"
-    local patterns_file="${collector_path}/support/secrets-patterns"
+    local patterns_file="${collector_path}/support/secrets-patterns.txt"
     local label regex hits line total
     local channel="${notify_high_channel:-${notify_recon_channel}}"
 
