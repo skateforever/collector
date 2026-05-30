@@ -26,17 +26,24 @@ infra_data(){
         done < <(awk '{print $2}' "${report_dir}/domains_external_ipv4.txt" | sort -u)
         echo "Done!"
 
-        echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Getting target IPs... "
+        echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Getting target IPv4... "
         if [ -s "${report_dir}/domains_external_ipv4.txt" ] ; then
             awk '{print $2}' "${report_dir}/domains_external_ipv4.txt" | sort -u >> "${tmp_dir}/infra_ipv4.tmp"
             if [[ -s "${tmp_dir}/infra_ipv4.tmp" ]]; then
                 sort -u -o "${report_dir}/infra_ipv4.txt" "${tmp_dir}/infra_ipv4.tmp"
+            	echo "Done!"
             fi
+        else
+            echo "Fail!"
+        fi
+
+        echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Getting target IPv6... "
+        if [ -s "${report_dir}/domains_external_ipv4.txt" ] ; then
             awk '{print $2}' "${report_dir}/domains_external_ipv6.txt" | sort -u >> "${tmp_dir}/infra_ipv6.tmp"
             if [[ -s "${tmp_dir}/infra_ipv6.tmp" ]]; then
                 sort -u -o "${report_dir}/infra_ipv6.txt" "${tmp_dir}/infra_ipv6.tmp"
+            	echo "Done!"
             fi
-            echo "Done!"
         else
             echo "Fail!"
         fi
@@ -83,7 +90,7 @@ shodan_scan(){
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing shodan scan on target's IPs... "
         shodan_scans=$(shodan info | grep "Scan.*:" | awk '{print $4}')
         if [ "${shodan_scan_main_domain}" == "yes" ] && [ "${shodan_scans}" -gt 1 ]; then
-            for IP in "$(cat ${report_dir}/infra_ipv4.txt)"; do
+            for IP in $(cat "${report_dir}/infra_ipv4.txt"); do
                 echo "shodan scan submit ${IP} > ${shodan_dir}/shodan_scan.txt" >> "${log_execution_file}"
                 "shodan" scan submit "${IP}" > "${shodan_dir}/shodan_scan.txt" 2>> "${log_execution_file}" &
             done
@@ -98,43 +105,64 @@ vhost_check(){
 
     vhost_name_file="$1"
     vhost_ip_file="$2"
+    declare -A seen_responses
 
     if [[ -s "${vhost_ip_file}" && -s "${report_dir}/infra_ipv4.txt" ]]; then
-        for IP in "$(cat ${vhost_ip_file})"; do
+        for IP in $(cat "${vhost_ip_file}"); do
             for port in "${webapp_port_detect[@]}"; do
                 user_agent=$(get_user_agent)
                 unresponsive_vhost="$(tr -dc 'a-z' </dev/urandom | fold -w 10 | head -n1).${domain}"
                 # curl
                 echo "curl ${curl_options[@]} -L -H \"User-Agent: ${user_agent}\" -H \"Host: ${unresponsive_vhost}\" \"http://${IP}:${port}\"" >> "${log_execution_file}"
                 curl_unresponsive_content=$(curl "${curl_options[@]}" -L -H "User-Agent: ${user_agent}" -H "Host: ${unresponsive_vhost}" http://${IP}:${port} 2>> "${log_execution_file}")
-                curl_unresponsive_size=$(echo "${curl_unresponsive_content}" | wc -c)
-                curl_unresponsive_hash=$(echo "${curl_unresponsive_content}" | md5sum | awk '{print $1}')
+                curl_unresponsive_size=$(echo -n "${curl_unresponsive_content}" | wc -c)
+                curl_unresponsive_hash=$(echo -n "${curl_unresponsive_content}" | md5sum | awk '{print $1}')
                 # httpx
                 # message log here
                 echo "echo \"${IP}:${port}\" | httpx -silent -H \"Host: ${unresponsive_vhost}\" -H \"User-Agent: ${user_agent}\"" >> "${log_execution_file}"
-                httpx_unresponsive_size=$(echo "${IP}:${port}" | httpx -silent -H "Host: ${unresponsive_vhost}" -H "User-Agent: ${user_agent}" -content-length -hash md5 2>> "${log_execution_file}" | awk '{print $2}' | sed 's/\[// ; s/\]//')
-                httpx_unresponsive_hash=$(echo "${IP}:${port}" | httpx -silent -H "Host: ${unresponsive_vhost}" -H "User-Agent: ${user_agent}" -content-length -hash md5 2>> "${log_execution_file}" | awk '{print $3}' | sed 's/\[// ; s/\]//')
+                httpx_unresponsive_output=$(echo "${IP}:${port}" | httpx -silent -H "Host: ${unresponsive_vhost}" -H "User-Agent: ${user_agent}" -content-length -hash md5 2>> "${log_execution_file}")
 
-                for vhost in "$(cat ${vhost_name_file})"; do
+                httpx_unresponsive_size=$(echo "${httpx_unresponsive_output}" | awk '{print $2}' | sed 's/\[// ; s/\]//')
+                httpx_unresponsive_hash=$(echo "${httpx_unresponsive_output}" | awk '{print $3}' | sed 's/\[// ; s/\]//')
+
+                for vhost in $(cat "${vhost_name_file}"); do
                     user_agent=$(get_user_agent)
                     # curl
                     echo "curl \"${curl_options[@]}\" -L -H \"User-Agent: ${user_agent}\" -H \"Host: ${vhost}\" \"http://${IP}:${port}\"" >> "${log_execution_file}"
                     curl_vhost_content=$(curl "${curl_options[@]}" -L -H "User-Agent: ${user_agent}" -H "Host: ${vhost}" "http://${IP}:${port}" 2>> "${log_execution_file}")
-                    curl_vhost_size=$(echo "${curl_vhost_content}" | wc -c)
-                    curl_vhost_hash=$(echo "${curl_vhost_content}" | md5sum | awk '{print $1}')
-                    if [[ "${curl_unresponsive_size}" != "${curl_vhost_size}"  && "${curl_unresponsive_hash}" != "${curl_vhost_hash}" ]]; then
-                        echo -e "${vhost}\t${IP}:${port}" >> "${tmp_dir}/vhost_subdomains.tmp"
-                    fi
-                    # httpx
+                    curl_vhost_size=$(echo -n "${curl_vhost_content}" | wc -c)
+                    curl_vhost_hash=$(echo -n "${curl_vhost_content}" | md5sum | awk '{print $1}')
+
                     echo "echo \"${IP}:${port}\" | httpx -silent -H \"Host: ${vhost}\" -H \"User-Agent: ${user_agent}\"" >> "${log_execution_file}"
-                    httpx_vhost_size=$(echo "${IP}:${port}" | httpx -silent -H "Host: ${vhost}" -H "User-Agent: ${user_agent}" -content-length -hash md5 2>> "${log_execution_file}" | awk '{print $2}' | sed 's/\[// ; s/\]//')
-                    httpx_vhost_md5=$(echo "${IP}:${port}" | httpx -silent -H "Host: ${vhost}" -H "User-Agent: ${user_agent}" -content-length -hash md5 2>> "${log_execution_file}" | awk '{print $3}' | sed 's/\[// ; s/\]//')
+                    httpx_vhost_output=$(echo "${IP}:${port}" | httpx -silent -H "Host: ${vhost}" -H "User-Agent: ${user_agent}" -content-length -hash md5 2>> "${log_execution_file}")
+
+                    httpx_vhost_size=$(echo "${httpx_vhost_output}" | awk '{print $2}' | sed 's/\[// ; s/\]//')
+                    httpx_vhost_hash=$(echo "${httpx_vhost_output}" | awk '{print $3}' | sed 's/\[// ; s/\]//')
+
+                    is_valid="no"
+
+                    if [[ "${curl_unresponsive_size}" != "${curl_vhost_size}" && "${curl_unresponsive_hash}" != "${curl_vhost_hash}" ]]; then
+                        is_valid="yes"
+                    fi
+
                     if [[ "${httpx_unresponsive_size}" != "${httpx_vhost_size}" && "${httpx_unresponsive_hash}" != "${httpx_vhost_hash}" ]]; then
-                        echo -e "${vhost}\t${IP}:${port}" >> "${tmp_dir}/vhost_subdomains.tmp"
+                        is_valid="yes"
+                    fi
+
+                    if [[ "${is_valid}" == "yes" ]]; then
+                        # Uniqueness criterion: subdomain + hash(httpx) + hash(curl)
+                        combo_key="${vhost}_${httpx_vhost_hash}_${curl_vhost_hash}"
+                        # If this exact cobination has never been seen for this domain
+                        if [[ -z "${seen_responses[$combo_key]}" ]]; then
+                            echo -e "${vhost}\t${IP}:${port}\tSize: ${httpx_vhost_size}\tHash: ${httpx_vhost_hash}" >> "${tmp_dir}/vhost_subdomains.tmp"
+                            # Record in the array that this content has already been mapped
+                            seen_responses[$combo_key]=1
+                        fi
                     fi
                 done
             done
         done
+
         if [[ -s "${tmp_dir}/vhost_subdomains.tmp" ]]; then
             sort -u -o "${report_dir}/vhost_subdomains.txt" "${tmp_dir}/vhost_subdomains.tmp"
         fi
