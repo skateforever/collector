@@ -561,7 +561,7 @@ start_app_report(){
     if [[ "${app_report_enabled:-yes}" != "yes" ]]; then
         return 0
     fi
-    local app_dir="${app_report_dir:-support/app-report}"
+    local app_dir="${app_report_dir:-app-report}"
     [[ "${app_dir}" != /* ]] && app_dir="${collector_path:-.}/${app_dir}"
     local host="${app_report_host:-127.0.0.1}"
     local port="${app_report_port:-8000}"

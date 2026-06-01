@@ -59,7 +59,7 @@ List of tools for webapp scan used in the collector:</br>
 Persistence and reporting (optional but enabled by default):</br>
 
 * sqlite3 — every run is appended to `${output_dir}/collector-results-db` by `db_usage()`
-* python3 + flask + gunicorn — `start_app_report()` serves a read-only web UI at `http://127.0.0.1:8000` from `support/app-report/`
+* python3 + flask + gunicorn — `start_app_report()` serves a read-only web UI at `http://127.0.0.1:8000` from `app-report/`
 
 I tried my best to make the collector as simple as possible, but I also tried to ensure that the execution wasn't done haphazardly. Therefore, you'll notice that the execution is somewhat locked into a flow to obtain:
 
@@ -113,7 +113,7 @@ For unattended execution, drop-in `collector-cron` (cron) and `collector-systemd
 - Per-target lockfile (flock) so concurrent invocations for the same domain abort instead of corrupting state
 - `llm-prompt.txt` per run: a self-describing bundle of the run's artifacts (with secret redaction and per-section truncation) ready to paste into any LLM for follow-up pentest analysis
 - SQLite ingestion: each run is upserted into `${output_dir}/collector-results-db` (idempotent, write-only-on-change) by `db_usage()` — single file, WAL journaling, FK-protected, `latest_run` view shipped
-- Flask + HTMX read-only web UI at `http://127.0.0.1:8000` (`support/app-report/`) auto-started by `start_app_report()` after each run; PID-file gated so concurrent runs don't fight over the socket
+- Flask + HTMX read-only web UI at `http://127.0.0.1:8000` (`app-report/`) auto-started by `start_app_report()` after each run; PID-file gated so concurrent runs don't fight over the socket
 
 ### Output layout
 
@@ -191,7 +191,7 @@ sqlite3 collector-results-db "SELECT domain, run_date, findings_critical, findin
 sqlite3 collector-results-db "SELECT run_date, subdomains, webapp_urls, findings_critical FROM recon_runs WHERE domain='example.com' ORDER BY run_date DESC LIMIT 10;"
 ```
 
-### Web UI (`support/app-report/`)
+### Web UI (`app-report/`)
 
 A single-file Flask + HTMX read-only viewer over `collector-results-db`. After `db_usage` finishes, `start_app_report()` launches `gunicorn` on `${app_report_host}:${app_report_port}` (default `127.0.0.1:8000`) in the background, gated by `${output_dir}/.app-report.pid` so multiple recon runs share one server. To skip the launcher entirely, set `app_report_enabled="no"` in `collector.cfg`.
 
@@ -205,7 +205,7 @@ Routes:
 Config is environment-driven (`COLLECTOR_DB`, `COLLECTOR_OUTPUT_DIR`, `APP_REPORT_HOST`, `APP_REPORT_PORT`) — `start_app_report` populates the env from `collector.cfg`. The DB connection is opened with `mode=ro` URI mode so a misbehaving worker can't corrupt the file `db_usage` writes to. To run it manually for development:
 
 ```bash
-cd support/app-report && pip install -r requirements.txt
+cd app-report && pip install -r requirements.txt
 COLLECTOR_DB=/path/to/collector-results-db python3 app.py
 ```
 
