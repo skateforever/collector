@@ -209,6 +209,14 @@ cd app-report && pip install -r requirements.txt
 COLLECTOR_DB=/path/to/collector-results-db python3 app.py
 ```
 
+#### Cloudflare quick-tunnel (opt-in)
+
+When the dashboard is running on a VPS and you'd rather not expose the port directly, set `cloudflare_tunnel="yes"` in `collector.cfg`. After gunicorn comes up, `start_app_report` invokes `cloudflared tunnel --url http://localhost:${app_report_port}` in the background and parses the generated `https://*.trycloudflare.com` URL out of cloudflared's log. The URL is echoed to the console at the end of the run (and on every subsequent run while the tunnel is still alive — PID-file gated, same as gunicorn).
+
+The `cloudflared` binary is shipped in the Docker image (latest release from `cloudflare/cloudflared`). On bare-metal installs, drop it anywhere in `$PATH` and `start_cloudflare_tunnel` picks it up. Tweak `cloudflare_tunnel_url_timeout` (default `30` seconds) if your network needs longer to publish the URL.
+
+Quick-tunnel URLs are ephemeral — they change every time cloudflared restarts. Use a named tunnel (out of scope here) if you need a stable hostname.
+
 ### Screenshots
 
 ![demo\_01.png](https://raw.githubusercontent.com/skateforever/collector/main/demo/demo_01.png) </br>

@@ -55,6 +55,13 @@ RUN wget -q https://github.com/michenriksen/aquatone/releases/download/v1.7.0/aq
 RUN git clone --depth 1 https://github.com/blechschmidt/massdns.git /tmp/massdns && \
     cd /tmp/massdns && make && mv bin/massdns /usr/local/bin/ && rm -rf /tmp/massdns
 
+# 6. Cloudflared (used by start_app_report when cloudflare_tunnel="yes" in
+# collector.cfg). Quick-tunnel mode generates an ephemeral
+# https://*.trycloudflare.com URL pointing at the local app-report port,
+# so the dashboard can be reached without exposing the VPS IP/port.
+RUN wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O /usr/local/bin/cloudflared && \
+    chmod +x /usr/local/bin/cloudflared
+
 # 7. Configuração Final
 COPY . .
 RUN chmod +x collector && chmod +x functions/*.sh
