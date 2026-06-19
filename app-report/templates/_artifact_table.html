@@ -1,0 +1,41 @@
+<div class="bg-white dark:bg-slate-900 rounded-lg shadow overflow-hidden">
+  <div class="px-4 py-2 border-b dark:border-slate-700 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+    <span>
+      {% if q %}{{ total }} of {{ unfiltered_total }} matching <code>{{ q }}</code>{% else %}{{ total }} item(s){% endif %}
+    </span>
+    <span>page {{ page }} / {{ pages }}</span>
+  </div>
+  {% if items %}
+  <ol class="divide-y divide-slate-100 dark:divide-slate-800 text-sm font-mono"
+      start="{{ (page - 1) * per_page + 1 }}">
+    {% for it in items %}
+    <li class="px-4 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 break-all">{{ it }}</li>
+    {% endfor %}
+  </ol>
+  {% else %}
+  <div class="px-4 py-8 text-center text-slate-500 dark:text-slate-400 text-sm">
+    {% if q %}No items matching <code>{{ q }}</code>.
+    {% elif not file_exists %}File not present in this run (<code class="text-xs">{{ file_path }}</code>).
+    {% else %}Empty file.{% endif %}
+  </div>
+  {% endif %}
+  {% if pages > 1 %}
+  <nav class="flex items-center justify-between px-4 py-3 border-t dark:border-slate-700 text-sm">
+    <span class="text-slate-500 dark:text-slate-400">Page {{ page }} of {{ pages }}</span>
+    <div class="flex gap-2">
+      {% if page > 1 %}
+      {% set prev_url = '?q=' ~ (q|urlencode) ~ '&per_page=' ~ per_page ~ '&page=' ~ (page - 1) %}
+      <a class="px-3 py-1 border dark:border-slate-600 rounded hover:bg-slate-50 dark:hover:bg-slate-700"
+         hx-get="{{ prev_url }}" hx-target="#artifact-table" hx-push-url="true"
+         href="{{ prev_url }}">Prev</a>
+      {% endif %}
+      {% if page < pages %}
+      {% set next_url = '?q=' ~ (q|urlencode) ~ '&per_page=' ~ per_page ~ '&page=' ~ (page + 1) %}
+      <a class="px-3 py-1 border dark:border-slate-600 rounded hover:bg-slate-50 dark:hover:bg-slate-700"
+         hx-get="{{ next_url }}" hx-target="#artifact-table" hx-push-url="true"
+         href="{{ next_url }}">Next</a>
+      {% endif %}
+    </div>
+  </nav>
+  {% endif %}
+</div>

@@ -1,6 +1,25 @@
 {% extends "base.html" %}
 {% block title %}{{ target.domain }} · collector{% endblock %}
 {% block content %}
+{# Helper macros to keep the count cards DRY. Each card is a link into
+   the per-run drill-down. The destination uses the LATEST run for that
+   target so clicking "URLs: 155" goes straight to the relevant data. #}
+{% macro count_card(label, value, kind, value_extra='', warn=false) %}
+  <a href="/targets/{{ target.domain }}/{{ latest.run_id }}/{{ kind }}"
+     class="bg-white dark:bg-slate-900 rounded-lg shadow p-3 block hover:shadow-md hover:ring-1 hover:ring-emerald-400 dark:hover:ring-emerald-500 transition">
+    <div class="text-xs text-slate-500 dark:text-slate-400">{{ label }}</div>
+    <div class="text-xl font-semibold {% if warn and value %}text-red-700 dark:text-red-400{% endif %}">{{ value }}{{ value_extra|safe }}</div>
+  </a>
+{% endmacro %}
+
+{% macro sev_card(sev, value) %}
+  <a href="/targets/{{ target.domain }}/{{ latest.run_id }}/findings?severity={{ sev }}"
+     class="rounded-lg p-3 block sev-{{ sev }} hover:ring-2 hover:ring-emerald-400 dark:hover:ring-emerald-500 transition">
+    <div class="text-xs uppercase">{{ sev }}</div>
+    <div class="text-2xl font-bold">{{ value }}</div>
+  </a>
+{% endmacro %}
+
 <div class="mb-4 flex items-center justify-between">
   <div>
     <h1 class="text-2xl font-bold">{{ target.domain }}</h1>
@@ -12,20 +31,33 @@
 </div>
 
 <section class="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6">
-  <div class="bg-white dark:bg-slate-900 rounded-lg shadow p-3"><div class="text-xs text-slate-500 dark:text-slate-400">Subs alive</div><div class="text-xl font-semibold">{{ latest.subdomains_alive }}<span class="text-slate-400 dark:text-slate-500 text-sm"> / {{ latest.subdomains }}</span></div></div>
-  <div class="bg-white dark:bg-slate-900 rounded-lg shadow p-3"><div class="text-xs text-slate-500 dark:text-slate-400">IPs</div><div class="text-xl font-semibold">{{ latest.ips }}</div></div>
-  <div class="bg-white dark:bg-slate-900 rounded-lg shadow p-3"><div class="text-xs text-slate-500 dark:text-slate-400">URLs</div><div class="text-xl font-semibold">{{ latest.webapp_urls }}</div></div>
-  <div class="bg-white dark:bg-slate-900 rounded-lg shadow p-3"><div class="text-xs text-slate-500 dark:text-slate-400">Emails</div><div class="text-xl font-semibold">{{ latest.emails }}</div></div>
-  <div class="bg-white dark:bg-slate-900 rounded-lg shadow p-3"><div class="text-xs text-slate-500 dark:text-slate-400">JS secrets</div><div class="text-xl font-semibold {% if latest.js_secrets %}text-red-700 dark:text-red-400{% endif %}">{{ latest.js_secrets }}</div></div>
-  <div class="bg-white dark:bg-slate-900 rounded-lg shadow p-3"><div class="text-xs text-slate-500 dark:text-slate-400">JS params</div><div class="text-xl font-semibold">{{ latest.js_params }}</div></div>
+  {{ count_card('Subs alive', latest.subdomains_alive, 'subdomains_alive', '<span class="text-slate-400 dark:text-slate-500 text-sm"> / ' ~ latest.subdomains ~ '</span>') }}
+  {{ count_card('IPs', latest.ips, 'ips') }}
+  {{ count_card('URLs', latest.webapp_urls, 'webapp_urls') }}
+  {{ count_card('Emails', latest.emails, 'emails') }}
+  {{ count_card('JS secrets', latest.js_secrets, 'js_secrets', warn=true) }}
+  {{ count_card('JS params', latest.js_params, 'js_params') }}
 </section>
 
 <section class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-  <div class="rounded-lg p-3 sev-critical"><div class="text-xs uppercase">Critical</div><div class="text-2xl font-bold">{{ latest.findings_critical }}</div></div>
-  <div class="rounded-lg p-3 sev-high"><div class="text-xs uppercase">High</div><div class="text-2xl font-bold">{{ latest.findings_high }}</div></div>
-  <div class="rounded-lg p-3 sev-medium"><div class="text-xs uppercase">Medium</div><div class="text-2xl font-bold">{{ latest.findings_medium }}</div></div>
-  <div class="rounded-lg p-3 sev-low"><div class="text-xs uppercase">Low</div><div class="text-2xl font-bold">{{ latest.findings_low }}</div></div>
-  <div class="rounded-lg p-3 sev-info"><div class="text-xs uppercase">Info</div><div class="text-2xl font-bold">{{ latest.findings_info }}</div></div>
+  {{ sev_card('critical', latest.findings_critical) }}
+  {{ sev_card('high',     latest.findings_high) }}
+  {{ sev_card('medium',   latest.findings_medium) }}
+  {{ sev_card('low',      latest.findings_low) }}
+  {{ sev_card('info',     latest.findings_info) }}
+</section>
+
+{# Side-by-side links to artifacts most operators want to peek at without
+   opening a count card first (vhosts, raw nmap, etc). #}
+<section class="bg-white dark:bg-slate-900 rounded-lg shadow p-4 mb-6">
+  <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">Other artifacts</div>
+  <div class="flex flex-wrap gap-2 text-sm">
+    <a class="px-2 py-1 rounded border border-slate-200 dark:border-slate-700 hover:border-emerald-500 dark:hover:border-emerald-400" href="/targets/{{ target.domain }}/{{ latest.run_id }}/vhosts_strong">vhosts (STRONG): {{ latest.vhosts_strong }}</a>
+    <a class="px-2 py-1 rounded border border-slate-200 dark:border-slate-700 hover:border-emerald-500 dark:hover:border-emerald-400" href="/targets/{{ target.domain }}/{{ latest.run_id }}/vhosts_weak">vhosts (WEAK): {{ latest.vhosts_weak }}</a>
+    <a class="px-2 py-1 rounded border border-slate-200 dark:border-slate-700 hover:border-emerald-500 dark:hover:border-emerald-400" href="/targets/{{ target.domain }}/{{ latest.run_id }}/subdomains_found">All subdomains</a>
+    <a class="px-2 py-1 rounded border border-slate-200 dark:border-slate-700 hover:border-emerald-500 dark:hover:border-emerald-400" href="/targets/{{ target.domain }}/{{ latest.run_id }}/raw/nmap">raw nmap</a>
+    <a class="px-2 py-1 rounded border border-slate-200 dark:border-slate-700 hover:border-emerald-500 dark:hover:border-emerald-400" href="/targets/{{ target.domain }}/{{ latest.run_id }}/raw/llm_prompt">LLM prompt</a>
+  </div>
 </section>
 
 <section class="bg-white dark:bg-slate-900 rounded-lg shadow p-4 mb-6">
@@ -34,11 +66,29 @@
 </section>
 
 <section class="bg-white dark:bg-slate-900 rounded-lg shadow overflow-hidden">
-  <div class="px-4 py-3 border-b dark:border-slate-700"><h2 class="font-semibold">Run history</h2></div>
+  <div class="px-4 py-3 border-b dark:border-slate-700 flex items-center justify-between">
+    <h2 class="font-semibold">Run history</h2>
+    {% if runs|length >= 2 %}
+    <span class="text-xs text-slate-500 dark:text-slate-400">tick two rows then click <strong>Compare</strong></span>
+    {% endif %}
+  </div>
+
+  {% if runs|length >= 2 %}
+  <form id="diff-form" action="/targets/{{ target.domain }}/diff" method="get"
+        class="px-4 py-2 border-b dark:border-slate-700 text-sm flex items-center gap-2">
+    <span class="text-slate-500 dark:text-slate-400">Compare 2 selected runs:</span>
+    <button type="submit" id="diff-submit"
+            class="bg-slate-900 dark:bg-slate-700 hover:bg-slate-800 dark:hover:bg-slate-600 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs px-3 py-1 rounded"
+            disabled>Compare</button>
+    <span id="diff-hint" class="text-xs text-slate-500 dark:text-slate-400">select two rows</span>
+  </form>
+  {% endif %}
+
   <div class="overflow-x-auto">
     <table class="min-w-full text-sm">
       <thead class="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
         <tr>
+          {% if runs|length >= 2 %}<th scope="col" class="px-3 py-2"><span class="sr-only">Select for diff</span></th>{% endif %}
           <th scope="col" class="text-left px-3 py-2">Run</th>
           <th scope="col" class="text-left px-3 py-2">Date</th>
           <th scope="col" class="text-left px-3 py-2">Mode</th>
@@ -52,7 +102,15 @@
       <tbody>
         {% for r in runs %}
         <tr class="border-t dark:border-slate-700">
-          <td class="px-3 py-2 font-mono text-xs">{{ r.run_id }}</td>
+          {% if runs|length >= 2 %}
+          <td class="px-3 py-2">
+            <input type="checkbox" form="diff-form" class="diff-pick"
+                   value="{{ r.run_id }}" aria-label="Pick {{ r.run_id }} for diff">
+          </td>
+          {% endif %}
+          <td class="px-3 py-2 font-mono text-xs">
+            <a class="text-emerald-700 dark:text-emerald-400 hover:underline" href="/targets/{{ target.domain }}/{{ r.run_id }}/subdomains_alive">{{ r.run_id }}</a>
+          </td>
           <td class="px-3 py-2">{{ r.run_date|fmt_dt }}</td>
           <td class="px-3 py-2">{{ r.mode or '—' }}</td>
           <td class="px-3 py-2 text-right">{{ r.subdomains }}</td>
@@ -105,6 +163,51 @@
         }
       }
     });
+  })();
+
+  // Diff selector: limit to two checked rows, build the form's `from`/`to`
+  // hidden inputs from the picks (oldest first, since the run history
+  // table is sorted DESC). The form submits as GET to /targets/.../diff.
+  (function () {
+    var form = document.getElementById('diff-form');
+    if (!form) return;
+    var picks = document.querySelectorAll('.diff-pick');
+    var submit = document.getElementById('diff-submit');
+    var hint = document.getElementById('diff-hint');
+
+    function refresh() {
+      var selected = Array.from(picks).filter(function (p) { return p.checked; });
+      // Cap at 2: if a third box gets ticked, untick it.
+      if (selected.length > 2) {
+        selected[selected.length - 1].checked = false;
+        selected = selected.slice(0, 2);
+      }
+      // Disable the rest while two are selected, so the user feels the cap.
+      var twoPicked = selected.length === 2;
+      picks.forEach(function (p) { p.disabled = twoPicked && !p.checked; });
+
+      // Rebuild the hidden form inputs.
+      Array.from(form.querySelectorAll('input[name="from"], input[name="to"]'))
+        .forEach(function (n) { n.remove(); });
+      if (twoPicked) {
+        // Run history is rendered DESC by date, so the LAST checked element
+        // in document order is the oldest. Send oldest as `from`.
+        var ordered = selected.sort(function (a, b) {
+          return Array.from(picks).indexOf(b) - Array.from(picks).indexOf(a);
+        });
+        ['from', 'to'].forEach(function (name, i) {
+          var inp = document.createElement('input');
+          inp.type = 'hidden'; inp.name = name; inp.value = ordered[i].value;
+          form.appendChild(inp);
+        });
+      }
+
+      submit.disabled = !twoPicked;
+      hint.textContent = twoPicked
+        ? 'comparing ' + selected[0].value + ' vs ' + selected[1].value
+        : (selected.length + ' selected — pick ' + (2 - selected.length) + ' more');
+    }
+    picks.forEach(function (p) { p.addEventListener('change', refresh); });
   })();
 </script>
 {% endblock %}
