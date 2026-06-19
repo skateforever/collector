@@ -4,20 +4,20 @@
 <div class="mb-4 flex items-center justify-between">
   <div>
     <h1 class="text-2xl font-bold">{{ target.domain }}</h1>
-    <div class="text-sm text-slate-500">
-      first seen {{ target.first_seen|fmt_dt }} · last seen {{ target.last_seen|fmt_dt }} · {{ runs|length }} run(s)
+    <div class="text-sm text-slate-500 dark:text-slate-400">
+      first seen {{ target.first_seen|fmt_dt }} · last run {{ latest.run_date|fmt_dt }} · {{ runs|length }} run(s)
     </div>
   </div>
-  <a href="/runs?domain={{ target.domain }}" class="text-sm text-emerald-700 hover:underline">All runs →</a>
+  <a href="/runs?domain={{ target.domain|urlencode }}" class="text-sm text-emerald-700 dark:text-emerald-400 hover:underline">All runs →</a>
 </div>
 
 <section class="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6">
-  <div class="bg-white rounded-lg shadow p-3"><div class="text-xs text-slate-500">Subs alive</div><div class="text-xl font-semibold">{{ latest.subdomains_alive }}<span class="text-slate-400 text-sm"> / {{ latest.subdomains }}</span></div></div>
-  <div class="bg-white rounded-lg shadow p-3"><div class="text-xs text-slate-500">IPs</div><div class="text-xl font-semibold">{{ latest.ips }}</div></div>
-  <div class="bg-white rounded-lg shadow p-3"><div class="text-xs text-slate-500">URLs</div><div class="text-xl font-semibold">{{ latest.webapp_urls }}</div></div>
-  <div class="bg-white rounded-lg shadow p-3"><div class="text-xs text-slate-500">Emails</div><div class="text-xl font-semibold">{{ latest.emails }}</div></div>
-  <div class="bg-white rounded-lg shadow p-3"><div class="text-xs text-slate-500">JS secrets</div><div class="text-xl font-semibold {% if latest.js_secrets %}text-red-700{% endif %}">{{ latest.js_secrets }}</div></div>
-  <div class="bg-white rounded-lg shadow p-3"><div class="text-xs text-slate-500">JS params</div><div class="text-xl font-semibold">{{ latest.js_params }}</div></div>
+  <div class="bg-white dark:bg-slate-900 rounded-lg shadow p-3"><div class="text-xs text-slate-500 dark:text-slate-400">Subs alive</div><div class="text-xl font-semibold">{{ latest.subdomains_alive }}<span class="text-slate-400 dark:text-slate-500 text-sm"> / {{ latest.subdomains }}</span></div></div>
+  <div class="bg-white dark:bg-slate-900 rounded-lg shadow p-3"><div class="text-xs text-slate-500 dark:text-slate-400">IPs</div><div class="text-xl font-semibold">{{ latest.ips }}</div></div>
+  <div class="bg-white dark:bg-slate-900 rounded-lg shadow p-3"><div class="text-xs text-slate-500 dark:text-slate-400">URLs</div><div class="text-xl font-semibold">{{ latest.webapp_urls }}</div></div>
+  <div class="bg-white dark:bg-slate-900 rounded-lg shadow p-3"><div class="text-xs text-slate-500 dark:text-slate-400">Emails</div><div class="text-xl font-semibold">{{ latest.emails }}</div></div>
+  <div class="bg-white dark:bg-slate-900 rounded-lg shadow p-3"><div class="text-xs text-slate-500 dark:text-slate-400">JS secrets</div><div class="text-xl font-semibold {% if latest.js_secrets %}text-red-700 dark:text-red-400{% endif %}">{{ latest.js_secrets }}</div></div>
+  <div class="bg-white dark:bg-slate-900 rounded-lg shadow p-3"><div class="text-xs text-slate-500 dark:text-slate-400">JS params</div><div class="text-xl font-semibold">{{ latest.js_params }}</div></div>
 </section>
 
 <section class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
@@ -28,38 +28,46 @@
   <div class="rounded-lg p-3 sev-info"><div class="text-xs uppercase">Info</div><div class="text-2xl font-bold">{{ latest.findings_info }}</div></div>
 </section>
 
-<section class="bg-white rounded-lg shadow p-4 mb-6">
+<section class="bg-white dark:bg-slate-900 rounded-lg shadow p-4 mb-6">
   <h2 class="font-semibold mb-3">Trend</h2>
   <canvas id="trend" height="90"></canvas>
 </section>
 
-<section class="bg-white rounded-lg shadow overflow-hidden">
-  <div class="px-4 py-3 border-b"><h2 class="font-semibold">Run history</h2></div>
+<section class="bg-white dark:bg-slate-900 rounded-lg shadow overflow-hidden">
+  <div class="px-4 py-3 border-b dark:border-slate-700"><h2 class="font-semibold">Run history</h2></div>
   <div class="overflow-x-auto">
     <table class="min-w-full text-sm">
-      <thead class="bg-slate-100 text-slate-600">
+      <thead class="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
         <tr>
-          <th class="text-left px-3 py-2">Run</th>
-          <th class="text-left px-3 py-2">Date</th>
-          <th class="text-left px-3 py-2">Mode</th>
-          <th class="text-right px-3 py-2">Subs</th>
-          <th class="text-right px-3 py-2">URLs</th>
-          <th class="text-right px-3 py-2">Crit</th>
-          <th class="text-right px-3 py-2">High</th>
-          <th class="text-right px-3 py-2">Status</th>
+          <th scope="col" class="text-left px-3 py-2">Run</th>
+          <th scope="col" class="text-left px-3 py-2">Date</th>
+          <th scope="col" class="text-left px-3 py-2">Mode</th>
+          <th scope="col" class="text-right px-3 py-2">Subs</th>
+          <th scope="col" class="text-right px-3 py-2">URLs</th>
+          <th scope="col" class="text-right px-3 py-2">Crit</th>
+          <th scope="col" class="text-right px-3 py-2">High</th>
+          <th scope="col" class="text-right px-3 py-2">Status</th>
         </tr>
       </thead>
       <tbody>
         {% for r in runs %}
-        <tr class="border-t">
+        <tr class="border-t dark:border-slate-700">
           <td class="px-3 py-2 font-mono text-xs">{{ r.run_id }}</td>
           <td class="px-3 py-2">{{ r.run_date|fmt_dt }}</td>
           <td class="px-3 py-2">{{ r.mode or '—' }}</td>
           <td class="px-3 py-2 text-right">{{ r.subdomains }}</td>
           <td class="px-3 py-2 text-right">{{ r.webapp_urls }}</td>
-          <td class="px-3 py-2 text-right {% if r.findings_critical %}text-red-700 font-semibold{% endif %}">{{ r.findings_critical }}</td>
-          <td class="px-3 py-2 text-right {% if r.findings_high %}text-orange-700{% endif %}">{{ r.findings_high }}</td>
-          <td class="px-3 py-2 text-right text-slate-600">{{ r.status or '—' }}</td>
+          <td class="px-3 py-2 text-right {% if r.findings_critical %}text-red-700 dark:text-red-400 font-semibold{% endif %}">{{ r.findings_critical }}</td>
+          <td class="px-3 py-2 text-right {% if r.findings_high %}text-orange-700 dark:text-orange-400{% endif %}">{{ r.findings_high }}</td>
+          <td class="px-3 py-2 text-right">
+            {% if r.status == 'finished' %}
+              <span class="inline-block px-2 py-0.5 rounded text-xs bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200">finished</span>
+            {% elif r.status == 'partial' %}
+              <span class="inline-block px-2 py-0.5 rounded text-xs bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">partial</span>
+            {% else %}
+              <span class="text-slate-500 dark:text-slate-400">{{ r.status or '—' }}</span>
+            {% endif %}
+          </td>
         </tr>
         {% endfor %}
       </tbody>
@@ -68,20 +76,35 @@
 </section>
 
 <script>
-  const chartData = {{ chart|tojson }};
-  new Chart(document.getElementById('trend'), {
-    type: 'line',
-    data: {
-      labels: chartData.labels,
-      datasets: [
-        {label: 'Subdomains', data: chartData.subdomains, borderColor: '#0ea5e9', tension: .3},
-        {label: 'URLs', data: chartData.webapp_urls, borderColor: '#10b981', tension: .3},
-        {label: 'Critical', data: chartData.findings_critical, borderColor: '#dc2626', tension: .3},
-        {label: 'High', data: chartData.findings_high, borderColor: '#f97316', tension: .3},
-        {label: 'JS secrets', data: chartData.js_secrets, borderColor: '#7c3aed', tension: .3},
-      ]
-    },
-    options: {responsive: true, plugins: {legend: {position: 'bottom'}}, scales: {y: {beginAtZero: true}}}
-  });
+  // Read theme at chart-init time so axis/tick/legend colors look right in
+  // both palettes. Toggling theme requires a page reload to redraw the chart.
+  (function () {
+    var chartData = {{ chart|tojson }};
+    var isDark = document.documentElement.classList.contains('dark');
+    var gridColor = isDark ? 'rgba(148, 163, 184, .15)' : 'rgba(100, 116, 139, .15)';
+    var tickColor = isDark ? '#cbd5e1' : '#475569';
+
+    new Chart(document.getElementById('trend'), {
+      type: 'line',
+      data: {
+        labels: chartData.labels,
+        datasets: [
+          {label: 'Subdomains', data: chartData.subdomains, borderColor: '#0ea5e9', tension: .3},
+          {label: 'URLs', data: chartData.webapp_urls, borderColor: '#10b981', tension: .3},
+          {label: 'Critical', data: chartData.findings_critical, borderColor: '#dc2626', tension: .3},
+          {label: 'High', data: chartData.findings_high, borderColor: '#f97316', tension: .3},
+          {label: 'JS secrets', data: chartData.js_secrets, borderColor: '#7c3aed', tension: .3},
+        ]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { position: 'bottom', labels: { color: tickColor } } },
+        scales: {
+          x: { ticks: { color: tickColor }, grid: { color: gridColor } },
+          y: { beginAtZero: true, ticks: { color: tickColor }, grid: { color: gridColor } }
+        }
+      }
+    });
+  })();
 </script>
 {% endblock %}

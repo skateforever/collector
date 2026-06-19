@@ -87,6 +87,14 @@ def fmt_dt(value: str | None) -> str:
 app.jinja_env.filters["fmt_dt"] = fmt_dt
 
 
+@app.context_processor
+def inject_globals():
+    """Make db_path available to every template (the footer in base.html
+    used to read it only on the index route, so other pages rendered the
+    placeholder text instead of the real path)."""
+    return {"db_path": str(DB_PATH)}
+
+
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
@@ -132,7 +140,6 @@ def index():
         runs_total=runs_total,
         totals=totals,
         rows=rows,
-        db_path=str(DB_PATH),
     )
 
 

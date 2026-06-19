@@ -1,21 +1,42 @@
 {% extends "base.html" %}
 {% block title %}Dashboard · collector{% endblock %}
 {% block content %}
+
+{% if targets_total == 0 %}
+{# Onboarding: a fresh DB has zero targets. Tell the operator how to feed
+   it instead of just saying "no runs ingested yet". #}
+<section class="bg-white dark:bg-slate-900 rounded-lg shadow p-8 max-w-3xl mx-auto">
+  <h1 class="text-2xl font-bold mb-2">No targets yet</h1>
+  <p class="text-slate-600 dark:text-slate-300 mb-4">
+    The collector hasn't ingested any runs into <code class="bg-slate-100 dark:bg-slate-800 px-1 rounded">{{ db_path }}</code> yet.
+    Kick off a recon run from the project root to populate this dashboard:
+  </p>
+  <pre class="bg-slate-900 dark:bg-black text-emerald-200 text-sm rounded p-4 overflow-x-auto"><code>./collector -d example.com --recon --webapp-discovery</code></pre>
+  <p class="text-sm text-slate-500 dark:text-slate-400 mt-4">
+    Each successful run upserts a row into <code>recon_runs</code> and a target into <code>targets</code>.
+    Reload this page once the run finishes — KPIs and per-target breakdowns will appear automatically.
+  </p>
+  <p class="text-xs text-slate-400 dark:text-slate-500 mt-4">
+    See <a class="text-emerald-700 dark:text-emerald-400 hover:underline" href="https://github.com/skateforever/collector#readme">the README</a> for full flag reference and DB schema.
+  </p>
+</section>
+{% else %}
+
 <section class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-  <div class="bg-white rounded-lg shadow p-4">
-    <div class="text-xs uppercase tracking-wide text-slate-500">Targets</div>
+  <div class="bg-white dark:bg-slate-900 rounded-lg shadow p-4">
+    <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Targets</div>
     <div class="text-3xl font-semibold">{{ targets_total }}</div>
   </div>
-  <div class="bg-white rounded-lg shadow p-4">
-    <div class="text-xs uppercase tracking-wide text-slate-500">Runs</div>
+  <div class="bg-white dark:bg-slate-900 rounded-lg shadow p-4">
+    <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Runs</div>
     <div class="text-3xl font-semibold">{{ runs_total }}</div>
   </div>
-  <div class="bg-white rounded-lg shadow p-4">
-    <div class="text-xs uppercase tracking-wide text-slate-500">Subdomains alive</div>
-    <div class="text-3xl font-semibold">{{ totals.subdomains_alive }} <span class="text-sm text-slate-400">/ {{ totals.subdomains }}</span></div>
+  <div class="bg-white dark:bg-slate-900 rounded-lg shadow p-4">
+    <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Subdomains alive</div>
+    <div class="text-3xl font-semibold">{{ totals.subdomains_alive }} <span class="text-sm text-slate-400 dark:text-slate-500">/ {{ totals.subdomains }}</span></div>
   </div>
-  <div class="bg-white rounded-lg shadow p-4">
-    <div class="text-xs uppercase tracking-wide text-slate-500">Webapp URLs</div>
+  <div class="bg-white dark:bg-slate-900 rounded-lg shadow p-4">
+    <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Webapp URLs</div>
     <div class="text-3xl font-semibold">{{ totals.webapp_urls }}</div>
   </div>
 </section>
@@ -28,42 +49,43 @@
   <div class="rounded-lg p-3 sev-info"><div class="text-xs uppercase">Info</div><div class="text-2xl font-bold">{{ totals.findings_info }}</div></div>
 </section>
 
-<section class="bg-white rounded-lg shadow overflow-hidden">
-  <div class="px-4 py-3 border-b flex items-center justify-between">
+<section class="bg-white dark:bg-slate-900 rounded-lg shadow overflow-hidden">
+  <div class="px-4 py-3 border-b dark:border-slate-700 flex items-center justify-between">
     <h2 class="font-semibold">Targets — latest run</h2>
-    <span class="text-xs text-slate-500">sorted by criticality</span>
+    <span class="text-xs text-slate-500 dark:text-slate-400">sorted by criticality</span>
   </div>
   <div class="overflow-x-auto">
     <table class="min-w-full text-sm">
-      <thead class="bg-slate-100 text-slate-600">
+      <thead class="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
         <tr>
-          <th class="text-left px-3 py-2">Domain</th>
-          <th class="text-left px-3 py-2">Last run</th>
-          <th class="text-right px-3 py-2">Subs alive</th>
-          <th class="text-right px-3 py-2">URLs</th>
-          <th class="text-right px-3 py-2">JS secrets</th>
-          <th class="text-right px-3 py-2">Crit</th>
-          <th class="text-right px-3 py-2">High</th>
-          <th class="text-right px-3 py-2">Med</th>
+          <th scope="col" class="text-left px-3 py-2">Domain</th>
+          <th scope="col" class="text-left px-3 py-2">Last run</th>
+          <th scope="col" class="text-right px-3 py-2">Subs alive</th>
+          <th scope="col" class="text-right px-3 py-2">URLs</th>
+          <th scope="col" class="text-right px-3 py-2">JS secrets</th>
+          <th scope="col" class="text-right px-3 py-2">Crit</th>
+          <th scope="col" class="text-right px-3 py-2">High</th>
+          <th scope="col" class="text-right px-3 py-2">Med</th>
         </tr>
       </thead>
       <tbody>
         {% for r in rows %}
-        <tr class="border-t hover:bg-slate-50">
-          <td class="px-3 py-2"><a class="text-emerald-700 hover:underline" href="/targets/{{ r.domain }}">{{ r.domain }}</a></td>
-          <td class="px-3 py-2 text-slate-600">{{ r.run_date|fmt_dt }}</td>
-          <td class="px-3 py-2 text-right">{{ r.subdomains_alive }}<span class="text-slate-400 text-xs"> / {{ r.subdomains }}</span></td>
+        <tr class="border-t dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+          <td class="px-3 py-2"><a class="text-emerald-700 dark:text-emerald-400 hover:underline" href="/targets/{{ r.domain }}">{{ r.domain }}</a></td>
+          <td class="px-3 py-2 text-slate-600 dark:text-slate-400">{{ r.run_date|fmt_dt }}</td>
+          <td class="px-3 py-2 text-right">{{ r.subdomains_alive }}<span class="text-slate-400 dark:text-slate-500 text-xs"> / {{ r.subdomains }}</span></td>
           <td class="px-3 py-2 text-right">{{ r.webapp_urls }}</td>
-          <td class="px-3 py-2 text-right">{{ r.js_secrets }}</td>
-          <td class="px-3 py-2 text-right font-semibold {% if r.findings_critical %}text-red-700{% endif %}">{{ r.findings_critical }}</td>
-          <td class="px-3 py-2 text-right {% if r.findings_high %}text-orange-700{% endif %}">{{ r.findings_high }}</td>
+          <td class="px-3 py-2 text-right {% if r.js_secrets %}text-purple-700 dark:text-purple-400 font-semibold{% endif %}">{{ r.js_secrets }}</td>
+          <td class="px-3 py-2 text-right font-semibold {% if r.findings_critical %}text-red-700 dark:text-red-400{% endif %}">{{ r.findings_critical }}</td>
+          <td class="px-3 py-2 text-right {% if r.findings_high %}text-orange-700 dark:text-orange-400{% endif %}">{{ r.findings_high }}</td>
           <td class="px-3 py-2 text-right">{{ r.findings_medium }}</td>
         </tr>
         {% else %}
-        <tr><td colspan="8" class="px-3 py-6 text-center text-slate-500">No runs ingested yet.</td></tr>
+        <tr><td colspan="8" class="px-3 py-6 text-center text-slate-500 dark:text-slate-400">No runs ingested yet.</td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
 </section>
+{% endif %}
 {% endblock %}
