@@ -4,3 +4,4 @@ collector.orig
 
 # Ignore some old and third scripts
 ./functions/externo/
+app-report/__pycache__/

@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}{{ spec.label }} · {{ domain }} · collector{% endblock %}
+{% block content %}
+<div class="mb-4 flex items-center justify-between flex-wrap gap-2">
+  <div>
+    <nav class="text-xs text-slate-500 dark:text-slate-400 mb-1">
+      <a href="/targets/{{ domain }}" class="hover:underline text-emerald-700 dark:text-emerald-400">{{ domain }}</a>
+      <span class="mx-1">/</span>
+      <span class="font-mono">{{ run.run_id }}</span>
+    </nav>
+    <h1 class="text-2xl font-bold">{{ spec.label }}</h1>
+    <div class="text-xs text-slate-500 dark:text-slate-400">{{ run.run_date|fmt_dt }} · mode <code>{{ run.mode or '—' }}</code></div>
+  </div>
+  <a href="/targets/{{ domain }}" class="text-sm text-emerald-700 dark:text-emerald-400 hover:underline">← back to target</a>
+</div>
+
+<form class="bg-white dark:bg-slate-900 rounded-lg shadow p-4 mb-4 flex flex-wrap gap-3 items-end"
+      hx-get="" hx-target="#artifact-table" hx-trigger="submit"
+      hx-indicator="#art-loader" hx-push-url="true">
+  <label for="art-q" class="flex flex-col text-xs text-slate-600 dark:text-slate-300">Filter (substring)
+    <input id="art-q" name="q" value="{{ q }}" placeholder="e.g. admin, .js, 192.168"
+           class="border dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 rounded px-2 py-1 text-sm w-72"
+           hx-get="" hx-target="#artifact-table" hx-trigger="keyup changed delay:300ms"
+           hx-indicator="#art-loader" hx-include="closest form" hx-push-url="true">
+  </label>
+  <label for="art-pp" class="flex flex-col text-xs text-slate-600 dark:text-slate-300">Per page
+    <select id="art-pp" name="per_page" class="border dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 rounded px-2 py-1 text-sm">
+      {% for opt in [50, 100, 250, 500] %}
+      <option value="{{ opt }}" {% if opt == per_page %}selected{% endif %}>{{ opt }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <button class="bg-slate-900 dark:bg-slate-700 hover:bg-slate-800 dark:hover:bg-slate-600 text-white text-sm px-3 py-1.5 rounded">Apply</button>
+</form>
+
+<div id="art-loader" class="htmx-indicator mb-2" aria-hidden="true"></div>
+
+<div id="artifact-table" aria-live="polite" aria-busy="false">
+  {% include "_artifact_table.html" %}
+</div>
+{% endblock %}
