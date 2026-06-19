@@ -1,37 +1,123 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="h-full">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>{% block title %}collector report{% endblock %}</title>
+
+  <!--
+    Apply the user's saved theme synchronously, BEFORE Tailwind loads, so the
+    page never flashes the wrong palette on first paint. Tailwind's class-based
+    dark mode is configured below and gated by `<html class="dark">`.
+  -->
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem('collector-theme');
+        var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        var useDark = saved ? saved === 'dark' : prefersDark;
+        if (useDark) document.documentElement.classList.add('dark');
+      } catch (e) { /* localStorage may be blocked; default to light */ }
+    })();
+  </script>
+
+  <script>
+    // Tailwind CDN runtime config — must be set before the CDN script tag below.
+    window.tailwind = window.tailwind || {};
+    window.tailwind.config = { darkMode: 'class' };
+  </script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/htmx.org@1.9.12"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     [x-cloak]{display:none}
+
+    /* Severity badges — hand-tuned for both themes so the contrast survives. */
     .sev-critical{color:#7f1d1d;background:#fee2e2}
     .sev-high{color:#9a3412;background:#ffedd5}
     .sev-medium{color:#92400e;background:#fef3c7}
     .sev-low{color:#1e40af;background:#dbeafe}
     .sev-info{color:#374151;background:#f3f4f6}
+    .dark .sev-critical{color:#fecaca;background:#7f1d1d}
+    .dark .sev-high{color:#fed7aa;background:#7c2d12}
+    .dark .sev-medium{color:#fde68a;background:#78350f}
+    .dark .sev-low{color:#bfdbfe;background:#1e3a8a}
+    .dark .sev-info{color:#e5e7eb;background:#374151}
+
+    /* HTMX request indicator: a thin progress bar that slides in while a
+       request is in flight. Driven by .htmx-request class HTMX toggles on
+       the originating element. The `htmx-indicator` selector makes the
+       bar invisible by default and visible only when HTMX adds
+       .htmx-request to it. */
+    .htmx-indicator{
+      position:relative;
+      height:2px;
+      background:transparent;
+      overflow:hidden;
+      opacity:0;
+      transition:opacity .2s;
+    }
+    .htmx-indicator.htmx-request,
+    .htmx-request .htmx-indicator{
+      opacity:1;
+    }
+    .htmx-indicator::after{
+      content:"";
+      position:absolute;
+      inset:0;
+      background:linear-gradient(90deg,transparent,#10b981 50%,transparent);
+      animation:htmx-bar 1.1s linear infinite;
+    }
+    @keyframes htmx-bar{
+      0%{transform:translateX(-100%)}
+      100%{transform:translateX(100%)}
+    }
+
+    /* Visible focus ring everyone can see — Tailwind's default ring is
+       theme-blind; tune it so it survives dark mode too. */
+    :focus-visible{outline:2px solid #10b981;outline-offset:2px}
   </style>
 </head>
-<body class="bg-slate-50 text-slate-800 min-h-screen">
-  <header class="bg-slate-900 text-slate-100 shadow">
+<body class="bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 min-h-screen transition-colors">
+  <header class="bg-slate-900 dark:bg-black text-slate-100 shadow">
     <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
       <a href="/" class="font-bold text-lg tracking-tight">collector <span class="text-emerald-400">·</span> report</a>
-      <nav class="flex gap-4 text-sm">
+      <nav class="flex items-center gap-4 text-sm">
         <a class="hover:text-emerald-300" href="/">Dashboard</a>
         <a class="hover:text-emerald-300" href="/runs">Runs</a>
         <a class="hover:text-emerald-300" href="/health">Health</a>
+        <button id="theme-toggle"
+                type="button"
+                aria-label="Toggle dark mode"
+                title="Toggle dark mode"
+                class="ml-2 p-1.5 rounded hover:bg-slate-800 text-slate-300 hover:text-emerald-300 transition-colors">
+          <svg class="hidden dark:block w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+          <svg class="dark:hidden w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        </button>
       </nav>
     </div>
   </header>
   <main class="max-w-7xl mx-auto px-4 py-6">
     {% block content %}{% endblock %}
   </main>
-  <footer class="max-w-7xl mx-auto px-4 py-6 text-xs text-slate-500">
-    Read-only view over <code>{{ db_path or 'collector-results-db' }}</code>.
+  <footer class="max-w-7xl mx-auto px-4 py-6 text-xs text-slate-500 dark:text-slate-400">
+    Read-only view over <code class="bg-slate-100 dark:bg-slate-800 dark:text-slate-200 px-1 py-0.5 rounded">{{ db_path or 'collector-results-db' }}</code>.
   </footer>
+
+  <script>
+    // Theme toggle: flip the .dark class on <html> and persist to localStorage
+    // so the choice sticks across page loads. The pre-paint script at the top
+    // of <head> reads this on the next request to avoid the FOUC.
+    (function () {
+      var btn = document.getElementById('theme-toggle');
+      if (!btn) return;
+      btn.addEventListener('click', function () {
+        var root = document.documentElement;
+        var nowDark = !root.classList.contains('dark');
+        root.classList.toggle('dark', nowDark);
+        try { localStorage.setItem('collector-theme', nowDark ? 'dark' : 'light'); } catch (e) {}
+      });
+    })();
+  </script>
 </body>
 </html>

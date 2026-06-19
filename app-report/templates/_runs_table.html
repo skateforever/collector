@@ -1,54 +1,64 @@
-<div class="bg-white rounded-lg shadow overflow-hidden">
+<div class="bg-white dark:bg-slate-900 rounded-lg shadow overflow-hidden">
   <div class="overflow-x-auto">
     <table class="min-w-full text-sm">
-      <thead class="bg-slate-100 text-slate-600">
+      <thead class="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
         <tr>
-          <th class="text-left px-3 py-2">Domain</th>
-          <th class="text-left px-3 py-2">Run</th>
-          <th class="text-left px-3 py-2">Date</th>
-          <th class="text-left px-3 py-2">Mode</th>
-          <th class="text-right px-3 py-2">Subs</th>
-          <th class="text-right px-3 py-2">URLs</th>
-          <th class="text-right px-3 py-2">Crit</th>
-          <th class="text-right px-3 py-2">High</th>
-          <th class="text-right px-3 py-2">Status</th>
+          <th scope="col" class="text-left px-3 py-2">Domain</th>
+          <th scope="col" class="text-left px-3 py-2">Run</th>
+          <th scope="col" class="text-left px-3 py-2">Date</th>
+          <th scope="col" class="text-left px-3 py-2">Mode</th>
+          <th scope="col" class="text-right px-3 py-2">Subs</th>
+          <th scope="col" class="text-right px-3 py-2">URLs</th>
+          <th scope="col" class="text-right px-3 py-2">Crit</th>
+          <th scope="col" class="text-right px-3 py-2">High</th>
+          <th scope="col" class="text-right px-3 py-2">Status</th>
         </tr>
       </thead>
       <tbody>
         {% for r in rows %}
-        <tr class="border-t hover:bg-slate-50">
-          <td class="px-3 py-2"><a class="text-emerald-700 hover:underline" href="/targets/{{ r.domain }}">{{ r.domain }}</a></td>
+        <tr class="border-t dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+          <td class="px-3 py-2"><a class="text-emerald-700 dark:text-emerald-400 hover:underline" href="/targets/{{ r.domain }}">{{ r.domain }}</a></td>
           <td class="px-3 py-2 font-mono text-xs">{{ r.run_id }}</td>
           <td class="px-3 py-2">{{ r.run_date|fmt_dt }}</td>
           <td class="px-3 py-2">{{ r.mode or '—' }}</td>
           <td class="px-3 py-2 text-right">{{ r.subdomains }}</td>
           <td class="px-3 py-2 text-right">{{ r.webapp_urls }}</td>
-          <td class="px-3 py-2 text-right {% if r.findings_critical %}text-red-700 font-semibold{% endif %}">{{ r.findings_critical }}</td>
-          <td class="px-3 py-2 text-right {% if r.findings_high %}text-orange-700{% endif %}">{{ r.findings_high }}</td>
-          <td class="px-3 py-2 text-right text-slate-600">{{ r.status or '—' }}</td>
+          <td class="px-3 py-2 text-right {% if r.findings_critical %}text-red-700 dark:text-red-400 font-semibold{% endif %}">{{ r.findings_critical }}</td>
+          <td class="px-3 py-2 text-right {% if r.findings_high %}text-orange-700 dark:text-orange-400{% endif %}">{{ r.findings_high }}</td>
+          <td class="px-3 py-2 text-right">
+            {% if r.status == 'finished' %}
+              <span class="inline-block px-2 py-0.5 rounded text-xs bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200">finished</span>
+            {% elif r.status == 'partial' %}
+              <span class="inline-block px-2 py-0.5 rounded text-xs bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">partial</span>
+            {% else %}
+              <span class="text-slate-500 dark:text-slate-400">{{ r.status or '—' }}</span>
+            {% endif %}
+          </td>
         </tr>
         {% else %}
-        <tr><td colspan="9" class="px-3 py-6 text-center text-slate-500">No matching runs.</td></tr>
+        <tr><td colspan="9" class="px-3 py-6 text-center text-slate-500 dark:text-slate-400">No matching runs.</td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
   {% set pages = ((total + per_page - 1) // per_page) if per_page else 1 %}
   {% if pages > 1 %}
-  <nav class="flex items-center justify-between px-4 py-3 border-t text-sm">
-    <span class="text-slate-500">Page {{ page }} of {{ pages }}</span>
+  <nav class="flex items-center justify-between px-4 py-3 border-t dark:border-slate-700 text-sm">
+    <span class="text-slate-500 dark:text-slate-400">Page {{ page }} of {{ pages }}</span>
     <div class="flex gap-2">
       {% if page > 1 %}
-      <a class="px-3 py-1 border rounded hover:bg-slate-50"
-         hx-get="/runs?domain={{ domain }}&mode={{ mode }}&page={{ page - 1 }}"
+      {% set prev_url = '/runs?domain=' ~ (domain|urlencode) ~ '&mode=' ~ (mode|urlencode) ~ '&page=' ~ (page - 1) %}
+      <a class="px-3 py-1 border dark:border-slate-600 rounded hover:bg-slate-50 dark:hover:bg-slate-700"
+         hx-get="{{ prev_url }}"
          hx-target="#runs-table" hx-push-url="true"
-         href="/runs?domain={{ domain }}&mode={{ mode }}&page={{ page - 1 }}">Prev</a>
+         href="{{ prev_url }}">Prev</a>
       {% endif %}
       {% if page < pages %}
-      <a class="px-3 py-1 border rounded hover:bg-slate-50"
-         hx-get="/runs?domain={{ domain }}&mode={{ mode }}&page={{ page + 1 }}"
+      {% set next_url = '/runs?domain=' ~ (domain|urlencode) ~ '&mode=' ~ (mode|urlencode) ~ '&page=' ~ (page + 1) %}
+      <a class="px-3 py-1 border dark:border-slate-600 rounded hover:bg-slate-50 dark:hover:bg-slate-700"
+         hx-get="{{ next_url }}"
          hx-target="#runs-table" hx-push-url="true"
-         href="/runs?domain={{ domain }}&mode={{ mode }}&page={{ page + 1 }}">Next</a>
+         href="{{ next_url }}">Next</a>
       {% endif %}
     </div>
   </nav>

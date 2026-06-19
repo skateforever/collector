@@ -3,30 +3,38 @@
 {% block content %}
 <div class="mb-4 flex items-center justify-between">
   <h1 class="text-2xl font-bold">Runs</h1>
-  <span class="text-sm text-slate-500">{{ total }} total</span>
+  <span class="text-sm text-slate-500 dark:text-slate-400">{{ total }} total</span>
 </div>
 
-<form class="bg-white rounded-lg shadow p-4 mb-4 flex flex-wrap gap-3 items-end"
+<form class="bg-white dark:bg-slate-900 rounded-lg shadow p-4 mb-4 flex flex-wrap gap-3 items-end"
       hx-get="/runs" hx-target="#runs-table" hx-trigger="submit, change from:select"
+      hx-indicator="#runs-loader"
       hx-push-url="true">
-  <label class="flex flex-col text-xs text-slate-600">Domain
-    <input name="domain" value="{{ domain }}" placeholder="example.com"
-           class="border rounded px-2 py-1 text-sm w-56"
+  <label for="filter-domain" class="flex flex-col text-xs text-slate-600 dark:text-slate-300">Domain
+    <input id="filter-domain" name="domain" value="{{ domain }}" placeholder="example.com"
+           class="border dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 rounded px-2 py-1 text-sm w-56"
            hx-get="/runs" hx-target="#runs-table" hx-trigger="keyup changed delay:400ms"
+           hx-indicator="#runs-loader"
            hx-include="closest form" hx-push-url="true">
   </label>
-  <label class="flex flex-col text-xs text-slate-600">Mode
-    <select name="mode" class="border rounded px-2 py-1 text-sm">
+  <label for="filter-mode" class="flex flex-col text-xs text-slate-600 dark:text-slate-300">Mode
+    <select id="filter-mode" name="mode" class="border dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 rounded px-2 py-1 text-sm">
       <option value="">all</option>
       {% for m in modes %}
       <option value="{{ m }}" {% if m == mode %}selected{% endif %}>{{ m }}</option>
       {% endfor %}
     </select>
   </label>
-  <button class="bg-slate-900 text-white text-sm px-3 py-1.5 rounded">Apply</button>
+  <button class="bg-slate-900 dark:bg-slate-700 hover:bg-slate-800 dark:hover:bg-slate-600 text-white text-sm px-3 py-1.5 rounded">Apply</button>
 </form>
 
-<div id="runs-table">
+{# HTMX progress bar — invisible until any of the form's hx-* triggers fire. #}
+<div id="runs-loader" class="htmx-indicator mb-2" aria-hidden="true"></div>
+
+{# aria-live=polite lets screen readers announce when filter results
+   change. The element itself is the swap target so HTMX never blows
+   away the live-region container. #}
+<div id="runs-table" aria-live="polite" aria-busy="false">
   {% include "_runs_table.html" %}
 </div>
 {% endblock %}
