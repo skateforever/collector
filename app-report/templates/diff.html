@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Diff · {{ target.domain }} · collector{% endblock %}
+{% block content %}
+<div class="mb-4 flex items-center justify-between flex-wrap gap-2">
+  <div>
+    <nav class="text-xs text-slate-500 dark:text-slate-400 mb-1">
+      <a href="/targets/{{ target.domain }}" class="hover:underline text-emerald-700 dark:text-emerald-400">{{ target.domain }}</a>
+    </nav>
+    <h1 class="text-2xl font-bold">Diff</h1>
+    <div class="text-sm text-slate-500 dark:text-slate-400">
+      <span class="font-mono">{{ a.run_id }}</span> ({{ a.run_date|fmt_dt }})
+      <span class="mx-2">→</span>
+      <span class="font-mono">{{ b.run_id }}</span> ({{ b.run_date|fmt_dt }})
+    </div>
+  </div>
+  <a href="/targets/{{ target.domain }}" class="text-sm text-emerald-700 dark:text-emerald-400 hover:underline">← back to target</a>
+</div>
+
+{% if not sections %}
+<div class="bg-white dark:bg-slate-900 rounded-lg shadow p-8 text-center text-slate-500 dark:text-slate-400">
+  No differences in any tracked artifact between these two runs.
+</div>
+{% endif %}
+
+{% for s in sections %}
+<section class="bg-white dark:bg-slate-900 rounded-lg shadow mb-4 overflow-hidden">
+  <div class="px-4 py-3 border-b dark:border-slate-700 flex items-center justify-between">
+    <div>
+      <h2 class="font-semibold">{{ s.label }}</h2>
+      <div class="text-xs text-slate-500 dark:text-slate-400 font-mono">{{ s.file }}</div>
+    </div>
+    <div class="text-sm flex gap-3">
+      <span class="text-emerald-700 dark:text-emerald-400">+{{ s.added_count }}</span>
+      <span class="text-red-700 dark:text-red-400">-{{ s.removed_count }}</span>
+      <span class="text-slate-500 dark:text-slate-400">={{ s.common_count }}</span>
+    </div>
+  </div>
+  <div class="grid md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-100 dark:divide-slate-700">
+    <div>
+      <div class="px-4 py-2 text-xs uppercase text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 border-b dark:border-slate-700">added ({{ s.added_count }}){% if s.added_count > s.added|length %} — showing first {{ s.added|length }}{% endif %}</div>
+      {% if s.added %}
+      <ol class="divide-y divide-slate-100 dark:divide-slate-800 text-sm font-mono">
+        {% for item in s.added %}<li class="px-4 py-1 break-all">+ {{ item }}</li>{% endfor %}
+      </ol>
+      {% else %}
+      <div class="px-4 py-4 text-xs text-slate-400 dark:text-slate-500">— none —</div>
+      {% endif %}
+    </div>
+    <div>
+      <div class="px-4 py-2 text-xs uppercase text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/30 border-b dark:border-slate-700">removed ({{ s.removed_count }}){% if s.removed_count > s.removed|length %} — showing first {{ s.removed|length }}{% endif %}</div>
+      {% if s.removed %}
+      <ol class="divide-y divide-slate-100 dark:divide-slate-800 text-sm font-mono">
+        {% for item in s.removed %}<li class="px-4 py-1 break-all">- {{ item }}</li>{% endfor %}
+      </ol>
+      {% else %}
+      <div class="px-4 py-4 text-xs text-slate-400 dark:text-slate-500">— none —</div>
+      {% endif %}
+    </div>
+  </div>
+</section>
+{% endfor %}
+{% endblock %}
