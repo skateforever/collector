@@ -507,7 +507,7 @@ def findings(domain: str, run_id: str):
 # is not a generic file browser. The intent is to give the operator
 # read-only access to artifacts that aren't worth their own parser.
 RAW_FILES: dict[str, dict] = {
-    "nmap":           {"path": ("nmap_scan.txt",),                    "label": "nmap scan"},
+    "nmap":           {"path": ("scan", "nmap", "nmap_scan.txt"),     "label": "nmap scan"},
     "shodan":         {"path": ("scan", "shodan", "shodan_scan.txt"), "label": "Shodan scan"},
     "llm_prompt":     {"path": ("llm-prompt.txt",),                   "label": "LLM prompt bundle"},
     "domains_diff":   {"path": ("domains_diff.txt",),                 "label": "Subdomains diff"},

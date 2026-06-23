@@ -52,7 +52,6 @@ diff_file(){
     local name baseline added removed added_n removed_n
 
     name="$(basename "${new}")"
-    : > "${diff_out}"
 
     [[ ! -s "${new}" ]] && return 0
 
@@ -61,6 +60,8 @@ diff_file(){
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} No baseline for ${label} (first run)."
         return 0
     fi
+
+    : > "${diff_out}"
 
     added="$(mktemp "${tmp_dir}/diff_${label}_added.XXXXXX")"
     removed="$(mktemp "${tmp_dir}/diff_${label}_removed.XXXXXX")"
