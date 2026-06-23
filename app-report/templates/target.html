@@ -33,7 +33,7 @@
 <section class="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6">
   {{ count_card('Subs alive', latest.subdomains_alive, 'subdomains_alive', '<span class="text-slate-400 dark:text-slate-500 text-sm"> / ' ~ latest.subdomains ~ '</span>') }}
   {{ count_card('IPs', latest.ips, 'ips') }}
-  {{ count_card('URLs', latest.webapp_urls, 'webapp_urls') }}
+  {{ count_card('URLs', latest.webapp_consolidated, 'webapp_consolidated') }}
   {{ count_card('Emails', latest.emails, 'emails') }}
   {{ count_card('JS secrets', latest.js_secrets, 'js_secrets', warn=true) }}
   {{ count_card('JS params', latest.js_params, 'js_params') }}
@@ -114,7 +114,7 @@
           <td class="px-3 py-2">{{ r.run_date|fmt_dt }}</td>
           <td class="px-3 py-2">{{ r.mode or '—' }}</td>
           <td class="px-3 py-2 text-right">{{ r.subdomains }}</td>
-          <td class="px-3 py-2 text-right">{{ r.webapp_urls }}</td>
+          <td class="px-3 py-2 text-right">{{ r.webapp_consolidated }}</td>
           <td class="px-3 py-2 text-right {% if r.findings_critical %}text-red-700 dark:text-red-400 font-semibold{% endif %}">{{ r.findings_critical }}</td>
           <td class="px-3 py-2 text-right {% if r.findings_high %}text-orange-700 dark:text-orange-400{% endif %}">{{ r.findings_high }}</td>
           <td class="px-3 py-2 text-right">
@@ -148,7 +148,7 @@
         labels: chartData.labels,
         datasets: [
           {label: 'Subdomains', data: chartData.subdomains, borderColor: '#0ea5e9', tension: .3},
-          {label: 'URLs', data: chartData.webapp_urls, borderColor: '#10b981', tension: .3},
+          {label: 'URLs', data: chartData.webapp_consolidated, borderColor: '#10b981', tension: .3},
           {label: 'Critical', data: chartData.findings_critical, borderColor: '#dc2626', tension: .3},
           {label: 'High', data: chartData.findings_high, borderColor: '#f97316', tension: .3},
           {label: 'JS secrets', data: chartData.js_secrets, borderColor: '#7c3aed', tension: .3},

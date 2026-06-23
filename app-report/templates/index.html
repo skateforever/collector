@@ -37,7 +37,7 @@
   </div>
   <div class="bg-white dark:bg-slate-900 rounded-lg shadow p-4">
     <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Webapp URLs</div>
-    <div class="text-3xl font-semibold">{{ totals.webapp_urls }}</div>
+    <div class="text-3xl font-semibold">{{ totals.webapp_consolidated }}</div>
   </div>
 </section>
 
@@ -74,7 +74,7 @@
           <td class="px-3 py-2"><a class="text-emerald-700 dark:text-emerald-400 hover:underline" href="/targets/{{ r.domain }}">{{ r.domain }}</a></td>
           <td class="px-3 py-2 text-slate-600 dark:text-slate-400">{{ r.run_date|fmt_dt }}</td>
           <td class="px-3 py-2 text-right">{{ r.subdomains_alive }}<span class="text-slate-400 dark:text-slate-500 text-xs"> / {{ r.subdomains }}</span></td>
-          <td class="px-3 py-2 text-right">{{ r.webapp_urls }}</td>
+          <td class="px-3 py-2 text-right">{{ r.webapp_consolidated }}</td>
           <td class="px-3 py-2 text-right {% if r.js_secrets %}text-purple-700 dark:text-purple-400 font-semibold{% endif %}">{{ r.js_secrets }}</td>
           <td class="px-3 py-2 text-right font-semibold {% if r.findings_critical %}text-red-700 dark:text-red-400{% endif %}">{{ r.findings_critical }}</td>
           <td class="px-3 py-2 text-right {% if r.findings_high %}text-orange-700 dark:text-orange-400{% endif %}">{{ r.findings_high }}</td>

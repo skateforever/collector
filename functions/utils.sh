@@ -490,7 +490,7 @@ db_usage(){
     # header-shape check.
     local header expected
     header="$(head -n 1 "${hist}")"
-    expected="domain,run_id,run_date,started_at,finished_at,mode,subdomains,subdomains_alive,subdomains_added,ips,ips_added,webapp_urls,webapp_urls_added,vhosts_strong,vhosts_added,emails,emails_added,js_secrets,js_params,findings_info,findings_low,findings_medium,findings_high,findings_critical,report_dir,llm_prompt_path,status"
+    expected="domain,run_id,run_date,started_at,finished_at,mode,subdomains,subdomains_alive,subdomains_added,ips,ips_added,webapp_consolidated,webapp_consolidated_added,vhosts_strong,vhosts_added,emails,emails_added,js_secrets,js_params,findings_info,findings_low,findings_medium,findings_high,findings_critical,report_dir,llm_prompt_path,status"
     if [[ "${header}" != "${expected}" ]]; then
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} db_usage: history CSV header drift, refusing to ingest."
         echo "  expected: ${expected}" >> "${log_execution_file}"
@@ -539,8 +539,8 @@ CREATE TEMP TABLE recon_runs_stage (
     subdomains_added    INTEGER,
     ips                 INTEGER,
     ips_added           INTEGER,
-    webapp_urls         INTEGER,
-    webapp_urls_added   INTEGER,
+    webapp_consolidated       INTEGER,
+    webapp_consolidated_added INTEGER,
     vhosts_strong       INTEGER,
     vhosts_added        INTEGER,
     emails              INTEGER,
@@ -567,7 +567,7 @@ INSERT OR REPLACE INTO recon_runs (
     domain, run_id, run_date, started_at, finished_at, mode,
     subdomains, subdomains_alive, subdomains_added,
     ips, ips_added,
-    webapp_urls, webapp_urls_added,
+    webapp_consolidated, webapp_consolidated_added,
     vhosts_strong, vhosts_added,
     emails, emails_added,
     js_secrets, js_params,
@@ -589,8 +589,8 @@ WHERE r.run_id IS NULL
    OR r.subdomains_added  IS NOT s.subdomains_added
    OR r.ips               IS NOT s.ips
    OR r.ips_added         IS NOT s.ips_added
-   OR r.webapp_urls       IS NOT s.webapp_urls
-   OR r.webapp_urls_added IS NOT s.webapp_urls_added
+   OR r.webapp_consolidated       IS NOT s.webapp_consolidated
+   OR r.webapp_consolidated_added IS NOT s.webapp_consolidated_added
    OR r.vhosts_strong     IS NOT s.vhosts_strong
    OR r.vhosts_added      IS NOT s.vhosts_added
    OR r.emails            IS NOT s.emails
