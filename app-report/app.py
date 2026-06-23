@@ -163,7 +163,6 @@ ARTIFACT_KINDS: dict[str, dict] = {
     "webapp_urls":                 {"file": "webapp_urls.txt",                  "label": "Webapp URLs",               "hint": "url"},
     "robots_urls":                 {"file": "robots_urls.txt",                  "label": "robots.txt URLs",           "hint": "url"},
     "vhosts_strong":               {"file": "vhost_subdomains.txt",             "label": "vhosts (STRONG)",           "hint": "host"},
-    "vhosts_weak":                 {"file": "vhost_subdomains_weak.txt",        "label": "vhosts (WEAK)",             "hint": "host"},
     # Recon
     "emails":                      {"file": "email_recon.txt",                  "label": "Emails",                    "hint": "host"},
     "js_secrets":                  {"file": "webapp_js_secrets.txt",            "label": "JS secrets",                "hint": "comment"},
@@ -597,7 +596,6 @@ def diff_runs(domain: str):
         ("webapp_urls",      "Webapp URLs",      "webapp_urls.txt"),
         ("ips",              "IPs",              "infra_ipv4.txt"),
         ("vhosts_strong",    "vhosts (STRONG)",  "vhost_subdomains.txt"),
-        ("vhosts_weak",      "vhosts (WEAK)",    "vhost_subdomains_weak.txt"),
         ("emails",           "Emails",           "email_recon.txt"),
     ]
     for slug, label, fname in diffable:

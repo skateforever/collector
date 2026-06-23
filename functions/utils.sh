@@ -238,7 +238,6 @@ build_llm_prompt(){
         "webapp_urls.txt"
         "webapp_urls_diff.txt"
         "vhost_subdomains.txt"
-        "vhost_subdomains_weak.txt"
         "vhost_subdomains_diff.txt"
         "email_recon.txt"
         "email_recon_diff.txt"
@@ -331,7 +330,7 @@ build_llm_prompt(){
         echo "# infra_as / infra_blocks         — AS / BGP / netblock ownership"
         echo "# infra_ipv4 / _ipv4_diff         — consolidated IP universe + delta"
         echo "# webapp_urls / _diff             — live HTTP(S) URLs (scheme://host[:port])"
-        echo "# vhost_subdomains / _weak / _diff — vhost discovery (STRONG vs WEAK confidence)"
+        echo "# vhost_subdomains / _diff         — vhost discovery (STRONG confidence only)"
         echo "# email_recon / _diff             — emails harvested per source"
         echo "# robots_urls                     — paths extracted from robots.txt"
         echo "# webapp_js_secrets               — hardcoded keys/tokens/JWTs in JS"
@@ -465,7 +464,7 @@ db_usage(){
     # header-shape check.
     local header expected
     header="$(head -n 1 "${hist}")"
-    expected="domain,run_id,run_date,started_at,finished_at,mode,subdomains,subdomains_alive,subdomains_added,ips,ips_added,webapp_urls,webapp_urls_added,vhosts_strong,vhosts_weak,vhosts_added,emails,emails_added,js_secrets,js_params,findings_info,findings_low,findings_medium,findings_high,findings_critical,report_dir,llm_prompt_path,status"
+    expected="domain,run_id,run_date,started_at,finished_at,mode,subdomains,subdomains_alive,subdomains_added,ips,ips_added,webapp_urls,webapp_urls_added,vhosts_strong,vhosts_added,emails,emails_added,js_secrets,js_params,findings_info,findings_low,findings_medium,findings_high,findings_critical,report_dir,llm_prompt_path,status"
     if [[ "${header}" != "${expected}" ]]; then
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} db_usage: history CSV header drift, refusing to ingest."
         echo "  expected: ${expected}" >> "${log_execution_file}"
@@ -517,7 +516,6 @@ CREATE TEMP TABLE recon_runs_stage (
     webapp_urls         INTEGER,
     webapp_urls_added   INTEGER,
     vhosts_strong       INTEGER,
-    vhosts_weak         INTEGER,
     vhosts_added        INTEGER,
     emails              INTEGER,
     emails_added        INTEGER,
@@ -544,7 +542,7 @@ INSERT OR REPLACE INTO recon_runs (
     subdomains, subdomains_alive, subdomains_added,
     ips, ips_added,
     webapp_urls, webapp_urls_added,
-    vhosts_strong, vhosts_weak, vhosts_added,
+    vhosts_strong, vhosts_added,
     emails, emails_added,
     js_secrets, js_params,
     findings_info, findings_low, findings_medium, findings_high, findings_critical,
@@ -568,7 +566,6 @@ WHERE r.run_id IS NULL
    OR r.webapp_urls       IS NOT s.webapp_urls
    OR r.webapp_urls_added IS NOT s.webapp_urls_added
    OR r.vhosts_strong     IS NOT s.vhosts_strong
-   OR r.vhosts_weak       IS NOT s.vhosts_weak
    OR r.vhosts_added      IS NOT s.vhosts_added
    OR r.emails            IS NOT s.emails
    OR r.emails_added      IS NOT s.emails_added

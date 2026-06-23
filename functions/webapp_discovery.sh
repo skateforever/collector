@@ -78,6 +78,8 @@ webapp_alive(){
                     echo "${url}"
                 fi
             done > "${report_dir}/webapp_urls.txt"
+            sed -i -E 's|^(http://.+):80$|\1|; s|^(https://.+):443$|\1|' "${report_dir}/webapp_urls.txt"
+            sort -u -o "${report_dir}/webapp_urls.txt" "${report_dir}/webapp_urls.txt"
         fi
 
         unalias curl > /dev/null 2>&1

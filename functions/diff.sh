@@ -193,7 +193,7 @@ record_history(){
     local target="${domain:-${url_domain}}"
     local run_id finished_at mode
     local subs subs_alive subs_added ips ips_added urls urls_added
-    local vhosts_strong vhosts_weak vhosts_added emails emails_added
+    local vhosts_strong vhosts_added emails emails_added
     local secrets params info low med high crit
     local llm_prompt status
 
@@ -229,7 +229,6 @@ record_history(){
     urls="$(count_lines        "${report_dir}/webapp_urls.txt")"
     urls_added="$(count_lines  "${report_dir}/webapp_urls_diff.txt")"
     vhosts_strong="$(count_lines "${report_dir}/vhost_subdomains.txt")"
-    vhosts_weak="$(count_lines   "${report_dir}/vhost_subdomains_weak.txt")"
     vhosts_added="$(count_lines  "${report_dir}/vhost_subdomains_diff.txt")"
     emails="$(count_lines        "${report_dir}/email_recon.txt")"
     emails_added="$(count_lines  "${report_dir}/email_recon_diff.txt")"
@@ -255,14 +254,14 @@ record_history(){
     [[ -n "${llm_prompt}" ]] && status="finished"
 
     if [[ ! -s "${hist}" ]]; then
-        echo "domain,run_id,run_date,started_at,finished_at,mode,subdomains,subdomains_alive,subdomains_added,ips,ips_added,webapp_urls,webapp_urls_added,vhosts_strong,vhosts_weak,vhosts_added,emails,emails_added,js_secrets,js_params,findings_info,findings_low,findings_medium,findings_high,findings_critical,report_dir,llm_prompt_path,status" > "${hist}"
+        echo "domain,run_id,run_date,started_at,finished_at,mode,subdomains,subdomains_alive,subdomains_added,ips,ips_added,webapp_urls,webapp_urls_added,vhosts_strong,vhosts_added,emails,emails_added,js_secrets,js_params,findings_info,findings_low,findings_medium,findings_high,findings_critical,report_dir,llm_prompt_path,status" > "${hist}"
     fi
-    printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' \
+    printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' \
         "${target}" "${run_id}" "${run_date:-${date_recon}}" "${started_at:-}" "${finished_at}" "${mode}" \
         "${subs}" "${subs_alive}" "${subs_added}" \
         "${ips}" "${ips_added}" \
         "${urls}" "${urls_added}" \
-        "${vhosts_strong}" "${vhosts_weak}" "${vhosts_added}" \
+        "${vhosts_strong}" "${vhosts_added}" \
         "${emails}" "${emails_added}" \
         "${secrets}" "${params}" \
         "${info}" "${low}" "${med}" "${high}" "${crit}" \

@@ -38,7 +38,6 @@ CREATE TABLE IF NOT EXISTS recon_runs (
     webapp_urls         INTEGER,
     webapp_urls_added   INTEGER,
     vhosts_strong       INTEGER,
-    vhosts_weak         INTEGER,
     vhosts_added        INTEGER,
     emails              INTEGER,
     emails_added        INTEGER,

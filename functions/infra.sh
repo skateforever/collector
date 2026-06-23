@@ -240,8 +240,7 @@ vhost_check(){
             rm -f "${per_worker_out}"
         done
 
-        [[ -s "${strong_out}" ]] && sort -u -o "${report_dir}/vhost_subdomains.txt" "${strong_out}"
-        [[ -s "${weak_out}" ]] && sort -u -o "${report_dir}/vhost_subdomains_weak.txt" "${weak_out}"
+        [[ -s "${strong_out}" ]] && awk 'BEGIN{OFS="\t"}{print $1, $2}' "${strong_out}" | sort -u -o "${report_dir}/vhost_subdomains.txt"
         echo "Done!"
     else
         echo "Fail!"
