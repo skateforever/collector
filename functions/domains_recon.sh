@@ -40,7 +40,8 @@ domains_recon(){
         [[ -s "${report_dir}/domains_alive.txt" ]] && \
         [[ ! -s "${report_dir}/webapp_urls.txt" ]]; then
         webapp_alive "${domain}" "${report_dir}/domains_alive.txt"
-        webapp_tech "${domain}" "${report_dir}/webapp_urls.txt"
+        build_consolidated_urls
+        webapp_tech "${domain}" "${report_dir}/webapp_consolidated.txt"
         diff_artifacts
         # build_llm_prompt MUST run before record_history: the latter
         # decides status=finished only when llm-claude-prompt.txt or llm-local-prompt.txt exists on disk.
