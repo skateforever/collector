@@ -225,22 +225,12 @@ build_consolidated_urls(){
 # one artifact file into an already-open output file descriptor.
 # Args: $1=out_file $2=report_dir $3=relative_path $4=max_lines
 _llm_emit_artifact(){
-    local out_file="$1" base="$2" rel="$3" max_lines="$4"
+    local out_file="$1" base="$2" rel="$3"
     local f="${base}/${rel}"
     [[ ! -s "${f}" ]] && return 0
-    local lines head_n tail_n cut line
+    local line
     echo "===== BEGIN ${rel} =====" >> "${out_file}"
-    lines=$(wc -l < "${f}" 2>/dev/null | tr -d ' ')
-    if [[ "${lines:-0}" -gt "${max_lines}" ]]; then
-        head_n=$(( max_lines / 2 ))
-        tail_n=$(( max_lines - head_n ))
-        cut=$(( lines - max_lines ))
-        while IFS= read -r line; do redact_secrets "${line}"; echo; done < <(head -n "${head_n}" "${f}") >> "${out_file}"
-        echo "... [TRUNCATED ${cut} lines] ..." >> "${out_file}"
-        while IFS= read -r line; do redact_secrets "${line}"; echo; done < <(tail -n "${tail_n}" "${f}") >> "${out_file}"
-    else
-        while IFS= read -r line; do redact_secrets "${line}"; echo; done < "${f}" >> "${out_file}"
-    fi
+    while IFS= read -r line; do redact_secrets "${line}"; echo; done < "${f}" >> "${out_file}"
     echo "===== END ${rel} =====" >> "${out_file}"
     echo >> "${out_file}"
 }
@@ -258,8 +248,6 @@ _llm_emit_artifact(){
 #
 # Both files are written to ${report_dir}/.
 build_llm_prompt(){
-    local max_lines="${llm_prompt_max_lines:-400}"
-    local max_lines_local="${llm_prompt_max_lines_local:-100}"
     local target="${domain:-${url_domain:-unknown}}"
     local ts="$(date +"%Y-%m-%d %H:%M:%S %z")"
     local rel f lines size
@@ -286,8 +274,8 @@ build_llm_prompt(){
         echo "# etc_hosts_file.txt      — validated vhosts: ip<TAB>hostname (/etc/hosts format)"
         echo
     } >> "${local_out}"
-    _llm_emit_artifact "${local_out}" "${report_dir}" "webapp_consolidated.txt" "${max_lines_local}"
-    _llm_emit_artifact "${local_out}" "${report_dir}" "etc_hosts_file.txt"      "${max_lines_local}"
+    _llm_emit_artifact "${local_out}" "${report_dir}" "webapp_consolidated.txt"
+    _llm_emit_artifact "${local_out}" "${report_dir}" "etc_hosts_file.txt"
     {
         echo "===== END OF BUNDLE ====="
         echo "# Total artifacts : $(grep -c '^===== BEGIN ' "${local_out}")"
@@ -343,6 +331,11 @@ build_llm_prompt(){
         echo "# Source tool   : collector (https://github.com/skateforever/collector)"
         echo "# Report dir    : ${report_dir}"
         echo "#"
+        echo "# You are an offensive-security assistant. The data below is the"
+        echo "# result of an authorized recon run. Use it to answer operator"
+        echo "# questions about attack surface, prioritization and next steps."
+        echo "# Do not invent hosts, IPs or URLs not present in this data."
+        echo "#"
         echo "# WHAT THIS FILE IS"
         echo "# -----------------"
         echo "# A consolidated, plain-text dump of the artifacts produced by a"
@@ -354,19 +347,15 @@ build_llm_prompt(){
         echo "#     ... raw file content ..."
         echo "#     ===== END <relative/path> ====="
         echo "#"
-        echo "# Files larger than ${max_lines} lines are truncated head+tail and the cut"
-        echo "# is annotated inline (\"... [TRUNCATED N lines] ...\")."
         echo "# Empty or missing artifacts are listed in the INDEX but their body"
         echo "# is omitted from the bundle."
         echo "#"
         echo "# HOW TO USE THIS FILE (instructions for the receiving LLM)"
         echo "# --------------------------------------------------------"
-        echo "# You are an offensive-security assistant. Treat this bundle as the"
-        echo "# ground-truth result of a passive + active reconnaissance phase"
-        echo "# performed with explicit authorization on the target domain."
-        echo "# Do not invent hosts, IPs, URLs, secrets or findings that are not"
-        echo "# present in this bundle — operate strictly on the data below plus"
-        echo "# any prompts the operator provides next."
+        echo "# Treat this bundle as the ground-truth result of a passive + active"
+        echo "# reconnaissance phase performed with explicit authorization on the"
+        echo "# target domain. Operate strictly on the data below plus any prompts"
+        echo "# the operator provides next."
         echo "#"
         echo "# Typical follow-up tasks the operator will ask you to perform:"
         echo "#   * Prioritize subdomains / URLs / IPs by likely impact and reach"
@@ -440,7 +429,7 @@ build_llm_prompt(){
         echo
     } >> "${claude_out}"
     for rel in "${artifacts[@]}"; do
-        _llm_emit_artifact "${claude_out}" "${report_dir}" "${rel}" "${max_lines}"
+        _llm_emit_artifact "${claude_out}" "${report_dir}" "${rel}"
     done
     {
         echo "===== END OF BUNDLE ====="
