@@ -6,8 +6,9 @@
 #                                                           #
 #   * banner                                                #
 #   * reset_vars                                            #
+#   * build_consolidated_urls                               #
 #                                                           #
-#############################################################            
+#############################################################
 
 # Always print the banner
 banner(){
@@ -197,6 +198,29 @@ scan_js_params(){
     fi
 }
 
+build_consolidated_urls(){
+    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Building consolidated URL list... "
+    : > "${tmp_dir}/webapp_consolidated.tmp"
+    [[ -s "${report_dir}/webapp_urls.txt" ]] && cat "${report_dir}/webapp_urls.txt" >> "${tmp_dir}/webapp_consolidated.tmp"
+    [[ -s "${report_dir}/vhost_urls.txt" ]]  && cat "${report_dir}/vhost_urls.txt"  >> "${tmp_dir}/webapp_consolidated.tmp"
+    [[ ! -s "${tmp_dir}/webapp_consolidated.tmp" ]] && { echo "Fail!"; return 0; }
+    sort -u "${tmp_dir}/webapp_consolidated.tmp" > "${tmp_dir}/webapp_consolidated_sorted.tmp"
+    : > "${tmp_dir}/webapp_consolidated_validated.tmp"
+    while IFS= read -r url; do
+        host="$(echo "${url}" | sed -E 's|^https?://([^/:]+).*|\1|')"
+        if getent hosts "${host}" > /dev/null 2>&1; then
+            echo "${url}" >> "${tmp_dir}/webapp_consolidated_validated.tmp"
+            echo "consolidated [ok]:      ${url}" >> "${log_execution_file}"
+        else
+            echo "consolidated [skipped]: ${url} (no resolution)" >> "${log_execution_file}"
+        fi
+    done < "${tmp_dir}/webapp_consolidated_sorted.tmp"
+    sort -u -o "${report_dir}/webapp_consolidated.txt" "${tmp_dir}/webapp_consolidated_validated.tmp"
+    mv "${report_dir}/webapp_urls.txt" "${tmp_dir}/webapp_urls.old" 2>/dev/null
+    mv "${report_dir}/vhost_urls.txt"  "${tmp_dir}/vhost_urls.old"  2>/dev/null
+    echo "Done! ($(wc -l < "${report_dir}/webapp_consolidated.txt") URLs)"
+}
+
 # Bundle every artifact produced under ${report_dir} into a single text file
 # an LLM can ingest as context for follow-up pentest work. The output is
 # self-describing: a system-style preamble explains what collector is and
@@ -235,11 +259,9 @@ build_llm_prompt(){
         "infra_ipv4_diff.txt"
         "infra_ipv6.txt"
         "infra_blocks.txt"
-        "webapp_urls.txt"
-        "webapp_urls_diff.txt"
+        "webapp_consolidated.txt"
+        "webapp_consolidated_diff.txt"
         "etc_hosts_file.txt"
-        "vhost_urls.txt"
-        "vhost_urls_diff.txt"
         "vhost_subdomains_diff.txt"
         "email_recon.txt"
         "email_recon_diff.txt"

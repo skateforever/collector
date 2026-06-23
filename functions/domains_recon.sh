@@ -54,10 +54,10 @@ domains_recon(){
 
     # Only web app crawler
     if [[ "${webapp_crawler_check}" == "yes" ]] && \
-        [[ -s "${report_dir}/webapp_urls.txt" ]] && \
+        [[ -s "${report_dir}/webapp_consolidated.txt" ]] && \
         [[ "${recon_check}" == "no" || -z "${recon_check}" ]]; then
-        crawler_js "${domain}" "${report_dir}/webapp_urls.txt"
-        crawler_params "${domain}" "${report_dir}/webapp_urls.txt"
+        crawler_js "${domain}" "${report_dir}/webapp_consolidated.txt"
+        crawler_params "${domain}" "${report_dir}/webapp_consolidated.txt"
         diff_artifacts
         build_llm_prompt
         record_history
@@ -69,10 +69,10 @@ domains_recon(){
 
     # Only web app scan
     if [[ "${webapp_scan_check}" == "yes" ]] && \
-        [[ -s "${report_dir}/webapp_urls.txt" ]] && \
+        [[ -s "${report_dir}/webapp_consolidated.txt" ]] && \
         [[ "${recon_check}" == "no" || -z "${recon_check}" ]]; then
-        nuclei_scan "${domain}" "${report_dir}/webapp_urls.txt"
-        #acunetix_scan "${domain}" "${report_dir}/webapp_urls.txt"
+        nuclei_scan "${domain}" "${report_dir}/webapp_consolidated.txt"
+        #acunetix_scan "${domain}" "${report_dir}/webapp_consolidated.txt"
         diff_artifacts
         build_llm_prompt
         record_history
@@ -99,26 +99,27 @@ domains_recon(){
             webapp_alive "${domain}" "${report_dir}/domains_alive.txt"
             [[ -s "${report_dir}/domains_without_resolution.txt" ]] && [[ -s "${report_dir}/infra_ipv4.txt" ]] && \
                 vhost_check "${report_dir}/domains_without_resolution.txt" "${report_dir}/infra_ipv4.txt"
-            webapp_tech "${domain}" "${report_dir}/webapp_urls.txt"
+            build_consolidated_urls
+            webapp_tech "${domain}" "${report_dir}/webapp_consolidated.txt"
         fi
         if [[ "${webapp_crawler_check}" == "yes" && "${webapp_enum_check}" != "yes" ]]; then
-            crawler_js "${domain}" "${report_dir}/webapp_urls.txt"
-            crawler_params "${domain}" "${report_dir}/webapp_urls.txt"
+            crawler_js "${domain}" "${report_dir}/webapp_consolidated.txt"
+            crawler_params "${domain}" "${report_dir}/webapp_consolidated.txt"
         fi
         if [[ "${webapp_scan_check}" == "yes" && "${webapp_enum_check}" != "yes" ]]; then
-            nuclei_scan "${domain}" "${report_dir}/webapp_urls.txt"
-            #acunetix_scan "${domain}" "${report_dir}/webapp_urls.txt"
+            nuclei_scan "${domain}" "${report_dir}/webapp_consolidated.txt"
+            #acunetix_scan "${domain}" "${report_dir}/webapp_consolidated.txt"
         fi
         [[ "${recon_check}" == "yes" && "${webapp_enum_check}" != "yes" ]] && \
             { diff_artifacts; build_llm_prompt; record_history; db_usage; start_app_report; message "${domain}" finished; exit 0; }
     fi
 
     if [[ "${webapp_enum_check}" == "yes" ]]; then
-        webapp_enum "${domain}" "${report_dir}/webapp_urls.txt"
+        webapp_enum "${domain}" "${report_dir}/webapp_consolidated.txt"
         robots_txt
         [[ -s "${report_dir}/robots_urls.txt" ]] && webapp_enum "${domain}" "${report_dir}/robots_urls.txt"
 
-        for urls_file in "${report_dir}/webapp_urls.txt" "${report_dir}/robots_urls.txt"; do
+        for urls_file in "${report_dir}/webapp_consolidated.txt" "${report_dir}/robots_urls.txt"; do
             if [[ -s "${urls_file}" ]]; then
                 aquatone_screenshot "${domain}" "${urls_file}"
                 if [[ "${webapp_crawler_check}" == "yes" ]]; then

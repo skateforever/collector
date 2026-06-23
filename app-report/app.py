@@ -160,10 +160,9 @@ ARTIFACT_KINDS: dict[str, dict] = {
     "infra_as":                    {"file": "infra_as.txt",                     "label": "AS / BGP info",             "hint": "raw"},
     "infra_blocks":                {"file": "infra_blocks.txt",                 "label": "Netblocks",                 "hint": "raw"},
     # Web
-    "webapp_urls":                 {"file": "webapp_urls.txt",                  "label": "Webapp URLs",               "hint": "url"},
+    "webapp_consolidated":         {"file": "webapp_consolidated.txt",          "label": "Consolidated URLs",         "hint": "url"},
     "robots_urls":                 {"file": "robots_urls.txt",                  "label": "robots.txt URLs",           "hint": "url"},
     "vhosts_strong":               {"file": "etc_hosts_file.txt",               "label": "vhosts (/etc/hosts)",       "hint": "host"},
-    "vhost_urls":                  {"file": "vhost_urls.txt",                   "label": "vhost URLs",                "hint": "url"},
     # Recon
     "emails":                      {"file": "email_recon.txt",                  "label": "Emails",                    "hint": "host"},
     "js_secrets":                  {"file": "webapp_js_secrets.txt",            "label": "JS secrets",                "hint": "comment"},
@@ -512,7 +511,7 @@ RAW_FILES: dict[str, dict] = {
     "llm_prompt":     {"path": ("llm-prompt.txt",),                   "label": "LLM prompt bundle"},
     "domains_diff":   {"path": ("domains_diff.txt",),                 "label": "Subdomains diff"},
     "infra_ipv4_diff":{"path": ("infra_ipv4_diff.txt",),              "label": "Infra IPv4 diff"},
-    "webapp_urls_diff":{"path": ("webapp_urls_diff.txt",),            "label": "Webapp URLs diff"},
+    "webapp_consolidated_diff":{"path": ("webapp_consolidated_diff.txt",), "label": "Consolidated URLs diff"},
     "vhost_diff":     {"path": ("vhost_subdomains_diff.txt",),        "label": "vhosts diff"},
     "email_diff":     {"path": ("email_recon_diff.txt",),             "label": "Emails diff"},
     "nuclei_diff":    {"path": ("scan", "nuclei", "nuclei_scan_diff.txt"), "label": "Nuclei diff"},
@@ -594,10 +593,9 @@ def diff_runs(domain: str):
     diffable = [
         ("subdomains_alive", "Alive subdomains", "domains_alive.txt"),
         ("subdomains_found", "All subdomains",   "domains_found.txt"),
-        ("webapp_urls",      "Webapp URLs",      "webapp_urls.txt"),
+        ("webapp_consolidated", "Consolidated URLs", "webapp_consolidated.txt"),
         ("ips",              "IPs",              "infra_ipv4.txt"),
         ("vhosts_strong",    "vhosts (/etc/hosts)", "etc_hosts_file.txt"),
-        ("vhost_urls",       "vhost URLs",          "vhost_urls.txt"),
         ("emails",           "Emails",           "email_recon.txt"),
     ]
     for slug, label, fname in diffable:

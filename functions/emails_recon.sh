@@ -22,7 +22,7 @@ emails_filter_to_target(){
 emails_recon(){
     local emails_tmp="${tmp_dir}/email_recon.tmp"
     local emails_out="${report_dir}/email_recon.txt"
-    local urls_file="${report_dir}/webapp_urls.txt"
+    local urls_file="${report_dir}/webapp_consolidated.txt"
     local body_file="${tmp_dir}/email_recon_body.tmp"
     local js_file="${tmp_dir}/email_recon_js.tmp"
     local user_agent

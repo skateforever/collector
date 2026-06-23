@@ -134,8 +134,8 @@ diff_artifacts(){
     [[ -s "${report_dir}/infra_ipv4.txt" ]] && \
         diff_file "ips" "${report_dir}/infra_ipv4.txt" "${report_dir}/infra_ipv4_diff.txt"
 
-    [[ -s "${report_dir}/webapp_urls.txt" ]] && \
-        diff_file "webapp_urls" "${report_dir}/webapp_urls.txt" "${report_dir}/webapp_urls_diff.txt"
+    [[ -s "${report_dir}/webapp_consolidated.txt" ]] && \
+        diff_file "webapp_consolidated" "${report_dir}/webapp_consolidated.txt" "${report_dir}/webapp_consolidated_diff.txt"
 
     [[ -n "${nuclei_scan_file}" && -s "${nuclei_scan_file}" ]] && \
         diff_file "nuclei" "${nuclei_scan_file}" "${nuclei_scan_file%.result}_diff.txt"
@@ -145,9 +145,6 @@ diff_artifacts(){
 
     [[ -s "${report_dir}/etc_hosts_file.txt" ]] && \
         diff_file "vhosts" "${report_dir}/etc_hosts_file.txt" "${report_dir}/vhost_subdomains_diff.txt"
-
-    [[ -s "${report_dir}/vhost_urls.txt" ]] && \
-        diff_file "vhost_urls" "${report_dir}/vhost_urls.txt" "${report_dir}/vhost_urls_diff.txt"
 
     echo "Done!"
 }
@@ -229,8 +226,8 @@ record_history(){
     subs_added="$(count_lines  "${report_dir}/domains_diff.txt")"
     ips="$(count_lines         "${report_dir}/infra_ipv4.txt")"
     ips_added="$(count_lines   "${report_dir}/infra_ipv4_diff.txt")"
-    urls="$(count_lines        "${report_dir}/webapp_urls.txt")"
-    urls_added="$(count_lines  "${report_dir}/webapp_urls_diff.txt")"
+    urls="$(count_lines        "${report_dir}/webapp_consolidated.txt")"
+    urls_added="$(count_lines  "${report_dir}/webapp_consolidated_diff.txt")"
     vhosts_strong="$(count_lines "${report_dir}/etc_hosts_file.txt")"
     vhosts_added="$(count_lines  "${report_dir}/vhost_subdomains_diff.txt")"
     emails="$(count_lines        "${report_dir}/email_recon.txt")"
@@ -257,7 +254,7 @@ record_history(){
     [[ -n "${llm_prompt}" ]] && status="finished"
 
     if [[ ! -s "${hist}" ]]; then
-        echo "domain,run_id,run_date,started_at,finished_at,mode,subdomains,subdomains_alive,subdomains_added,ips,ips_added,webapp_urls,webapp_urls_added,vhosts_strong,vhosts_added,emails,emails_added,js_secrets,js_params,findings_info,findings_low,findings_medium,findings_high,findings_critical,report_dir,llm_prompt_path,status" > "${hist}"
+        echo "domain,run_id,run_date,started_at,finished_at,mode,subdomains,subdomains_alive,subdomains_added,ips,ips_added,webapp_consolidated,webapp_consolidated_added,vhosts_strong,vhosts_added,emails,emails_added,js_secrets,js_params,findings_info,findings_low,findings_medium,findings_high,findings_critical,report_dir,llm_prompt_path,status" > "${hist}"
     fi
     printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' \
         "${target}" "${run_id}" "${run_date:-${date_recon}}" "${started_at:-}" "${finished_at}" "${mode}" \

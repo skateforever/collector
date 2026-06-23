@@ -94,7 +94,7 @@ check_parameter_dependency(){
         fi
 
         # Web Application Crawler Check
-        if [[ "${webapp_crawler_check}" == "yes" && ( ! -s "${report_dir}/webapp_urls.txt" && "${webapp_discovery_check}" != "yes" ) ]] ; then
+        if [[ "${webapp_crawler_check}" == "yes" && ( ! -s "${report_dir}/webapp_consolidated.txt" && "${webapp_discovery_check}" != "yes" ) ]] ; then
             echo -e "You are trying to run web application crawler without having previously web application discovery, use the -wd|--webapp-discovery option and run again.\n"
             usage
         fi
@@ -117,7 +117,7 @@ check_parameter_dependency(){
         fi
 
         # Web Application Enumeration Check
-        if [[ "${webapp_enum_check}" == "yes" && ( ! -s "${report_dir}/webapp_urls.txt" && "${webapp_discovery_check}" != "yes" ) ]] ; then
+        if [[ "${webapp_enum_check}" == "yes" && ( ! -s "${report_dir}/webapp_consolidated.txt" && "${webapp_discovery_check}" != "yes" ) ]] ; then
             echo -e "You are trying to run web application enumeration without having previously web application discovery, use the -wd|--webapp-discovery option and run again.\n"
             usage
         fi
@@ -128,7 +128,7 @@ check_parameter_dependency(){
         fi
 
         # Web Application Scan Check
-        if [[ "${webapp_scan_check}" == "yes" && ( ! -s "${report_dir}/webapp_urls.txt" && "${webapp_discovery_check}" != "yes" ) ]] ; then
+        if [[ "${webapp_scan_check}" == "yes" && ( ! -s "${report_dir}/webapp_consolidated.txt" && "${webapp_discovery_check}" != "yes" ) ]] ; then
             echo -e "You are trying to run web application scan without having previously web application discovery, use the -wd|--webapp-discovery option and run again.\n"
             usage
         fi
