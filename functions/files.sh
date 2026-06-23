@@ -386,7 +386,7 @@ organizing_subdomains(){
             if cp "${subdomains_file}" "${tmp_dir}/domains_without_resolution.tmp"; then
                 if [ -s "${tmp_dir}/domains_without_resolution.tmp" ]; then
                     for d in $(cat "${tmp_dir}/domains_alive.tmp" | sort -u); do
-                        sed -i "/${d}/d" "${report_dir}/domains_without_resolution.tmp"
+                        sed -i "/${d}/d" "${report_dir}/domains_without_resolution.txt"
                     done
                     echo "Done!"
                 else
