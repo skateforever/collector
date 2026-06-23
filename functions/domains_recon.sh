@@ -43,7 +43,7 @@ domains_recon(){
         webapp_tech "${domain}" "${report_dir}/webapp_urls.txt"
         diff_artifacts
         # build_llm_prompt MUST run before record_history: the latter
-        # decides status=finished only when llm-prompt.txt exists on disk.
+        # decides status=finished only when llm-claude-prompt.txt or llm-local-prompt.txt exists on disk.
         build_llm_prompt
         record_history
         db_usage

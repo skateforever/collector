@@ -221,26 +221,84 @@ build_consolidated_urls(){
     echo "Done! ($(wc -l < "${report_dir}/webapp_consolidated.txt") URLs)"
 }
 
-# Bundle every artifact produced under ${report_dir} into a single text file
-# an LLM can ingest as context for follow-up pentest work. The output is
-# self-describing: a system-style preamble explains what collector is and
-# how the data is laid out, followed by named sections, one per artifact.
+# Internal helper: emits a delimited + optionally truncated section for
+# one artifact file into an already-open output file descriptor.
+# Args: $1=out_file $2=report_dir $3=relative_path $4=max_lines
+_llm_emit_artifact(){
+    local out_file="$1" base="$2" rel="$3" max_lines="$4"
+    local f="${base}/${rel}"
+    [[ ! -s "${f}" ]] && return 0
+    local lines head_n tail_n cut line
+    echo "===== BEGIN ${rel} =====" >> "${out_file}"
+    lines=$(wc -l < "${f}" 2>/dev/null | tr -d ' ')
+    if [[ "${lines:-0}" -gt "${max_lines}" ]]; then
+        head_n=$(( max_lines / 2 ))
+        tail_n=$(( max_lines - head_n ))
+        cut=$(( lines - max_lines ))
+        while IFS= read -r line; do redact_secrets "${line}"; echo; done < <(head -n "${head_n}" "${f}") >> "${out_file}"
+        echo "... [TRUNCATED ${cut} lines] ..." >> "${out_file}"
+        while IFS= read -r line; do redact_secrets "${line}"; echo; done < <(tail -n "${tail_n}" "${f}") >> "${out_file}"
+    else
+        while IFS= read -r line; do redact_secrets "${line}"; echo; done < "${f}" >> "${out_file}"
+    fi
+    echo "===== END ${rel} =====" >> "${out_file}"
+    echo >> "${out_file}"
+}
+
+# Generates two focused LLM prompt bundles from the current run:
 #
-# Large files are truncated head+tail to keep the bundle within typical
-# context windows; the truncation is annotated so the model knows it's
-# looking at a sample, not the full file. Operator API keys are redacted
-# from the body — the bundle is meant to leave the host.
+#   llm-local-prompt.txt  — compact bundle for local/small models (quantised
+#                           LLaMA-class): only webapp_consolidated.txt and
+#                           etc_hosts_file.txt, hard-truncated to fit smaller
+#                           context windows. Preamble is minimal and direct.
 #
-# Output: ${report_dir}/llm-prompt.txt
+#   llm-claude-prompt.txt — full bundle for cloud-scale models (Claude / GPT-4
+#                           class): all high-signal artifacts included, richer
+#                           preamble with glossary and operator guidance.
+#
+# Both files are written to ${report_dir}/.
 build_llm_prompt(){
-    local out_file="${report_dir}/llm-prompt.txt"
     local max_lines="${llm_prompt_max_lines:-400}"
-    local f rel size lines head_n tail_n cut line
+    local max_lines_local="${llm_prompt_max_lines_local:-100}"
+    local target="${domain:-${url_domain:-unknown}}"
+    local ts="$(date +"%Y-%m-%d %H:%M:%S %z")"
+    local rel f lines size
 
     [[ ! -d "${report_dir}" ]] && return 0
 
-    # Order matters: high-signal artifacts first so a truncated context
-    # window still keeps the most actionable data.
+    # ------------------------------------------------------------------ #
+    # llm-local-prompt.txt — webapp_consolidated + etc_hosts only         #
+    # ------------------------------------------------------------------ #
+    local local_out="${report_dir}/llm-local-prompt.txt"
+    : > "${local_out}"
+    {
+        echo "# COLLECTOR RECON — LOCAL MODEL PROMPT"
+        echo "# Target  : ${target}"
+        echo "# Date    : ${ts}"
+        echo "# Scope   : webapp_consolidated.txt + etc_hosts_file.txt only"
+        echo "#"
+        echo "# You are an offensive-security assistant. The data below is the"
+        echo "# result of an authorized recon run. Use it to answer operator"
+        echo "# questions about attack surface, prioritization and next steps."
+        echo "# Do not invent hosts, IPs or URLs not present in this data."
+        echo "#"
+        echo "# webapp_consolidated.txt — all live HTTP(S) URLs (DNS + validated vhosts)"
+        echo "# etc_hosts_file.txt      — validated vhosts: ip<TAB>hostname (/etc/hosts format)"
+        echo
+    } >> "${local_out}"
+    _llm_emit_artifact "${local_out}" "${report_dir}" "webapp_consolidated.txt" "${max_lines_local}"
+    _llm_emit_artifact "${local_out}" "${report_dir}" "etc_hosts_file.txt"      "${max_lines_local}"
+    {
+        echo "===== END OF BUNDLE ====="
+        echo "# Total artifacts : $(grep -c '^===== BEGIN ' "${local_out}")"
+        echo "# Bundle size     : $(wc -c < "${local_out}" | tr -d ' ') bytes"
+    } >> "${local_out}"
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} LLM local prompt written → ${local_out}"
+
+    # ------------------------------------------------------------------ #
+    # llm-claude-prompt.txt — full bundle for large context models         #
+    # ------------------------------------------------------------------ #
+    local claude_out="${report_dir}/llm-claude-prompt.txt"
     local -a artifacts=(
         "domains_found.txt"
         "domains_diff.txt"
@@ -274,16 +332,14 @@ build_llm_prompt(){
         "scan/nuclei/nuclei_web_fuzzing.result"
         "scan/shodan/shodan_scan.txt"
     )
-
-    : > "${out_file}"
-
+    : > "${claude_out}"
     {
         echo "########################################################################"
         echo "# COLLECTOR RECON BUNDLE — context for an LLM-driven pentest follow-up"
         echo "########################################################################"
         echo "#"
-        echo "# Target domain : ${domain:-${url_domain:-unknown}}"
-        echo "# Generated at  : $(date +"%Y-%m-%d %H:%M:%S %z")"
+        echo "# Target domain : ${target}"
+        echo "# Generated at  : ${ts}"
         echo "# Source tool   : collector (https://github.com/skateforever/collector)"
         echo "# Report dir    : ${report_dir}"
         echo "#"
@@ -353,10 +409,9 @@ build_llm_prompt(){
         echo "# zone_transfer                   — AXFR results (rare, high signal)"
         echo "# infra_as / infra_blocks         — AS / BGP / netblock ownership"
         echo "# infra_ipv4 / _ipv4_diff         — consolidated IP universe + delta"
-        echo "# webapp_urls / _diff             — live HTTP(S) URLs (scheme://host[:port])"
-        echo "# etc_hosts_file                   — validated vhosts: ip<TAB>vhost_name (/etc/hosts format)"
-        echo "# vhost_urls / _diff               — vhost URLs ready for scanning (scheme://host[:port])"
-        echo "# vhost_subdomains_diff            — delta of validated vhosts vs previous run"
+        echo "# webapp_consolidated / _diff     — all live HTTP(S) URLs: DNS + validated vhosts"
+        echo "# etc_hosts_file                  — validated vhosts: ip<TAB>hostname (/etc/hosts format)"
+        echo "# vhost_subdomains_diff           — delta of validated vhosts vs previous run"
         echo "# email_recon / _diff             — emails harvested per source"
         echo "# robots_urls                     — paths extracted from robots.txt"
         echo "# webapp_js_secrets               — hardcoded keys/tokens/JWTs in JS"
@@ -368,9 +423,7 @@ build_llm_prompt(){
         echo "#"
         echo "########################################################################"
         echo
-    } >> "${out_file}"
-
-    # Index of artifacts present / absent so the model can plan up front.
+    } >> "${claude_out}"
     {
         echo "===== INDEX ====="
         for rel in "${artifacts[@]}"; do
@@ -385,43 +438,16 @@ build_llm_prompt(){
         done
         echo "===== END INDEX ====="
         echo
-    } >> "${out_file}"
-
-    # Emit each artifact in a delimited section. Truncate aggressively so
-    # the bundle stays digestible by typical LLM context windows.
+    } >> "${claude_out}"
     for rel in "${artifacts[@]}"; do
-        f="${report_dir}/${rel}"
-        [[ ! -s "${f}" ]] && continue
-
-        echo "===== BEGIN ${rel} =====" >> "${out_file}"
-        lines=$(wc -l < "${f}" 2>/dev/null | tr -d ' ')
-        if [[ "${lines:-0}" -gt "${max_lines}" ]]; then
-            head_n=$(( max_lines / 2 ))
-            tail_n=$(( max_lines - head_n ))
-            cut=$(( lines - max_lines ))
-            while IFS= read -r line; do
-                redact_secrets "${line}"; echo
-            done < <(head -n "${head_n}" "${f}") >> "${out_file}"
-            echo "... [TRUNCATED ${cut} lines] ..." >> "${out_file}"
-            while IFS= read -r line; do
-                redact_secrets "${line}"; echo
-            done < <(tail -n "${tail_n}" "${f}") >> "${out_file}"
-        else
-            while IFS= read -r line; do
-                redact_secrets "${line}"; echo
-            done < "${f}" >> "${out_file}"
-        fi
-        echo "===== END ${rel} =====" >> "${out_file}"
-        echo >> "${out_file}"
+        _llm_emit_artifact "${claude_out}" "${report_dir}" "${rel}" "${max_lines}"
     done
-
     {
         echo "===== END OF BUNDLE ====="
-        echo "# Total artifacts included : $(grep -c '^===== BEGIN ' "${out_file}")"
-        echo "# Bundle size              : $(wc -c < "${out_file}" | tr -d ' ') bytes"
-    } >> "${out_file}"
-
-    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} LLM prompt bundle written → ${out_file}"
+        echo "# Total artifacts included : $(grep -c '^===== BEGIN ' "${claude_out}")"
+        echo "# Bundle size              : $(wc -c < "${claude_out}" | tr -d ' ') bytes"
+    } >> "${claude_out}"
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} LLM claude prompt written → ${claude_out}"
 }
 
 # Ingest the current run's row from ${domain}_history.csv into a local

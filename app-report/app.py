@@ -508,7 +508,8 @@ def findings(domain: str, run_id: str):
 RAW_FILES: dict[str, dict] = {
     "nmap":           {"path": ("scan", "nmap", "nmap_scan.txt"),     "label": "nmap scan"},
     "shodan":         {"path": ("scan", "shodan", "shodan_scan.txt"), "label": "Shodan scan"},
-    "llm_prompt":     {"path": ("llm-prompt.txt",),                   "label": "LLM prompt bundle"},
+    "llm_local_prompt":  {"path": ("llm-local-prompt.txt",),             "label": "LLM local prompt"},
+    "llm_claude_prompt": {"path": ("llm-claude-prompt.txt",),            "label": "LLM Claude prompt"},
     "domains_diff":   {"path": ("domains_diff.txt",),                 "label": "Subdomains diff"},
     "infra_ipv4_diff":{"path": ("infra_ipv4_diff.txt",),              "label": "Infra IPv4 diff"},
     "webapp_consolidated_diff":{"path": ("webapp_consolidated_diff.txt",), "label": "Consolidated URLs diff"},
