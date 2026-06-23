@@ -240,7 +240,33 @@ vhost_check(){
             rm -f "${per_worker_out}"
         done
 
-        [[ -s "${strong_out}" ]] && awk 'BEGIN{OFS="\t"}{print $1, $2}' "${strong_out}" | sort -u -o "${report_dir}/vhost_subdomains.txt"
+        if [[ -s "${strong_out}" ]]; then
+            # etc_hosts_file.txt — format: ip vhost_name (ready to append to /etc/hosts)
+            awk 'BEGIN{OFS="\t"}{split($2,a,":"); print a[1], $1}' "${strong_out}" \
+                | sort -u > "${tmp_dir}/etc_hosts_file.tmp"
+            sort -u -o "${report_dir}/etc_hosts_file.txt" "${tmp_dir}/etc_hosts_file.tmp"
+
+            # vhost_urls.txt — scheme://vhost_name:port preserving non-default ports
+            local tls_ports_pat
+            tls_ports_pat="$(echo "${webapp_tls_ports[@]}" | tr ' ' '|')"
+            awk -v tls="${tls_ports_pat}" '{
+                split($2, a, ":");
+                port = a[2];
+                proto = (port ~ "^(" tls ")$") ? "https" : "http";
+                if ((proto == "http" && port == "80") || (proto == "https" && port == "443"))
+                    print proto "://" $1;
+                else
+                    print proto "://" $1 ":" port;
+            }' "${strong_out}" | sort -u > "${tmp_dir}/vhost_urls.tmp"
+            sort -u -o "${report_dir}/vhost_urls.txt" "${tmp_dir}/vhost_urls.tmp"
+
+            # Remove validated vhosts from domains_without_resolution.txt
+            if [[ -s "${report_dir}/domains_without_resolution.txt" ]]; then
+                awk '{print $1}' "${strong_out}" | sort -u | while IFS= read -r vhost; do
+                    sed -i "/^${vhost}$/d" "${report_dir}/domains_without_resolution.txt"
+                done
+            fi
+        fi
         echo "Done!"
     else
         echo "Fail!"

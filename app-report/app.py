@@ -162,7 +162,8 @@ ARTIFACT_KINDS: dict[str, dict] = {
     # Web
     "webapp_urls":                 {"file": "webapp_urls.txt",                  "label": "Webapp URLs",               "hint": "url"},
     "robots_urls":                 {"file": "robots_urls.txt",                  "label": "robots.txt URLs",           "hint": "url"},
-    "vhosts_strong":               {"file": "vhost_subdomains.txt",             "label": "vhosts (STRONG)",           "hint": "host"},
+    "vhosts_strong":               {"file": "etc_hosts_file.txt",               "label": "vhosts (/etc/hosts)",       "hint": "host"},
+    "vhost_urls":                  {"file": "vhost_urls.txt",                   "label": "vhost URLs",                "hint": "url"},
     # Recon
     "emails":                      {"file": "email_recon.txt",                  "label": "Emails",                    "hint": "host"},
     "js_secrets":                  {"file": "webapp_js_secrets.txt",            "label": "JS secrets",                "hint": "comment"},
@@ -595,7 +596,8 @@ def diff_runs(domain: str):
         ("subdomains_found", "All subdomains",   "domains_found.txt"),
         ("webapp_urls",      "Webapp URLs",      "webapp_urls.txt"),
         ("ips",              "IPs",              "infra_ipv4.txt"),
-        ("vhosts_strong",    "vhosts (STRONG)",  "vhost_subdomains.txt"),
+        ("vhosts_strong",    "vhosts (/etc/hosts)", "etc_hosts_file.txt"),
+        ("vhost_urls",       "vhost URLs",          "vhost_urls.txt"),
         ("emails",           "Emails",           "email_recon.txt"),
     ]
     for slug, label, fname in diffable:

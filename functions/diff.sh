@@ -143,8 +143,11 @@ diff_artifacts(){
     [[ -s "${report_dir}/email_recon.txt" ]] && \
         diff_file "emails" "${report_dir}/email_recon.txt" "${report_dir}/email_recon_diff.txt"
 
-    [[ -s "${report_dir}/vhost_subdomains.txt" ]] && \
-        diff_file "vhosts" "${report_dir}/vhost_subdomains.txt" "${report_dir}/vhost_subdomains_diff.txt"
+    [[ -s "${report_dir}/etc_hosts_file.txt" ]] && \
+        diff_file "vhosts" "${report_dir}/etc_hosts_file.txt" "${report_dir}/vhost_subdomains_diff.txt"
+
+    [[ -s "${report_dir}/vhost_urls.txt" ]] && \
+        diff_file "vhost_urls" "${report_dir}/vhost_urls.txt" "${report_dir}/vhost_urls_diff.txt"
 
     echo "Done!"
 }
@@ -228,7 +231,7 @@ record_history(){
     ips_added="$(count_lines   "${report_dir}/infra_ipv4_diff.txt")"
     urls="$(count_lines        "${report_dir}/webapp_urls.txt")"
     urls_added="$(count_lines  "${report_dir}/webapp_urls_diff.txt")"
-    vhosts_strong="$(count_lines "${report_dir}/vhost_subdomains.txt")"
+    vhosts_strong="$(count_lines "${report_dir}/etc_hosts_file.txt")"
     vhosts_added="$(count_lines  "${report_dir}/vhost_subdomains_diff.txt")"
     emails="$(count_lines        "${report_dir}/email_recon.txt")"
     emails_added="$(count_lines  "${report_dir}/email_recon_diff.txt")"
