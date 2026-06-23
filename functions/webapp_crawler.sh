@@ -36,7 +36,7 @@ crawler_js(){
     while IFS= read -r subdomain; do
         [[ -z "${subdomain}" ]] && continue
 
-        # webapp_urls.txt entries already carry scheme://host[:port]. Derive
+        # webapp_consolidated.txt entries already carry scheme://host[:port]. Derive
         # the base URL once so relative srcs resolve correctly.
         scheme="$(echo "${subdomain}" | awk -F: '{print $1}')"
         host="$(echo "${subdomain}" | awk -F/ '{print $3}')"
@@ -62,7 +62,7 @@ crawler_js(){
                     | grep -Eohi 'src=["'\''][^"'\'' >]+\.js[^"'\'' >]*' \
                     | sed -E 's/^src=["'\'']//')
 
-        # Source 2: getJS. webapp_urls.txt already has scheme, no double prefix.
+        # Source 2: getJS. webapp_consolidated.txt already has scheme, no double prefix.
         echo "echo \"${subdomain}\" | getJS -complete >> ${js_files}" >> "${log_execution_file}"
         echo "${subdomain}" | getJS -complete >> "${js_files}" 2>> "${log_execution_file}"
 

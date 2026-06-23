@@ -171,8 +171,8 @@ diff_artifacts(){
 #   subdomains_added     count of domains_diff.txt (added since previous run)
 #   ips                  count of infra_ipv4.txt
 #   ips_added            count of infra_ipv4_diff.txt
-#   webapp_urls          count of webapp_urls.txt
-#   webapp_urls_added    count of webapp_urls_diff.txt
+#   webapp_consolidated       count of webapp_consolidated.txt
+#   webapp_consolidated_added count of webapp_consolidated_diff.txt
 #   vhosts_strong        count of vhost_subdomains.txt
 #   vhosts_weak          count of vhost_subdomains_weak.txt
 #   vhosts_added         count of vhost_subdomains_diff.txt
