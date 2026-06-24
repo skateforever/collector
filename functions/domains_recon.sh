@@ -36,51 +36,48 @@ domains_recon(){
     message "${domain}" start
 
     # Only web app discovery
-    if [[ "${webapp_discovery_check}" == "yes" ]] && \
-        [[ -s "${report_dir}/domains_alive.txt" ]] && \
-        [[ ! -s "${report_dir}/webapp_urls.txt" ]]; then
-        webapp_alive "${domain}" "${report_dir}/domains_alive.txt"
-        build_consolidated_urls
-        webapp_tech "${domain}" "${report_dir}/webapp_consolidated.txt"
-        diff_artifacts
-        # build_llm_prompt MUST run before record_history: the latter
-        # decides status=finished only when llm-claude-prompt.txt or llm-local-prompt.txt exists on disk.
-        build_llm_prompt
-        record_history
-        db_usage
-        start_app_report
-        message "${domain}" finished
-        exit 0
+    if [[ "${webapp_discovery_check}" == "yes" ]] && [[ -s "${report_dir}/domains_alive.txt" ]] && \
+	[[ ! -s "${report_dir}/webapp_urls.txt" ]]; then
+          webapp_alive "${domain}" "${report_dir}/domains_alive.txt"
+          build_consolidated_urls
+          webapp_tech "${domain}" "${report_dir}/webapp_consolidated.txt"
+          diff_artifacts
+          # build_llm_prompt MUST run before record_history: the latter
+          # decides status=finished only when llm-claude-prompt.txt or llm-local-prompt.txt exists on disk.
+          build_llm_prompt
+          record_history
+          db_usage
+          start_app_report
+          message "${domain}" finished
+          exit 0
     fi
 
     # Only web app crawler
-    if [[ "${webapp_crawler_check}" == "yes" ]] && \
-        [[ -s "${report_dir}/webapp_consolidated.txt" ]] && \
+    if [[ "${webapp_crawler_check}" == "yes" ]] && [[ -s "${report_dir}/webapp_consolidated.txt" ]] && \
         [[ "${recon_check}" == "no" || -z "${recon_check}" ]]; then
-        crawler_js "${domain}" "${report_dir}/webapp_consolidated.txt"
-        crawler_params "${domain}" "${report_dir}/webapp_consolidated.txt"
-        diff_artifacts
-        build_llm_prompt
-        record_history
-        db_usage
-        start_app_report
-        message "${domain}" finished
-        exit 0
+          crawler_js "${domain}" "${report_dir}/webapp_consolidated.txt"
+          crawler_params "${domain}" "${report_dir}/webapp_consolidated.txt"
+          diff_artifacts
+          build_llm_prompt
+          record_history
+          db_usage
+          start_app_report
+          message "${domain}" finished
+          exit 0
     fi
 
     # Only web app scan
-    if [[ "${webapp_scan_check}" == "yes" ]] && \
-        [[ -s "${report_dir}/webapp_consolidated.txt" ]] && \
+    if [[ "${webapp_scan_check}" == "yes" ]] && [[ -s "${report_dir}/webapp_consolidated.txt" ]] && \
         [[ "${recon_check}" == "no" || -z "${recon_check}" ]]; then
-        nuclei_scan "${domain}" "${report_dir}/webapp_consolidated.txt"
-        #acunetix_scan "${domain}" "${report_dir}/webapp_consolidated.txt"
-        diff_artifacts
-        build_llm_prompt
-        record_history
-        db_usage
-        start_app_report
-        message "${domain}" finished
-        exit 0
+          nuclei_scan "${domain}" "${report_dir}/webapp_consolidated.txt"
+          acunetix_scan "${domain}" "${report_dir}/webapp_consolidated.txt"
+          diff_artifacts
+          build_llm_prompt
+          record_history
+          db_usage
+          start_app_report
+          message "${domain}" finished
+          exit 0
     fi
 
     # Only recon discovery (domain and subdomains)
@@ -100,7 +97,7 @@ domains_recon(){
             webapp_alive "${domain}" "${report_dir}/domains_alive.txt"
             [[ -s "${report_dir}/domains_without_resolution.txt" ]] && [[ -s "${report_dir}/infra_ipv4.txt" ]] && \
                 vhost_check "${report_dir}/domains_without_resolution.txt" "${report_dir}/infra_ipv4.txt"
-            build_consolidated_urls
+            [[ ! -s "${report_dir}/webapp_consolidated.txt" ]] && build_consolidated_urls
             webapp_tech "${domain}" "${report_dir}/webapp_consolidated.txt"
         fi
         if [[ "${webapp_crawler_check}" == "yes" && "${webapp_enum_check}" != "yes" ]]; then

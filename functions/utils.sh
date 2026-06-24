@@ -198,12 +198,21 @@ scan_js_params(){
     fi
 }
 
+cleanup_etc_hosts(){
+    sed -i '/# collector-vhosts-start/,/# collector-vhosts-end/d' /etc/hosts 2>/dev/null
+}
+
 build_consolidated_urls(){
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Building consolidated URL list... "
     : > "${tmp_dir}/webapp_consolidated.tmp"
     [[ -s "${report_dir}/webapp_urls.txt" ]] && cat "${report_dir}/webapp_urls.txt" >> "${tmp_dir}/webapp_consolidated.tmp"
     [[ -s "${report_dir}/vhost_urls.txt" ]]  && cat "${report_dir}/vhost_urls.txt"  >> "${tmp_dir}/webapp_consolidated.tmp"
     [[ ! -s "${tmp_dir}/webapp_consolidated.tmp" ]] && { echo "Fail!"; return 0; }
+    if [[ -s "${report_dir}/etc_hosts_file.txt" ]]; then
+        cleanup_etc_hosts
+        { echo "# collector-vhosts-start"; awk '{print $1"\t"$2}' "${report_dir}/etc_hosts_file.txt"; echo "# collector-vhosts-end"; } >> /etc/hosts
+        trap 'cleanup_etc_hosts' EXIT
+    fi
     sort -u "${tmp_dir}/webapp_consolidated.tmp" > "${tmp_dir}/webapp_consolidated_sorted.tmp"
     : > "${tmp_dir}/webapp_consolidated_validated.tmp"
     while IFS= read -r url; do
