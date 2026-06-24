@@ -5,11 +5,19 @@
 # This file is an essential part of collector's execution!  #
 # And is responsible to get the functions:                  #
 #                                                           #
+#   * check_container                                       #
 #   * check_execution                                       #
 #   * check_parameter_conflicts                             #
 #   * check_parameter_dependency                            #
 #                                                           #
 #############################################################
+
+check_container(){
+    if ! { grep -q "docker\|containerd\|kubepods" /proc/1/cgroup 2>/dev/null || [[ -f "/.dockerenv" ]]; }; then
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} collector must be executed inside a Docker container."
+        exit 1
+    fi
+}
 
 # Checking if the script has the main parameters needed
 check_execution(){

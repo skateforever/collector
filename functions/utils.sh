@@ -5,7 +5,6 @@
 # And is responsible to get the functions:                  #
 #                                                           #
 #   * banner                                                #
-#   * check_container                                       #
 #   * reset_vars                                            #
 #   * build_consolidated_urls                               #
 #                                                           #
@@ -21,13 +20,6 @@ echo -e "                                 __ __             __
 
                                                      by skate4ever
 "
-}
-
-check_container(){
-    if ! { grep -q "docker\|containerd\|kubepods" /proc/1/cgroup 2>/dev/null || [[ -f "/.dockerenv" ]]; }; then
-        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} collector must be executed inside a Docker container."
-        exit 1
-    fi
 }
 
 # Always reset the variables to run the collector
