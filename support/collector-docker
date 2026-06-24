@@ -1,0 +1,31 @@
+#!/bin/bash
+# collector-docker — wrapper que injeta volumes e porta padrão
+#
+# Uso idêntico ao collector direto:
+#   collector-docker -d example.com --recon --webapp-discovery --webapp-short-detection
+#   collector-docker -dl /opt/collector/outputs/targets.list --recon --webapp-discovery
+#   collector-docker --help
+#
+# Variáveis de ambiente para override:
+#   COLLECTOR_IMAGE   — imagem Docker (default: collector:latest)
+#   OUTPUTS_DIR       — diretório de outputs (default: /opt/collector/outputs)
+#   WORDLISTS_DIR     — diretório de wordlists (default: /opt/collector/wordlists)
+#   COLLECTOR_CFG     — path do collector.cfg (default: /opt/collector/collector.cfg)
+#   APP_PORT          — mapeamento da porta do dashboard (default: 127.0.0.1:8000:8000)
+#
+# Instalação:
+#   sudo install -m 0755 collector-docker /usr/local/bin/collector-docker
+
+COLLECTOR_IMAGE="${COLLECTOR_IMAGE:-collector:latest}"
+OUTPUTS_DIR="${OUTPUTS_DIR:-/opt/collector/outputs}"
+WORDLISTS_DIR="${WORDLISTS_DIR:-/opt/collector/wordlists}"
+COLLECTOR_CFG="${COLLECTOR_CFG:-/opt/collector/collector.cfg}"
+APP_PORT="${APP_PORT:-127.0.0.1:8000:8000}"
+
+exec docker run --rm \
+    -v "${OUTPUTS_DIR}:/app/outputs" \
+    -v "${WORDLISTS_DIR}:/app/wordlists" \
+    -v "${COLLECTOR_CFG}:/app/collector.cfg:ro" \
+    -p "${APP_PORT}" \
+    "${COLLECTOR_IMAGE}" \
+    "$@"

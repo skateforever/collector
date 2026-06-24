@@ -1,0 +1,17 @@
+services:
+  collector:
+    image: collector:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - /opt/collector/outputs:/app/outputs
+      - /opt/collector/wordlists:/app/wordlists
+      - /opt/collector/collector.cfg:/app/collector.cfg:ro
+    ports:
+      - "127.0.0.1:8000:8000"
+
+# Uso:
+#   docker compose run --rm collector -d example.com --recon --webapp-discovery --webapp-short-detection
+#   docker compose run --rm collector -dl /app/outputs/targets.list --recon --webapp-discovery --webapp-short-detection
+#   docker compose run --rm collector --help
