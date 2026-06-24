@@ -38,6 +38,7 @@ for file in kill_collector.sh check_binaries.sh usage.sh message.sh menu.sh chec
     fi
 done
 
+check_container
 check_binaries
 
 [[ $# -eq 0 ]] && { echo -e "You're using the collector without parameters.\n" ; usage ; } || menu "$@"
