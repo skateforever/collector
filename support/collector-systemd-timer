@@ -1,35 +1,45 @@
 # =============================================================================
-# collector — systemd service + timer
+# collector — systemd service + timer (Docker)
 # =============================================================================
+#
+# collector runs exclusively inside a Docker container. The service unit
+# below fires an ephemeral `docker run --rm` on each scheduled slot — the
+# container is born, runs collector, and is destroyed. Results persist via
+# the /opt/collector/outputs volume mounted into the container.
 #
 # This file bundles BOTH unit fragments (service + timer) so they can live
 # alongside the script in the repo. To install on a Linux host with systemd:
 #
-#   1. Copy each block below into its own file under /etc/systemd/system/:
+#   1. Build the image once (or pull from your registry):
+#        docker build -t collector:latest /opt/collector
+#
+#   2. Copy each block below into its own file under /etc/systemd/system/:
 #        /etc/systemd/system/collector@.service
 #        /etc/systemd/system/collector@.timer
 #      The '@' makes them template units — a single copy serves every target.
 #
-#   2. Reload systemd:
+#   3. Reload systemd:
 #        sudo systemctl daemon-reload
 #
-#   3. Enable + start a timer per target. The instance name is the domain
+#   4. Enable + start a timer per target. The instance name is the domain
 #      (with '/' or other systemd-illegal chars escaped via systemd-escape):
 #
 #        sudo systemctl enable --now collector@acme.com.timer
 #        sudo systemctl enable --now collector@example.org.timer
 #
-#   4. Inspect:
+#   5. Inspect:
 #        systemctl list-timers 'collector@*'
 #        journalctl -u collector@acme.com.service --since today
 #
-#   5. Manual run (out of schedule):
+#   6. Manual run (out of schedule):
 #        sudo systemctl start collector@acme.com.service
 #
-# Edit COLLECTOR_USER, COLLECTOR_HOME, and the OnCalendar expression to match
+# Edit the volume paths, image name, and OnCalendar expression to match
 # your environment before installing. The defaults assume:
-#   * binary lives at /opt/collector/collector
-#   * runs as the 'collector' service user
+#   * outputs live at /opt/collector/outputs
+#   * wordlists live at /opt/collector/wordlists
+#   * collector.cfg (with API keys) lives at /opt/collector/collector.cfg
+#   * Docker image is tagged collector:latest
 #   * fires every day at 03:00 local time, with up to 30 min of jitter
 # -----------------------------------------------------------------------------
 
@@ -38,49 +48,36 @@
 # /etc/systemd/system/collector@.service
 # =============================================================================
 [Unit]
-Description=collector reconnaissance run for %i
+Description=collector reconnaissance run for %i (Docker)
 Documentation=https://github.com/skate4ever/collector
 # Don't start before the network is actually reachable (DNS, OSINT APIs).
-Wants=network-online.target
-After=network-online.target
+Wants=network-online.target docker.service
+After=network-online.target docker.service
 
 [Service]
 Type=oneshot
 User=collector
-Group=collector
-WorkingDirectory=/opt/collector
+Group=docker
 
-# %i is the unescaped instance name (the target domain). Pass --recon plus
-# whatever phases you want in the daily run. Heavy phases (--webapp-enum,
-# --webapp-scan) are best left to a separate weekly timer; see comments at
-# the bottom of this file for that pattern.
-ExecStart=/opt/collector/collector -d %i --recon --webapp-discovery
+# %i is the unescaped instance name (the target domain). The container is
+# ephemeral (--rm): born, runs, destroyed. Results persist in the volume.
+# Adjust image name, volume paths and flags to your environment.
+ExecStart=/usr/bin/docker run --rm \
+    --name collector-%i \
+    -v /opt/collector/outputs:/app/outputs \
+    -v /opt/collector/wordlists:/app/wordlists \
+    -v /opt/collector/collector.cfg:/app/collector.cfg:ro \
+    collector:latest \
+    -d %i --recon --webapp-discovery
 
 # Cap a single run so a stuck OSINT API can't pin the slot forever.
 TimeoutStartSec=4h
-
-# Harden the unit a bit. collector needs network and write access to its
-# own output dir, but nothing more.
-NoNewPrivileges=true
-ProtectSystem=strict
-ReadWritePaths=/opt/collector
-PrivateTmp=true
-ProtectHome=true
-ProtectKernelTunables=true
-ProtectKernelModules=true
-ProtectControlGroups=true
-RestrictNamespaces=true
-LockPersonality=true
-MemoryDenyWriteExecute=true
-RestrictRealtime=true
-RestrictSUIDSGID=true
 
 # All output goes to journald; query with: journalctl -u collector@<target>.service
 StandardOutput=journal
 StandardError=journal
 
-# Don't restart on success (oneshot). Notify failures to the recon channel
-# via the sister OnFailure unit if you wire one up.
+# Don't restart on success (oneshot).
 Restart=no
 
 [Install]
@@ -108,9 +105,6 @@ RandomizedDelaySec=30m
 # If the host was off at 03:00, run the missed slot on next boot.
 Persistent=true
 
-# Optional: only run when on AC power / non-metered network.
-# ConditionACPower=true
-
 Unit=collector@%i.service
 
 [Install]
@@ -125,8 +119,13 @@ WantedBy=timers.target
 # with the heavier flags and fires once a week:
 #
 #   /etc/systemd/system/collector-heavy@.service
-#     ExecStart=/opt/collector/collector -d %i --recon --webapp-discovery \
-#                                              --webapp-enum --webapp-scan
+#     ExecStart=/usr/bin/docker run --rm \
+#         --name collector-heavy-%i \
+#         -v /opt/collector/outputs:/app/outputs \
+#         -v /opt/collector/wordlists:/app/wordlists \
+#         -v /opt/collector/collector.cfg:/app/collector.cfg:ro \
+#         collector:latest \
+#         -d %i --recon --webapp-discovery --webapp-enum --webapp-scan
 #
 #   /etc/systemd/system/collector-heavy@.timer
 #     OnCalendar=Sun *-*-* 02:00:00
