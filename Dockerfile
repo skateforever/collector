@@ -66,7 +66,19 @@ RUN wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/c
 COPY . .
 RUN chmod +x collector && chmod +x functions/*.sh
 
-# Criação de volumes para evitar perda de dados e facilitar wordlists
-VOLUME ["/app/wordlists", "/app/outputs"]
+# Fix output_dir to the mounted volume path so every run writes results
+# to /app/outputs without requiring --output on every invocation.
+RUN sed -i 's|^output_dir=.*|output_dir="/app/outputs"|' collector.cfg
 
-CMD ["tail", "-f", "/dev/null"]
+# Expose the app-report (Flask/gunicorn) dashboard port.
+EXPOSE 8000
+
+# Volumes: outputs persists recon results across runs; wordlists holds the
+# dirsearch/gobuster wordlists mounted from the host; cfg allows overriding
+# collector.cfg (API keys, notify config, etc.) at runtime without rebuilding.
+VOLUME ["/app/outputs", "/app/wordlists"]
+
+# collector is the only entry point — parameters are passed directly:
+#   docker run --rm -v $(pwd)/outputs:/app/outputs collector-image \
+#       -d soluti.com.br --recon --webapp-discovery
+ENTRYPOINT ["/app/collector"]
