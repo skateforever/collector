@@ -245,51 +245,20 @@ _llm_emit_artifact(){
     echo >> "${out_file}"
 }
 
-# Generates two focused LLM prompt bundles from the current run:
-#
-#   llm-local-prompt.txt  — compact bundle for local/small models (quantised
-#                           LLaMA-class): only webapp_consolidated.txt and
-#                           etc_hosts_file.txt, hard-truncated to fit smaller
-#                           context windows. Preamble is minimal and direct.
-#
-#   llm-claude-prompt.txt — full bundle for cloud-scale models (Claude / GPT-4
-#                           class): all high-signal artifacts included, richer
-#                           preamble with glossary and operator guidance.
-#
-# Both files are written to ${report_dir}/.
+# Generates a single LLM prompt bundle from the current run containing all
+# artifacts produced by collector. Written to ${report_dir}/llm-prompt.txt.
+# Header is read from ${collector_path}/support/llm-header-prompt.txt with
+# __TARGET__, __TS__ and __REPORT_DIR__ replaced at generation time.
 build_llm_prompt(){
     local target="${domain:-${url_domain:-unknown}}"
     local ts="$(date +"%Y-%m-%d %H:%M:%S %z")"
     local rel f lines size
     local header_file="${collector_path}/support/llm-header-prompt.txt"
+    local out="${report_dir}/llm-prompt.txt"
 
     [[ ! -d "${report_dir}" ]] && return 0
     [[ ! -s "${header_file}" ]] && { echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} build_llm_prompt: header template missing → ${header_file}"; return 1; }
 
-    # ------------------------------------------------------------------ #
-    # llm-local-prompt.txt — webapp_consolidated + etc_hosts only         #
-    # ------------------------------------------------------------------ #
-    local local_out="${report_dir}/llm-local-prompt.txt"
-    : > "${local_out}"
-    sed -n "1,/^===== LLM_HEADER_SEPARATOR =====/{ /^===== LLM_HEADER_SEPARATOR =====/d; p }" "${header_file}" \
-        | sed \
-            -e "s|__TARGET__|${target}|g" \
-            -e "s|__TS__|${ts}|g" \
-            -e "s|__REPORT_DIR__|${report_dir}|g" >> "${local_out}"
-    echo >> "${local_out}"
-    _llm_emit_artifact "${local_out}" "${report_dir}" "webapp_consolidated.txt"
-    _llm_emit_artifact "${local_out}" "${report_dir}" "etc_hosts_file.txt"
-    {
-        echo "===== END OF BUNDLE ====="
-        echo "# Total artifacts : $(grep -c '^===== BEGIN ' "${local_out}")"
-        echo "# Bundle size     : $(wc -c < "${local_out}" | tr -d ' ') bytes"
-    } >> "${local_out}"
-    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} LLM local prompt written → ${local_out}"
-
-    # ------------------------------------------------------------------ #
-    # llm-claude-prompt.txt — full bundle for large context models         #
-    # ------------------------------------------------------------------ #
-    local claude_out="${report_dir}/llm-claude-prompt.txt"
     local -a artifacts=(
         "domains_found.txt"
         "domains_diff.txt"
@@ -323,13 +292,14 @@ build_llm_prompt(){
         "scan/nuclei/nuclei_web_fuzzing.result"
         "scan/shodan/shodan_scan.txt"
     )
-    : > "${claude_out}"
-    sed -n "/^===== LLM_HEADER_SEPARATOR =====/,\${ /^===== LLM_HEADER_SEPARATOR =====/d; p }" "${header_file}" \
-        | sed \
-            -e "s|__TARGET__|${target}|g" \
-            -e "s|__TS__|${ts}|g" \
-            -e "s|__REPORT_DIR__|${report_dir}|g" >> "${claude_out}"
-    echo >> "${claude_out}"
+
+    : > "${out}"
+    sed \
+        -e "s|__TARGET__|${target}|g" \
+        -e "s|__TS__|${ts}|g" \
+        -e "s|__REPORT_DIR__|${report_dir}|g" \
+        "${header_file}" >> "${out}"
+    echo >> "${out}"
     {
         echo "===== INDEX ====="
         for rel in "${artifacts[@]}"; do
@@ -344,16 +314,16 @@ build_llm_prompt(){
         done
         echo "===== END INDEX ====="
         echo
-    } >> "${claude_out}"
+    } >> "${out}"
     for rel in "${artifacts[@]}"; do
-        _llm_emit_artifact "${claude_out}" "${report_dir}" "${rel}"
+        _llm_emit_artifact "${out}" "${report_dir}" "${rel}"
     done
     {
         echo "===== END OF BUNDLE ====="
-        echo "# Total artifacts included : $(grep -c '^===== BEGIN ' "${claude_out}")"
-        echo "# Bundle size              : $(wc -c < "${claude_out}" | tr -d ' ') bytes"
-    } >> "${claude_out}"
-    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} LLM claude prompt written → ${claude_out}"
+        echo "# Total artifacts included : $(grep -c '^===== BEGIN ' "${out}")"
+        echo "# Bundle size              : $(wc -c < "${out}" | tr -d ' ') bytes"
+    } >> "${out}"
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} LLM prompt written → ${out}"
 }
 
 # Ingest the current run's row from ${domain}_history.csv into a local

@@ -272,7 +272,7 @@ Both use `collector-docker` (or `docker run --rm` directly) — each run fires a
 - Per-artifact diff vs. previous run — only deltas pushed to notify channel
 - Email harvesting from APIs + page/JS crawl filtered to the target domain
 - JS scraping and parameter mining with sink classification (SQLi/XSS/SSRF/XXE/CMD/...)
-- Two LLM prompt bundles per run: `llm-local-prompt.txt` (webapp_consolidated + etc_hosts only) and `llm-claude-prompt.txt` (all artifacts) — ready to paste into any LLM for follow-up analysis
+- Single LLM prompt bundle per run: `llm-prompt.txt` — all artifacts included, ready to paste into any LLM for follow-up analysis
 - SQLite ingestion: each run upserted into `collector-results-db` (idempotent, WAL, FK-protected)
 - Flask + HTMX read-only web UI at `http://127.0.0.1:8000` auto-started after each run
 - Cloudflare quick-tunnel (opt-in via `cloudflare_tunnel="yes"` in `collector.cfg`) for remote dashboard access
@@ -312,8 +312,7 @@ Both use `collector-docker` (or `docker run --rm` directly) — each run fires a
         ├── robots_urls.txt
         ├── webapp_js_secrets.txt                  hardcoded keys/tokens/JWTs in JS
         ├── webapp_js_params.txt                   param names + DOM sinks (SQLi/XSS/SSRF/...)
-        ├── llm-local-prompt.txt                   LLM bundle: webapp_consolidated + etc_hosts
-        ├── llm-claude-prompt.txt                  LLM bundle: all artifacts
+        ├── llm-prompt.txt                         LLM bundle: all artifacts
         ├── scan/
         │   ├── nmap/nmap_scan.txt
         │   ├── nuclei/nuclei_scan.result

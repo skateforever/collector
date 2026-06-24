@@ -245,8 +245,7 @@ record_history(){
     fi
 
     llm_prompt=""
-    [[ -s "${report_dir}/llm-claude-prompt.txt" ]] && llm_prompt="${report_dir}/llm-claude-prompt.txt"
-    [[ -z "${llm_prompt}" && -s "${report_dir}/llm-local-prompt.txt" ]] && llm_prompt="${report_dir}/llm-local-prompt.txt"
+    [[ -s "${report_dir}/llm-prompt.txt" ]] && llm_prompt="${report_dir}/llm-prompt.txt"
 
     # Status is "finished" when build_llm_prompt produced its bundle —
     # that's the last step of every successful flow. Otherwise the run
