@@ -4,6 +4,7 @@ FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     DEBIAN_FRONTEND=noninteractive \
+    TERM=xterm-256color \
     GOROOT=/usr/local/go \
     GOPATH=/go \
     PATH="/usr/local/go/bin:/go/bin:${PATH}" \

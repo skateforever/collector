@@ -3,6 +3,7 @@ FROM archlinux:latest
 # Configurações de Ambiente
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
+    TERM=xterm-256color \
     GOROOT=/usr/local/go \
     GOPATH=/go \
     PATH="/usr/local/go/bin:/go/bin:${PATH}" \
