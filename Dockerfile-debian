@@ -1,3 +1,4 @@
+# docker build -f ./Dockerfile-debian -t collector:latest .
 FROM python:3.12-slim
 
 # Configurações de Ambiente

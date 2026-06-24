@@ -1,9 +1,10 @@
+# docker build -f ./Dockerfile-archlinux -t collector:latest .
 FROM archlinux:latest
 
 # Configurações de Ambiente
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    TERM=xterm-256color \
+    PIP_BREAK_SYSTEM_PACKAGES=1 \
     GOROOT=/usr/local/go \
     GOPATH=/go \
     PATH="/usr/local/go/bin:/go/bin:${PATH}" \
@@ -41,9 +42,15 @@ RUN go install github.com/projectdiscovery/tlsx/cmd/tlsx@latest && \
     go install github.com/003random/getJS@latest
 
 # 4. Ferramentas Python
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
-    pip install --no-cache-dir --break-system-packages dirsearch git-dumper requests shodan sublist3r \
-                                flask gunicorn
+RUN python -m pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    python -m pip install --no-cache-dir \
+        dirsearch \
+        git-dumper \
+        requests \
+        shodan \
+        sublist3r \
+        flask \
+        gunicorn
 
 RUN wget -q https://raw.githubusercontent.com/christophetd/censys-subdomain-finder/master/censys-subdomain-finder.py -O /usr/local/bin/censys-subdomain-finder.py && \
     chmod +x /usr/local/bin/censys-subdomain-finder.py
