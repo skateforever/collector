@@ -13,14 +13,45 @@ docker build -t collector:latest /opt/collector
 Run a full recon + webapp discovery:
 
 ```bash
+# docker run
 docker run --rm \
   -v /opt/collector/outputs:/app/outputs \
   -v /opt/collector/wordlists:/app/wordlists \
   -v /opt/collector/collector.cfg:/app/collector.cfg:ro \
   collector:latest -d example.com --recon --webapp-discovery --webapp-short-detection
+
+# docker compose (from repo root)
+docker compose run --rm collector -d example.com --recon --webapp-discovery --webapp-short-detection
+
+# collector-docker wrapper
+collector-docker -d example.com --recon --webapp-discovery --webapp-short-detection
 ```
 
 Results are written to `/opt/collector/outputs/example.com/recon_YYYYMMDD/`.
+
+## Execution methods
+
+There are three equivalent ways to run collector — all produce the same results.
+
+**`docker run`** — explicit, no setup required beyond building the image. You must pass `-v` and optionally `-p` on every invocation.
+
+**`docker compose`** — volumes and port mapping are pre-configured in `docker-compose.yml`. Run from the repo root. Useful when overriding build args or pinning the image.
+
+**`collector-docker`** — thin wrapper around `docker run` that injects volumes and the default port mapping automatically. Install it once and use it like a native command:
+
+```bash
+sudo install -m 0755 /opt/collector/collector-docker /usr/local/bin/collector-docker
+```
+
+Override defaults via environment variables:
+
+| Variable | Default |
+|----------|---------|
+| `COLLECTOR_IMAGE` | `collector:latest` |
+| `OUTPUTS_DIR` | `/opt/collector/outputs` |
+| `WORDLISTS_DIR` | `/opt/collector/wordlists` |
+| `COLLECTOR_CFG` | `/opt/collector/collector.cfg` |
+| `APP_PORT` | `127.0.0.1:8000:8000` |
 
 ## Command reference
 
@@ -97,6 +128,11 @@ docker run --rm \
   -v /opt/collector/collector.cfg:/app/collector.cfg:ro \
   collector:latest \
   -d example.com --recon --webapp-discovery --webapp-short-detection
+
+docker compose run --rm collector \
+  -d example.com --recon --webapp-discovery --webapp-short-detection
+
+collector-docker -d example.com --recon --webapp-discovery --webapp-short-detection
 ```
 
 Full recon + webapp discovery + enum + scan in one shot:
@@ -109,6 +145,13 @@ docker run --rm \
   collector:latest \
   -d example.com --recon --webapp-discovery --webapp-short-detection \
   --webapp-enum --webapp-wordlists /app/wordlists/common.txt --webapp-scan
+
+docker compose run --rm collector \
+  -d example.com --recon --webapp-discovery --webapp-short-detection \
+  --webapp-enum --webapp-wordlists /app/wordlists/common.txt --webapp-scan
+
+collector-docker -d example.com --recon --webapp-discovery --webapp-short-detection \
+  --webapp-enum --webapp-wordlists /app/wordlists/common.txt --webapp-scan
 ```
 
 Standalone webapp enum on a previously recon'd target:
@@ -120,6 +163,11 @@ docker run --rm \
   -v /opt/collector/collector.cfg:/app/collector.cfg:ro \
   collector:latest \
   -d example.com --webapp-enum --webapp-wordlists /app/wordlists/common.txt
+
+docker compose run --rm collector \
+  -d example.com --webapp-enum --webapp-wordlists /app/wordlists/common.txt
+
+collector-docker -d example.com --webapp-enum --webapp-wordlists /app/wordlists/common.txt
 ```
 
 Standalone webapp scan on a previously recon'd target:
@@ -131,6 +179,10 @@ docker run --rm \
   -v /opt/collector/collector.cfg:/app/collector.cfg:ro \
   collector:latest \
   -d example.com --webapp-scan
+
+docker compose run --rm collector -d example.com --webapp-scan
+
+collector-docker -d example.com --webapp-scan
 ```
 
 Standalone JS crawler:
@@ -142,6 +194,10 @@ docker run --rm \
   -v /opt/collector/collector.cfg:/app/collector.cfg:ro \
   collector:latest \
   -d example.com --webapp-crawler
+
+docker compose run --rm collector -d example.com --webapp-crawler
+
+collector-docker -d example.com --webapp-crawler
 ```
 
 List of targets:
@@ -153,6 +209,11 @@ docker run --rm \
   -v /opt/collector/collector.cfg:/app/collector.cfg:ro \
   collector:latest \
   -dl /app/outputs/targets.list --recon --webapp-discovery --webapp-short-detection
+
+docker compose run --rm collector \
+  -dl /app/outputs/targets.list --recon --webapp-discovery --webapp-short-detection
+
+collector-docker -dl /app/outputs/targets.list --recon --webapp-discovery --webapp-short-detection
 ```
 
 Single URL (no subdomain/infra discovery):
@@ -164,6 +225,11 @@ docker run --rm \
   -v /opt/collector/collector.cfg:/app/collector.cfg:ro \
   collector:latest \
   -u https://app.example.com --webapp-wordlists /app/wordlists/common.txt
+
+docker compose run --rm collector \
+  -u https://app.example.com --webapp-wordlists /app/wordlists/common.txt
+
+collector-docker -u https://app.example.com --webapp-wordlists /app/wordlists/common.txt
 ```
 
 ## Unattended execution
@@ -173,7 +239,7 @@ Drop-in scheduling files are in `support/`:
 - `collector-cron` — daily light recon + weekly heavy run via cron (`/etc/cron.d/collector`)
 - `collector-systemd-timer` — same cadence as systemd template units (`collector@<domain>.timer`)
 
-Both use `docker run --rm` — each run fires an ephemeral container. Results persist via the `/app/outputs` volume.
+Both use `collector-docker` (or `docker run --rm` directly) — each run fires an ephemeral container. Results persist via the `/app/outputs` volume. Per-target `flock` prevents overlapping runs for the same domain when triggered by cron or timers.
 
 ## APIs and tools used
 
@@ -277,7 +343,7 @@ sqlite3 /opt/collector/outputs/collector-results-db \
 
 ## Web UI
 
-Flask + HTMX read-only dashboard auto-started at `http://127.0.0.1:8000` after each run. Access it from outside the container by mapping the port:
+Flask + HTMX read-only dashboard auto-started at `http://127.0.0.1:8000` after each run. The port mapping is included by default in `docker-compose.yml` and `collector-docker`. With plain `docker run` add `-p 127.0.0.1:8000:8000` explicitly:
 
 ```bash
 docker run --rm \
@@ -287,6 +353,10 @@ docker run --rm \
   -p 127.0.0.1:8000:8000 \
   collector:latest \
   -d example.com --recon --webapp-discovery --webapp-short-detection
+
+# docker compose and collector-docker already include -p 127.0.0.1:8000:8000
+docker compose run --rm collector -d example.com --recon --webapp-discovery --webapp-short-detection
+collector-docker -d example.com --recon --webapp-discovery --webapp-short-detection
 ```
 
 Or set `cloudflare_tunnel="yes"` in `collector.cfg` for an ephemeral `https://*.trycloudflare.com` URL.
