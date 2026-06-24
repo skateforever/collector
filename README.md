@@ -1,134 +1,228 @@
 ## collector
 
-collector is a script written in Bash, it is intended to automate some tedious tasks of reconnaissance and information gathering. </br>
-This tool allows you to gather some information that should help you identify what to do next and where to look. </br>
+collector is a Bash script that automates reconnaissance and information gathering during penetration tests and bug bounty hunting. It runs **exclusively inside a Docker container**.
 
-## System Requirements
+## Quick start
 
-Recommended to run on vps with 1VCPU and 2GB ram.
+Build the image once:
 
-## To run
+```bash
+docker build -t collector:latest /opt/collector
+```
 
-To run you need to install some tools and get some API keys. </br>
+Run a full recon + webapp discovery:
 
-List of API/Web Sites for recon used in the collector:</br>
+```bash
+docker run --rm \
+  -v /opt/collector/outputs:/app/outputs \
+  -v /opt/collector/wordlists:/app/wordlists \
+  -v /opt/collector/collector.cfg:/app/collector.cfg:ro \
+  collector:latest -d example.com --recon --webapp-discovery --webapp-short-detection
+```
 
-* alienvault
-* builitwith
-* certspotter
-* commoncrawl
-* crt.sh
-* dnsdumpster
-* hackertarget
-* rapiddns
-* securitytrails
-* shodan
-* virustotal
-* webarchive
-* whoisxmlapi
+Results are written to `/opt/collector/outputs/example.com/recon_YYYYMMDD/`.
 
-List of tools for recon used in the collector:</br>
+## Command reference
 
-* amass
-* dnssearch
-* gobuster
-* subfinder
-* tlsx
-* wayback
+### Target selection (required — pick one)
 
-List of tools for infrastructure scan used in the collector:</br>
+| Flag | Description |
+|------|-------------|
+| `-d \| --domain <domain>` | Single target domain. |
+| `-dl \| --domain-list <file>` | File with one domain per line (`#` for comments). |
+| `-u \| --url <url>` | Single URL — skips infra/subdomain recon, runs webapp enum only. |
 
-* nmap
+### Recon
 
-List of tools for webapp discovery:</br>
+| Flag | Description |
+|------|-------------|
+| `-r \| --recon` | Passive + active subdomain discovery, DNS, infra enrichment (AS/IPs/netblocks), nmap, Shodan. Entry point for any new target. |
 
-* aquatone
-* chromium
-* httpx
+### Webapp discovery (requires `--recon` or existing `domains_alive.txt`)
 
-List of tools for webapp enumeration used in the collector:</br>
+| Flag | Description |
+|------|-------------|
+| `-wd \| --webapp-discovery` | Probes live hosts for active HTTP(S) services, runs vhost discovery, builds `webapp_consolidated.txt`. |
+| `-wsd \| --webapp-short-detection` | Uses the short port list from `collector.cfg` (`web_port_short_detection`). Use with `-wd`. |
+| `-wld \| --webapp-long-detection` | Uses the long port list from `collector.cfg` (`web_port_long_detection`). Use with `-wd`. |
 
-* dirsearch
-* git-dumper
-* gobuster
+### Webapp enumeration (requires existing `webapp_consolidated.txt` or combined with `--webapp-discovery`)
 
-List of tools for webapp scan used in the collector:</br>
+| Flag | Description |
+|------|-------------|
+| `-we \| --webapp-enum` | Directory and file brute-force with gobuster + dirsearch, robots.txt extraction, aquatone screenshots. |
+| `-ww \| --webapp-wordlists <file[,file]>` | Extra wordlists for `-we`. |
+| `-l \| --limit-urls <n>` | Limit enumeration to the top N URLs (used with `-d`). |
 
-* nuclei
+### Webapp crawler
 
-Persistence and reporting (optional but enabled by default):</br>
+| Flag | Description |
+|------|-------------|
+| `-wc \| --webapp-crawler` | Crawls JS files with katana and mines URL parameters with waybackurls. |
 
-* sqlite3 — every run is appended to `${output_dir}/collector-results-db` by `db_usage()`
-* python3 + flask + gunicorn — `start_app_report()` serves a read-only web UI at `http://127.0.0.1:8000` from `app-report/`
+### Webapp scan
 
-I tried my best to make the collector as simple as possible, but I also tried to ensure that the execution wasn't done haphazardly. Therefore, you'll notice that the execution is somewhat locked into a flow to obtain:
+| Flag | Description |
+|------|-------------|
+| `-ws \| --webapp-scan` | Nuclei scan against `webapp_consolidated.txt`. |
 
-1. Domain, subdomains, IPs, and aliases;
-2. Search for active web applications, but this depends on the first step; you need to execute the first step first;
-3. Search for files, directories, and attempt to retrieve a Git repository, but this will only work if you complete step 2.
+### Subdomain brute-force (optional, used with `--recon`)
 
-As you can see, I need to follow a logical sequence to obtain the expected result.</br>
+| Flag | Description |
+|------|-------------|
+| `-s \| --subdomain-brute <file[,file]>` | Additional wordlists for DNS brute-force via gobuster + dnssearch. |
 
-## How collector works?
+### Scope filtering
 
-First step (passive + active subdomain discovery, infra, alive check):</br>
-**./collector -d abc.com --recon --webapp-discovery**</br>
+| Flag | Description |
+|------|-------------|
+| `-ed \| --exclude-domain <d1,d2>` | Comma-separated subdomains to exclude from results. Used with `-d`. |
+| `-el \| --exclude-domain-list <file>` | File of subdomains to exclude. Used with `-d` or `-dl`. |
 
-Second step (web enumeration over the URLs found in step 1):</br>
-**./collector -d abc.com --webapp-enum --webapp-wordlist /path/to/wordlist**</br>
+### Process control
 
-You can combine everything in a single run:</br>
-**./collector -d abc.com --recon --webapp-discovery --webapp-enum --webapp-wordlist /path/to/wordlist --webapp-scan**</br>
+| Flag | Description |
+|------|-------------|
+| `-k \| --kill <domain>` | Kill a running collector for the given domain. |
+| `-kr \| --kill-remove <domain>` | Kill and delete the current run directory for the given domain. |
 
-Run against a list of targets (one domain per line, `#` for comments):</br>
-**./collector -dl /etc/collector/targets.list --recon --webapp-discovery**</br>
+## Common usage patterns
 
-Or enumerate a single URL only:</br>
-**./collector --url http://abc.com --webapp-wordlist /path/to/wordlist**</br>
+Full recon + webapp discovery (short port list):
 
-To see which ports are probed and tweak tool parameters, check **collector.cfg**. Use **./collector --help** for the full flag list.</br>
+```bash
+docker run --rm \
+  -v /opt/collector/outputs:/app/outputs \
+  -v /opt/collector/wordlists:/app/wordlists \
+  -v /opt/collector/collector.cfg:/app/collector.cfg:ro \
+  collector:latest \
+  -d example.com --recon --webapp-discovery --webapp-short-detection
+```
 
-![collector-help.png](https://raw.githubusercontent.com/skateforever/collector/main/demo/collector-help.png) </br>
+Full recon + webapp discovery + enum + scan in one shot:
 
-For unattended execution, drop-in `collector-cron` (cron) and `collector-systemd-timer` (systemd template units) are shipped at the repo root — daily light recon + weekly heavy run, with per-target locking so overlapping invocations abort cleanly.
+```bash
+docker run --rm \
+  -v /opt/collector/outputs:/app/outputs \
+  -v /opt/collector/wordlists:/app/wordlists \
+  -v /opt/collector/collector.cfg:/app/collector.cfg:ro \
+  collector:latest \
+  -d example.com --recon --webapp-discovery --webapp-short-detection \
+  --webapp-enum --webapp-wordlists /app/wordlists/common.txt --webapp-scan
+```
 
-**Use as you need.**
+Standalone webapp enum on a previously recon'd target:
 
-### Main features
+```bash
+docker run --rm \
+  -v /opt/collector/outputs:/app/outputs \
+  -v /opt/collector/wordlists:/app/wordlists \
+  -v /opt/collector/collector.cfg:/app/collector.cfg:ro \
+  collector:latest \
+  -d example.com --webapp-enum --webapp-wordlists /app/wordlists/common.txt
+```
 
-- Per-run dated folder (`recon_YYYYMMDD`) with logs, tmp, and a structured report tree
-- Subdomain discovery via amass, subfinder, certspotter, crt.sh, dnsdumpster, hackertarget, rapiddns, securitytrails, virustotal, webarchive, builtwith, whoisxmlapi, and others
-- DNS bruteforce via amass, gobuster, dnssearch
-- Infrastructure enrichment: AS / IPv4 / IPv6 / netblocks / nmap / shodan
-- Per-artifact diff vs. the previous run (subdomains, IPs, webapp URLs, vhosts, emails, nuclei findings) — only deltas are pushed to the notify channel
-- `${domain}_history.csv` per target: one row per execution with run metadata (domain, run_id, ISO timestamps, mode), counts (subdomains / alive / IPs / URLs / vhosts / emails / JS secrets / JS params), per-artifact deltas, nuclei severity counts, and absolute paths to the run's `report/` and `llm-prompt.txt`. Designed as a drop-in input for a database — `domain` is the natural primary key and `run_id` (`recon_YYYYMMDD` / `url_YYYYMMDD`) is unique per run.
-- Live-host detection over the ports listed in `webapp_port_detect`
-- vhost discovery (parallel curl + httpx, STRONG vs. WEAK confidence)
-- Email recon: Hunter.io, Lampyre, Snov.io, plus crawl of `webapp_urls.txt` (page root + referenced JS) filtered to the target domain
-- Webapp enumeration with dirsearch and gobuster, plus `robots.txt` URL extraction
-- JS scraping (katana) and parameter mining (waybackurls)
-- Aquatone screenshots
-- Nuclei scan
-- Git repository rebuild via git-dumper
-- Per-target lockfile (flock) so concurrent invocations for the same domain abort instead of corrupting state
-- `llm-prompt.txt` per run: a self-describing bundle of the run's artifacts (with secret redaction and per-section truncation) ready to paste into any LLM for follow-up pentest analysis
-- SQLite ingestion: each run is upserted into `${output_dir}/collector-results-db` (idempotent, write-only-on-change) by `db_usage()` — single file, WAL journaling, FK-protected, `latest_run` view shipped
-- Flask + HTMX read-only web UI at `http://127.0.0.1:8000` (`app-report/`) auto-started by `start_app_report()` after each run; PID-file gated so concurrent runs don't fight over the socket
+Standalone webapp scan on a previously recon'd target:
 
-### Output layout
+```bash
+docker run --rm \
+  -v /opt/collector/outputs:/app/outputs \
+  -v /opt/collector/wordlists:/app/wordlists \
+  -v /opt/collector/collector.cfg:/app/collector.cfg:ro \
+  collector:latest \
+  -d example.com --webapp-scan
+```
 
-A successful recon run produces the following tree under `${output_dir}/<domain>/recon_<date>/`:
+Standalone JS crawler:
+
+```bash
+docker run --rm \
+  -v /opt/collector/outputs:/app/outputs \
+  -v /opt/collector/wordlists:/app/wordlists \
+  -v /opt/collector/collector.cfg:/app/collector.cfg:ro \
+  collector:latest \
+  -d example.com --webapp-crawler
+```
+
+List of targets:
+
+```bash
+docker run --rm \
+  -v /opt/collector/outputs:/app/outputs \
+  -v /opt/collector/wordlists:/app/wordlists \
+  -v /opt/collector/collector.cfg:/app/collector.cfg:ro \
+  collector:latest \
+  -dl /app/outputs/targets.list --recon --webapp-discovery --webapp-short-detection
+```
+
+Single URL (no subdomain/infra discovery):
+
+```bash
+docker run --rm \
+  -v /opt/collector/outputs:/app/outputs \
+  -v /opt/collector/wordlists:/app/wordlists \
+  -v /opt/collector/collector.cfg:/app/collector.cfg:ro \
+  collector:latest \
+  -u https://app.example.com --webapp-wordlists /app/wordlists/common.txt
+```
+
+## Unattended execution
+
+Drop-in scheduling files are in `support/`:
+
+- `collector-cron` — daily light recon + weekly heavy run via cron (`/etc/cron.d/collector`)
+- `collector-systemd-timer` — same cadence as systemd template units (`collector@<domain>.timer`)
+
+Both use `docker run --rm` — each run fires an ephemeral container. Results persist via the `/app/outputs` volume.
+
+## APIs and tools used
+
+**Subdomain sources:** alienvault, builtwith, certspotter, commoncrawl, crt.sh, dnsdumpster, hackertarget, rapiddns, securitytrails, shodan, virustotal, webarchive, whoisxmlapi
+
+**Recon tools:** amass, dnssearch, gobuster, subfinder, tlsx, waybackurls
+
+**Infrastructure:** nmap, shodan
+
+**Webapp discovery:** httpx, chromium
+
+**Webapp enumeration:** dirsearch, gobuster, git-dumper
+
+**Webapp crawler:** katana, waybackurls
+
+**Webapp scan:** nuclei
+
+**Screenshots:** aquatone
+
+**Email recon:** Hunter.io, Lampyre, Snov.io (API-based) + page/JS crawl of `webapp_consolidated.txt`
+
+**Reporting:** sqlite3, Flask, gunicorn, HTMX
+
+## Main features
+
+- Per-run dated folder (`recon_YYYYMMDD`) with logs, tmp, and structured report tree
+- Subdomain discovery via passive sources + active DNS bruteforce
+- Infrastructure enrichment: AS / IPv4 / IPv6 / netblocks / nmap / Shodan
+- vhost discovery: parallel curl + httpx probing, STRONG vs. WEAK confidence classification, automatic `/etc/hosts` injection inside the container so all tools resolve vhosts transparently
+- Per-artifact diff vs. previous run — only deltas pushed to notify channel
+- Email harvesting from APIs + page/JS crawl filtered to the target domain
+- JS scraping and parameter mining with sink classification (SQLi/XSS/SSRF/XXE/CMD/...)
+- Two LLM prompt bundles per run: `llm-local-prompt.txt` (webapp_consolidated + etc_hosts only) and `llm-claude-prompt.txt` (all artifacts) — ready to paste into any LLM for follow-up analysis
+- SQLite ingestion: each run upserted into `collector-results-db` (idempotent, WAL, FK-protected)
+- Flask + HTMX read-only web UI at `http://127.0.0.1:8000` auto-started after each run
+- Cloudflare quick-tunnel (opt-in via `cloudflare_tunnel="yes"` in `collector.cfg`) for remote dashboard access
+- Per-target flock so concurrent runs for the same domain abort instead of corrupting state
+
+## Output layout
 
 ```
 <domain>/
-├── <domain>_history.csv                          per-run trend log + DB ingestion input (always appended)
-├── domains_ignore.txt                            (optional, user-maintained allowlist)
+├── <domain>_history.csv                          per-run trend log
 └── recon_YYYYMMDD/
     ├── log/recon_YYYYMMDD.log
-    ├── tmp/                                       intermediate files (json/tmp/html from each source)
+    ├── tmp/                                       intermediate files
     └── report/
-        ├── domains_found.txt                      union of every subdomain source
-        ├── domains_diff.txt                       added/removed vs. previous run
+        ├── domains_found.txt                      all discovered subdomains
+        ├── domains_diff.txt                       delta vs. previous run
         ├── domains_alive.txt                      subdomains that resolve
         ├── domains_without_resolution.txt         candidates for vhost probing
         ├── domains_excluded.txt
@@ -139,21 +233,21 @@ A successful recon run produces the following tree under `${output_dir}/<domain>
         ├── domains_external_ipv4.txt
         ├── domains_external_ipv6.txt
         ├── zone_transfer.txt
-        ├── infra_as.txt                           AS / BGP prefix info from team-cymru
-        ├── infra_ipv4.txt
-        ├── infra_ipv4_diff.txt
-        ├── infra_ipv6.txt
-        ├── infra_blocks.txt                       owned netblocks
-        ├── webapp_urls.txt                        live HTTP(S) URLs
-        ├── webapp_urls_diff.txt
-        ├── vhost_subdomains.txt                   STRONG hits (curl AND httpx differ from baseline)
-        ├── vhost_subdomains_weak.txt              WEAK hits (only one probe differs)
+        ├── infra_as.txt
+        ├── infra_ipv4.txt / infra_ipv4_diff.txt
+        ├── infra_ipv6.txt / infra_blocks.txt
+        ├── webapp_consolidated.txt                all live HTTP(S) URLs (DNS + validated vhosts)
+        ├── webapp_consolidated_diff.txt
+        ├── etc_hosts_file.txt                     vhost→IP map (ip<TAB>hostname format)
+        ├── vhost_subdomains.txt                   STRONG vhost hits
+        ├── vhost_subdomains_weak.txt              WEAK vhost hits
         ├── vhost_subdomains_diff.txt
-        ├── email_recon.txt
-        ├── email_recon_diff.txt
-        ├── webapp_js_secrets.txt                  hardcoded keys/tokens/JWTs found in downloaded JS
-        ├── webapp_js_params.txt                   param names + DOM sinks worth manual review (SQLi/XSS/SSRF/XXE/CMD/...)
+        ├── email_recon.txt / email_recon_diff.txt
         ├── robots_urls.txt
+        ├── webapp_js_secrets.txt                  hardcoded keys/tokens/JWTs in JS
+        ├── webapp_js_params.txt                   param names + DOM sinks (SQLi/XSS/SSRF/...)
+        ├── llm-local-prompt.txt                   LLM bundle: webapp_consolidated + etc_hosts
+        ├── llm-claude-prompt.txt                  LLM bundle: all artifacts
         ├── scan/
         │   ├── nmap/nmap_scan.txt
         │   ├── nuclei/nuclei_scan.result
@@ -161,112 +255,56 @@ A successful recon run produces the following tree under `${output_dir}/<domain>
         │   ├── nuclei/nuclei_web_fuzzing.result
         │   └── shodan/shodan_scan.txt
         └── webapp/
-            ├── aquatone/                          screenshots + aquatone report
-            ├── enum/<host>.gobuster.N             one file per (host, port)
-            ├── enum/<host>.dirsearch.N
-            ├── javascript/<host>/<file>.js        downloaded JS for offline review
-            ├── params/                            katana / waybackurls output
-            └── tech/<host>.tech                   response headers for fingerprinting
+            ├── aquatone/                          screenshots
+            ├── enum/                              gobuster + dirsearch output
+            ├── javascript/                        downloaded JS files
+            ├── params/                            katana + waybackurls output
+            └── tech/                              response headers / fingerprinting
 ```
 
-URL-only mode (`--url`) writes under `${output_dir}/<url_domain>/url_<date>/` with the same `report/` shape (no `nmap`/`shodan` since infra discovery is skipped).
+## Results database (SQLite)
 
-### Results database (SQLite)
-
-After every successful run, `db_usage()` ingests the latest row from `${domain}_history.csv` into `${output_dir}/collector-results-db` (override with `collector_db` in `collector.cfg`). Bootstrap is automatic from `support/collector-sqlite-schema.sqlite` on first use.
-
-The schema is intentionally narrow:
-
-* `targets(domain PK, first_seen, scope_notes)` — one row per FQDN.
-* `recon_runs(domain, run_id, run_date, started_at, finished_at, mode, subdomains, subdomains_alive, subdomains_added, ips, ips_added, webapp_urls, webapp_urls_added, vhosts_strong, vhosts_weak, vhosts_added, emails, emails_added, js_secrets, js_params, findings_info/low/medium/high/critical, report_dir, llm_prompt_path, status, ingested_at)` with composite PK `(domain, run_id)` and FK on `targets`.
-* Indexes on `run_date`, `(domain, run_date)`, `(mode, run_date)`.
-* `latest_run` view — most recent execution per target.
-
-Ingestion is idempotent: re-importing the same `run_id` only writes when payload columns actually differ. WAL journaling lets readers (the web UI, your own queries) work concurrently with the writer. Backup is `cp collector-results-db ...` or `sqlite3 collector-results-db ".backup '...'"`.
-
-Quick queries:
+After every run, `db_usage()` upserts the latest row into `${output_dir}/collector-results-db`. Schema: `targets(domain PK)` + `recon_runs(domain, run_id, ...)` with composite PK, `latest_run` view. Ingestion is idempotent — re-importing the same `run_id` only writes on payload change.
 
 ```bash
-sqlite3 collector-results-db "SELECT domain, run_date, findings_critical, findings_high, js_secrets FROM latest_run ORDER BY findings_critical DESC, findings_high DESC;"
-sqlite3 collector-results-db "SELECT run_date, subdomains, webapp_urls, findings_critical FROM recon_runs WHERE domain='example.com' ORDER BY run_date DESC LIMIT 10;"
+# Access from outside the container
+sqlite3 /opt/collector/outputs/collector-results-db \
+  "SELECT domain, run_date, findings_critical, findings_high, js_secrets FROM latest_run ORDER BY findings_critical DESC;"
+
+sqlite3 /opt/collector/outputs/collector-results-db \
+  "SELECT run_date, subdomains, webapp_consolidated, findings_critical FROM recon_runs WHERE domain='example.com' ORDER BY run_date DESC LIMIT 10;"
 ```
 
-### Web UI (`app-report/`)
+## Web UI
 
-A single-file Flask + HTMX read-only viewer over `collector-results-db`. After `db_usage` finishes, `start_app_report()` launches `gunicorn` on `${app_report_host}:${app_report_port}` (default `127.0.0.1:8000`) in the background, gated by `${output_dir}/.app-report.pid` so multiple recon runs share one server. To skip the launcher entirely, set `app_report_enabled="no"` in `collector.cfg`.
-
-Routes:
-
-* `/` — KPIs (targets, runs, totals, severity breakdown) + per-target latest-run table sorted by criticality.
-* `/targets/<domain>` — counters, severity badges, Chart.js trend line over the run history, full run timeline.
-* `/runs` — filterable, paginated run list (HTMX-backed: live filtering by domain/mode without full-page reload).
-* `/health` — JSON liveness probe (`{"ok": true, "targets": N}`).
-
-Config is environment-driven (`COLLECTOR_DB`, `COLLECTOR_OUTPUT_DIR`, `APP_REPORT_HOST`, `APP_REPORT_PORT`) — `start_app_report` populates the env from `collector.cfg`. The DB connection is opened with `mode=ro` URI mode so a misbehaving worker can't corrupt the file `db_usage` writes to. To run it manually for development:
+Flask + HTMX read-only dashboard auto-started at `http://127.0.0.1:8000` after each run. Access it from outside the container by mapping the port:
 
 ```bash
-cd app-report && pip install -r requirements.txt
-COLLECTOR_DB=/path/to/collector-results-db python3 app.py
+docker run --rm \
+  -v /opt/collector/outputs:/app/outputs \
+  -v /opt/collector/wordlists:/app/wordlists \
+  -v /opt/collector/collector.cfg:/app/collector.cfg:ro \
+  -p 127.0.0.1:8000:8000 \
+  collector:latest \
+  -d example.com --recon --webapp-discovery --webapp-short-detection
 ```
 
-#### Cloudflare quick-tunnel (opt-in)
+Or set `cloudflare_tunnel="yes"` in `collector.cfg` for an ephemeral `https://*.trycloudflare.com` URL.
 
-When the dashboard is running on a VPS and you'd rather not expose the port directly, set `cloudflare_tunnel="yes"` in `collector.cfg`. After gunicorn comes up, `start_app_report` invokes `cloudflared tunnel --url http://localhost:${app_report_port}` in the background and parses the generated `https://*.trycloudflare.com` URL out of cloudflared's log. The URL is echoed to the console at the end of the run (and on every subsequent run while the tunnel is still alive — PID-file gated, same as gunicorn).
+## Screenshots
 
-The `cloudflared` binary is shipped in the Docker image (latest release from `cloudflare/cloudflared`). On bare-metal installs, drop it anywhere in `$PATH` and `start_cloudflare_tunnel` picks it up. Tweak `cloudflare_tunnel_url_timeout` (default `30` seconds) if your network needs longer to publish the URL.
-
-Quick-tunnel URLs are ephemeral — they change every time cloudflared restarts. Use a named tunnel (out of scope here) if you need a stable hostname.
-
-### Screenshots
-
-![demo\_01.png](https://raw.githubusercontent.com/skateforever/collector/main/demo/demo_01.png) </br>
-![demo\_02.png](https://raw.githubusercontent.com/skateforever/collector/main/demo/demo_02.png) </br>
+![demo\_01.png](https://raw.githubusercontent.com/skateforever/collector/main/demo/demo_01.png)
+![demo\_02.png](https://raw.githubusercontent.com/skateforever/collector/main/demo/demo_02.png)
 
 ## Thanks
 
-[Alfredo Casanova](https://github.com/atcasanova) with some bash code corrections. </br>
-[Caue Bici](https://github.com/caueobici) with code review and answer some questions about python programming. </br>
-[Enderson Maia](https://github.com/endersonmaia) with the help on Dockerfile and shellcheck tip. </br>
-[Henrique Galdino](https://github.com/Achilles0x0) the help with some curl options. </br>
-[Icaro Torres](https://github.com/icarot) with the ideia to diff files from a day ago to improve the execution time of the script. </br>
-[Manoel Abreu](https://github.com/manoelt) with the ideia to use the [git-dumper.py](https://github.com/arthaud/git-dumper) in rebuild\_git function. </br>
-[Rener aka gr1nch](https://github.com/renergr1nch/splitter) thanks to made the splitter, you rocks dude!! </br>
-[Ulisses Alves](https://github.com/ualvesdias) with code review and answer some questions about python programming! </br>
+[Alfredo Casanova](https://github.com/atcasanova) — bash code corrections.
+[Caue Bici](https://github.com/caueobici) — code review and Python help.
+[Enderson Maia](https://github.com/endersonmaia) — Dockerfile and shellcheck.
+[Henrique Galdino](https://github.com/Achilles0x0) — curl options.
+[Icaro Torres](https://github.com/icarot) — diff-based execution idea.
+[Manoel Abreu](https://github.com/manoelt) — git-dumper integration idea.
+[Rener aka gr1nch](https://github.com/renergr1nch/splitter) — splitter tool.
+[Ulisses Alves](https://github.com/ualvesdias) — code review and Python help.
 
-## Resources
-
-https://0xsp.com/offensive/red-teaming-toolkit-collection </br>
-https://medium.com/@ricardoiramar/subdomain-enumeration-tools-evaluation-57d4ec02d69e </br>
-https://github.com/riramar/Web-Attack-Cheat-Sheet </br>
-https://inteltechniques.com/blog/2018/03/06/updated-osint-flowcharts/ </br>
-https://github.com/sehno/Bug-bounty/blob/master/bugbounty_checklist.md </br>
-https://github.com/renergr1nch/splitter </br>
-https://bitbucket.org/splazit/docker-privoxy-alpine/src/master/ </br>
-https://github.com/essandess/adblock2privoxy </br>
-https://0xpatrik.com/subdomain-enumeration-2019/ </br>
-https://blog.securitybreached.org/2017/11/25/guide-to-basic-recon-for-bugbounty/ </br>
-https://medium.com/@shifacyclewala/the-complete-subdomain-enumeration-guide-b097796e0f3 </br>
-https://www.secjuice.com/penetration-testing-for-beginners-part-1-an-overview/ </br>
-https://www.secjuice.com/reconnaissance-for-beginners/ </br>
-https://medium.com/@Asm0d3us/weaponizing-favicon-ico-for-bugbounties-osint-and-what-not-ace3c214e139 </br>
-https://medium.com/hackernoon/10-rules-of-bug-bounty-65082473ab8c </br>
-https://https://findomain.app/findomain-advanced-automated-and-modern-recon/ </br>
-https://www.offensity.com/de/blog/just-another-recon-guide-pentesters-and-bug-bounty-hunters/ </br>
-https://medium.com/hackcura/learning-path-for-bug-bounty-6173557662a7 </br>
-https://eslam3kl.medium.com/simple-recon-methodology-920f5c5936d4 </br>
-https://github.com/nahamsec/Resources-for-Beginner-Bug-Bounty-Hunters </br>
-https://www.offensity.com/en/blog/just-another-recon-guide-pentesters-and-bug-bounty-hunters/ </br>
-https://blog.projectdiscovery.io/reconnaissance-a-deep-dive-in-active-passive-reconnaissance/ </br>
-https://0xffsec.com/handbook/information-gathering/subdomain-enumeration/#content-security-policy-csp-header </br>
-https://www.ceeyu.io/resources/blog/subdomain-enumeration-tools-and-techniques </br>
-https://securitytrails.com/blog/dns-enumeration </br>
-https://securitytrails.com/blog/whois-records-infosec-industry </br>
-https://thexssrat.medium.com/how-to-automate-your-broad-scope-recon-a4ff998dea0e </br>
-https://github.com/JoshuaMart/ScopesExtractor </br>
-https://blog.ethiack.com/blog/supercharging-bug-bounty-hunting-with-ai </br>
-https://github.com/bhavesh-pardhi/Wordlist-Hub </br>
-https://github.com/XploitPoy-777/All-In-One-DNS-Wordlist </br>
-https://github.com/vavkamil/awesome-bugbounty-tools </br>
-https://www.helviojunior.com.br/security/osint/localizando-ips-que-respondem-para-uma-url/ </br>
-
-**Warning:** The code of all scripts find here was originally created for personal use, it generates a substantial amount of traffic, please use with caution. 
+**Warning:** collector generates a substantial amount of traffic. Use only against targets you have explicit authorization to test.
