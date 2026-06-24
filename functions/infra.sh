@@ -247,8 +247,8 @@ vhost_check(){
             awk -v tls="${tls_ports_pat}" '{split($2,a,":");port=a[2];proto=(port~"^("tls")$")?"https":"http";if((proto=="http"&&port=="80")||(proto=="https"&&port=="443"))print proto"://"$1;else print proto"://"$1":"port}' "${strong_out}" | sort -u > "${tmp_dir}/vhost_urls.tmp"
             sort -u -o "${report_dir}/vhost_urls.txt" "${tmp_dir}/vhost_urls.tmp"
             [ -s "${report_dir}/domains_without_resolution.txt" ] && awk '{print $1}' "${strong_out}" | sort -u | while IFS= read -r vhost; do sed -i "/^${vhost}$/d" "${report_dir}/domains_without_resolution.txt"; done
-            build_consolidated_urls
         fi
+        build_consolidated_urls
         echo "Done!"
     else
         echo "Fail!"
