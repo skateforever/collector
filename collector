@@ -56,32 +56,6 @@ if [[ "${killremove_check}" == "yes" ]]; then
     kill_collector "${domain}"
 fi
 
-# Acquire an exclusive per-target lock for the duration of a recon run.
-# Uses flock when available; falls back to mkdir-based locking otherwise.
-# Args: $1 = target name (domain or url_domain)
-collector_acquire_lock(){
-    local key="$1"
-    [[ -z "${key}" ]] && return 0
-    [[ ! -d "${output_dir}/${key}" ]] && mkdir -p "${output_dir}/${key}" 2>/dev/null
-    local lockfile="${output_dir}/${key}/.collector.lock"
-
-    if command -v flock >/dev/null 2>&1; then
-        exec 9>"${lockfile}" || return 1
-        if ! flock -n 9; then
-            echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Another collector run is already in progress for ${key} (lock: ${lockfile}). Aborting."
-            exit 1
-        fi
-        printf 'pid=%s\nstart=%s\ncmd=%s\n' "$$" "$(date +"%Y-%m-%d %H:%M:%S")" "${collector_command_line}" >&9
-    else
-        local lockdir="${output_dir}/${key}/.collector.lockdir"
-        if ! mkdir "${lockdir}" 2>/dev/null; then
-            echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Another collector run is already in progress for ${key} (lockdir: ${lockdir}). Aborting."
-            exit 1
-        fi
-        trap "rmdir '${lockdir}' 2>/dev/null" EXIT INT TERM
-    fi
-}
-
 if [[ "${domain_check}" == "yes" && -n "${domain}" ]]; then
     collector_acquire_lock "${domain}"
     check_is_known_target "${domain}"

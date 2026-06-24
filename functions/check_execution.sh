@@ -6,6 +6,7 @@
 # And is responsible to get the functions:                  #
 #                                                           #
 #   * check_container                                       #
+#   * collector_acquire_lock                                #
 #   * check_execution                                       #
 #   * check_parameter_conflicts                             #
 #   * check_parameter_dependency                            #
@@ -17,6 +18,23 @@ check_container(){
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} collector must be executed inside a Docker container."
         exit 1
     fi
+}
+
+collector_acquire_lock(){
+    local key="$1"
+    [[ -z "${key}" ]] && return 0
+    if ! command -v flock >/dev/null 2>&1; then
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} flock not found. collector must run inside the Docker container (util-linux required)."
+        exit 1
+    fi
+    [[ ! -d "${output_dir}/${key}" ]] && mkdir -p "${output_dir}/${key}" 2>/dev/null
+    local lockfile="${output_dir}/${key}/.collector.lock"
+    exec 9>"${lockfile}" || { echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Cannot create lock file: ${lockfile}"; exit 1; }
+    if ! flock -n 9; then
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Another collector run is already in progress for ${key} (lock: ${lockfile}). Aborting."
+        exit 1
+    fi
+    printf 'pid=%s\nstart=%s\ncmd=%s\n' "$$" "$(date +"%Y-%m-%d %H:%M:%S")" "${collector_command_line}" >&9
 }
 
 # Checking if the script has the main parameters needed
