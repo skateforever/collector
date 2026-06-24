@@ -37,10 +37,11 @@ domains_recon(){
 
     # Only web app discovery
     if [[ "${webapp_discovery_check}" == "yes" ]] && [[ -s "${report_dir}/domains_alive.txt" ]] && \
-	[[ ! -s "${report_dir}/webapp_urls.txt" ]]; then
+        [[ "${recon_check}" != "yes" ]]; then
           webapp_alive "${domain}" "${report_dir}/domains_alive.txt"
           build_consolidated_urls
           webapp_tech "${domain}" "${report_dir}/webapp_consolidated.txt"
+          emails_recon
           diff_artifacts
           # build_llm_prompt MUST run before record_history: the latter
           # decides status=finished only when llm-claude-prompt.txt or llm-local-prompt.txt exists on disk.
@@ -100,6 +101,7 @@ domains_recon(){
             [[ ! -s "${report_dir}/webapp_consolidated.txt" ]] && build_consolidated_urls
             webapp_tech "${domain}" "${report_dir}/webapp_consolidated.txt"
         fi
+        emails_recon
         if [[ "${webapp_crawler_check}" == "yes" && "${webapp_enum_check}" != "yes" ]]; then
             crawler_js "${domain}" "${report_dir}/webapp_consolidated.txt"
             crawler_params "${domain}" "${report_dir}/webapp_consolidated.txt"
