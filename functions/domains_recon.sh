@@ -214,16 +214,21 @@ domains_recon(){
         robots_txt
         [[ -s "${report_dir}/robots_urls.txt" ]] && webapp_enum "${domain}" "${report_dir}/robots_urls.txt"
 
-        for urls_file in "${report_dir}/webapp_consolidated.txt" "${report_dir}/robots_urls.txt"; do
-            if [[ -s "${urls_file}" ]]; then
-                aquatone_screenshot "${domain}" "${urls_file}"
+        # Use a loop variable name that doesn't collide with the global
+        # `urls_file` used (and unset) inside aquatone_screenshot /
+        # nuclei_scan / webapp_tech / webapp_enum. Otherwise, after the
+        # first callee runs, `${urls_file}` is empty for the remaining
+        # callees in the same iteration (report B-05).
+        for current_urls_file in "${report_dir}/webapp_consolidated.txt" "${report_dir}/robots_urls.txt"; do
+            if [[ -s "${current_urls_file}" ]]; then
+                aquatone_screenshot "${domain}" "${current_urls_file}"
                 if [[ "${webapp_crawler_check}" == "yes" ]]; then
-                    crawler_js "${domain}" "${urls_file}"
-                    crawler_params "${domain}" "${urls_file}"
+                    crawler_js "${domain}" "${current_urls_file}"
+                    crawler_params "${domain}" "${current_urls_file}"
                 fi
                 if [[ "${webapp_scan_check}" == "yes" ]]; then
-                    nuclei_scan "${domain}" "${urls_file}"
-                    #acunetix_scan "${domain}" "${urls_file}"
+                    nuclei_scan "${domain}" "${current_urls_file}"
+                    #acunetix_scan "${domain}" "${current_urls_file}"
                 fi
             fi
         done

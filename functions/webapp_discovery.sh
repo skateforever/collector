@@ -24,27 +24,32 @@ webapp_alive(){
     echo -e "\n" >> "${log_execution_file}"
     if [ -s "${alive_file}" ]; then
 
+        # Build explicit proxy arg arrays. The previous approach of `alias curl=`
+        # / `alias httpx=` was a no-op: bash does not expand aliases in
+        # non-interactive scripts (and `shopt -s expand_aliases` is never set),
+        # so --proxy was silently dropped from every call below (report B-04).
+        local -a curl_proxy_args=() httpx_proxy_args=()
         if [ -n "${use_proxy}" ] && [ "${use_proxy}" == "yes" ]; then
-            alias curl="curl --proxy ${proxy_ip}"
-            alias httpx="httpx -http-proxy ${proxy_ip}"
+            curl_proxy_args=(--proxy "${proxy_ip}")
+            httpx_proxy_args=(-http-proxy "${proxy_ip}")
         fi
-        
+
         for subdomain in $(cat "${report_dir}/domains_alive.txt"); do
             for port in "${webapp_port_detect[@]}"; do
                 (
                     user_agent="$(get_user_agent)"
- 
+
                     # Alive check across many subdomain x port combinations: use the
                     # fast profile so unresponsive targets fail quickly instead of
                     # adding up to a multi-hour stall.
-                    echo "curl ${curl_options_fast[@]} -H \"User-agent: ${user_agent}\" -L -w \"%{response_code}\n\" \"http://${subdomain}:${port}\" -o /dev/null" >> "${log_execution_file}"
-                    http_status_code=$(curl "${curl_options_fast[@]}" -H "User-agent: ${user_agent}" -L -w "%{response_code}\n" "http://${subdomain}:${port}" -o /dev/null 2>> "${log_execution_file}")
+                    echo "curl ${curl_options_fast[@]} ${curl_proxy_args[*]} -H \"User-agent: ${user_agent}\" -L -w \"%{response_code}\n\" \"http://${subdomain}:${port}\" -o /dev/null" >> "${log_execution_file}"
+                    http_status_code=$(curl "${curl_options_fast[@]}" "${curl_proxy_args[@]}" -H "User-agent: ${user_agent}" -L -w "%{response_code}\n" "http://${subdomain}:${port}" -o /dev/null 2>> "${log_execution_file}")
                     if [[ "${http_status_code}" =~ ^[1-5][0-9]{2}$ ]]; then
                         echo "http://${subdomain}:${port}" >> "${tmp_dir}/webapp_urls.tmp"
                     fi
 
-                    echo "curl ${curl_options_fast[@]} -H \"User-agent: ${user_agent}\" -L -w \"%{response_code}\n\" \"https://${subdomain}:${port}\" -o /dev/null" >> "${log_execution_file}"
-                    https_status_code=$(curl "${curl_options_fast[@]}" -H "User-agent: ${user_agent}" -L -w "%{response_code}\n" "https://${subdomain}:${port}" -o /dev/null 2>> "${log_execution_file}")
+                    echo "curl ${curl_options_fast[@]} ${curl_proxy_args[*]} -H \"User-agent: ${user_agent}\" -L -w \"%{response_code}\n\" \"https://${subdomain}:${port}\" -o /dev/null" >> "${log_execution_file}"
+                    https_status_code=$(curl "${curl_options_fast[@]}" "${curl_proxy_args[@]}" -H "User-agent: ${user_agent}" -L -w "%{response_code}\n" "https://${subdomain}:${port}" -o /dev/null 2>> "${log_execution_file}")
                     if [[ "${https_status_code}" =~ ^[1-5][0-9]{2}$ ]]; then
                         echo "https://${subdomain}:${port}" >> "${tmp_dir}/webapp_urls.tmp"
                     fi
@@ -55,8 +60,8 @@ webapp_alive(){
             sleep 1
         done
 
-        echo "httpx "${httpx_options[@]}" -p $(echo "${webapp_port_detect[@]}" | sed 's/ /,/g') -l ${report_dir}/domains_alive.txt >> ${tmp_dir}/webapp_urls.tmp" >> "${log_execution_file}"
-        httpx "${httpx_options[@]}" -p $(echo "${webapp_port_detect[@]}" | sed 's/ /,/g') -l "${report_dir}/domains_alive.txt" >> "${tmp_dir}/webapp_urls.tmp" 2>> "${log_execution_file}"
+        echo "httpx "${httpx_options[@]}" ${httpx_proxy_args[*]} -p $(echo "${webapp_port_detect[@]}" | sed 's/ /,/g') -l ${report_dir}/domains_alive.txt >> ${tmp_dir}/webapp_urls.tmp" >> "${log_execution_file}"
+        httpx "${httpx_options[@]}" "${httpx_proxy_args[@]}" -p $(echo "${webapp_port_detect[@]}" | sed 's/ /,/g') -l "${report_dir}/domains_alive.txt" >> "${tmp_dir}/webapp_urls.tmp" 2>> "${log_execution_file}"
         sleep 1
 
         if [ -s "${tmp_dir}/webapp_urls.tmp" ]; then
@@ -66,7 +71,10 @@ webapp_alive(){
             echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Something got wrong while checking the status of URLs!"
             echo -e "Something got wrong while checking the status of URLs!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
             message "${target}" failed
-            exit 1
+            # return 1 instead of exit 1: webapp_alive() runs inside the
+            # ( ... ) subshell in domains_recon(); exit 1 would skip
+            # record_history / build_llm_prompt / db_usage (see report B-03).
+            return 1
         fi
 
         if [[ -s "${tmp_dir}/webapp_urls.tmp" ]]; then
@@ -74,7 +82,7 @@ webapp_alive(){
             for url in $(cat "${tmp_dir}/webapp_urls.tmp" | sort -u); do
                 user_agent="$(get_user_agent)"
 
-                if ! curl "${curl_options[@]}" -H "User-agent: ${user_agent}" "${url}" 2>/dev/null | grep -qiE "${webapp_waf_regex}"; then
+                if ! curl "${curl_options[@]}" "${curl_proxy_args[@]}" -H "User-agent: ${user_agent}" "${url}" 2>/dev/null | grep -qiE "${webapp_waf_regex}"; then
                     echo "${url}"
                 fi
             done > "${report_dir}/webapp_urls.txt"
@@ -82,8 +90,7 @@ webapp_alive(){
             sort -u -o "${report_dir}/webapp_urls.txt" "${report_dir}/webapp_urls.txt"
         fi
 
-        unalias curl > /dev/null 2>&1
-        unalias httpx > /dev/null 2>&1
+        # No unalias needed: we no longer create aliases.
 
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Separating infrastructure from web application... "
         if [ -s "${report_dir}/webapp_urls.txt" ]; then
@@ -103,14 +110,14 @@ webapp_alive(){
                 echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Could not create file for infrastructure domains, something went wrong."
                 echo -e "Could not create file for infrastructure domains, something went wrong." | notify -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
                 message "${target}" failed
-                exit 1
+                return 1
             fi
         else
             echo "Fail!"
             echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} We probably didn't have any webapp application, something is wrong!"
             echo -e "We probably didn't have any webapp application, something is wrong!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
             message "${target}" failed
-            exit 1
+            return 1
         fi
 
         if [ -f "${report_dir}/webapp_urls.txt" ] && [ -f "${report_dir}/domains_infrastructure.txt" ]; then
@@ -127,7 +134,7 @@ webapp_alive(){
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} The ${report_dir}/domains_alive.txt does not exist or is empty."
         echo -e "The ${report_dir}/domains_alive.txt does not exist or is empty." | notify -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
         message "${target}" failed
-        exit 1
+        return 1
     fi
 }
 

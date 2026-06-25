@@ -37,7 +37,12 @@ git_rebuild(){
                     echo "Done!"
                     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Downloading files from repository... "
                     dir_origem="${PWD}"
-                    cd "${target_dir}" || exit
+                    # `|| continue` instead of `|| exit`: this function runs
+                    # inside the ( ... ) subshell in domains_recon(); a bare
+                    # `exit` from cd-failure would kill the whole pipeline
+                    # before record_history / build_llm_prompt can run
+                    # (report B-08). Just skip this repo.
+                    cd "${target_dir}" || continue
                     for repo_file in $(git ls-files); do
                         repo_file_dir=$(dirname "${repo_file}")
                         if [[ ! -d "${repo_file_dir}" ]] && [[ "${repo_file_dir}" != "." ]]; then
@@ -50,7 +55,11 @@ git_rebuild(){
                        sleep 1
                     done
                     echo "Done!"
-                    cd "${dir_origem}" || exit
+                    # `|| return 1`: if we can't cd back to dir_origem,
+                    # subsequent iterations of the outer for-loop would
+                    # run in the wrong dir. Returning lets domains_recon's
+                    # terminal steps still execute (report B-08).
+                    cd "${dir_origem}" || return 1
                 fi
             else
                 # Probe for .git/config: fast profile (see comment above).
@@ -66,7 +75,12 @@ git_rebuild(){
                     echo "Done!"
                     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Downloading files from repository... "
                     dir_origem="${PWD}"
-                    cd "${target_dir}" || exit
+                    # `|| continue` instead of `|| exit`: this function runs
+                    # inside the ( ... ) subshell in domains_recon(); a bare
+                    # `exit` from cd-failure would kill the whole pipeline
+                    # before record_history / build_llm_prompt can run
+                    # (report B-08). Just skip this repo.
+                    cd "${target_dir}" || continue
                     for repo_file in $(git ls-files); do
                         repo_file_dir=$(dirname "${repo_file}")
                         if [[ ! -d "${repo_file_dir}" ]] && [[ "${repo_file_dir}" != "." ]]; then
@@ -79,7 +93,11 @@ git_rebuild(){
                         sleep 1
                     done
                     echo "Done!"
-                    cd "${dir_origem}" || exit
+                    # `|| return 1`: if we can't cd back to dir_origem,
+                    # subsequent iterations of the outer for-loop would
+                    # run in the wrong dir. Returning lets domains_recon's
+                    # terminal steps still execute (report B-08).
+                    cd "${dir_origem}" || return 1
                 fi
             fi
             # Defensive cleanup if the probe didn't match and the file was

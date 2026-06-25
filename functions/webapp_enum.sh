@@ -82,12 +82,18 @@ webapp_enum(){
                 echo "Done!"
 
                 echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Cleaning up dirsearch files... "
-                sed -i -e 's/.\[4.m//g' -e 's/.\[3.m//g' -e 's/.\[1K.\[0G/\n/g' \
-                    -e 's/.\[1m//g' -e 's/.\[0m//g' -e '/Last request to/d' "${webapp_enum_dir}/*.dirsearch*" 2> /dev/null
+                # Use find -exec instead of `sed -i ... "${dir}/*.dirsearch*"`:
+                # double-quoted strings are not glob-expanded, so the previous
+                # sed received a literal "/path/*.dirsearch*" filename and
+                # silently failed (report B-10).
+                find "${webapp_enum_dir}" -maxdepth 1 -type f -name '*.dirsearch*' -exec \
+                    sed -i -e 's/.\[4.m//g' -e 's/.\[3.m//g' -e 's/.\[1K.\[0G/\n/g' \
+                        -e 's/.\[1m//g' -e 's/.\[0m//g' -e '/Last request to/d' {} + 2> /dev/null
                 echo "Done!"
-                
+
                 echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Cleaning up gobuster files... "
-                sed -i "s/^..\[2K//" "${webapp_enum_dir}/*.gobuster*" 2> /dev/null
+                find "${webapp_enum_dir}" -maxdepth 1 -type f -name '*.gobuster*' -exec \
+                    sed -i "s/^..\[2K//" {} + 2> /dev/null
                 echo "Done!"
 
                 # Notifying the finds
@@ -99,14 +105,18 @@ webapp_enum(){
                 echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Array of wordlists is empty. Stopping the script!"
                 echo -e "Array of wordlists is empty. Stopping the script!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
                 message "${target}" failed
-                exit 1
+                # return 1 instead of exit 1: this function runs inside the
+                # ( ... ) subshell in domains_recon(); exit 1 would kill the
+                # whole pipeline before record_history / build_llm_prompt /
+                # db_usage / start_app_report can run (see report B-02).
+                return 1
             fi
         else
             echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Make sure the directories structure was created. Stopping the script!"
             unset urls_file
             echo -e "Make sure the directories structure was created. Stopping the script!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
             message "${target}" failed
-            exit 1
+            return 1
         fi
     else
         echo "Fail!"
@@ -115,7 +125,7 @@ webapp_enum(){
         echo -e "Make sure the ${urls_file} exist and isn't empty. \nYou probably forgot to add --webapp-discovery option to execute, or really, we have a problem with script execution." | notify -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
         message "${target}" failed
         unset urls_file
-        exit 1
+        return 1
     fi
     unset urls_file
     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Web application enumeration is done!"
@@ -127,29 +137,31 @@ webapp_tech(){
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing web application technology enumeration..."
     if [ -s "${urls_file}" ]; then
         if [ -d "${report_dir}" ] && [ -d "${webapp_tech_dir}" ] ; then
+            # Explicit proxy arg arrays (the previous alias-based approach
+            # never expanded in non-interactive scripts — see B-04).
+            local -a curl_proxy_args=() httpx_proxy_args=()
+            if [ -n "${use_proxy}" ] && [ "${use_proxy}" == "yes" ]; then
+                curl_proxy_args=(--proxy "${proxy_ip}")
+                httpx_proxy_args=(-http-proxy "${proxy_ip}")
+            fi
+
             httpx -no-color -silent -update > /dev/null 2>&1
             while IFS= read -r url; do
                 unset user_agent
                 user_agent="$(get_user_agent)"
                 name="$(echo "${url}" | sed -e "s/http:\/\//http_/" -e "s/https:\/\//https_/" -e "s/:/_/" -e "s/\/$//" -e "s/\//_/g")"
                 file_tech_by_headers="${name}.tech"
-                if [ -n "${use_proxy}" ] && [ "${use_proxy}" == "yes" ]; then
-                    alias curl="curl --proxy ${proxy_ip}"
-                    alias httpx="httpx -http-proxy ${proxy_ip}"
-                fi
-                
-                echo "curl ${curl_options[@]} -H \"User-agent: ${user_agent}\" -I \"${url}\"" >> "${log_execution_file}"
-                curl "${curl_options[@]}" -H "User-agent: ${user_agent}" -I "${url}" >> "${webapp_tech_dir}/${file_tech_by_headers}" 2>> "${log_execution_file}"
-                
-                echo "echo ${url} | httpx ${httpx_options[@]} -title -tech-detect" >> "${log_execution_file}"
-                echo "${url}" | httpx "${httpx_options[@]}" -title -tech-detect >> "${webapp_tech_dir}/${file_tech_by_headers}" 2>> "${log_execution_file}"
-                
+
+                echo "curl ${curl_options[@]} ${curl_proxy_args[*]} -H \"User-agent: ${user_agent}\" -I \"${url}\"" >> "${log_execution_file}"
+                curl "${curl_options[@]}" "${curl_proxy_args[@]}" -H "User-agent: ${user_agent}" -I "${url}" >> "${webapp_tech_dir}/${file_tech_by_headers}" 2>> "${log_execution_file}"
+
+                echo "echo ${url} | httpx ${httpx_options[@]} ${httpx_proxy_args[*]} -title -tech-detect" >> "${log_execution_file}"
+                echo "${url}" | httpx "${httpx_options[@]}" "${httpx_proxy_args[@]}" -title -tech-detect >> "${webapp_tech_dir}/${file_tech_by_headers}" 2>> "${log_execution_file}"
+
                 unset file_tech_by_headers
                 unset name
                 unset url
             done < "${urls_file}"
-            unalias curl > /dev/null 2>&1
-            unalias httpx > /dev/null 2>&1
             echo "Done!"
         fi
     else
@@ -158,7 +170,10 @@ webapp_tech(){
         echo -e "Make sure the ${urls_file} exist and isn't empty." | notify -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
         message "${target}" failed
         unset urls_file
-        exit 1
+        # See webapp_enum() above: webapp_tech() also runs inside the
+        # ( ... ) subshell in domains_recon(); return 1 keeps the terminal
+        # steps reachable.
+        return 1
     fi
     unset urls_file
 }

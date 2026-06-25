@@ -151,7 +151,11 @@ menu(){
                 IFS=","
                 for dw in $2; do
                     if [[ -s "${dw}" ]]; then
-                        dns_wordlists+=("$2")
+                        # Append the split element (a single path), not the
+                        # raw comma-joined $2. Previous code (`+=("$2")`)
+                        # stored the literal "/a.txt,/b.txt" as one array
+                        # element (report B-07).
+                        dns_wordlists+=("${dw}")
                     else
                         echo -e "${dw} is not a valid file, please enter a valid one.\n"
                         usage
@@ -199,7 +203,9 @@ menu(){
                 IFS=","
                 for ww in $2; do
                     if [[ -s "${ww}" ]]; then
-                        webapp_wordlists+=("$2")
+                        # Append the split element (single path), not $2
+                        # (same bug as -s/--subdomain-brute — report B-07).
+                        webapp_wordlists+=("${ww}")
                     else
                         echo -e "${ww} is not a valid file, please enter a valid one.\n"
                         usage
