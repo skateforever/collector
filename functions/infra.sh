@@ -52,13 +52,16 @@ infra_data(){
             ownerid=$(whois "${domain}" 2> /dev/null | grep -E "^ownerid:" | awk '{print $2}')
             for IP in $(grep -Ev "Google|Microsoft|Azure|AWS|Amazon|Cloudflare" "${report_dir}/infra_as.txt" | tail -n+2 | awk '{print $3}'); do
                 if [[ -n "${ownerid}" ]]; then
-                    if whois "${IP}" 2> /dev/null | grep -q "${ownerid}"; then
+                    # Capture once — reuse for both the ownership check and CIDR extraction.
+                    ib_whois="$(whois "${IP}" 2>/dev/null)"
+                    if echo "${ib_whois}" | grep -q "${ownerid}"; then
                         sleep 3
                         # IPv4 block
-                        whois "${IP}" | grep -E "${IP%%.*}.*\/[0-9]{2}$" >> "${tmp_dir}/infra_blocks.tmp"
+                        echo "${ib_whois}" | grep -E "${IP%%.*}.*\/[0-9]{2}$" >> "${tmp_dir}/infra_blocks.tmp"
                         # IPv6 block
                         # ?
                     fi
+                    unset ib_whois
                 fi
             done
         fi
