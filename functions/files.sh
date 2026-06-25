@@ -186,6 +186,251 @@ joining_subdomains(){
                 2>> "${log_execution_file}"
         fi
 
+        if [ -s "${tmp_dir}/bufferover_output.json" ]; then
+            echo "Parsing bufferover" >> "${log_execution_file}"
+            jq -r '(.FDNS_A // [])[], (.RDNS // [])[]' "${tmp_dir}/bufferover_output.json" 2>> "${log_execution_file}" \
+                | awk -F',' '{for(i=1;i<=NF;i++) if ($i !~ /^[0-9.]+$/) print $i}' \
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
+        fi
+
+        if [ -s "${tmp_dir}/jldc_output.json" ]; then
+            echo "Parsing jldc" >> "${log_execution_file}"
+            jq -r '.[]' "${tmp_dir}/jldc_output.json" 2>> "${log_execution_file}" \
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
+        fi
+
+        if [ -s "${tmp_dir}/circl_output.txt" ]; then
+            echo "Parsing circl" >> "${log_execution_file}"
+            grep -Eo '"rrname"[[:space:]]*:[[:space:]]*"[^"]+"' "${tmp_dir}/circl_output.txt" \
+                | awk -F'"' '{print $4}' \
+                | sed 's/\.$//' \
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
+        fi
+
+        if [ -s "${tmp_dir}/threatminer_output.json" ]; then
+            echo "Parsing threatminer" >> "${log_execution_file}"
+            jq -r '.results[]?' "${tmp_dir}/threatminer_output.json" 2>> "${log_execution_file}" \
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
+        fi
+
+        if [ -s "${tmp_dir}/urlhaus_output.json" ]; then
+            echo "Parsing urlhaus" >> "${log_execution_file}"
+            jq -r '.urls[]?.url?' "${tmp_dir}/urlhaus_output.json" 2>> "${log_execution_file}" \
+                | sed -e 's_https*://__' -e 's_/.*__' -e 's_:.*__' \
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
+        fi
+
+        if [ -s "${tmp_dir}/bing_output.txt" ]; then
+            echo "Parsing bing" >> "${log_execution_file}"
+            grep -Eo 'hover-url="https?://[^"]+"|<cite[^>]*>[^<]+</cite>|href="https?://(?!(?:www\.)?bing\.com)[^"]+"' "${tmp_dir}/bing_output.txt" \
+                | grep -Eo 'https?://[^/" >]+' \
+                | sed -e 's_https*://__' -e 's_/.*__' -e 's_:.*__' -e 's/^www\.//' \
+                | grep -E "\.${domain}$" \
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
+        fi
+
+        if [ -s "${tmp_dir}/grepapp_output.json" ]; then
+            echo "Parsing grepapp" >> "${log_execution_file}"
+            grep -Eo '[a-zA-Z0-9._-]+\.'"${domain}" "${tmp_dir}/grepapp_output.json" \
+                | tr '[:upper:]' '[:lower:]' \
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
+        fi
+
+        if [ -s "${tmp_dir}/bevigil_output.json" ]; then
+            echo "Parsing bevigil" >> "${log_execution_file}"
+            jq -r '.subdomains[]?' "${tmp_dir}/bevigil_output.json" \
+                | tr '[:upper:]' '[:lower:]' \
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
+        fi
+
+        if [ -s "${tmp_dir}/c99_output.json" ]; then
+            echo "Parsing c99" >> "${log_execution_file}"
+            jq -r '.subdomains[]? | if type == "string" then . else (.subdomain // .host // .hostname // empty) end' \
+                "${tmp_dir}/c99_output.json" \
+                | tr '[:upper:]' '[:lower:]' \
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
+        fi
+
+        if [ -s "${tmp_dir}/chaos_output.json" ]; then
+            echo "Parsing chaos" >> "${log_execution_file}"
+            chaos_root="$(jq -r '.domain // empty' "${tmp_dir}/chaos_output.json" 2>/dev/null)"
+            [[ -z "${chaos_root}" ]] && chaos_root="${domain}"
+            jq -r '.subdomains[]?' "${tmp_dir}/chaos_output.json" \
+                | tr '[:upper:]' '[:lower:]' \
+                | sed "s/\$/.${chaos_root}/" \
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
+        fi
+
+        if [ -s "${tmp_dir}/fofa_output.json" ]; then
+            echo "Parsing fofa" >> "${log_execution_file}"
+            jq -r '.results[]? | if type == "array" then .[] else . end' "${tmp_dir}/fofa_output.json" \
+                | grep -Eo '[a-zA-Z0-9._-]+\.'"${domain}" \
+                | tr '[:upper:]' '[:lower:]' \
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
+        fi
+
+        if [ -s "${tmp_dir}/fofa_output.html" ]; then
+            echo "Parsing fofa html" >> "${log_execution_file}"
+            grep -Eo '[a-zA-Z0-9._-]+\.'"${domain}" "${tmp_dir}/fofa_output.html" \
+                | tr '[:upper:]' '[:lower:]' \
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
+        fi
+
+        if [ -s "${tmp_dir}/fullhunt_output.json" ]; then
+            echo "Parsing fullhunt" >> "${log_execution_file}"
+            jq -r '.hosts[]? | if type == "string" then . else (.host // empty) end' \
+                "${tmp_dir}/fullhunt_output.json" \
+                | tr '[:upper:]' '[:lower:]' \
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
+        fi
+
+        if [ -s "${tmp_dir}/github_output.json" ]; then
+            echo "Parsing github" >> "${log_execution_file}"
+            grep -Eo '[a-zA-Z0-9._-]+\.'"${domain}" "${tmp_dir}/github_output.json" \
+                | tr '[:upper:]' '[:lower:]' \
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
+        fi
+
+        if [ -s "${tmp_dir}/grayhatwarfare_output.json" ]; then
+            echo "Parsing grayhatwarfare" >> "${log_execution_file}"
+            jq -r '.buckets[]?.bucket // empty' "${tmp_dir}/grayhatwarfare_output.json" \
+                | grep -Eo '[a-zA-Z0-9._-]+\.'"${domain}" \
+                | tr '[:upper:]' '[:lower:]' \
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
+        fi
+
+        if [ -s "${tmp_dir}/greynoise_output.json" ]; then
+            echo "Parsing greynoise" >> "${log_execution_file}"
+            jq -r '.data[]?.metadata?.rdns // empty' "${tmp_dir}/greynoise_output.json" \
+                | sed 's/\.$//' \
+                | tr '[:upper:]' '[:lower:]' \
+                | grep -E "\.${domain}$" \
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
+        fi
+
+        if [ -s "${tmp_dir}/hunterhow_output.json" ]; then
+            echo "Parsing hunterhow" >> "${log_execution_file}"
+            jq -r '.data?.assets[]?.domain // empty' "${tmp_dir}/hunterhow_output.json" \
+                | tr '[:upper:]' '[:lower:]' \
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
+        fi
+
+        if [ -s "${tmp_dir}/intelx_output.json" ]; then
+            echo "Parsing intelx" >> "${log_execution_file}"
+            jq -r '.selectors[]?.selectorvalue // empty' "${tmp_dir}/intelx_output.json" \
+                | grep -Eo '[a-zA-Z0-9._-]+\.'"${domain}" \
+                | tr '[:upper:]' '[:lower:]' \
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
+        fi
+
+        if [ -s "${tmp_dir}/leakix_output.json" ]; then
+            echo "Parsing leakix" >> "${log_execution_file}"
+            jq -r 'if type == "array" then .[]? | if type == "string" then . else (.subdomain // .host // .hostname // empty) end else empty end' \
+                "${tmp_dir}/leakix_output.json" \
+                | tr '[:upper:]' '[:lower:]' \
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
+        fi
+
+        if [ -s "${tmp_dir}/merklemap_output.json" ]; then
+            echo "Parsing merklemap" >> "${log_execution_file}"
+            jq -r '.results[]? | if type == "string" then . else (.domain // .hostname // .name // .subdomain // empty) end' \
+                "${tmp_dir}/merklemap_output.json" \
+                | tr '[:upper:]' '[:lower:]' \
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
+        fi
+
+        if [ -s "${tmp_dir}/onyphe_output.json" ]; then
+            echo "Parsing onyphe" >> "${log_execution_file}"
+            jq -r '.results[]? | (.hostname // .domain // .forward // empty)' "${tmp_dir}/onyphe_output.json" \
+                | tr '[:upper:]' '[:lower:]' \
+                | grep -E "\.${domain}$" \
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
+        fi
+
+        if [ -s "${tmp_dir}/publicwww_output.txt" ]; then
+            echo "Parsing publicwww" >> "${log_execution_file}"
+            grep -Eo '[a-zA-Z0-9._-]+\.'"${domain}" "${tmp_dir}/publicwww_output.txt" \
+                | tr '[:upper:]' '[:lower:]' \
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
+        fi
+
+        if [ -s "${tmp_dir}/pulsedive_output.json" ]; then
+            echo "Parsing pulsedive" >> "${log_execution_file}"
+            jq -r '(.indicators // .results // [])[]? | select(.type == "domain") | (.value // .indicator // empty)' \
+                "${tmp_dir}/pulsedive_output.json" \
+                | tr '[:upper:]' '[:lower:]' \
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
+        fi
+
+        if [ -s "${tmp_dir}/ptr_sweep_output.txt" ]; then
+            echo "Parsing ptr_sweep" >> "${log_execution_file}"
+            grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/ptr_sweep_output.txt" \
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
+        fi
+
+        if [ -s "${tmp_dir}/dns_mining_output.txt" ]; then
+            echo "Parsing dns_mining" >> "${log_execution_file}"
+            grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/dns_mining_output.txt" \
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
+        fi
+
+        if [ -s "${tmp_dir}/caa_enum_output.txt" ]; then
+            echo "Parsing caa_enum" >> "${log_execution_file}"
+            grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/caa_enum_output.txt" \
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
+        fi
+
+        if [ -s "${tmp_dir}/srv_enum_output.txt" ]; then
+            echo "Parsing srv_enum" >> "${log_execution_file}"
+            grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/srv_enum_output.txt" \
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
+        fi
+
+        if [ -s "${tmp_dir}/nsec_walk_output.txt" ]; then
+            echo "Parsing nsec_walk" >> "${log_execution_file}"
+            grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/nsec_walk_output.txt" \
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
+        fi
+
+        if [ -s "${tmp_dir}/ns_brute_output.txt" ]; then
+            echo "Parsing ns_brute" >> "${log_execution_file}"
+            awk '/IN[[:space:]]+A[[:space:]]/{print $1}' "${tmp_dir}/ns_brute_output.txt" \
+                | sed 's/\.$//' | tr '[:upper:]' '[:lower:]' \
+                | grep -Ei "(\.${domain}$|^${domain}$)" \
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
+        fi
+
+        if [ -s "${tmp_dir}/asn_sweep_output.txt" ]; then
+            echo "Parsing asn_sweep" >> "${log_execution_file}"
+            grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/asn_sweep_output.txt" \
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
+        fi
+
+        if [ -s "${tmp_dir}/censys_output.json" ]; then
+            echo "Parsing censys" >> "${log_execution_file}"
+            jq -r '.result.hits[]?.parsed?.names[]?' "${tmp_dir}/censys_output.json" \
+                | tr '[:upper:]' '[:lower:]' \
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
+        fi
+
+        if [ -s "${tmp_dir}/robots_sitemap_output.txt" ]; then
+            echo "Parsing robots_sitemap" >> "${log_execution_file}"
+            grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/robots_sitemap_output.txt" \
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
+        fi
+
+        if [ -s "${tmp_dir}/spider_output.txt" ]; then
+            echo "Parsing spider" >> "${log_execution_file}"
+            grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/spider_output.txt" \
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
+        fi
+
+        if [ -s "${tmp_dir}/vhost_probe_output.txt" ]; then
+            echo "Parsing vhost_probe" >> "${log_execution_file}"
+            grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/vhost_probe_output.txt" \
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
+        fi
+
         if [ ${#dns_wordlists[@]} -gt 0 ]; then
             echo "Parsing amass brute" >> "${log_execution_file}"
             files_amass=($("${ls_bin_path}" -1A "${tmp_dir}/" | grep "amass_brute_output" 2> /dev/null))
