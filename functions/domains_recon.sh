@@ -58,6 +58,13 @@ domains_recon(){
         [[ "${recon_check}" == "no" || -z "${recon_check}" ]]; then
           crawler_js "${domain}" "${report_dir}/webapp_consolidated.txt"
           crawler_params "${domain}" "${report_dir}/webapp_consolidated.txt"
+          source "${collector_path}/sources/spider.sh"
+          spider_src "${report_dir}/webapp_consolidated.txt"
+          if [[ -s "${tmp_dir}/spider_output.txt" ]]; then
+              grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/spider_output.txt" \
+                  | sort -u >> "${report_dir}/domains_found.txt"
+              sort -u -o "${report_dir}/domains_found.txt" "${report_dir}/domains_found.txt"
+          fi
           diff_artifacts
           build_llm_prompt
           record_history
@@ -96,8 +103,35 @@ domains_recon(){
         shodan_scan
         if [[ "${webapp_discovery_check}" == "yes" ]]; then
             webapp_alive "${domain}" "${report_dir}/domains_alive.txt"
+            source "${collector_path}/sources/vhost-check.sh"
             [[ -s "${report_dir}/domains_without_resolution.txt" ]] && [[ -s "${report_dir}/infra_ipv4.txt" ]] && \
                 vhost_check "${report_dir}/domains_without_resolution.txt" "${report_dir}/infra_ipv4.txt"
+            source "${collector_path}/sources/vhost-probe.sh"
+            [[ -s "${report_dir}/infra_ipv4.txt" ]] && \
+                vhost_probe "${report_dir}/infra_ipv4.txt"
+            # Merge vhost_probe findings into domains_found.txt and resolve new entries
+            if [[ -s "${tmp_dir}/vhost_probe_output.txt" ]]; then
+                grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/vhost_probe_output.txt" \
+                    | sort -u >> "${report_dir}/domains_found.txt"
+                sort -u -o "${report_dir}/domains_found.txt" "${report_dir}/domains_found.txt"
+                # Resolve new vhost_probe entries so they populate domains_alive.txt
+                # and domains_external_ipv4.txt for downstream nmap/shodan cycles.
+                grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/vhost_probe_output.txt" \
+                    | sort -u > "${tmp_dir}/vhost_probe_new.tmp"
+                if [[ -s "${tmp_dir}/vhost_probe_new.tmp" ]]; then
+                    while IFS= read -r vp_new_host; do
+                        vp_new_ip="$(dig +short A "${vp_new_host}" 2>/dev/null | grep -Eo "${IPv4_regex}" | head -1)"
+                        if [[ -n "${vp_new_ip}" ]]; then
+                            echo "${vp_new_host}"$'\t'"${vp_new_ip}" >> "${report_dir}/domains_external_ipv4.txt"
+                            echo "${vp_new_host}" >> "${report_dir}/domains_alive.txt"
+                            echo "${vp_new_ip}" >> "${report_dir}/infra_ipv4.txt"
+                        fi
+                    done < "${tmp_dir}/vhost_probe_new.tmp"
+                    sort -u -o "${report_dir}/domains_external_ipv4.txt" "${report_dir}/domains_external_ipv4.txt"
+                    sort -u -o "${report_dir}/domains_alive.txt" "${report_dir}/domains_alive.txt"
+                    sort -u -o "${report_dir}/infra_ipv4.txt" "${report_dir}/infra_ipv4.txt"
+                fi
+            fi
             [[ ! -s "${report_dir}/webapp_consolidated.txt" ]] && build_consolidated_urls
             webapp_tech "${domain}" "${report_dir}/webapp_consolidated.txt"
         fi
@@ -105,6 +139,29 @@ domains_recon(){
         if [[ "${webapp_crawler_check}" == "yes" && "${webapp_enum_check}" != "yes" ]]; then
             crawler_js "${domain}" "${report_dir}/webapp_consolidated.txt"
             crawler_params "${domain}" "${report_dir}/webapp_consolidated.txt"
+            source "${collector_path}/sources/spider.sh"
+            spider_src "${report_dir}/webapp_consolidated.txt"
+            # Merge spider findings into domains_found.txt and resolve new entries
+            if [[ -s "${tmp_dir}/spider_output.txt" ]]; then
+                grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/spider_output.txt" \
+                    | sort -u >> "${report_dir}/domains_found.txt"
+                sort -u -o "${report_dir}/domains_found.txt" "${report_dir}/domains_found.txt"
+                grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/spider_output.txt" \
+                    | sort -u > "${tmp_dir}/spider_new.tmp"
+                if [[ -s "${tmp_dir}/spider_new.tmp" ]]; then
+                    while IFS= read -r sp_new_host; do
+                        sp_new_ip="$(dig +short A "${sp_new_host}" 2>/dev/null | grep -Eo "${IPv4_regex}" | head -1)"
+                        if [[ -n "${sp_new_ip}" ]]; then
+                            echo "${sp_new_host}"$'\t'"${sp_new_ip}" >> "${report_dir}/domains_external_ipv4.txt"
+                            echo "${sp_new_host}" >> "${report_dir}/domains_alive.txt"
+                            echo "${sp_new_ip}" >> "${report_dir}/infra_ipv4.txt"
+                        fi
+                    done < "${tmp_dir}/spider_new.tmp"
+                    sort -u -o "${report_dir}/domains_external_ipv4.txt" "${report_dir}/domains_external_ipv4.txt"
+                    sort -u -o "${report_dir}/domains_alive.txt" "${report_dir}/domains_alive.txt"
+                    sort -u -o "${report_dir}/infra_ipv4.txt" "${report_dir}/infra_ipv4.txt"
+                fi
+            fi
         fi
         if [[ "${webapp_scan_check}" == "yes" && "${webapp_enum_check}" != "yes" ]]; then
             nuclei_scan "${domain}" "${report_dir}/webapp_consolidated.txt"

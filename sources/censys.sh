@@ -9,13 +9,17 @@
 #############################################################
 
 censys-src(){
-    [[ -z "${censys_api_id}" ]] || [[ -z "${censys_api_secret}" ]] && return 0
+    [[ -z "${censys_api_id}" || -z "${censys_api_secret}" ]] && return 0
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing censys... "
     : > "${tmp_dir}/censys_output.json"
+    local censys_hits_tmp="${tmp_dir}/censys_hits.tmp"
+    : > "${censys_hits_tmp}"
     censys_cursor=""
     censys_page=0
+    censys_max_pages=10
     while true; do
         censys_page=$(( censys_page + 1 ))
+        [[ "${censys_page}" -gt "${censys_max_pages}" ]] && break
         if [[ -n "${censys_cursor}" ]]; then
             censys_params="q=parsed.names%3A+%25.${domain}&fields=parsed.names&per_page=100&cursor=${censys_cursor}"
         else
@@ -25,11 +29,15 @@ censys-src(){
         censys_result="$(curl "${curl_options[@]}" \
             -u "${censys_api_id}:${censys_api_secret}" \
             "https://search.censys.io/api/v2/certificates/search?${censys_params}" 2>> "${log_execution_file}")"
-        echo "${censys_result}" >> "${tmp_dir}/censys_output.json"
+        # Append this page's hits as NDJSON — one compact object per line
+        echo "${censys_result}" | jq -c '.result.hits[]?' 2>/dev/null >> "${censys_hits_tmp}"
         censys_cursor="$(echo "${censys_result}" | jq -r '.result.links.next // empty' 2>/dev/null)"
         [[ -z "${censys_cursor}" ]] && break
         sleep 1
     done
+    # Combine all accumulated hits into a single JSON object so the parser
+    # in joining_subdomains() (.result.hits[]?.parsed?.names[]?) works correctly
+    jq -sc '{"result":{"hits":.}}' "${censys_hits_tmp}" > "${tmp_dir}/censys_output.json" 2>/dev/null
     echo "Done!"
 }
 

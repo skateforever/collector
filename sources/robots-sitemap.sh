@@ -69,9 +69,9 @@ robots-sitemap-src(){
             if [[ ! " ${robots_sitemap_visited[*]} " =~ " ${robots_child_url} " ]]; then
                 robots_sitemap_queue+=("${robots_child_url}")
             fi
-        done < <(echo "${robots_sitemap_body}" | grep -oP '(?<=<sitemap>).*?(?=</sitemap>)' | grep -oP '(?<=<loc>)[^<]+')
+        done < <(echo "${robots_sitemap_body}" | sed -n 's|.*<sitemap>.*<loc>\([^<]*\)</loc>.*</sitemap>.*|\1|p')
         # <urlset> <loc> entries — extract hostnames
-        echo "${robots_sitemap_body}" | grep -oP '(?<=<loc>)[^<]+' \
+        echo "${robots_sitemap_body}" | sed -n 's|.*<loc>\([^<]*\)</loc>.*|\1|p' \
             | grep -Eo '[a-zA-Z0-9._-]+\.'"${domain}" \
             | tr '[:upper:]' '[:lower:]' >> "${tmp_dir}/robots_sitemap_output.txt"
     done

@@ -64,14 +64,25 @@ asn-sweep-src(){
     fi
     echo -e "\nAS${asn_number}: ${#asn_prefixes[@]} prefix(es) to sweep: ${asn_prefixes[*]}" >> "${log_execution_file}"
     # Step 4: PTR sweep across all prefixes
+    # Enumerate every host address in the CIDR, not just the first /24.
     for asn_cidr in "${asn_prefixes[@]}"; do
-        asn_base="$(echo "${asn_cidr}" | cut -d'/' -f1 | awk -F'.' '{print $1"."$2"."$3}')"
         echo -e "\nPTR sweep for ${asn_cidr}" >> "${log_execution_file}"
-        for asn_last in $(seq 1 254); do
-            asn_ptr="$(dig +short -x "${asn_base}.${asn_last}" 2>/dev/null | sed 's/\.$//' | tr '[:upper:]' '[:lower:]')"
-            if [[ -n "${asn_ptr}" ]]; then
-                echo "${asn_ptr}" >> "${tmp_dir}/asn_sweep_output.txt"
-            fi
+        asn_base_ip="${asn_cidr%%/*}"
+        asn_prefix_len="${asn_cidr##*/}"
+        # Number of host bits → total IPs in the block
+        asn_host_bits=$(( 32 - asn_prefix_len ))
+        asn_total_ips=$(( 1 << asn_host_bits ))
+        # Convert base IP to a 32-bit integer
+        IFS='.' read -r asn_o1 asn_o2 asn_o3 asn_o4 <<< "${asn_base_ip}"
+        asn_ip_int=$(( (asn_o1 << 24) | (asn_o2 << 16) | (asn_o3 << 8) | asn_o4 ))
+        for (( asn_i=1; asn_i < asn_total_ips - 1; asn_i++ )); do
+            asn_cur=$(( asn_ip_int + asn_i ))
+            asn_a=$(( (asn_cur >> 24) & 255 ))
+            asn_b=$(( (asn_cur >> 16) & 255 ))
+            asn_c=$(( (asn_cur >>  8) & 255 ))
+            asn_d=$(( asn_cur & 255 ))
+            asn_ptr="$(dig +short -x "${asn_a}.${asn_b}.${asn_c}.${asn_d}" 2>/dev/null | sed 's/\.$//' | tr '[:upper:]' '[:lower:]')"
+            [[ -n "${asn_ptr}" ]] && echo "${asn_ptr}" >> "${tmp_dir}/asn_sweep_output.txt"
         done
     done
     sort -u -o "${tmp_dir}/asn_sweep_output.txt" "${tmp_dir}/asn_sweep_output.txt" 2>/dev/null

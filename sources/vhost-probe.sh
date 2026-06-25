@@ -4,25 +4,31 @@
 # This file is an essential part of collector's execution!  #
 # And is responsible to get the functions:                  #
 #                                                           #
-#   * vhost-probe-src                                       #
+#   * vhost_probe                                           #
 #                                                           #
 #############################################################
 #
-# Note: this source is complementary to vhost_check() in
-# functions/infra.sh. While vhost_check() probes unresolved
-# subdomains (domains_without_resolution) against live IPs
-# discovered during full recon, vhost-probe-src runs early
-# (during subdomains_recon) against the root domain's own
-# IP addresses, using a wordlist of common vhost names to
-# discover hidden virtual hosts before the full recon cycle.
+# Complementary to vhost_check() in sources/vhost-check.sh.
+# vhost_check() probes unresolved subdomains against live IPs
+# discovered during recon. vhost_probe() probes a wordlist of
+# common vhost names against all real target IPs (infra_ipv4.txt),
+# running after infra_data() so it has the full IP surface.
+#
+# A per-IP baseline is computed using a random hostname that
+# should never resolve, mirroring vhost_check_pair()'s approach.
+#
+# Usage: vhost_probe <ip_file>
+#   ip_file — one IPv4 per line (typically report_dir/infra_ipv4.txt)
 #
 #############################################################
 
-vhost-probe-src(){
+vhost_probe(){
+    local vhost_probe_ip_file="${1}"
+    if [[ ! -s "${vhost_probe_ip_file}" ]]; then
+        return 0
+    fi
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing vhost probe... "
     : > "${tmp_dir}/vhost_probe_output.txt"
-    unset user_agent
-    user_agent="$(get_user_agent)"
     local vhost_probe_words=(
         dev dev1 dev2 dev3 development staging stage stg stg1
         test test1 test2 testing qa qa1 qa2 uat sit
@@ -55,55 +61,86 @@ vhost-probe-src(){
         analytics metrics stats tracking
         shop store checkout payment pay
     )
-    # Resolve target IPs
-    local vhost_probe_ips
-    vhost_probe_ips="$(dig +short A "${domain}" 2>/dev/null | grep -Eo "${IPv4_regex}" | head -3)"
-    if [[ -z "${vhost_probe_ips}" ]]; then
-        echo "Done!"
-        return 0
-    fi
-    # Establish baseline response (root domain on first IP)
-    local vhost_probe_first_ip
-    vhost_probe_first_ip="$(echo "${vhost_probe_ips}" | head -1)"
-    local vhost_probe_baseline_status=""
-    local vhost_probe_baseline_len=0
-    echo -e "\ncurl ${curl_options_fast[@]} -H \"Host: ${domain}\" -H \"User-agent: ${user_agent}\" -o /dev/null -w \"%{http_code} %{size_download}\" \"http://${vhost_probe_first_ip}\"" >> "${log_execution_file}"
-    local vhost_probe_baseline_raw
-    vhost_probe_baseline_raw="$(curl "${curl_options_fast[@]}" \
-        -H "Host: ${domain}" \
-        -H "User-agent: ${user_agent}" \
-        -o /dev/null -w "%{http_code} %{size_download}" \
-        "http://${vhost_probe_first_ip}" 2>/dev/null)"
-    vhost_probe_baseline_status="$(echo "${vhost_probe_baseline_raw}" | awk '{print $1}')"
-    vhost_probe_baseline_len="$(echo "${vhost_probe_baseline_raw}" | awk '{print $2}')"
-    [[ -z "${vhost_probe_baseline_len}" ]] && vhost_probe_baseline_len=0
-    # Probe each (IP, word) pair
+    local vhost_probe_max_workers="${vhost_check_processes:-8}"
+    local vhost_probe_pids=()
+    local vhost_probe_pid vhost_probe_alive_pids=()
+
+    _vhost_probe_worker(){
+        local vp_ip="${1}"
+        local vp_word="${2}"
+        local vp_baseline_status="${3}"
+        local vp_baseline_len="${4}"
+        local vp_host="${vp_word}.${domain}"
+        local vp_ua
+        vp_ua="$(get_user_agent)"
+        local vp_raw
+        vp_raw="$(curl "${curl_options_fast[@]}" \
+            -H "Host: ${vp_host}" \
+            -H "User-agent: ${vp_ua}" \
+            -o /dev/null -w "%{http_code} %{size_download}" \
+            "http://${vp_ip}" 2>/dev/null)"
+        local vp_status vp_len vp_diff
+        vp_status="$(echo "${vp_raw}" | awk '{print $1}')"
+        vp_len="$(echo "${vp_raw}" | awk '{print $2}')"
+        [[ -z "${vp_len}" ]] && vp_len=0
+        vp_diff=$(( vp_len - vp_baseline_len ))
+        [[ "${vp_diff}" -lt 0 ]] && vp_diff=$(( vp_diff * -1 ))
+        if [[ "${vp_status}" != "${vp_baseline_status}" || "${vp_diff}" -gt 200 ]]; then
+            echo -e "\nvhost hit: ${vp_host} on ${vp_ip} (${vp_status}, ${vp_len}B)" >> "${log_execution_file}"
+            echo "${vp_host}" >> "${tmp_dir}/vhost_probe_output.txt"
+        fi
+    }
+
     while IFS= read -r vhost_probe_ip; do
         [[ -z "${vhost_probe_ip}" ]] && continue
+        vhost_probe_ip="$(echo "${vhost_probe_ip}" | grep -Eo "${IPv4_regex}")"
+        [[ -z "${vhost_probe_ip}" ]] && continue
+
+        # Compute a fresh per-IP baseline using a random hostname that
+        # should never resolve — same approach as vhost_check_pair().
+        local vhost_probe_rand_host
+        vhost_probe_rand_host="$(tr -dc 'a-z' </dev/urandom | fold -w 12 | head -n1).${domain}"
+        unset user_agent
+        user_agent="$(get_user_agent)"
+        echo -e "\ncurl ${curl_options_fast[@]} -H \"Host: ${vhost_probe_rand_host}\" -H \"User-agent: ${user_agent}\" -o /dev/null -w \"%{http_code} %{size_download}\" \"http://${vhost_probe_ip}\"" >> "${log_execution_file}"
+        local vhost_probe_baseline_raw
+        vhost_probe_baseline_raw="$(curl "${curl_options_fast[@]}" \
+            -H "Host: ${vhost_probe_rand_host}" \
+            -H "User-agent: ${user_agent}" \
+            -o /dev/null -w "%{http_code} %{size_download}" \
+            "http://${vhost_probe_ip}" 2>/dev/null)"
+        local vhost_probe_baseline_status vhost_probe_baseline_len
+        vhost_probe_baseline_status="$(echo "${vhost_probe_baseline_raw}" | awk '{print $1}')"
+        vhost_probe_baseline_len="$(echo "${vhost_probe_baseline_raw}" | awk '{print $2}')"
+        [[ -z "${vhost_probe_baseline_len}" ]] && vhost_probe_baseline_len=0
+
         for vhost_probe_word in "${vhost_probe_words[@]}"; do
-            local vhost_probe_host="${vhost_probe_word}.${domain}"
-            echo -e "\ncurl ${curl_options_fast[@]} -H \"Host: ${vhost_probe_host}\" -H \"User-agent: ${user_agent}\" -o /dev/null -w \"%{http_code} %{size_download}\" \"http://${vhost_probe_ip}\"" >> "${log_execution_file}"
-            local vhost_probe_raw
-            vhost_probe_raw="$(curl "${curl_options_fast[@]}" \
-                -H "Host: ${vhost_probe_host}" \
-                -H "User-agent: ${user_agent}" \
-                -o /dev/null -w "%{http_code} %{size_download}" \
-                "http://${vhost_probe_ip}" 2>/dev/null)"
-            local vhost_probe_status
-            local vhost_probe_len
-            vhost_probe_status="$(echo "${vhost_probe_raw}" | awk '{print $1}')"
-            vhost_probe_len="$(echo "${vhost_probe_raw}" | awk '{print $2}')"
-            [[ -z "${vhost_probe_len}" ]] && vhost_probe_len=0
-            local vhost_probe_diff=$(( vhost_probe_len - vhost_probe_baseline_len ))
-            [[ "${vhost_probe_diff}" -lt 0 ]] && vhost_probe_diff=$(( vhost_probe_diff * -1 ))
-            if [[ "${vhost_probe_status}" != "${vhost_probe_baseline_status}" || "${vhost_probe_diff}" -gt 200 ]]; then
-                echo -e "\nvhost hit: ${vhost_probe_host} on ${vhost_probe_ip} (${vhost_probe_status}, ${vhost_probe_len}B)" >> "${log_execution_file}"
-                echo "${vhost_probe_host}" >> "${tmp_dir}/vhost_probe_output.txt"
-            fi
+            # Reap finished workers
+            vhost_probe_alive_pids=()
+            for vhost_probe_pid in "${vhost_probe_pids[@]}"; do
+                kill -0 "${vhost_probe_pid}" 2>/dev/null && vhost_probe_alive_pids+=("${vhost_probe_pid}")
+            done
+            vhost_probe_pids=("${vhost_probe_alive_pids[@]}")
+            # Block while at capacity
+            while [[ "${#vhost_probe_pids[@]}" -ge "${vhost_probe_max_workers}" ]]; do
+                sleep 0.5
+                vhost_probe_alive_pids=()
+                for vhost_probe_pid in "${vhost_probe_pids[@]}"; do
+                    kill -0 "${vhost_probe_pid}" 2>/dev/null && vhost_probe_alive_pids+=("${vhost_probe_pid}")
+                done
+                vhost_probe_pids=("${vhost_probe_alive_pids[@]}")
+            done
+            _vhost_probe_worker "${vhost_probe_ip}" "${vhost_probe_word}" \
+                "${vhost_probe_baseline_status}" "${vhost_probe_baseline_len}" &
+            vhost_probe_pids+=("$!")
         done
-    done <<< "${vhost_probe_ips}"
+    done < "${vhost_probe_ip_file}"
+
+    # Wait for remaining workers
+    for vhost_probe_pid in "${vhost_probe_pids[@]}"; do
+        wait "${vhost_probe_pid}" 2>/dev/null
+    done
+
     sort -u -o "${tmp_dir}/vhost_probe_output.txt" "${tmp_dir}/vhost_probe_output.txt" 2>/dev/null
     echo "Done!"
 }
-
-vhost-probe-src

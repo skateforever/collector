@@ -69,7 +69,7 @@ ns-brute-src(){
         for ns_brute_xfr_type in AXFR IXFR; do
             echo -e "\ndig ${ns_brute_xfr_type} \"${domain}\" \"@${ns_brute_ip}\" (${ns_brute_host})" >> "${log_execution_file}"
             ns_brute_xfr="$(dig "${ns_brute_xfr_type}" "${domain}" "@${ns_brute_ip}" 2>/dev/null)"
-            if echo "${ns_brute_xfr}" | grep -qvE "Transfer failed|servers could be reached|timed out|network unreachable|REFUSED|SERVFAIL"; then
+            if echo "${ns_brute_xfr}" | grep -qE "[[:space:]]IN[[:space:]]+[A-Z]"; then
                 echo "${ns_brute_xfr}" >> "${tmp_dir}/ns_brute_output.txt"
                 echo -e "\n${ns_brute_xfr_type} SUCCESS on ${ns_brute_host} (${ns_brute_ip})" >> "${log_execution_file}"
                 break
