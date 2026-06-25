@@ -22,7 +22,7 @@ git_rebuild(){
             # Use a private temp file (700 perms) so a hostile local user
             # can't symlink-attack a fixed /tmp path or read the response.
             git_config_tmp=$(mktemp -t collector_git_config.XXXXXX) || continue
-            if [ -n "${proxy_ip}" ] && [ "${proxy_ip}" == "yes" ]; then
+            if [ -n "${use_proxy}" ] && [ "${use_proxy}" == "yes" ]; then
                 # Probe for .git/config: fast profile — a slow target here is
                 # effectively a dead one and would stall the whole sweep.
                 if [[ "200" -eq "$(curl "${curl_options_fast[@]}" -H "User-agent: ${user_agent}" --proxy "${proxy_ip}" -o "${git_config_tmp}" -w "%{http_code}\n" "${target}/.git/config")" ]] && \
@@ -46,7 +46,7 @@ git_rebuild(){
                         echo "curl "${curl_options[@]}" -H "User-agent: ${user_agent}" -L --proxy \"${proxy_ip}\" -f \"${target}/${repo_file}\" -o ${repo_file}" >> "${log_execution_file}"
                         curl "${curl_options[@]}" -H "User-agent: ${user_agent}" -L --proxy "${proxy_ip}" -f "${target}/${repo_file}" -o "${repo_file}" &
                     done
-                    while pgrep -f curl > /dev/null; do
+                    while pgrep -f "curl.*${target}" > /dev/null; do
                        sleep 1
                     done
                     echo "Done!"
@@ -75,7 +75,7 @@ git_rebuild(){
                         echo "curl ${curl_options[@]} -H "User-agent: ${user_agent}" -L -f \"${target}/${repo_file}\" -o \"${repo_file}\"" >> "${log_execution_file}"
                         curl "${curl_options[@]}" -H "User-agent: ${user_agent}" -L -f "${target}/${repo_file}" -o "${repo_file}" &
                     done
-                    while pgrep -f curl > /dev/null; do
+                    while pgrep -f "curl.*${target}" > /dev/null; do
                         sleep 1
                     done
                     echo "Done!"

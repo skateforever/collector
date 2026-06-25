@@ -116,6 +116,14 @@ joining_subdomains(){
                 | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
+        if [ -s "${tmp_dir}/hackerone_output.json" ]; then
+            echo "Parsing hackerone" >> "${log_execution_file}"
+            jq -r '.data.team.structured_scopes.edges[].node.asset_identifier' \
+                "${tmp_dir}/hackerone_output.json" 2>> "${log_execution_file}" \
+                | grep -Ei "(\.${domain}$|^${domain}$)" \
+                | sort -u >> "${tmp_dir}/domains_found.tmp"
+        fi
+
         if [ -s "${tmp_dir}/securitytrails_output.json" ]; then
             echo "Parsing security trails" >> "${log_execution_file}"
             for subdomain in $(jq -r '.subdomains[]' "${tmp_dir}/securitytrails_output.json"); do
@@ -485,7 +493,7 @@ joining_subdomains(){
             echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Joining the subdomains and removing duplicates... "
             # Removing duplicated subdomains
             cp "${tmp_dir}/domains_found.tmp" "${tmp_dir}/domains_found.tmp.old"
-            sed -E -i 's/^null$//g ; s/^\*//g ; s/^@//g ; s/^\.//g ; s//\.$/g ; s/^-//g ; s/^\://g' "${tmp_dir}/domains_found.tmp"
+            sed -E -i 's/^null$//g ; s/^\*//g ; s/^@//g ; s/^\.//g ; s/\.$//g ; s/^-//g ; s/^\://g' "${tmp_dir}/domains_found.tmp"
             sed -E -i 's/\.\./\./g ; s/^http(|s):\/\///g ; s/ //g ; s/^$//g ; /^[[:space:]]*$/d' "${tmp_dir}/domains_found.tmp"
             # Removing duplicated domains per subdomain
             # Example: www.domain.com.domain.com
@@ -637,7 +645,10 @@ organizing_subdomains(){
             if cp "${subdomains_file}" "${tmp_dir}/domains_without_resolution.tmp"; then
                 if [ -s "${tmp_dir}/domains_without_resolution.tmp" ]; then
                     for d in $(cat "${tmp_dir}/domains_alive.tmp" | sort -u); do
-                        sed -i "/${d}/d" "${tmp_dir}/domains_without_resolution.tmp"
+                        # Escape dots so the domain is treated as a literal string,
+                        # not a regex wildcard — prevents false deletions.
+                        local _d_escaped="${d//./\\.}"
+                        sed -i "/^${_d_escaped}$/d" "${tmp_dir}/domains_without_resolution.tmp"
                     done
                     echo "Done!"
                 else

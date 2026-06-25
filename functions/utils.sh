@@ -210,8 +210,13 @@ build_consolidated_urls(){
     [[ ! -s "${tmp_dir}/webapp_consolidated.tmp" ]] && { echo "Fail!"; return 0; }
     if [[ -s "${report_dir}/etc_hosts_file.txt" ]]; then
         cleanup_etc_hosts
-        { echo "# collector-vhosts-start"; awk '{print $1"\t"$2}' "${report_dir}/etc_hosts_file.txt"; echo "# collector-vhosts-end"; } >> /etc/hosts
-        trap 'cleanup_etc_hosts' EXIT
+        if [[ -w "/etc/hosts" ]]; then
+            { echo "# collector-vhosts-start"; awk '{print $1"\t"$2}' "${report_dir}/etc_hosts_file.txt"; echo "# collector-vhosts-end"; } >> /etc/hosts
+            trap 'cleanup_etc_hosts' EXIT
+        else
+            echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Warning: /etc/hosts is not writable — vhost entries will not resolve via getent. Run as root or grant write access." >> "${log_execution_file}"
+            echo "Warning: /etc/hosts not writable; vhost entries skipped." | notify -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
+        fi
     fi
     sort -u "${tmp_dir}/webapp_consolidated.tmp" > "${tmp_dir}/webapp_consolidated_sorted.tmp"
     : > "${tmp_dir}/webapp_consolidated_validated.tmp"

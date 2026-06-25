@@ -169,7 +169,10 @@ vhost_check(){
             sort -u -o "${report_dir}/vhost_urls.txt" "${tmp_dir}/vhost_urls.tmp"
             [ -s "${report_dir}/domains_without_resolution.txt" ] && awk '{print $1}' "${strong_out}" | sort -u | while IFS= read -r vhost; do sed -i "/^${vhost}$/d" "${report_dir}/domains_without_resolution.txt"; done
         fi
-        build_consolidated_urls
+        # build_consolidated_urls is intentionally NOT called here.
+        # It will be called once by domains_recon.sh after vhost_probe also
+        # finishes, so that both vhost_check and vhost_probe hits are included
+        # in the consolidated URL list in a single pass.
         echo "Done!"
     else
         echo "Fail!"

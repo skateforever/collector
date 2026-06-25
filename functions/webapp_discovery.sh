@@ -24,7 +24,7 @@ webapp_alive(){
     echo -e "\n" >> "${log_execution_file}"
     if [ -s "${alive_file}" ]; then
 
-        if [ -n "${proxy_ip}" ] && [ "${proxy_ip}" == "yes" ]; then
+        if [ -n "${use_proxy}" ] && [ "${use_proxy}" == "yes" ]; then
             alias curl="curl --proxy ${proxy_ip}"
             alias httpx="httpx -http-proxy ${proxy_ip}"
         fi
@@ -146,7 +146,8 @@ aquatone_screenshot(){
                 echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Something got wrong, wasnt possible create directory ${aquatone_files_dir}."
                 echo -e "Something got wrong, wasnt possible create directory ${aquatone_files_dir}.\n\tPlease, look what got wrong and run the script again. Stopping the script!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
                 message "${target}" failed
-                exit 1
+                unset urls_file
+                return 1
             fi
         else
             echo "aquatone -chrome-path ${chromium_bin} -out ${aquatone_files_dir} -threads ${aquatone_threads} < ${urls_file}" >> "${log_execution_file}"
@@ -159,7 +160,7 @@ aquatone_screenshot(){
         echo -e "Make sure the ${urls_file} exist and isn't empty." | notify -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
         message "${target}" failed
         unset urls_file
-        exit 1
+        return 1
     fi
     unset aquatone_log
     unset aquatone_files_dir

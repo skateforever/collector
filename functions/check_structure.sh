@@ -64,6 +64,7 @@ create_directory_structure(){
         shodan_dir="${scan_dir}/shodan"
         # webapp dirs
         aquatone_files_dir="${webapp_dir}/aquatone"
+        aquatone_log="${aquatone_files_dir}/aquatone.log"
         webapp_enum_dir="${webapp_dir}/enum"
         webapp_js_dir="${webapp_dir}/javascript"
         webapp_params_dir="${webapp_dir}/params"
@@ -88,6 +89,7 @@ create_directory_structure(){
         nuclei_dir="${scan_dir}/nuclei"
         # webapp dirs
         aquatone_files_dir="${webapp_dir}/aquatone"
+        aquatone_log="${aquatone_files_dir}/aquatone.log"
         webapp_enum_dir="${webapp_dir}/enum"
         webapp_js_dir="${webapp_dir}/javascript"
         webapp_params_dir="${webapp_dir}/params"
@@ -115,6 +117,7 @@ create_directory_structure(){
         shodan_dir="${scan_dir}/shodan"
         # webapp dirs
         aquatone_files_dir="${webapp_dir}/aquatone"
+        aquatone_log="${aquatone_files_dir}/aquatone.log"
         webapp_enum_dir="${webapp_dir}/enum"
         webapp_js_dir="${webapp_dir}/javascript"
         webapp_params_dir="${webapp_dir}/params"

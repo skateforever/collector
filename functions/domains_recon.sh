@@ -133,20 +133,40 @@ domains_recon(){
                 grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/vhost_probe_output.txt" \
                     | sort -u > "${tmp_dir}/vhost_probe_new.tmp"
                 if [[ -s "${tmp_dir}/vhost_probe_new.tmp" ]]; then
+                    local _vp_tls_pat
+                    _vp_tls_pat="$(echo "${webapp_tls_ports[@]}" | tr ' ' '|')"
                     while IFS= read -r vp_new_host; do
                         vp_new_ip="$(dig +short A "${vp_new_host}" 2>/dev/null | grep -Eo "${IPv4_regex}" | head -1)"
                         if [[ -n "${vp_new_ip}" ]]; then
                             echo "${vp_new_host}"$'\t'"${vp_new_ip}" >> "${report_dir}/domains_external_ipv4.txt"
                             echo "${vp_new_host}" >> "${report_dir}/domains_alive.txt"
                             echo "${vp_new_ip}" >> "${report_dir}/infra_ipv4.txt"
+                            # Build vhost URLs so build_consolidated_urls picks them up.
+                            # vhost_probe probes HTTP only (F-06 aside), so generate
+                            # both http and https variants for all configured ports.
+                            for _vp_port in "${webapp_port_detect[@]}"; do
+                                local _vp_proto="http"
+                                [[ "${_vp_port}" =~ ^(${_vp_tls_pat})$ ]] && _vp_proto="https"
+                                if [[ "${_vp_proto}" == "http" && "${_vp_port}" == "80" ]] || \
+                                   [[ "${_vp_proto}" == "https" && "${_vp_port}" == "443" ]]; then
+                                    echo "${_vp_proto}://${vp_new_host}"
+                                else
+                                    echo "${_vp_proto}://${vp_new_host}:${_vp_port}"
+                                fi
+                            done >> "${report_dir}/vhost_urls.txt"
                         fi
                     done < "${tmp_dir}/vhost_probe_new.tmp"
                     sort -u -o "${report_dir}/domains_external_ipv4.txt" "${report_dir}/domains_external_ipv4.txt"
                     sort -u -o "${report_dir}/domains_alive.txt" "${report_dir}/domains_alive.txt"
                     sort -u -o "${report_dir}/infra_ipv4.txt" "${report_dir}/infra_ipv4.txt"
+                    sort -u -o "${report_dir}/vhost_urls.txt" "${report_dir}/vhost_urls.txt"
                 fi
             fi
-            [[ ! -s "${report_dir}/webapp_consolidated.txt" ]] && build_consolidated_urls
+            # Build the consolidated URL list once — after both vhost_check and
+            # vhost_probe have finished writing to vhost_urls.txt. The call that
+            # was previously inside vhost_check() was removed so that probe hits
+            # are included here in a single pass (F-05 fix).
+            build_consolidated_urls
             webapp_tech "${domain}" "${report_dir}/webapp_consolidated.txt"
         fi
         emails_recon

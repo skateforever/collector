@@ -56,7 +56,7 @@ webapp_enum(){
                                     -t "${gobuster_threads}" -u "${url}" -w "${list}" -x "${webapp_file_extensions}" \
                                     >> "${webapp_enum_dir}/${file_gobuster}" 2>> "${log_execution_file}" &
                             fi
-                            while [[ "$(pgrep -acf "[d]irsearch.*${target}$|[g]obuster.*${target}$")" -ge "${webapp_enum_total_processes}" ]]; do
+                            while [[ "$(pgrep -acf "[d]irsearch.*${target}|[g]obuster.*${target}")" -ge "${webapp_enum_total_processes}" ]]; do
                                 sleep 1
                             done
                             [[ "${limit_urls}" -eq "${urls_tested}" ]] && break
@@ -76,14 +76,14 @@ webapp_enum(){
                     unset urls_tested
                 done
                 echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Waiting the dirsearch and/or gobuster finish... "
-                while pgrep -af "[d]irsearch.*${target}$" > /dev/null || pgrep -af "[g]obuster.*${target}$" > /dev/null; do
+                while pgrep -af "[d]irsearch.*${target}" > /dev/null || pgrep -af "[g]obuster.*${target}" > /dev/null; do
                     sleep 1
                 done
                 echo "Done!"
 
                 echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Cleaning up dirsearch files... "
-                sed -i -e 's/.\[4.m//g' -e 's/.\[3.m//g' -e 's/.\[1K.\[0G/\n/g'\
-                    -e 's/.\[1m//g' -e 's/.\[0m//g'-e '/Last request to/d' "${webapp_enum_dir}/*.dirsearch*" 2> /dev/null
+                sed -i -e 's/.\[4.m//g' -e 's/.\[3.m//g' -e 's/.\[1K.\[0G/\n/g' \
+                    -e 's/.\[1m//g' -e 's/.\[0m//g' -e '/Last request to/d' "${webapp_enum_dir}/*.dirsearch*" 2> /dev/null
                 echo "Done!"
                 
                 echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Cleaning up gobuster files... "
@@ -168,8 +168,8 @@ robots_txt(){
     for file in $("${ls_bin_path}" -1A "${webapp_enum_dir}/"); do
         unset user_agent
         user_agent="$(get_user_agent)"
-        if grep -E "robots\.txt" "${webapp_enum_dir}/${file}" > /dev/null && [ -s "${file}" ] ; then
-            target=$(grep -E "Target:|Url:" "${file}" | sed -e 's/^\[+\] //' | awk '{print $2}' | sed -e 's/\/$//') 
+        if grep -E "robots\.txt" "${webapp_enum_dir}/${file}" > /dev/null && [ -s "${webapp_enum_dir}/${file}" ] ; then
+            target=$(grep -E "Target:|Url:" "${webapp_enum_dir}/${file}" | sed -e 's/^\[+\] //' | awk '{print $2}' | sed -e 's/\/$//')
             for url in $(curl "${curl_options[@]}" -H "User-agent: ${user_agent}" -s "${target}"/robots.txt | grep -Ev "User-agent: *" | awk '{print $2}' | sed -e "/^\/$/d"); do
                 echo "${target}${url}" >> "${report_dir}/robots_urls.txt"
                 sed -i -e 's/\r//g' -e 's/\/$//g' "${report_dir}/robots_urls.txt"
