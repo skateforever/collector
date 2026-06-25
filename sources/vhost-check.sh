@@ -117,7 +117,7 @@ vhost_check(){
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Looking for vhost with dead subdomains... "
     echo -e "\n" >> "${log_execution_file}"
 
-    if [[ -s "${vhost_ip_file}" && -s "${report_dir}/infra_ipv4.txt" ]]; then
+    if [[ -s "${vhost_ip_file}" ]]; then
         : > "${strong_out}"
         : > "${weak_out}"
 

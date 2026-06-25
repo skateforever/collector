@@ -97,6 +97,12 @@ joining_subdomains(){
                 | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
+        if [ -s "${tmp_dir}/netcraft_output.txt" ]; then
+            echo "Parsing netcraft" >> "${log_execution_file}"
+            grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/netcraft_output.txt" \
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
+        fi
+
         if [ -s "${tmp_dir}/rapiddns_output.txt" ]; then
             echo "Parsing rapiddns" >> "${log_execution_file}"
             grep -Ei "<td>.*${domain}</td>" "${tmp_dir}/rapiddns_output.txt" \
@@ -631,7 +637,7 @@ organizing_subdomains(){
             if cp "${subdomains_file}" "${tmp_dir}/domains_without_resolution.tmp"; then
                 if [ -s "${tmp_dir}/domains_without_resolution.tmp" ]; then
                     for d in $(cat "${tmp_dir}/domains_alive.tmp" | sort -u); do
-                        sed -i "/${d}/d" "${report_dir}/domains_without_resolution.txt"
+                        sed -i "/${d}/d" "${tmp_dir}/domains_without_resolution.tmp"
                     done
                     echo "Done!"
                 else

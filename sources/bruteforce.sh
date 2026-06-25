@@ -17,10 +17,10 @@ bruteforce-src(){
             index=$(printf "%s\n" "${dns_wordlists[@]}" | grep -En "^${list}$" | awk -F":" '{print $1}')
             if [ -s "${list}" ]; then
                 echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Execution number ${index}... "
-                echo -e "\namass enum -active -brute -d ${domain} -w ${list}" >> "${log_execution_file}" 
-                amass enum -active -brute -d "${domain}" -w "${list}" 2>> "${log_execution_file}"
-                echo "amass subs -names -d ${domain} > ${tmp_dir}/amass_brute_output_${index}.txt" >> "${log_execution_file}"
-                amass subs -names -d "${domain}" > "${tmp_dir}/amass_brute_output_${index}.txt" 2>> "${log_execution_file}"
+                # amass v5: -o writes results directly; 'amass subs' subcommand no longer exists.
+                echo -e "\namass enum -active -brute -d ${domain} -w ${list} -o ${tmp_dir}/amass_brute_output_${index}.txt" >> "${log_execution_file}"
+                amass enum -active -brute -d "${domain}" -w "${list}" \
+                    -o "${tmp_dir}/amass_brute_output_${index}.txt" 2>> "${log_execution_file}"
 
                 echo "dnssearch -consumers 600 -domain ${domain} -wordlist ${list}" >> "${log_execution_file}"
                 dnssearch -consumers 600 -domain "${domain}" -wordlist "${list}" | \
