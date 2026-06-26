@@ -32,11 +32,25 @@ check_directory_permission(){
 }
 
 create_directory_structure(){
+    # Reuse-mode detector: the user is asking to re-run a webapp_* phase
+    # against an existing recon_dir without -r. The previous code checked
+    # ${webapp_discovery} and ${only_webapp_enum}, neither of which is ever
+    # set anywhere in the project — so this branch was dead code and
+    # collector always created a fresh recon_${date_recon} even when reuse
+    # was intended (report C-03). Match the actual menu flags instead.
+    local only_webapp_enum="no"
+    if [[ "${webapp_enum_check}" == "yes" && "${recon_check}" != "yes" && "${webapp_discovery_check}" != "yes" ]]; then
+        only_webapp_enum="yes"
+    fi
+
     if [ "${directory_structure}" == "domain" ]; then
         # Create all main dirs necessaries to report and recon for domain
-        if [[ "${webapp_discovery}" == "yes" ]] || [[ "${only_webapp_enum}" == "yes" ]]; then
-            #recon_dir="$("${ls_bin_path}" -d "${output_dir}/${domain}"/recon_*/ | sort -r | head -n 1)"
-            recon_dir="$(find "${output_dir}/${domain}" -type f -path "*/domains_alive.txt" -printf "%h\n" 2>/dev/null | sed 's|/report$||')"
+        if [[ "${webapp_discovery_check}" == "yes" && "${recon_check}" != "yes" ]] || [[ "${only_webapp_enum}" == "yes" ]]; then
+            # Resume: pick the MOST RECENT recon_* dir that has a
+            # domains_alive.txt. find's traversal order is unspecified, so
+            # add `sort | tail -n1` — otherwise reuse could grab an old run.
+            recon_dir="$(find "${output_dir}/${domain}" -type f -path "*/domains_alive.txt" -printf "%h\n" 2>/dev/null \
+                          | sed 's|/report$||' | sort | tail -n1)"
         else
             recon_dir="${output_dir}/${domain}/recon_${date_recon}"
             mkdir -p "${recon_dir}"

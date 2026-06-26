@@ -45,7 +45,6 @@ check_binaries
 
 check_execution
 check_parameter_conflicts
-check_parameter_dependency
 check_directory_permission
 
 # Note: -k/--kill and -kr/--kill-remove were removed. The collector runs
@@ -55,10 +54,16 @@ check_directory_permission
 # collector_acquire_lock() already prevents concurrent runs on the same
 # target, so the kill flow had no real use case (report C-01/C-07/C-08).
 
+# check_parameter_dependency() inspects ${report_dir}/*.txt to decide
+# whether reuse-mode operations have the artifacts they need. It must run
+# AFTER create_directory_structure() so report_dir is defined. Previously
+# it ran before, with report_dir empty, which made every reuse-without-r
+# invocation trigger usage() (report C-02).
 if [[ "${domain_check}" == "yes" && -n "${domain}" ]]; then
     collector_acquire_lock "${domain}"
     check_is_known_target "${domain}"
     create_directory_structure
+    check_parameter_dependency
     domains_recon
     exit 0
 fi
@@ -80,6 +85,7 @@ if  [[ "${domainlist_check}" == "yes" && -s "${domain_list}" ]]; then
             collector_acquire_lock "${domain}"
             check_is_known_target "${domain}"
             create_directory_structure
+            check_parameter_dependency
             domains_recon
         )
     done < "${domain_list}"
@@ -90,5 +96,6 @@ if [[ "${url_check}" == "yes" && -n "${url_verify}" ]]; then
     collector_acquire_lock "${url_domain}"
     check_is_known_target "${url_domain}"
     create_directory_structure
+    check_parameter_dependency
     url_recon
 fi
