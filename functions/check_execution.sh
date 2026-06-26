@@ -87,11 +87,6 @@ check_parameter_conflicts(){
         usage
     fi
 
-    if [[ "${kill_ckeck}" == "yes" && "${killremove_check}" == "yes" ]]; then
-        echo "You're trying to use same kill options, just pick one."
-        usage
-    fi
-
     if [[ "${limiturls_check}" == "yes" && "${url_check}" == "yes" ]]; then
         echo -e "You can only use this -l|--limit-urls option with -d|--domain!\n"
         usage

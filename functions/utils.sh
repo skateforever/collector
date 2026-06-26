@@ -31,8 +31,6 @@ reset_vars(){
     unset excludedomain_check
     unset excludedomain_list
     unset excludedomainlist_check
-    unset kill_check
-    unset killremove_check
     unset limit_urls
     unset limiturls_check
     unset output_dir

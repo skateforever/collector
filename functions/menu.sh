@@ -32,8 +32,8 @@ validate_domain(){
 }
 
 check_argument(){
-    options+=(-d --domain -dl --domain-list -ed --exclude-domains -el --exclude-domain-list -h --help -k -kill)
-    options+=(-kr --kill-remove -l --limit-urls -o --output -p --proxy -r --recon -s --subdomain-brute -u --url)
+    options+=(-d --domain -dl --domain-list -ed --exclude-domains -el --exclude-domain-list -h --help)
+    options+=(-l --limit-urls -o --output -p --proxy -r --recon -s --subdomain-brute -u --url)
     options+=(-wc --webapp-crawler -wd --webapp-discovery -we --webapp-enum -ws --webapp-scan)
     options+=(-wld --webapp-long-detection -wsd --webapp-short-detection -ww --webapp-wordlists)
     argument=$2
@@ -100,24 +100,6 @@ menu(){
             -h|--help)
                 usage
                 ;;
-            -k|--kill)
-                check_argument "$1" "$2"
-                if [ -z "$2" ]; then
-                    echo "You need to specify a domain to kill the execution!"
-                    exit 1
-                else
-                    kill_check="yes"
-                fi
-                ;;
-            -kr|--kill-remove)
-                check_argument "$1" "$2"
-                if [ -z "$2" ]; then
-                    echo "You need to specify a domain to kill the execution!"
-                    exit 1
-                else
-                    killremove_check="yes"
-                fi
-                ;;        
             -l|--limit-urls)
                 check_argument "$1" "$2"
                 if [[ -n "$2" && "$2" == ?(-)+([0-9]) ]]; then

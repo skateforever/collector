@@ -24,7 +24,7 @@ else
 fi
 
 # Checking if the essencial functions there are
-for file in kill_collector.sh check_binaries.sh usage.sh message.sh menu.sh check_structure.sh \
+for file in check_binaries.sh usage.sh message.sh menu.sh check_structure.sh \
     check_execution.sh domains_sources.sh files.sh diff.sh infra.sh webapp_crawler.sh \
     webapp_discovery.sh webapp_scan.sh webapp_enum.sh git.sh domains_recon.sh url_recon.sh; do
     function="${collector_path}/functions/${file}"
@@ -48,13 +48,12 @@ check_parameter_conflicts
 check_parameter_dependency
 check_directory_permission
 
-if [[ "${kill_check}" == "yes" ]]; then
-    kill_collector "${domain}"
-fi
-
-if [[ "${killremove_check}" == "yes" ]]; then
-    kill_collector "${domain}"
-fi
+# Note: -k/--kill and -kr/--kill-remove were removed. The collector runs
+# inside a one-shot Docker container, so the right way to stop a run is
+# `docker stop <container>` on the host. To wipe artifacts, `rm -rf` the
+# mounted volume from the host. The flock-based lock in
+# collector_acquire_lock() already prevents concurrent runs on the same
+# target, so the kill flow had no real use case (report C-01/C-07/C-08).
 
 if [[ "${domain_check}" == "yes" && -n "${domain}" ]]; then
     collector_acquire_lock "${domain}"
