@@ -6,8 +6,8 @@
 # And is responsible to get the functions:                   #
 #                                                            #
 #   * message                                                #
-#                                                            # 
-############################################################## 
+#                                                            #
+##############################################################
 
 url_recon(){
     (# Show the directory structure
@@ -18,7 +18,7 @@ url_recon(){
     echo -e "    ├── log (${yellow}log dir for collector script execution${reset})"
     echo -e "    ├── report (${yellow}adjust function output files${reset})"
     echo -e "    │   ├── scan (${yellow}scan dir output files${reset})"
-    echo -e "    │   │   └── nuclei (${yellow}nuclei execution output files${reset})"
+    echo -e "    │   │   └── nuclei (${yellow}nuclei execution output files${reset})"
     echo -e "    │   └── webapp (${yellow}webapp data dir for output files${reset})"
     echo -e "    │       ├── aquatone (${yellow}aquatone output files${reset})"
     echo -e "    │       ├── enum (${yellow}gobuster and dirsearch output${reset})"
@@ -33,36 +33,61 @@ url_recon(){
     # Executing just the functions necessary to url check
     [[ -s "${recon_dir}/url_test.txt"  ]] && rm "${recon_dir}/url_test.txt"
     message "${url_domain}" start
-    if [ $(host -t A "${url_domain}" | grep -v "Host.*not.found:" | awk '{print $4}' | \
-            grep -E "^^([0-9]+(\.|$)){4}|^([0-9a-fA-F]{0,4}:){1,7}([0-9a-fA-F]){0,4}$") ]; then
-       echo "${url_domain}" > "${recon_dir}/url_test.txt"
+
+    # Reachability check via dig (report C-09): the previous regex was broken —
+    # '^^' double caret made the IPv4 branch unreachable, and the fragment
+    # pattern matched incomplete addresses like '1.2.3'. Use the shared
+    # IPv4_regex/IPv6_regex from collector.cfg and consider the target
+    # reachable if either record resolves.
+    url_ipv4="$(dig +short A    "${url_domain}" 2>/dev/null | grep -Eo "${IPv4_regex}" | head -1)"
+    url_ipv6="$(dig +short AAAA "${url_domain}" 2>/dev/null | head -1)"
+    if [[ -n "${url_ipv4}" ]] || [[ -n "${url_ipv6}" ]]; then
+        echo "${url_domain}" > "${recon_dir}/url_test.txt"
     else
-       message ${url_domain} failed
-       exit 1
-    fi 
+        message "${url_domain}" failed
+        # exit 1 still kills this subshell — nothing downstream can run
+        # without a resolvable target. The terminal steps (build_llm_prompt /
+        # db_usage / start_app_report) now live OUTSIDE the subshell so they
+        # still run and record status=partial (report C-05).
+        exit 1
+    fi
+    unset url_ipv4 url_ipv6
 
     if [[ -s "${recon_dir}/url_test.txt" ]]; then
         webapp_enum "${url_domain}" "${recon_dir}/url_test.txt"
         robots_txt
     fi
 
-    [[ -s "${report_dir}/robots_urls.txt" ]] && webapp_enum "${report_dir}/robots_urls.txt"
+    # Pass both target and urls_file (report C-04): the previous call
+    # was `webapp_enum "${report_dir}/robots_urls.txt"` (single arg),
+    # which left urls_file empty inside webapp_enum and made it return 1
+    # silently.
+    [[ -s "${report_dir}/robots_urls.txt" ]] && webapp_enum "${url_domain}" "${report_dir}/robots_urls.txt"
 
+    # Iterate over BOTH files and pass ${file}, not the hard-coded
+    # url_test.txt — otherwise robots_urls.txt is never crawled/scanned.
+    # Also adds ${url_domain} as the first arg to aquatone_screenshot
+    # (report C-04).
     for file in "${recon_dir}/url_test.txt" "${report_dir}/robots_urls.txt"; do
         if [[ -s "${file}" ]]; then
-            webapp_tech "${url_domain}" "${recon_dir}/url_test.txt"
-            crawler_js "${url_domain}" "${recon_dir}/url_test.txt"
-            crawler_params "${url_domain}" "${recon_dir}/url_test.txt"
-            nuclei_scan "${url_domain}" "${recon_dir}/url_test.txt"
-            #acunetix_scan "${url_domain}" "${recon_dir}/url_test.txt"
-            aquatone_screenshot "${recon_dir}/url_test.txt"
+            webapp_tech         "${url_domain}" "${file}"
+            crawler_js          "${url_domain}" "${file}"
+            crawler_params      "${url_domain}" "${file}"
+            nuclei_scan         "${url_domain}" "${file}"
+            #acunetix_scan      "${url_domain}" "${file}"
+            aquatone_screenshot "${url_domain}" "${file}"
             git_rebuild
         fi
     done
 
+    rm "${recon_dir}/url_test.txt" > /dev/null 2>&1) 2>> "${log_execution_file}" | tee -a "${log_execution_file}"
+
+    # Terminal steps live OUTSIDE the ( … ) | tee subshell so they run even
+    # when the inner exit 1 fires from a failed reachability check (report
+    # C-05). build_llm_prompt + db_usage decide status=finished|partial
+    # based on whether llm-prompt.txt exists on disk.
     build_llm_prompt
     db_usage
     start_app_report
     message "${url_verify}" finished
-    rm "${recon_dir}/url_test.txt" > /dev/null 2>&1) 2>> "${log_execution_file}"| tee -a "${log_execution_file}"
 }
