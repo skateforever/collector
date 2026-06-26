@@ -49,12 +49,34 @@ infra_data(){
         
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Getting target blocks... "
         if [ -s "${report_dir}/infra_as.txt" ]; then
-            ownerid=$(whois "${domain}" 2> /dev/null | grep -E "^ownerid:" | awk '{print $2}')
+            # Generalised owner fingerprint (report C-10): the previous code only
+            # checked `ownerid:` which is specific to whois.registro.br (.br ccTLD).
+            # For .com / .net / .org / .io / ... that field is absent and the
+            # whole AS-block sweep silently did nothing. Try several common
+            # registry-owner fields in order of specificity, and pick the first
+            # non-empty value.
+            ownerid=""
+            whois_domain_out="$(whois "${domain}" 2>/dev/null)"
+            for ownerid_field in "ownerid" "OrgName" "org-name" "Registrant Organization" "Organization" "netname"; do
+                ownerid_candidate="$(echo "${whois_domain_out}" \
+                    | grep -Ei "^[[:space:]]*${ownerid_field}[[:space:]]*:" \
+                    | head -1 | sed -E 's/^[^:]+:[[:space:]]*//' \
+                    | sed -E 's/[[:space:]]+$//')"
+                # Require ≥ 5 chars to avoid trash tokens like 'Inc', 'NA', '-'.
+                if [[ -n "${ownerid_candidate}" && "${#ownerid_candidate}" -ge 5 ]]; then
+                    ownerid="${ownerid_candidate}"
+                    break
+                fi
+            done
+            unset whois_domain_out ownerid_field ownerid_candidate
+
             for IP in $(grep -Ev "Google|Microsoft|Azure|AWS|Amazon|Cloudflare" "${report_dir}/infra_as.txt" | tail -n+2 | awk '{print $3}'); do
                 if [[ -n "${ownerid}" ]]; then
                     # Capture once — reuse for both the ownership check and CIDR extraction.
                     ib_whois="$(whois "${IP}" 2>/dev/null)"
-                    if echo "${ib_whois}" | grep -q "${ownerid}"; then
+                    # Case-insensitive, literal match — registries vary in casing
+                    # and the ownerid may include regex metacharacters.
+                    if echo "${ib_whois}" | grep -qiF "${ownerid}"; then
                         sleep 3
                         # IPv4 block
                         echo "${ib_whois}" | grep -E "${IP%%.*}.*\/[0-9]{2}$" >> "${tmp_dir}/infra_blocks.tmp"
