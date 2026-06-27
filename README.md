@@ -15,9 +15,9 @@ Run a full recon + webapp discovery:
 ```bash
 # docker run
 docker run --rm \
-  -v /opt/collector/outputs:/app/outputs \
-  -v /opt/collector/wordlists:/app/wordlists \
-  -v /opt/collector/collector.cfg:/app/collector.cfg:ro \
+  -v /opt/collector/outputs:/opt/collector/outputs \
+  -v /opt/collector/wordlists:/opt/collector/wordlists \
+  -v /opt/collector/collector.cfg:/opt/collector/collector.cfg:ro \
   collector:latest -d example.com --recon --webapp-discovery --webapp-short-detection
 
 # docker compose (from repo root)
@@ -123,9 +123,9 @@ Full recon + webapp discovery (short port list):
 
 ```bash
 docker run --rm \
-  -v /opt/collector/outputs:/app/outputs \
-  -v /opt/collector/wordlists:/app/wordlists \
-  -v /opt/collector/collector.cfg:/app/collector.cfg:ro \
+  -v /opt/collector/outputs:/opt/collector/outputs \
+  -v /opt/collector/wordlists:/opt/collector/wordlists \
+  -v /opt/collector/collector.cfg:/opt/collector/collector.cfg:ro \
   collector:latest \
   -d example.com --recon --webapp-discovery --webapp-short-detection
 
@@ -139,44 +139,44 @@ Full recon + webapp discovery + enum + scan in one shot:
 
 ```bash
 docker run --rm \
-  -v /opt/collector/outputs:/app/outputs \
-  -v /opt/collector/wordlists:/app/wordlists \
-  -v /opt/collector/collector.cfg:/app/collector.cfg:ro \
+  -v /opt/collector/outputs:/opt/collector/outputs \
+  -v /opt/collector/wordlists:/opt/collector/wordlists \
+  -v /opt/collector/collector.cfg:/opt/collector/collector.cfg:ro \
   collector:latest \
   -d example.com --recon --webapp-discovery --webapp-short-detection \
-  --webapp-enum --webapp-wordlists /app/wordlists/common.txt --webapp-scan
+  --webapp-enum --webapp-wordlists /opt/collector/wordlists/common.txt --webapp-scan
 
 docker compose run --rm collector \
   -d example.com --recon --webapp-discovery --webapp-short-detection \
-  --webapp-enum --webapp-wordlists /app/wordlists/common.txt --webapp-scan
+  --webapp-enum --webapp-wordlists /opt/collector/wordlists/common.txt --webapp-scan
 
 collector-docker -d example.com --recon --webapp-discovery --webapp-short-detection \
-  --webapp-enum --webapp-wordlists /app/wordlists/common.txt --webapp-scan
+  --webapp-enum --webapp-wordlists /opt/collector/wordlists/common.txt --webapp-scan
 ```
 
 Standalone webapp enum on a previously recon'd target:
 
 ```bash
 docker run --rm \
-  -v /opt/collector/outputs:/app/outputs \
-  -v /opt/collector/wordlists:/app/wordlists \
-  -v /opt/collector/collector.cfg:/app/collector.cfg:ro \
+  -v /opt/collector/outputs:/opt/collector/outputs \
+  -v /opt/collector/wordlists:/opt/collector/wordlists \
+  -v /opt/collector/collector.cfg:/opt/collector/collector.cfg:ro \
   collector:latest \
-  -d example.com --webapp-enum --webapp-wordlists /app/wordlists/common.txt
+  -d example.com --webapp-enum --webapp-wordlists /opt/collector/wordlists/common.txt
 
 docker compose run --rm collector \
-  -d example.com --webapp-enum --webapp-wordlists /app/wordlists/common.txt
+  -d example.com --webapp-enum --webapp-wordlists /opt/collector/wordlists/common.txt
 
-collector-docker -d example.com --webapp-enum --webapp-wordlists /app/wordlists/common.txt
+collector-docker -d example.com --webapp-enum --webapp-wordlists /opt/collector/wordlists/common.txt
 ```
 
 Standalone webapp scan on a previously recon'd target:
 
 ```bash
 docker run --rm \
-  -v /opt/collector/outputs:/app/outputs \
-  -v /opt/collector/wordlists:/app/wordlists \
-  -v /opt/collector/collector.cfg:/app/collector.cfg:ro \
+  -v /opt/collector/outputs:/opt/collector/outputs \
+  -v /opt/collector/wordlists:/opt/collector/wordlists \
+  -v /opt/collector/collector.cfg:/opt/collector/collector.cfg:ro \
   collector:latest \
   -d example.com --webapp-scan
 
@@ -189,9 +189,9 @@ Standalone JS crawler:
 
 ```bash
 docker run --rm \
-  -v /opt/collector/outputs:/app/outputs \
-  -v /opt/collector/wordlists:/app/wordlists \
-  -v /opt/collector/collector.cfg:/app/collector.cfg:ro \
+  -v /opt/collector/outputs:/opt/collector/outputs \
+  -v /opt/collector/wordlists:/opt/collector/wordlists \
+  -v /opt/collector/collector.cfg:/opt/collector/collector.cfg:ro \
   collector:latest \
   -d example.com --webapp-crawler
 
@@ -204,32 +204,32 @@ List of targets:
 
 ```bash
 docker run --rm \
-  -v /opt/collector/outputs:/app/outputs \
-  -v /opt/collector/wordlists:/app/wordlists \
-  -v /opt/collector/collector.cfg:/app/collector.cfg:ro \
+  -v /opt/collector/outputs:/opt/collector/outputs \
+  -v /opt/collector/wordlists:/opt/collector/wordlists \
+  -v /opt/collector/collector.cfg:/opt/collector/collector.cfg:ro \
   collector:latest \
-  -dl /app/outputs/targets.list --recon --webapp-discovery --webapp-short-detection
+  -dl /opt/collector/outputs/targets.list --recon --webapp-discovery --webapp-short-detection
 
 docker compose run --rm collector \
-  -dl /app/outputs/targets.list --recon --webapp-discovery --webapp-short-detection
+  -dl /opt/collector/outputs/targets.list --recon --webapp-discovery --webapp-short-detection
 
-collector-docker -dl /app/outputs/targets.list --recon --webapp-discovery --webapp-short-detection
+collector-docker -dl /opt/collector/outputs/targets.list --recon --webapp-discovery --webapp-short-detection
 ```
 
 Single URL (no subdomain/infra discovery):
 
 ```bash
 docker run --rm \
-  -v /opt/collector/outputs:/app/outputs \
-  -v /opt/collector/wordlists:/app/wordlists \
-  -v /opt/collector/collector.cfg:/app/collector.cfg:ro \
+  -v /opt/collector/outputs:/opt/collector/outputs \
+  -v /opt/collector/wordlists:/opt/collector/wordlists \
+  -v /opt/collector/collector.cfg:/opt/collector/collector.cfg:ro \
   collector:latest \
-  -u https://app.example.com --webapp-wordlists /app/wordlists/common.txt
+  -u https://opt/collector.example.com --webapp-wordlists /opt/collector/wordlists/common.txt
 
 docker compose run --rm collector \
-  -u https://app.example.com --webapp-wordlists /app/wordlists/common.txt
+  -u https://opt/collector.example.com --webapp-wordlists /opt/collector/wordlists/common.txt
 
-collector-docker -u https://app.example.com --webapp-wordlists /app/wordlists/common.txt
+collector-docker -u https://opt/collector.example.com --webapp-wordlists /opt/collector/wordlists/common.txt
 ```
 
 ## Unattended execution
@@ -239,7 +239,7 @@ Drop-in scheduling files are in `support/`:
 - `collector-cron` — daily light recon + weekly heavy run via cron (`/etc/cron.d/collector`)
 - `collector-systemd-timer` — same cadence as systemd template units (`collector@<domain>.timer`)
 
-Both use `collector-docker` (or `docker run --rm` directly) — each run fires an ephemeral container. Results persist via the `/app/outputs` volume. Per-target `flock` prevents overlapping runs for the same domain when triggered by cron or timers.
+Both use `collector-docker` (or `docker run --rm` directly) — each run fires an ephemeral container. Results persist via the `/opt/collector/outputs` volume. Per-target `flock` prevents overlapping runs for the same domain when triggered by cron or timers.
 
 ## APIs and tools used
 
@@ -346,9 +346,9 @@ Flask + HTMX read-only dashboard auto-started at `http://127.0.0.1:8000` after e
 
 ```bash
 docker run --rm \
-  -v /opt/collector/outputs:/app/outputs \
-  -v /opt/collector/wordlists:/app/wordlists \
-  -v /opt/collector/collector.cfg:/app/collector.cfg:ro \
+  -v /opt/collector/outputs:/opt/collector/outputs \
+  -v /opt/collector/wordlists:/opt/collector/wordlists \
+  -v /opt/collector/collector.cfg:/opt/collector/collector.cfg:ro \
   -p 127.0.0.1:8000:8000 \
   collector:latest \
   -d example.com --recon --webapp-discovery --webapp-short-detection

@@ -10,7 +10,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PATH="/usr/local/go/bin:/go/bin:${PATH}" \
     GOBIN=/usr/local/bin
 
-WORKDIR /app
+WORKDIR /opt/collector
 
 # 1. Dependências do Sistema
 RUN pacman -Syu --noconfirm && pacman -S --noconfirm \
@@ -71,9 +71,11 @@ RUN wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/c
 COPY . .
 RUN chmod +x collector && chmod +x functions/*.sh
 
-# Fix output_dir to the mounted volume path so every run writes results
-# to /app/outputs without requiring --output on every invocation.
-RUN sed -i 's|^output_dir=.*|output_dir="/app/outputs"|' collector.cfg
+# Pin output_dir to the mounted volume path so every run writes results
+# to /opt/collector/outputs. The -o/--output CLI flag was removed; to
+# control where results land on the host, change the -v mount in
+# collector-docker / docker run -v <host_path>:/opt/collector/outputs.
+RUN sed -i 's|^output_dir=.*|output_dir="/opt/collector/outputs"|' collector.cfg
 
 # Expose the app-report (Flask/gunicorn) dashboard port.
 EXPOSE 8000
@@ -81,9 +83,9 @@ EXPOSE 8000
 # Volumes: outputs persists recon results across runs; wordlists holds the
 # dirsearch/gobuster wordlists mounted from the host; cfg allows overriding
 # collector.cfg (API keys, notify config, etc.) at runtime without rebuilding.
-VOLUME ["/app/outputs", "/app/wordlists"]
+VOLUME ["/opt/collector/outputs", "/opt/collector/wordlists"]
 
 # collector is the only entry point — parameters are passed directly:
-#   docker run --rm -v $(pwd)/outputs:/app/outputs collector-image \
+#   docker run --rm -v $(pwd)/outputs:/opt/collector/outputs collector-image \
 #       -d example.com --recon --webapp-discovery
-ENTRYPOINT ["/app/collector"]
+ENTRYPOINT ["/opt/collector/collector"]

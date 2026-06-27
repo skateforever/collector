@@ -43,19 +43,19 @@ MAILTO=""
 # Each target runs at a slightly different minute to spread load. Add up to
 # ~30 min of random jitter via the leading `sleep $((RANDOM % 1800))`.
 # -----------------------------------------------------------------------------
-0  3  *  *  *  collector  sleep $((RANDOM \% 1800)) && /usr/bin/docker run --rm --name collector-acme     -v /opt/collector/outputs:/app/outputs -v /opt/collector/wordlists:/app/wordlists -v /opt/collector/collector.cfg:/app/collector.cfg:ro collector:latest -d acme.com    --recon --webapp-discovery >> /var/log/collector/acme.log    2>&1
-5  3  *  *  *  collector  sleep $((RANDOM \% 1800)) && /usr/bin/docker run --rm --name collector-example  -v /opt/collector/outputs:/app/outputs -v /opt/collector/wordlists:/app/wordlists -v /opt/collector/collector.cfg:/app/collector.cfg:ro collector:latest -d example.org --recon --webapp-discovery >> /var/log/collector/example.log 2>&1
+0  3  *  *  *  collector  sleep $((RANDOM \% 1800)) && /usr/bin/docker run --rm --name collector-acme     -v /opt/collector/outputs:/opt/collector/outputs -v /opt/collector/wordlists:/opt/collector/wordlists -v /opt/collector/collector.cfg:/opt/collector/collector.cfg:ro collector:latest -d acme.com    --recon --webapp-discovery >> /var/log/collector/acme.log    2>&1
+5  3  *  *  *  collector  sleep $((RANDOM \% 1800)) && /usr/bin/docker run --rm --name collector-example  -v /opt/collector/outputs:/opt/collector/outputs -v /opt/collector/wordlists:/opt/collector/wordlists -v /opt/collector/collector.cfg:/opt/collector/collector.cfg:ro collector:latest -d example.org --recon --webapp-discovery >> /var/log/collector/example.log 2>&1
 
 # Or, if you keep targets in a list file (one domain per line, # for comments):
-# 30 3 *  *  *  collector  sleep $((RANDOM \% 1800)) && /usr/bin/docker run --rm --name collector-list -v /opt/collector/outputs:/app/outputs -v /opt/collector/wordlists:/app/wordlists -v /opt/collector/collector.cfg:/app/collector.cfg:ro collector:latest -dl /app/outputs/targets.list --recon --webapp-discovery >> /var/log/collector/list.log 2>&1
+# 30 3 *  *  *  collector  sleep $((RANDOM \% 1800)) && /usr/bin/docker run --rm --name collector-list -v /opt/collector/outputs:/opt/collector/outputs -v /opt/collector/wordlists:/opt/collector/wordlists -v /opt/collector/collector.cfg:/opt/collector/collector.cfg:ro collector:latest -dl /opt/collector/outputs/targets.list --recon --webapp-discovery >> /var/log/collector/list.log 2>&1
 
 # -----------------------------------------------------------------------------
 # WEEKLY heavy run: enum (gobuster/dirsearch) + full nuclei pass.
 # Sunday 02:00, with up to 1h of jitter. Skip these on the daily slot to keep
 # it fast and to avoid hammering OSINT API quotas.
 # -----------------------------------------------------------------------------
-0  2  *  *  0  collector  sleep $((RANDOM \% 3600)) && /usr/bin/docker run --rm --name collector-acme-heavy    -v /opt/collector/outputs:/app/outputs -v /opt/collector/wordlists:/app/wordlists -v /opt/collector/collector.cfg:/app/collector.cfg:ro collector:latest -d acme.com    --recon --webapp-discovery --webapp-enum --webapp-scan >> /var/log/collector/acme-weekly.log    2>&1
-0  2  *  *  0  collector  sleep $((RANDOM \% 3600)) && /usr/bin/docker run --rm --name collector-example-heavy -v /opt/collector/outputs:/app/outputs -v /opt/collector/wordlists:/app/wordlists -v /opt/collector/collector.cfg:/app/collector.cfg:ro collector:latest -d example.org --recon --webapp-discovery --webapp-enum --webapp-scan >> /var/log/collector/example-weekly.log 2>&1
+0  2  *  *  0  collector  sleep $((RANDOM \% 3600)) && /usr/bin/docker run --rm --name collector-acme-heavy    -v /opt/collector/outputs:/opt/collector/outputs -v /opt/collector/wordlists:/opt/collector/wordlists -v /opt/collector/collector.cfg:/opt/collector/collector.cfg:ro collector:latest -d acme.com    --recon --webapp-discovery --webapp-enum --webapp-scan >> /var/log/collector/acme-weekly.log    2>&1
+0  2  *  *  0  collector  sleep $((RANDOM \% 3600)) && /usr/bin/docker run --rm --name collector-example-heavy -v /opt/collector/outputs:/opt/collector/outputs -v /opt/collector/wordlists:/opt/collector/wordlists -v /opt/collector/collector.cfg:/opt/collector/collector.cfg:ro collector:latest -d example.org --recon --webapp-discovery --webapp-enum --webapp-scan >> /var/log/collector/example-weekly.log 2>&1
 
 # -----------------------------------------------------------------------------
 # Housekeeping: prune run directories older than 60 days. Compress before

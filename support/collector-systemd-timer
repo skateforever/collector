@@ -64,9 +64,9 @@ Group=docker
 # Adjust image name, volume paths and flags to your environment.
 ExecStart=/usr/bin/docker run --rm \
     --name collector-%i \
-    -v /opt/collector/outputs:/app/outputs \
-    -v /opt/collector/wordlists:/app/wordlists \
-    -v /opt/collector/collector.cfg:/app/collector.cfg:ro \
+    -v /opt/collector/outputs:/opt/collector/outputs \
+    -v /opt/collector/wordlists:/opt/collector/wordlists \
+    -v /opt/collector/collector.cfg:/opt/collector/collector.cfg:ro \
     collector:latest \
     -d %i --recon --webapp-discovery
 
@@ -121,9 +121,9 @@ WantedBy=timers.target
 #   /etc/systemd/system/collector-heavy@.service
 #     ExecStart=/usr/bin/docker run --rm \
 #         --name collector-heavy-%i \
-#         -v /opt/collector/outputs:/app/outputs \
-#         -v /opt/collector/wordlists:/app/wordlists \
-#         -v /opt/collector/collector.cfg:/app/collector.cfg:ro \
+#         -v /opt/collector/outputs:/opt/collector/outputs \
+#         -v /opt/collector/wordlists:/opt/collector/wordlists \
+#         -v /opt/collector/collector.cfg:/opt/collector/collector.cfg:ro \
 #         collector:latest \
 #         -d %i --recon --webapp-discovery --webapp-enum --webapp-scan
 #

@@ -23,9 +23,9 @@ COLLECTOR_CFG="${COLLECTOR_CFG:-/opt/collector/collector.cfg}"
 APP_PORT="${APP_PORT:-127.0.0.1:8000:8000}"
 
 exec docker run --rm \
-    -v "${OUTPUTS_DIR}:/app/outputs" \
-    -v "${WORDLISTS_DIR}:/app/wordlists" \
-    -v "${COLLECTOR_CFG}:/app/collector.cfg:ro" \
+    -v "${OUTPUTS_DIR}:/opt/collector/outputs" \
+    -v "${WORDLISTS_DIR}:/opt/collector/wordlists" \
+    -v "${COLLECTOR_CFG}:/opt/collector/collector.cfg:ro" \
     -p "${APP_PORT}" \
     "${COLLECTOR_IMAGE}" \
     "$@"
