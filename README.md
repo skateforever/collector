@@ -37,6 +37,27 @@ There are three equivalent ways to run collector — all produce the same result
 
 **`docker compose`** — volumes and port mapping are pre-configured in `docker-compose.yml`. Run from the repo root. Useful when overriding build args or pinning the image.
 
+By default the compose file uses repo-relative paths, so a fresh clone works without `sudo` and without pre-creating directories:
+
+| Mount source (host) | Mount target (container) |
+|---|---|
+| `./outputs` (auto-created on first run) | `/opt/collector/outputs` |
+| `./wordlists` (auto-created on first run) | `/opt/collector/wordlists` |
+| `./collector.cfg` (already in the repo) | `/opt/collector/collector.cfg` (read-only) |
+
+To redirect any of these to a different host location, drop a `.env` file in the repo root (Docker Compose loads it automatically). Example:
+
+```bash
+# .env at the repo root
+OUTPUTS_DIR=/data/recon/outputs
+WORDLISTS_DIR=/data/wordlists
+COLLECTOR_CFG=/etc/collector/collector.cfg
+```
+
+`.env` is git-ignored so your local layout never leaks to the repo.
+
+> **Note:** `docker compose up` is **not** the right verb here. `collector` exits with the usage screen when called without arguments, which Compose would interpret as a service failure. Always use `docker compose run --rm collector <flags>`.
+
 **`collector-docker`** — thin wrapper around `docker run` that injects volumes and the default port mapping automatically. Install it once and use it like a native command:
 
 ```bash
