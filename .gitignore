@@ -13,3 +13,14 @@ collector_simulation_report*.md
 # Tombstone files left behind by virtiofs when unlink is blocked
 # (workaround: rename to *.deleted instead of rm). Safe to ignore.
 *.deleted
+
+# Repo-relative bind-mount targets created by `docker compose run`
+# (see docker-compose.yml volumes). Outputs are per-run recon artifacts;
+# wordlists is where the user drops their own lists for -ww/-s. Neither
+# should land in version control.
+/outputs/
+/wordlists/
+
+# Local override for compose: lets the user point OUTPUTS_DIR / WORDLISTS_DIR
+# / COLLECTOR_CFG elsewhere without modifying the YAML.
+.env

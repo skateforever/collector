@@ -4,14 +4,31 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    # Bind-mount paths are relative to the repo so 'docker compose run'
+    # works on a fresh clone with no sudo and no pre-created directories.
+    # The host-side ./outputs and ./wordlists directories are created
+    # automatically by Docker on first run; ./collector.cfg already
+    # exists in the repo as the source-of-truth config.
+    #
+    # To redirect any of these to a different host path, override via .env:
+    #   OUTPUTS_DIR=/data/recon/outputs
+    #   WORDLISTS_DIR=/data/wordlists
+    #   COLLECTOR_CFG=/etc/collector/collector.cfg
     volumes:
-      - /opt/collector/outputs:/opt/collector/outputs
-      - /opt/collector/wordlists:/opt/collector/wordlists
-      - /opt/collector/collector.cfg:/opt/collector/collector.cfg:ro
+      - ${OUTPUTS_DIR:-./outputs}:/opt/collector/outputs
+      - ${WORDLISTS_DIR:-./wordlists}:/opt/collector/wordlists
+      - ${COLLECTOR_CFG:-./collector.cfg}:/opt/collector/collector.cfg:ro
     ports:
       - "127.0.0.1:8000:8000"
 
-# Uso:
+# Usage:
+#   # collector exits with usage() when called without args, so 'up' is
+#   # NOT the right verb here — use 'run --rm' and pass collector flags:
 #   docker compose run --rm collector -d example.com --recon --webapp-discovery --webapp-short-detection
 #   docker compose run --rm collector -dl /opt/collector/outputs/targets.list --recon --webapp-discovery --webapp-short-detection
 #   docker compose run --rm collector --help
+#
+# First-time bootstrap:
+#   docker compose build         # builds collector:latest from Dockerfile
+#   # ./outputs and ./wordlists are created automatically on first run.
+#   # Drop your wordlists into ./wordlists before passing -ww/--webapp-wordlists.
