@@ -5,3 +5,11 @@ collector.orig
 # Ignore some old and third scripts
 ./functions/externo/
 app-report/__pycache__/
+
+# Local code-review simulation reports — kept out of the repo;
+# they are working artifacts of each audit round.
+collector_simulation_report*.md
+
+# Tombstone files left behind by virtiofs when unlink is blocked
+# (workaround: rename to *.deleted instead of rm). Safe to ignore.
+*.deleted
