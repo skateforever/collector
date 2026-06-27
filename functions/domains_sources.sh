@@ -18,7 +18,7 @@ subdomains_recon(){
             dnsrepo.sh fofa.sh fullhunt.sh github.sh grayhatwarfare.sh grepapp.sh greynoise.sh hackerone.sh hackertarget.sh \
             hunterhow.sh intelx.sh jldc.sh katana.sh leakix.sh merklemap.sh netcraft.sh netlas.sh ns-brute.sh nsec-walk.sh \
             onyphe.sh ptr-sweep.sh publicwww.sh pulsedive.sh rapiddns.sh robots-sitemap.sh robtex.sh securitytrails.sh shodan.sh \
-            srv-enum.sh subdomaincenter.sh subfinder.sh threatminer.sh tlsx.sh urlfinder.sh urlhaus.sh urlscan.sh \
+            srv-enum.sh subdomaincenter.sh subfinder.sh sublist3r.sh threatminer.sh tlsx.sh urlfinder.sh urlhaus.sh urlscan.sh \
             virustotal.sh waybackurls.sh webarchive.sh whoisxmlapi.sh zonetransfer.sh)
         for src in "${source_files[@]}"; do
             source "${collector_path}/sources/${src}"

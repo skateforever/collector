@@ -150,6 +150,12 @@ joining_subdomains(){
                 >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
+        if [ -s "${tmp_dir}/sublist3r_output.tmp" ]; then
+            echo "Parsing sublist3r" >> "${log_execution_file}"
+            grep -E "^.*\.${domain}" "${tmp_dir}/sublist3r_output.tmp" \
+                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
+        fi
+
         if [ -s "${tmp_dir}/tlsx_output.json" ]; then
             echo "Parsing tlsx" >> "${log_execution_file}"
             jq -r '.subject_an[]' "${tmp_dir}/tlsx_output.json" \
