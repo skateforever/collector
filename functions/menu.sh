@@ -33,7 +33,7 @@ validate_domain(){
 
 check_argument(){
     options+=(-d --domain -dl --domain-list -ed --exclude-domains -el --exclude-domain-list -h --help)
-    options+=(-l --limit-urls -o --output -p --proxy -r --recon -s --subdomain-brute -u --url)
+    options+=(-l --limit-urls -p --proxy -r --recon -s --subdomain-brute -u --url)
     options+=(-wc --webapp-crawler -wd --webapp-discovery -we --webapp-enum -ws --webapp-scan)
     options+=(-wld --webapp-long-detection -wsd --webapp-short-detection -ww --webapp-wordlists)
     argument=$2
@@ -110,11 +110,6 @@ menu(){
                     echo -e "Specify the total number of URLs you want to test!\n"
                     usage
                 fi
-                ;;
-            -o|--output)
-                check_argument "$1" "$2"
-                output_dir="$2"
-                shift 2
                 ;;
             -p|--proxy)
                 check_argument "$1" "$2"
