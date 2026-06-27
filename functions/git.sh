@@ -55,11 +55,7 @@ git_rebuild(){
                        sleep 1
                     done
                     echo "Done!"
-                    # `|| return 1`: if we can't cd back to dir_origem,
-                    # subsequent iterations of the outer for-loop would
-                    # run in the wrong dir. Returning lets domains_recon's
-                    # terminal steps still execute (report B-08).
-                    cd "${dir_origem}" || return 1
+                    cd "${dir_origem}" || exit
                 fi
             else
                 # Probe for .git/config: fast profile (see comment above).
@@ -93,11 +89,7 @@ git_rebuild(){
                         sleep 1
                     done
                     echo "Done!"
-                    # `|| return 1`: if we can't cd back to dir_origem,
-                    # subsequent iterations of the outer for-loop would
-                    # run in the wrong dir. Returning lets domains_recon's
-                    # terminal steps still execute (report B-08).
-                    cd "${dir_origem}" || return 1
+                    cd "${dir_origem}" || exit
                 fi
             fi
             # Defensive cleanup if the probe didn't match and the file was

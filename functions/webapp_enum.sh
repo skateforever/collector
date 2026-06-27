@@ -105,18 +105,14 @@ webapp_enum(){
                 echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Array of wordlists is empty. Stopping the script!"
                 echo -e "Array of wordlists is empty. Stopping the script!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
                 message "${target}" failed
-                # return 1 instead of exit 1: this function runs inside the
-                # ( ... ) subshell in domains_recon(); exit 1 would kill the
-                # whole pipeline before record_history / build_llm_prompt /
-                # db_usage / start_app_report can run (see report B-02).
-                return 1
+                exit 1
             fi
         else
             echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Make sure the directories structure was created. Stopping the script!"
             unset urls_file
             echo -e "Make sure the directories structure was created. Stopping the script!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
             message "${target}" failed
-            return 1
+            exit 1
         fi
     else
         echo "Fail!"
@@ -125,7 +121,7 @@ webapp_enum(){
         echo -e "Make sure the ${urls_file} exist and isn't empty. \nYou probably forgot to add --webapp-discovery option to execute, or really, we have a problem with script execution." | notify -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
         message "${target}" failed
         unset urls_file
-        return 1
+        exit 1
     fi
     unset urls_file
     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Web application enumeration is done!"
@@ -170,10 +166,7 @@ webapp_tech(){
         echo -e "Make sure the ${urls_file} exist and isn't empty." | notify -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
         message "${target}" failed
         unset urls_file
-        # See webapp_enum() above: webapp_tech() also runs inside the
-        # ( ... ) subshell in domains_recon(); return 1 keeps the terminal
-        # steps reachable.
-        return 1
+        exit 1
     fi
     unset urls_file
 }

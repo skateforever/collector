@@ -19,7 +19,7 @@ nuclei_scan(){
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Please, especify just 1 file to get URL from."
         echo -e "Please, especify just 1 file to get URL from." | notify -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
         message "${target}" failed
-        return 1
+        exit 1
     else
         if [ -s "${urls_file}" ]; then
             if [ -d "${report_dir}" ] && [ -d "${nuclei_dir}" ]; then
@@ -65,14 +65,14 @@ nuclei_scan(){
                 unset urls_file
                 echo -e "Make sure the directories structure was created. Stopping the script!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
                 message "${target}" failed
-                return 1
+                exit 1
             fi
         else
             echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Make sure the ${urls_file} exist and isn't empty."
             echo -e "Make sure the ${urls_file} exist and isn't empty." | notify -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
             message "${target}" failed
             unset urls_file
-            return 1
+            exit 1
         fi
         unset urls_file
     fi

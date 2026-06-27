@@ -45,10 +45,6 @@ url_recon(){
         echo "${url_domain}" > "${recon_dir}/url_test.txt"
     else
         message "${url_domain}" failed
-        # exit 1 still kills this subshell — nothing downstream can run
-        # without a resolvable target. The terminal steps (build_llm_prompt /
-        # db_usage / start_app_report) now live OUTSIDE the subshell so they
-        # still run and record status=partial (report C-05).
         exit 1
     fi
     unset url_ipv4 url_ipv6
@@ -60,8 +56,8 @@ url_recon(){
 
     # Pass both target and urls_file (report C-04): the previous call
     # was `webapp_enum "${report_dir}/robots_urls.txt"` (single arg),
-    # which left urls_file empty inside webapp_enum and made it return 1
-    # silently.
+    # which left urls_file empty inside webapp_enum and made the
+    # [ -s "${urls_file}" ] guard fail.
     [[ -s "${report_dir}/robots_urls.txt" ]] && webapp_enum "${url_domain}" "${report_dir}/robots_urls.txt"
 
     # Iterate over BOTH files and pass ${file}, not the hard-coded
@@ -80,14 +76,9 @@ url_recon(){
         fi
     done
 
-    rm "${recon_dir}/url_test.txt" > /dev/null 2>&1) 2>> "${log_execution_file}" | tee -a "${log_execution_file}"
-
-    # Terminal steps live OUTSIDE the ( … ) | tee subshell so they run even
-    # when the inner exit 1 fires from a failed reachability check (report
-    # C-05). build_llm_prompt + db_usage decide status=finished|partial
-    # based on whether llm-prompt.txt exists on disk.
     build_llm_prompt
     db_usage
     start_app_report
     message "${url_verify}" finished
+    rm "${recon_dir}/url_test.txt" > /dev/null 2>&1) 2>> "${log_execution_file}" | tee -a "${log_execution_file}"
 }

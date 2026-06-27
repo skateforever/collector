@@ -71,10 +71,7 @@ webapp_alive(){
             echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Something got wrong while checking the status of URLs!"
             echo -e "Something got wrong while checking the status of URLs!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
             message "${target}" failed
-            # return 1 instead of exit 1: webapp_alive() runs inside the
-            # ( ... ) subshell in domains_recon(); exit 1 would skip
-            # record_history / build_llm_prompt / db_usage (see report B-03).
-            return 1
+            exit 1
         fi
 
         if [[ -s "${tmp_dir}/webapp_urls.tmp" ]]; then
@@ -110,14 +107,14 @@ webapp_alive(){
                 echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Could not create file for infrastructure domains, something went wrong."
                 echo -e "Could not create file for infrastructure domains, something went wrong." | notify -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
                 message "${target}" failed
-                return 1
+                exit 1
             fi
         else
             echo "Fail!"
             echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} We probably didn't have any webapp application, something is wrong!"
             echo -e "We probably didn't have any webapp application, something is wrong!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
             message "${target}" failed
-            return 1
+            exit 1
         fi
 
         if [ -f "${report_dir}/webapp_urls.txt" ] && [ -f "${report_dir}/domains_infrastructure.txt" ]; then
@@ -134,7 +131,7 @@ webapp_alive(){
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} The ${report_dir}/domains_alive.txt does not exist or is empty."
         echo -e "The ${report_dir}/domains_alive.txt does not exist or is empty." | notify -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
         message "${target}" failed
-        return 1
+        exit 1
     fi
 }
 
@@ -154,7 +151,7 @@ aquatone_screenshot(){
                 echo -e "Something got wrong, wasnt possible create directory ${aquatone_files_dir}.\n\tPlease, look what got wrong and run the script again. Stopping the script!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
                 message "${target}" failed
                 unset urls_file
-                return 1
+                exit 1
             fi
         else
             echo "aquatone -chrome-path ${chromium_bin} -out ${aquatone_files_dir} -threads ${aquatone_threads} < ${urls_file}" >> "${log_execution_file}"
@@ -167,7 +164,7 @@ aquatone_screenshot(){
         echo -e "Make sure the ${urls_file} exist and isn't empty." | notify -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
         message "${target}" failed
         unset urls_file
-        return 1
+        exit 1
     fi
     unset aquatone_log
     unset aquatone_files_dir
