@@ -507,7 +507,9 @@ joining_subdomains(){
                 sed -i "s/${domain}\.${domain}$/${domain}/" "${tmp_dir}/domains_found.tmp"
             done
 
-            if tr '[:upper:]' '[:lower:]' < "${tmp_dir}/domains_found.tmp" | sort -u > "${report_dir}/domains_found.txt" ; then
+            if tr '[:upper:]' '[:lower:]' < "${tmp_dir}/domains_found.tmp" \
+                | grep -vE "@" \
+                | sort -u > "${report_dir}/domains_found.txt" ; then
                 sed -i '/owasp.*nonce/d ; /_/d ; /\*/d ; /^[[:blank:]]/d ; /</d ; />/d' "${report_dir}/domains_found.txt"
                 echo "Done!"
             fi
