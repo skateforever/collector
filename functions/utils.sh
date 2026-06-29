@@ -53,6 +53,29 @@ reset_vars(){
     unset webapp_wordlists
 }
 
+# Resolve a runtime asset path (user-agents list, regex patterns, LLM
+# prompt header, SQLite schema). If the input is absolute, it is returned
+# as-is — letting the operator point at a host-mounted override. If it
+# is relative, it is prefixed with ${collector_path} so the default cfg
+# values resolve against the collector install dir regardless of the
+# caller's cwd.
+#
+# Used by:
+#   get_user_agent       — ${collector_user_agents}
+#   scan_js_secrets      — ${collector_secrets_patterns}
+#   scan_js_params       — ${collector_params_patterns}
+#   build_llm_prompt     — ${collector_llm_header}
+#   db_usage             — ${collector_db_schema}
+resolve_asset_path(){
+    local _p="$1"
+    [[ -z "${_p}" ]] && return 1
+    if [[ "${_p}" == /* ]]; then
+        printf '%s' "${_p}"
+    else
+        printf '%s/%s' "${collector_path:-.}" "${_p}"
+    fi
+}
+
 # Replace any occurrence of the configured API keys with a redacted marker.
 # Use before writing curl command lines or response bodies to log files,
 # so that sharing the log for debugging doesn't leak credentials.
@@ -85,7 +108,7 @@ redact_secrets(){
 scan_js_secrets(){
     local scan_dir="${1:-${webapp_js_dir}}"
     local out_file="${2:-${report_dir}/webapp_js_secrets.txt}"
-    local patterns_file="${collector_path}/support/runtime/patterns/secrets.txt"
+    local patterns_file="$(resolve_asset_path "${collector_secrets_patterns}")"
     local label regex hits line total
     local channel="${notify_high_channel:-${notify_recon_channel}}"
 
@@ -151,7 +174,7 @@ scan_js_secrets(){
 scan_js_params(){
     local scan_dir="${1:-${webapp_js_dir}}"
     local out_file="${2:-${report_dir}/webapp_js_params.txt}"
-    local patterns_file="${collector_path}/support/runtime/patterns/params.txt"
+    local patterns_file="$(resolve_asset_path "${collector_params_patterns}")"
     local label regex hits line total
     local channel="${notify_recon_channel}"
 
@@ -260,7 +283,7 @@ build_llm_prompt(){
     local target="${domain:-${url_domain:-unknown}}"
     local ts="$(date +"%Y-%m-%d %H:%M:%S %z")"
     local rel f lines size
-    local header_file="${collector_path}/support/runtime/prompts/llm-header.txt"
+    local header_file="$(resolve_asset_path "${collector_llm_header}")"
     local out="${report_dir}/llm-prompt.txt"
 
     [[ ! -d "${report_dir}" ]] && return 0
@@ -349,8 +372,9 @@ db_usage(){
     local target="${domain:-${url_domain}}"
     local hist="${output_dir}/${target}/${target}_history.csv"
     local db="${collector_db:-${output_dir}/${collector_db_name:-collector-results-db}}"
-    local schema="${collector_db_schema:-support/runtime/schema/collector-results.sql}"
-    [[ "${schema}" != /* ]] && schema="${collector_path:-.}/${schema}"
+    # Default kept here as a safety net if the cfg ever drops the variable;
+    # resolve_asset_path() handles the absolute-vs-relative prefix logic.
+    local schema="$(resolve_asset_path "${collector_db_schema:-support/runtime/schema/collector-results.sql}")"
     local fresh=0
 
     if ! command -v sqlite3 >/dev/null 2>&1; then
