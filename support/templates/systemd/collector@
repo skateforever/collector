@@ -62,11 +62,16 @@ Group=docker
 # %i is the unescaped instance name (the target domain). The container is
 # ephemeral (--rm): born, runs, destroyed. Results persist in the volume.
 # Adjust image name, volume paths and flags to your environment.
+#
+# The notify-provider.yaml mount is OPTIONAL: it carries webhook URLs for
+# Discord/Slack/Telegram. If you don't use notify, drop that single -v line;
+# collector falls back gracefully when the in-container path doesn't exist.
 ExecStart=/usr/bin/docker run --rm \
     --name collector-%i \
     -v /opt/collector/outputs:/opt/collector/outputs \
     -v /opt/collector/wordlists:/opt/collector/wordlists \
     -v /opt/collector/collector.cfg:/opt/collector/collector.cfg:ro \
+    -v /opt/collector/notify-provider.yaml:/etc/collector/notify-provider.yaml:ro \
     collector:latest \
     -d %i --recon --webapp-discovery
 

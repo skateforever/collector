@@ -14,10 +14,19 @@ services:
     #   OUTPUTS_DIR=/data/recon/outputs
     #   WORDLISTS_DIR=/data/wordlists
     #   COLLECTOR_CFG=/etc/collector/collector.cfg
+    #   NOTIFY_CONFIG=/etc/collector/notify-provider.yaml
+    #
+    # The NOTIFY_CONFIG mount is optional — if the host file doesn't exist,
+    # docker compose creates a directory at the target path (breaking notify),
+    # so set the variable to /dev/null in your .env when you don't want
+    # notifications, or just don't define notify-provider.yaml at all and
+    # delete the line below. The runnable template is at
+    # support/templates/notify/provider-config.yml.
     volumes:
       - ${OUTPUTS_DIR:-./outputs}:/opt/collector/outputs
       - ${WORDLISTS_DIR:-./wordlists}:/opt/collector/wordlists
       - ${COLLECTOR_CFG:-./collector.cfg}:/opt/collector/collector.cfg:ro
+      - ${NOTIFY_CONFIG:-./notify-provider.yaml}:/etc/collector/notify-provider.yaml:ro
     ports:
       - "127.0.0.1:8000:8000"
 

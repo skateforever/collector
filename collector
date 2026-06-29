@@ -23,6 +23,12 @@ else
     exit 1
 fi
 
+# Resolve the notify -pc args ONCE, after cfg is loaded. Every `notify ...`
+# call in functions/ and scans/ expands "${notify_pc_args[@]}" inline; if
+# no host config is bind-mounted, the array stays empty and notify falls
+# back to its default search path.
+init_notify_pc_args
+
 # Checking if the essencial functions there are
 for file in check_binaries.sh usage.sh message.sh menu.sh check_structure.sh \
     check_execution.sh domains_sources.sh files.sh diff.sh infra.sh webapp_crawler.sh \

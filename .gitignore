@@ -24,3 +24,11 @@ collector_simulation_report*.md
 # Local override for compose: lets the user point OUTPUTS_DIR / WORDLISTS_DIR
 # / COLLECTOR_CFG elsewhere without modifying the YAML.
 .env
+
+# Local notify provider config — carries Discord/Slack/Telegram webhook URLs
+# bound to the operator's accounts. Must never land in version control.
+# The runnable template lives at support/templates/notify/provider-config.yml;
+# copy it to ./notify-provider.yaml at the repo root, fill in the webhooks,
+# and docker compose will bind-mount it via the NOTIFY_CONFIG variable.
+/notify-provider.yaml
+/notify-provider.yml

@@ -259,7 +259,7 @@ Drop-in scheduling files are in `support/templates/`:
 
 - `support/templates/cron/collector` — daily light recon + weekly heavy run via cron (`/etc/cron.d/collector`)
 - `support/templates/systemd/collector@` — same cadence as systemd template units (`collector@<domain>.timer`)
-- `support/templates/notify/provider-config.yml` — example provider config for [notify](https://github.com/projectdiscovery/notify) (drop at `~/.config/notify/provider-config.yaml`)
+- `support/templates/notify/provider-config.yml` — example provider config for [notify](https://github.com/projectdiscovery/notify). Copy to `./notify-provider.yaml` (git-ignored), fill in webhook URLs, and the file is bind-mounted onto `/etc/collector/notify-provider.yaml` inside the container. Without this mount notifications fall back silently; override path via `NOTIFY_CONFIG` in `.env`
 
 Both use `collector-docker` (or `docker run --rm` directly) — each run fires an ephemeral container. Results persist via the `/opt/collector/outputs` volume. Per-target `flock` prevents overlapping runs for the same domain when triggered by cron or timers.
 

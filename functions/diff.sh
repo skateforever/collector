@@ -102,7 +102,7 @@ diff_file(){
                 head -n "${cap}" "${removed}" | sed 's/^/- /'
                 [[ "${removed_n}" -gt "${cap}" ]] && echo "- ... ($(( removed_n - cap )) more)"
             fi
-        } | notify -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
+        } | notify "${notify_pc_args[@]}" -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
     fi
 
     rm -f "${added}" "${removed}"
@@ -111,7 +111,7 @@ diff_file(){
 diff_domains(){
     if [[ ! -d "${report_dir}" ]]; then
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Make sure the directories structure was created."
-        echo "The error occurred in the function diff_domains.sh!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
+        echo "The error occurred in the function diff_domains.sh!" | notify "${notify_pc_args[@]}" -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
         message "${domain}" failed
         return 1
     fi
@@ -120,7 +120,7 @@ diff_domains(){
     if [[ ! -s "${report_dir}/domains_found.txt" ]]; then
         echo "Fail!"
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} File ${report_dir}/domains_found.txt does not exist or is empty!"
-        echo "The error occurred in the function diff_domains.sh!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
+        echo "The error occurred in the function diff_domains.sh!" | notify "${notify_pc_args[@]}" -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
         return 1
     fi
 

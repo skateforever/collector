@@ -94,7 +94,7 @@ infra_data(){
     else
         echo "Fail!"
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} File ${yellow}${report_dir}/domains_external_ipv4.txt${reset} ${red}does not exist${reset} or ${red}is empty!${reset}"
-        echo -e "File ${report_dir}/domains_external_ipv4.txt does not exist or is empty!" | notify -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
+        echo -e "File ${report_dir}/domains_external_ipv4.txt does not exist or is empty!" | notify "${notify_pc_args[@]}" -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
         message "${domain}" failed
     fi
 }

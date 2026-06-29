@@ -1,15 +1,33 @@
-# You need to safe this file at home of the user the will use the collector: 
-# ~/.config/notify/provider-config.yaml
+# notify (ProjectDiscovery) provider config — template
+# More info: https://github.com/projectdiscovery/notify
 #
-# More info: https://github.com/projectdiscovery/notify 
-
-# This is a sample how I configure the notify to send menssage
-# I have 4 channels on discord to be notified about founded vulnerabilities
-# And 1 channel to be notified when the recon is finished
-# Remeber, the way you configure your discord or other message application
-# Will afect the collector when will send the messages.
-# I recommend try do keep what I put here OR
-# if You have patience, feel free to change confirm your needs
+# This file is a TEMPLATE — it carries webhook URLs that grant control
+# over your Discord/Slack/Telegram channels and MUST NOT be committed
+# to version control. Copy it to a local file on the host (the repo's
+# .gitignore already excludes ./notify-provider.yaml), fill in the
+# webhook URLs, and let docker compose / collector-docker / the cron
+# / systemd templates bind-mount it onto /etc/collector/notify-provider.yaml
+# inside the container.
+#
+# Usage with docker compose:
+#   cp support/templates/notify/provider-config.yml ./notify-provider.yaml
+#   # edit ./notify-provider.yaml — fill in your webhook URLs
+#   docker compose run --rm collector -d example.com --recon ...
+#
+# Usage with collector-docker:
+#   cp support/templates/notify/provider-config.yml /opt/collector/notify-provider.yaml
+#   # edit /opt/collector/notify-provider.yaml — fill in your webhook URLs
+#   collector-docker -d example.com --recon ...
+#
+# When the file isn't bind-mounted, collector skips the `notify -pc <path>`
+# flag at runtime, falling back to notify's default search path inside the
+# container ($HOME/.config/notify/provider-config.yaml — empty by default).
+# Net effect: no notifications until you bind-mount this config.
+#
+# The 4 channels below mirror the notify_*_channel variables in collector.cfg
+# (recon / files / high / critical). Adjust the channel names and Discord
+# username to your liking, but keep the `id:` field — collector calls
+# notify with `-id "${notify_*_channel}"` to route each message.
 
 discord:
   - id: "recon"

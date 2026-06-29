@@ -11,6 +11,10 @@
 #   OUTPUTS_DIR       — diretório de outputs (default: /opt/collector/outputs)
 #   WORDLISTS_DIR     — diretório de wordlists (default: /opt/collector/wordlists)
 #   COLLECTOR_CFG     — path do collector.cfg (default: /opt/collector/collector.cfg)
+#   NOTIFY_CONFIG     — path do provider-config do notify
+#                       (default: /opt/collector/notify-provider.yaml — opcional;
+#                       se o host não tiver esse arquivo, a flag -v abaixo cria
+#                       um diretório vazio e o collector cai no fallback default).
 #   APP_PORT          — mapeamento da porta do dashboard (default: 127.0.0.1:8000:8000)
 #
 # Instalação:
@@ -20,12 +24,24 @@ COLLECTOR_IMAGE="${COLLECTOR_IMAGE:-collector:latest}"
 OUTPUTS_DIR="${OUTPUTS_DIR:-/opt/collector/outputs}"
 WORDLISTS_DIR="${WORDLISTS_DIR:-/opt/collector/wordlists}"
 COLLECTOR_CFG="${COLLECTOR_CFG:-/opt/collector/collector.cfg}"
+NOTIFY_CONFIG="${NOTIFY_CONFIG:-/opt/collector/notify-provider.yaml}"
 APP_PORT="${APP_PORT:-127.0.0.1:8000:8000}"
+
+# The notify mount is optional. Skip it if the host file doesn't exist —
+# otherwise `docker run` would create a directory at the target path and
+# notify would fail trying to read it as a YAML file. When omitted, the
+# notify_pc_args array inside collector stays empty and notify falls back
+# to its default search path (\$HOME/.config/notify/provider-config.yaml).
+notify_mount_args=()
+if [[ -s "${NOTIFY_CONFIG}" ]]; then
+    notify_mount_args=(-v "${NOTIFY_CONFIG}:/etc/collector/notify-provider.yaml:ro")
+fi
 
 exec docker run --rm \
     -v "${OUTPUTS_DIR}:/opt/collector/outputs" \
     -v "${WORDLISTS_DIR}:/opt/collector/wordlists" \
     -v "${COLLECTOR_CFG}:/opt/collector/collector.cfg:ro" \
+    "${notify_mount_args[@]}" \
     -p "${APP_PORT}" \
     "${COLLECTOR_IMAGE}" \
     "$@"
