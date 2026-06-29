@@ -14,7 +14,7 @@
 webapp_enum(){
     target="$1"
     urls_file="$2"
-    local list index urls_tested url name file_gobuster file_dirsearch
+    local list index urls_tested url name file_gobuster file_dirsearch file_ffuf ffuf_ext_param
     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Initializing the web application enumeration and this might take a certain time!"
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing web application files and dirs enumeration... "
     if [ -s "${urls_file}" ]; then
@@ -22,7 +22,10 @@ webapp_enum(){
             echo -e "${red}Warning:${reset} It can take a long time to execute the enumeration!"
             echo -e "\t We have $(wc -l "${urls_file}" | awk '{print $1}') urls to scan and ${#webapp_wordlists[@]} wordlist(s) to run."
             if [ ${#webapp_wordlists[@]} -gt 0 ]; then
-                echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Web application enumeration will use ${#webapp_wordlists[@]} wordlists with gobuster and dirsearch... "
+                echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Web application enumeration will use ${#webapp_wordlists[@]} wordlists with ffuf, gobuster and dirsearch... "
+                # ffuf consumes extensions one-shot via -e ".php,.bak,..." (with
+                # leading dots); gobuster/dirsearch accept the comma-list raw.
+                ffuf_ext_param=".$(echo "${webapp_file_extensions}" | sed 's/,/,./g')"
                 for list in "${webapp_wordlists[@]}"; do
                     index=$(printf "%s\n" "${webapp_wordlists[@]}" | grep -En "^""${list}""$" | awk -F":" '{print $1}')
                     urls_tested=1
@@ -32,6 +35,7 @@ webapp_enum(){
                             name="$(echo "${url}" | sed -e "s/http:\/\//http_/" -e "s/https:\/\//https_/" -e "s/:/_/" -e "s/\/$//" -e "s/\//_/g")"
                             file_gobuster="${name}.gobuster.${index}"
                             file_dirsearch="${name}.dirsearch.${index}"
+                            file_ffuf="${name}.ffuf.${index}"
                             if [ -n "${use_proxy}" ] && [ "${use_proxy}" == "yes" ]; then
                                 echo "dirsearch -t \"${dirsearch_threads}\" -e \"${webapp_file_extensions}\" --random-agent --no-color --quiet-mode \
                                     -w \"${list}\" --proxy \"${proxy_ip}\" --timeout=20 -u \"${url}\"" >> "${log_execution_file}"
@@ -45,6 +49,12 @@ webapp_enum(){
                                     --proxy "http://${proxy_ip}" -t "${gobuster_threads}" \
                                     -u "${url}" -w "${list}" -x "${webapp_file_extensions}" \
                                     >> "${webapp_enum_dir}/${file_gobuster}" 2>> "${log_execution_file}" &
+                                echo "ffuf ${ffuf_options[@]} -t ${ffuf_threads} -timeout 20 -H \"User-Agent: $(get_user_agent)\" \
+                                    -x http://${proxy_ip} -w ${list}:FUZZ -e ${ffuf_ext_param} -u ${url}/FUZZ \
+                                    -o ${webapp_enum_dir}/${file_ffuf}" >> "${log_execution_file}"
+                                ffuf "${ffuf_options[@]}" -t "${ffuf_threads}" -timeout 20 -H "User-Agent: $(get_user_agent)" \
+                                    -x "http://${proxy_ip}" -w "${list}:FUZZ" -e "${ffuf_ext_param}" \
+                                    -u "${url}/FUZZ" -o "${webapp_enum_dir}/${file_ffuf}" 2>> "${log_execution_file}" &
                             else
                                 echo "dirsearch -t \"${dirsearch_threads}\" -e \"${webapp_file_extensions}\" --random-agent \
                                     --no-color --quiet-mode -w \"${list}\" -u \"${url}\"" >> "${log_execution_file}"
@@ -56,28 +66,37 @@ webapp_enum(){
                                 gobuster dir --quiet --no-color --no-error -z -k -e --timeout 20s --delay 300ms \
                                     -t "${gobuster_threads}" -u "${url}" -w "${list}" -x "${webapp_file_extensions}" \
                                     >> "${webapp_enum_dir}/${file_gobuster}" 2>> "${log_execution_file}" &
+                                echo "ffuf ${ffuf_options[@]} -t ${ffuf_threads} -timeout 20 -H \"User-Agent: $(get_user_agent)\" \
+                                    -w ${list}:FUZZ -e ${ffuf_ext_param} -u ${url}/FUZZ \
+                                    -o ${webapp_enum_dir}/${file_ffuf}" >> "${log_execution_file}"
+                                ffuf "${ffuf_options[@]}" -t "${ffuf_threads}" -timeout 20 -H "User-Agent: $(get_user_agent)" \
+                                    -w "${list}:FUZZ" -e "${ffuf_ext_param}" \
+                                    -u "${url}/FUZZ" -o "${webapp_enum_dir}/${file_ffuf}" 2>> "${log_execution_file}" &
                             fi
-                            while [[ "$(pgrep -acf "[d]irsearch.*${target}|[g]obuster.*${target}")" -ge "${webapp_enum_total_processes}" ]]; do
+                            while [[ "$(pgrep -acf "[d]irsearch.*${target}|[g]obuster.*${target}|[f]fuf.*${target}")" -ge "${webapp_enum_total_processes}" ]]; do
                                 sleep 1
                             done
                             [[ "${limit_urls}" -eq "${urls_tested}" ]] && break
                             (( urls_tested+=1 ))
                             unset file_dirsearch
                             unset file_gobuster
+                            unset file_ffuf
                             unset name
                             unset url
                         done < "${urls_file}"
                     else
                         echo -e "\t\t    ${red}Error:${reset} ${list} does not exist or is empty!"
-                        echo -e "Error: ${list} does not exist or is empty!" | notify "${notify_options[@]}" -id "${notify_files_channel}" 
+                        echo -e "Error: ${list} does not exist or is empty!" | notify "${notify_options[@]}" -id "${notify_files_channel}"
                         continue
                     fi
                     unset index
                     unset list
                     unset urls_tested
                 done
-                echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Waiting the dirsearch and/or gobuster finish... "
-                while pgrep -af "[d]irsearch.*${target}" > /dev/null || pgrep -af "[g]obuster.*${target}" > /dev/null; do
+                echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Waiting the dirsearch, gobuster and ffuf finish... "
+                while pgrep -af "[d]irsearch.*${target}" > /dev/null \
+                    || pgrep -af "[g]obuster.*${target}" > /dev/null \
+                    || pgrep -af "[f]fuf.*${target}" > /dev/null; do
                     sleep 1
                 done
                 echo "Done!"
@@ -97,10 +116,20 @@ webapp_enum(){
                     sed -i "s/^..\[2K//" {} + 2> /dev/null
                 echo "Done!"
 
+                # ffuf CSV files: keep them as-is (they're already clean +
+                # parseable). No sed pass needed. Header line is dropped by
+                # the grep filters below.
+
                 # Notifying the finds
                 echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Sending files search notification... "
                 grep --color=never -Ehr "^\[.*\] 200 -" "${webapp_enum_dir}/" | awk '{print $6}' | grep -E "($(echo ${webapp_file_extensions} | sed 's/,/|/g'))$" | notify "${notify_options[@]}" -id "${notify_files_channel}" > /dev/null 2>&1
                 grep --color=never -Ehr "\(Status: 200\)" "${webapp_enum_dir}/" | awk '{print $1}' | grep -E "($(echo ${webapp_file_extensions} | sed 's/,/|/g'))$" | notify "${notify_options[@]}" -id "${notify_files_channel}" > /dev/null 2>&1
+                # ffuf csv: FUZZ,url,redirectlocation,position,status_code,content_length,content_words,content_lines,content_type,duration,resultfile
+                # Pull only 200 hits whose URL ends in a watched extension.
+                find "${webapp_enum_dir}" -maxdepth 1 -type f -name '*.ffuf.*' -exec \
+                    awk -F',' 'NR>1 && $5=="200" {print $2}' {} + 2>/dev/null \
+                    | grep -E "($(echo ${webapp_file_extensions} | sed 's/,/|/g'))$" \
+                    | notify "${notify_options[@]}" -id "${notify_files_channel}" > /dev/null 2>&1
                 echo "Done!"
             else
                 echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Array of wordlists is empty. Stopping the script!"

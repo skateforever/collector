@@ -36,6 +36,7 @@ RUN go install github.com/projectdiscovery/tlsx/cmd/tlsx@latest && \
     go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest && \
     go install github.com/projectdiscovery/httpx/cmd/httpx@latest && \
     go install github.com/OJ/gobuster/v3@latest && \
+    go install github.com/ffuf/ffuf/v2@latest && \
     CGO_ENABLED=1 go install github.com/projectdiscovery/katana/cmd/katana@latest && \
     CGO_ENABLED=0 go install github.com/owasp-amass/amass/v5/cmd/amass@main && \
     go install github.com/evilsocket/dnssearch@master && \

@@ -273,7 +273,7 @@ Both use `collector-docker` (or `docker run --rm` directly) — each run fires a
 
 **Webapp discovery:** httpx, chromium
 
-**Webapp enumeration:** dirsearch, gobuster, git-dumper
+**Webapp enumeration:** dirsearch, ffuf, gobuster, git-dumper
 
 **Webapp crawler:** katana, waybackurls
 

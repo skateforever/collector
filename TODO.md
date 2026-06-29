@@ -1,7 +1,7 @@
 # TODO List
 
 Improve the sources that uses API and put the "Fail" message when API don't get any result;</br>
-Improve the webapp_enum function to use ffuf to get file or directory;</br>
+~~Improve the webapp_enum function to use ffuf to get file or directory;~~ **done — ffuf runs in parallel with gobuster/dirsearch inside webapp_enum().**</br>
 Improve crawler_js:</br>
 
 * sitemap
