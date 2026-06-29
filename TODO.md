@@ -4,7 +4,7 @@ Improve the sources that uses API and put the "Fail" message when API don't get 
 ~~Improve the webapp_enum function to use ffuf to get file or directory;~~ **done — ffuf runs in parallel with gobuster/dirsearch inside webapp_enum().**</br>
 Improve crawler_js:</br>
 
-* sitemap
+* ~~sitemap~~ **done — sitemap_xml() expands sitemapindex/urlset recursively into sitemap_urls.txt.**
 
 webapp_params function;</br>
 nmap_scan function;</br>

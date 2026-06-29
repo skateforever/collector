@@ -218,3 +218,135 @@ robots_txt(){
     done
     echo "Done!"
 }
+
+# Mirror of robots_txt for sitemap.xml: pulls /sitemap.xml from each live URL
+# in webapp_consolidated.txt, follows <sitemapindex> entries recursively, and
+# emits one URL per line to ${report_dir}/sitemap_urls.txt.
+#
+# Recursion is bounded by SITEMAP_MAX_DEPTH (default 3) and SITEMAP_MAX_INDEX
+# (default 50) to avoid blow-up on hostile / very large sitemaps. xmllint is
+# preferred when available for robust XML parsing; we fall back to grep so the
+# function still works on minimal images that don't ship libxml2-utils.
+#
+# Also picks up Sitemap: hints from any robots.txt body that webapp_enum may
+# have already captured into ${webapp_enum_dir} via dirsearch/gobuster/ffuf.
+sitemap_xml(){
+    local urls_file="${1:-${report_dir}/webapp_consolidated.txt}"
+    local out_file="${report_dir}/sitemap_urls.txt"
+    local seen_file="${tmp_dir}/sitemap_seen.tmp"
+    local queue_file="${tmp_dir}/sitemap_queue.tmp"
+    local body_file="${tmp_dir}/sitemap_body.tmp"
+    local sm_url base_url depth max_depth max_index seeded
+    local user_agent
+    local -i processed=0
+
+    max_depth="${SITEMAP_MAX_DEPTH:-3}"
+    max_index="${SITEMAP_MAX_INDEX:-50}"
+
+    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Looking for new URLs on sitemap.xml... "
+
+    if [[ ! -s "${urls_file}" ]]; then
+        echo "Skip (no URL list)."
+        return 0
+    fi
+
+    : > "${seen_file}"
+    : > "${queue_file}"
+    seeded=0
+
+    # Seed 1: <base>/sitemap.xml for every live URL.
+    while IFS= read -r base_url; do
+        [[ -z "${base_url}" ]] && continue
+        base_url="${base_url%/}"
+        sm_url="${base_url}/sitemap.xml"
+        if ! grep -qFx "${sm_url}" "${seen_file}" 2>/dev/null; then
+            printf '%s\t%d\n' "${sm_url}" 0 >> "${queue_file}"
+            echo "${sm_url}" >> "${seen_file}"
+            seeded=$((seeded + 1))
+        fi
+    done < "${urls_file}"
+
+    # Seed 2: Sitemap: hints from robots.txt bodies captured during enum.
+    if [[ -d "${webapp_enum_dir}" ]]; then
+        while IFS= read -r sm_url; do
+            [[ -z "${sm_url}" ]] && continue
+            sm_url="$(echo "${sm_url}" | tr -d '\r' | sed -E 's/^[[:space:]]*[Ss]itemap[[:space:]]*:[[:space:]]*//' | awk '{print $1}')"
+            [[ "${sm_url}" =~ ^https?:// ]] || continue
+            if ! grep -qFx "${sm_url}" "${seen_file}" 2>/dev/null; then
+                printf '%s\t%d\n' "${sm_url}" 0 >> "${queue_file}"
+                echo "${sm_url}" >> "${seen_file}"
+                seeded=$((seeded + 1))
+            fi
+        done < <(grep -EhIi '^[[:space:]]*Sitemap[[:space:]]*:' "${webapp_enum_dir}"/* 2>/dev/null | sort -u)
+    fi
+
+    if [[ "${seeded}" -eq 0 ]]; then
+        echo "Skip (no sitemap candidates)."
+        return 0
+    fi
+
+    # BFS over <sitemapindex> children, breadth bounded by max_index.
+    while [[ -s "${queue_file}" ]] && [[ "${processed}" -lt "${max_index}" ]]; do
+        IFS=$'\t' read -r sm_url depth < "${queue_file}"
+        # Pop the head off the queue.
+        tail -n +2 "${queue_file}" > "${queue_file}.tmp" && mv "${queue_file}.tmp" "${queue_file}"
+        [[ -z "${sm_url}" ]] && continue
+        processed=$((processed + 1))
+
+        user_agent="$(get_user_agent)"
+        echo "curl ${curl_options[@]} -H \"User-agent: ${user_agent}\" -L \"${sm_url}\"" >> "${log_execution_file}"
+        : > "${body_file}"
+        curl "${curl_options[@]}" -L -H "User-agent: ${user_agent}" "${sm_url}" -o "${body_file}" 2>> "${log_execution_file}" || continue
+        [[ ! -s "${body_file}" ]] && continue
+
+        # Extract <loc>...</loc> values. Prefer xmllint for correctness; fall
+        # back to grep so we don't hard-depend on libxml2-utils inside the
+        # image. Both paths emit raw URLs to stdout.
+        local locs
+        if command -v xmllint >/dev/null 2>&1; then
+            locs="$(xmllint --xpath '//*[local-name()="loc"]/text()' "${body_file}" 2>/dev/null \
+                | tr -d '\r' | tr '\t' '\n' | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//' | grep -E '^https?://' || true)"
+        else
+            locs="$(grep -oE '<loc[^>]*>[^<]+</loc>' "${body_file}" 2>/dev/null \
+                | sed -E 's@<loc[^>]*>([^<]+)</loc>@\1@' | tr -d '\r' \
+                | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//' | grep -E '^https?://' || true)"
+        fi
+
+        [[ -z "${locs}" ]] && continue
+
+        # If the document is itself an index (<sitemapindex>), the <loc>s
+        # point at child sitemaps — enqueue them if we still have depth.
+        # Otherwise (<urlset>) the <loc>s are page URLs — emit to out_file.
+        if grep -qiE '<sitemapindex[[:space:]>]' "${body_file}" 2>/dev/null; then
+            if [[ "${depth}" -lt "${max_depth}" ]]; then
+                while IFS= read -r child; do
+                    [[ -z "${child}" ]] && continue
+                    if ! grep -qFx "${child}" "${seen_file}" 2>/dev/null; then
+                        printf '%s\t%d\n' "${child}" "$((depth + 1))" >> "${queue_file}"
+                        echo "${child}" >> "${seen_file}"
+                    fi
+                done <<< "${locs}"
+            fi
+        else
+            # Treat anything that isn't an index as a urlset (handles sitemaps
+            # without an explicit <urlset> root — RSS-flavoured variants, etc.).
+            while IFS= read -r url; do
+                [[ -z "${url}" ]] && continue
+                # Strip fragment + trailing slash to match the robots_txt
+                # output style; downstream tooling normalises further.
+                url="${url%%#*}"
+                url="${url%/}"
+                echo "${url}" >> "${out_file}"
+            done <<< "${locs}"
+        fi
+    done
+
+    rm -f "${body_file}" "${queue_file}" "${seen_file}"
+
+    if [[ -s "${out_file}" ]]; then
+        sort -u -o "${out_file}" "${out_file}"
+        echo "Done! ($(wc -l < "${out_file}") URLs)"
+    else
+        echo "Done! (no URLs extracted)"
+    fi
+}

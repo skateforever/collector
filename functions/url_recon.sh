@@ -52,6 +52,9 @@ url_recon(){
     if [[ -s "${recon_dir}/url_test.txt" ]]; then
         webapp_enum "${url_domain}" "${recon_dir}/url_test.txt"
         robots_txt
+        # sitemap_xml: use the seed url_test.txt (single host in URL mode);
+        # any hints from robots.txt bodies are picked up internally.
+        sitemap_xml "${recon_dir}/url_test.txt"
     fi
 
     # Pass both target and urls_file (report C-04): the previous call
@@ -59,12 +62,13 @@ url_recon(){
     # which left urls_file empty inside webapp_enum and made the
     # [ -s "${urls_file}" ] guard fail.
     [[ -s "${report_dir}/robots_urls.txt" ]] && webapp_enum "${url_domain}" "${report_dir}/robots_urls.txt"
+    [[ -s "${report_dir}/sitemap_urls.txt" ]] && webapp_enum "${url_domain}" "${report_dir}/sitemap_urls.txt"
 
     # Iterate over BOTH files and pass ${file}, not the hard-coded
     # url_test.txt — otherwise robots_urls.txt is never crawled/scanned.
     # Also adds ${url_domain} as the first arg to aquatone_screenshot
     # (report C-04).
-    for file in "${recon_dir}/url_test.txt" "${report_dir}/robots_urls.txt"; do
+    for file in "${recon_dir}/url_test.txt" "${report_dir}/robots_urls.txt" "${report_dir}/sitemap_urls.txt"; do
         if [[ -s "${file}" ]]; then
             webapp_tech         "${url_domain}" "${file}"
             crawler_js          "${url_domain}" "${file}"

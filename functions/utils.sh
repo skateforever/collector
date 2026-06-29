@@ -291,6 +291,7 @@ build_llm_prompt(){
         "email_recon.txt"
         "email_recon_diff.txt"
         "robots_urls.txt"
+        "sitemap_urls.txt"
         "webapp_js_secrets.txt"
         "webapp_js_params.txt"
         "scan/nmap/nmap_scan.txt"

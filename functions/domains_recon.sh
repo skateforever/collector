@@ -214,6 +214,12 @@ domains_recon(){
         webapp_enum "${domain}" "${report_dir}/webapp_consolidated.txt"
         robots_txt
         [[ -s "${report_dir}/robots_urls.txt" ]] && webapp_enum "${domain}" "${report_dir}/robots_urls.txt"
+        # sitemap_xml runs AFTER robots_txt so it can pick up any
+        # "Sitemap: <url>" hints captured in the robots bodies. The output
+        # file ${report_dir}/sitemap_urls.txt is then treated exactly like
+        # robots_urls.txt by the downstream loop.
+        sitemap_xml "${report_dir}/webapp_consolidated.txt"
+        [[ -s "${report_dir}/sitemap_urls.txt" ]] && webapp_enum "${domain}" "${report_dir}/sitemap_urls.txt"
 
         # Use a loop variable name that doesn't collide with the global
         # `urls_file` used (and unset) inside aquatone_screenshot /
@@ -221,7 +227,7 @@ domains_recon(){
         # first callee runs, `${urls_file}` is empty for the remaining
         # callees in the same iteration (report B-05).
         local current_urls_file
-        for current_urls_file in "${report_dir}/webapp_consolidated.txt" "${report_dir}/robots_urls.txt"; do
+        for current_urls_file in "${report_dir}/webapp_consolidated.txt" "${report_dir}/robots_urls.txt" "${report_dir}/sitemap_urls.txt"; do
             if [[ -s "${current_urls_file}" ]]; then
                 aquatone_screenshot "${domain}" "${current_urls_file}"
                 if [[ "${webapp_crawler_check}" == "yes" ]]; then

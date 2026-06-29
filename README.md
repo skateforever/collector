@@ -275,7 +275,7 @@ Both use `collector-docker` (or `docker run --rm` directly) — each run fires a
 
 **Webapp enumeration:** dirsearch, ffuf, gobuster, git-dumper
 
-**Webapp crawler:** katana, waybackurls
+**Webapp crawler:** katana, waybackurls (sitemap.xml expansion built in)
 
 **Webapp scan:** nuclei
 
@@ -332,6 +332,7 @@ Both use `collector-docker` (or `docker run --rm` directly) — each run fires a
         ├── vhost_subdomains_diff.txt
         ├── email_recon.txt / email_recon_diff.txt
         ├── robots_urls.txt
+        ├── sitemap_urls.txt                       URLs harvested from sitemap.xml (recursive sitemapindex)
         ├── webapp_js_secrets.txt                  hardcoded keys/tokens/JWTs in JS
         ├── webapp_js_params.txt                   param names + DOM sinks (SQLi/XSS/SSRF/...)
         ├── llm-prompt.txt                         LLM bundle: all artifacts
