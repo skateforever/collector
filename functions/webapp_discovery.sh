@@ -69,7 +69,7 @@ webapp_alive(){
         else
             echo "Fail!"
             echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Something got wrong while checking the status of URLs!"
-            echo -e "Something got wrong while checking the status of URLs!" | notify "${notify_pc_args[@]}" -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
+            echo -e "Something got wrong while checking the status of URLs!" | notify "${notify_pc_args[@]}" "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
             message "${target}" failed
             exit 1
         fi
@@ -105,14 +105,14 @@ webapp_alive(){
             else
                 echo "Fail!"
                 echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Could not create file for infrastructure domains, something went wrong."
-                echo -e "Could not create file for infrastructure domains, something went wrong." | notify "${notify_pc_args[@]}" -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
+                echo -e "Could not create file for infrastructure domains, something went wrong." | notify "${notify_pc_args[@]}" "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
                 message "${target}" failed
                 exit 1
             fi
         else
             echo "Fail!"
             echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} We probably didn't have any webapp application, something is wrong!"
-            echo -e "We probably didn't have any webapp application, something is wrong!" | notify "${notify_pc_args[@]}" -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
+            echo -e "We probably didn't have any webapp application, something is wrong!" | notify "${notify_pc_args[@]}" "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
             message "${target}" failed
             exit 1
         fi
@@ -124,12 +124,12 @@ webapp_alive(){
             echo -e "Probably we have: \n \
                 \t* $(awk '{print $1}' "${report_dir}/webapp_urls.txt" | sed -e 's/^http.*\/\/// ; s/:.*$//' | awk -F'/' '{print $1}' | sort -u | wc -l) Web Applications URL(s).\n \
                 \t* $(wc -l "${report_dir}/domains_infrastructure.txt" | awk '{print $1}') Infrastructure domain(s)." \
-                | notify "${notify_pc_args[@]}" -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
+                | notify "${notify_pc_args[@]}" "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
         fi
     else
         echo "Fail!"
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} The ${report_dir}/domains_alive.txt does not exist or is empty."
-        echo -e "The ${report_dir}/domains_alive.txt does not exist or is empty." | notify "${notify_pc_args[@]}" -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
+        echo -e "The ${report_dir}/domains_alive.txt does not exist or is empty." | notify "${notify_pc_args[@]}" "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
         message "${target}" failed
         exit 1
     fi
@@ -148,7 +148,7 @@ aquatone_screenshot(){
             else
                 echo "Fail!"
                 echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Something got wrong, wasnt possible create directory ${aquatone_files_dir}."
-                echo -e "Something got wrong, wasnt possible create directory ${aquatone_files_dir}.\n\tPlease, look what got wrong and run the script again. Stopping the script!" | notify "${notify_pc_args[@]}" -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
+                echo -e "Something got wrong, wasnt possible create directory ${aquatone_files_dir}.\n\tPlease, look what got wrong and run the script again. Stopping the script!" | notify "${notify_pc_args[@]}" "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
                 message "${target}" failed
                 unset urls_file
                 exit 1
@@ -161,7 +161,7 @@ aquatone_screenshot(){
     else
         echo "Fail!"
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Make sure the ${urls_file} exist and isn't empty."
-        echo -e "Make sure the ${urls_file} exist and isn't empty." | notify "${notify_pc_args[@]}" -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
+        echo -e "Make sure the ${urls_file} exist and isn't empty." | notify "${notify_pc_args[@]}" "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
         message "${target}" failed
         unset urls_file
         exit 1
@@ -170,5 +170,5 @@ aquatone_screenshot(){
     unset aquatone_files_dir
     unset urls_file
     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Finish aquatone screenshot!"
-    echo -e "Finish aquatone screenshot!" | notify "${notify_pc_args[@]}" -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
+    echo -e "Finish aquatone screenshot!" | notify "${notify_pc_args[@]}" "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
 }

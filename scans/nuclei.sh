@@ -16,7 +16,7 @@ nuclei_scan(){
     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing nuclei web application vulnerability scan..."
     if [ "$#" != 2 ] || [ ! -s "${urls_file}" ]; then
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Please, especify just 1 file to get URL from."
-        echo -e "Please, especify just 1 file to get URL from." | notify "${notify_pc_args[@]}" -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
+        echo -e "Please, especify just 1 file to get URL from." | notify "${notify_pc_args[@]}" "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
         message "${target}" failed
         exit 1
     else
@@ -56,19 +56,19 @@ nuclei_scan(){
                 echo "Done!"
                 # Notifying the finds
                 echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Sending nuclei scan notification... "
-                grep -Ehr "\[critical\]" "${nuclei_scan_file}" | notify "${notify_pc_args[@]}" -nc -silent -id "${notify_critical_channel}"
-                grep -Ehr "\[high\]" "${nuclei_scan_file}" | notify "${notify_pc_args[@]}" -nc -silent -id "${notify_high_channel}"
+                grep -Ehr "\[critical\]" "${nuclei_scan_file}" | notify "${notify_pc_args[@]}" "${notify_options[@]}" -id "${notify_critical_channel}"
+                grep -Ehr "\[high\]" "${nuclei_scan_file}" | notify "${notify_pc_args[@]}" "${notify_options[@]}" -id "${notify_high_channel}"
                 echo "Done!"
             else
                 echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Make sure the directories structure was created. Stopping the script!"
                 unset urls_file
-                echo -e "Make sure the directories structure was created. Stopping the script!" | notify "${notify_pc_args[@]}" -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
+                echo -e "Make sure the directories structure was created. Stopping the script!" | notify "${notify_pc_args[@]}" "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
                 message "${target}" failed
                 exit 1
             fi
         else
             echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Make sure the ${urls_file} exist and isn't empty."
-            echo -e "Make sure the ${urls_file} exist and isn't empty." | notify "${notify_pc_args[@]}" -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
+            echo -e "Make sure the ${urls_file} exist and isn't empty." | notify "${notify_pc_args[@]}" "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
             message "${target}" failed
             unset urls_file
             exit 1

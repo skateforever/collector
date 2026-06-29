@@ -167,7 +167,7 @@ scan_js_secrets(){
             echo
             grep -v '^#' "${out_file}" | grep -v '^$' | head -n 30
             [[ "${total}" -gt 30 ]] && echo "... ($((total - 30)) more)"
-        } | notify "${notify_pc_args[@]}" -nc -silent -id "${channel}" > /dev/null 2>&1
+        } | notify "${notify_pc_args[@]}" "${notify_options[@]}" -id "${channel}" > /dev/null 2>&1
     fi
 }
 
@@ -235,7 +235,7 @@ scan_js_params(){
             echo "Top hits:"
             grep -v '^#' "${out_file}" | grep -v '^$' | head -n 30
             [[ "${total}" -gt 30 ]] && echo "... ($((total - 30)) more)"
-        } | notify "${notify_pc_args[@]}" -nc -silent -id "${channel}" > /dev/null 2>&1
+        } | notify "${notify_pc_args[@]}" "${notify_options[@]}" -id "${channel}" > /dev/null 2>&1
     fi
 }
 
@@ -256,7 +256,7 @@ build_consolidated_urls(){
             trap 'cleanup_etc_hosts' EXIT
         else
             echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Warning: /etc/hosts is not writable — vhost entries will not resolve via getent. Run as root or grant write access." >> "${log_execution_file}"
-            echo "Warning: /etc/hosts not writable; vhost entries skipped." | notify "${notify_pc_args[@]}" -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
+            echo "Warning: /etc/hosts not writable; vhost entries skipped." | notify "${notify_pc_args[@]}" "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
         fi
     fi
     sort -u "${tmp_dir}/webapp_consolidated.tmp" > "${tmp_dir}/webapp_consolidated_sorted.tmp"

@@ -23,7 +23,7 @@ crawler_js(){
     if [ "$#" != 2 ] || [ ! -s "${urls_file}" ]; then
         echo "Fail!"
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Please, especify just 1 file to get URL from."
-        echo -e "Please, especify just 1 file to get URL from." | notify "${notify_pc_args[@]}" -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
+        echo -e "Please, especify just 1 file to get URL from." | notify "${notify_pc_args[@]}" "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
         message "${target}" failed
         return 1
     fi
@@ -126,7 +126,7 @@ crawler_params(){
     if [ "$#" != 2 ] || [ ! -s "${urls_file}" ]; then
         echo "Fail!"
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Please, especify just 1 file to get URL from."
-        echo -e "Please, especify just 1 file to get URL from." | notify "${notify_pc_args[@]}" -nc -silent -id "${notify_recon_channel}" > /dev/null 2>&1
+        echo -e "Please, especify just 1 file to get URL from." | notify "${notify_pc_args[@]}" "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
         message "${target}" failed
         return 1
     fi
