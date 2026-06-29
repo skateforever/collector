@@ -29,38 +29,18 @@ vhost_probe(){
     fi
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing vhost probe... "
     : > "${tmp_dir}/vhost_probe_output.txt"
-    local vhost_probe_words=(
-        dev dev1 dev2 dev3 development staging stage stg stg1
-        test test1 test2 testing qa qa1 qa2 uat sit
-        preprod pre-prod pre rc sandbox playground lab labs
-        demo preview beta alpha canary
-        prod production live www web app apps
-        api api2 apiv2 v1 v2
-        cdn static assets media img images
-        files uploads download downloads s3 storage
-        admin administrator admin1 panel control
-        dashboard cp cpanel whm plesk
-        mgmt management manage manager
-        portal console ui gui
-        internal intranet corp corporate private
-        vpn remote gateway proxy firewall fw
-        ns ns1 ns2 dns mx smtp
-        mail mail1 mail2 webmail imap pop exchange
-        jenkins ci cd build deploy deployment
-        git gitlab github bitbucket svn repo
-        registry docker k8s kubernetes rancher
-        vault consul terraform
-        monitor monitoring grafana kibana prometheus
-        elk logstash splunk alert alerts status uptime health
-        auth sso login oauth oidc idp identity accounts
-        support help helpdesk ticket tickets jira
-        docs doc wiki kb forum community chat feedback
-        backend frontend service services svc
-        rpc graphql ws websocket
-        db database search elastic
-        analytics metrics stats tracking
-        shop store checkout payment pay
-    )
+    # Word list lives at ${collector_vhost_probe_words} (configured in
+    # collector.cfg, default: support/runtime/wordlists/vhost-probe-names.txt).
+    # One name per line; blank lines and lines starting with '#' are ignored
+    # so the file can carry section comments.
+    local vhost_probe_words=()
+    if [[ -s "${collector_vhost_probe_words}" ]]; then
+        mapfile -t vhost_probe_words < <(grep -Ev '^[[:space:]]*(#|$)' "${collector_vhost_probe_words}")
+    fi
+    if [[ "${#vhost_probe_words[@]}" -eq 0 ]]; then
+        echo "Fail! (wordlist missing or empty: ${collector_vhost_probe_words})"
+        return 0
+    fi
     local vhost_probe_max_workers="${vhost_check_processes:-8}"
     local vhost_probe_pids=()
     local vhost_probe_pid vhost_probe_alive_pids=()
