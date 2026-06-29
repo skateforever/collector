@@ -33,10 +33,26 @@ for file in check_binaries.sh usage.sh message.sh menu.sh check_structure.sh \
     else
         echo -e "Please ${red}make sure${reset} you have the ${yellow}\"${function}\"${reset} file."
         echo -e "${yellow}You need this file to execute collector${reset}!"
-        echo -e "The collector execution ${red}failed${reset} at ${yellow}$(date +"%Y%m%d %H:%M")${reset} due missing essentials files!" 
+        echo -e "The collector execution ${red}failed${reset} at ${yellow}$(date +"%Y%m%d %H:%M")${reset} due missing essentials files!"
         exit 1
     fi
 done
+
+# Source the scanners (network + web) — these are called by
+# domains_recon / url_recon, which were already sourced above, so the
+# function definitions must land in the shell before either runs.
+for scan in nmap.sh nuclei.sh shodan.sh; do
+    scan_file="${collector_path}/scans/${scan}"
+    if [ -s "${scan_file}" ]; then
+        source "${scan_file}"
+    else
+        echo -e "Please ${red}make sure${reset} you have the ${yellow}\"${scan_file}\"${reset} file."
+        echo -e "${yellow}You need this file to execute collector${reset}!"
+        echo -e "The collector execution ${red}failed${reset} at ${yellow}$(date +"%Y%m%d %H:%M")${reset} due missing scanner files!"
+        exit 1
+    fi
+done
+unset scan scan_file
 
 check_container
 check_binaries

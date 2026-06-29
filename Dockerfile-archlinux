@@ -69,7 +69,7 @@ RUN wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/c
 
 # 7. Configuração Final
 COPY . .
-RUN chmod +x collector && chmod +x functions/*.sh
+RUN chmod +x collector && chmod +x functions/*.sh && chmod +x scans/*.sh && chmod +x sources/*.sh
 
 # Pin output_dir to the mounted volume path so every run writes results
 # to /opt/collector/outputs. The -o/--output CLI flag was removed; to

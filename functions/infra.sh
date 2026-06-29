@@ -6,9 +6,8 @@
 # And is responsible to get the functions:                  #
 #                                                           #
 #   * infra_data                                            #
-#   * nmap_scan                                             #
-#   * shodan_scan                                           #
 #                                                           #
+# nmap_scan / shodan_scan moved to scans/{nmap,shodan}.sh.  #
 #############################################################
 
 infra_data(){
@@ -100,28 +99,7 @@ infra_data(){
     fi
 }
 
-nmap_scan(){
-        if [ -s "${report_dir}/infra_ipv4.txt" ]; then
-            echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Getting information about IPs with nmap... "
-            echo -e "\nnmap ${nmap_options[@]} -iL \"${report_dir}/infra_ipv4.txt\" > \"${nmap_dir}/nmap_scan.txt\"" >> "${log_execution_file}"
-            nmap "${nmap_options[@]}" -iL "${report_dir}/infra_ipv4.txt" > "${nmap_dir}/nmap_scan.txt"
-            echo "Done!"
-        fi
-}
-
-shodan_scan(){
-    if [ "${shodan_use}" == "yes" ] && [ -s "${report_dir}/infra_blocks.txt" ]; then
-        echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing shodan scan on target's IPs... "
-        shodan_scans=$(shodan info | grep "Scan.*:" | awk '{print $4}')
-        # collector.cfg defines `shodan_just_scan_main_domain`; the previous
-        # check on `shodan_scan_main_domain` was always false, so this branch
-        # never executed (report B-09).
-        if [ "${shodan_just_scan_main_domain}" == "yes" ] && [ "${shodan_scans}" -gt 1 ]; then
-            for IP in $(cat "${report_dir}/infra_ipv4.txt"); do
-                echo "shodan scan submit ${IP} > ${shodan_dir}/shodan_scan.txt" >> "${log_execution_file}"
-                "shodan" scan submit "${IP}" > "${shodan_dir}/shodan_scan.txt" 2>> "${log_execution_file}" &
-            done
-        fi
-        echo "Done!"
-    fi
-}
+# nmap_scan and shodan_scan were moved to scans/nmap.sh and scans/shodan.sh
+# so the IP-surface scanners live next to nuclei_scan (web vuln scan) in
+# one dedicated directory. The collector main sources scans/*.sh after
+# functions/*.sh so the call sites in domains_recon.sh keep working.
