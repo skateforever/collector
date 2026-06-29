@@ -39,7 +39,15 @@ RUN go install github.com/projectdiscovery/tlsx/cmd/tlsx@latest && \
     CGO_ENABLED=1 go install github.com/projectdiscovery/katana/cmd/katana@latest && \
     CGO_ENABLED=0 go install github.com/owasp-amass/amass/v5/cmd/amass@main && \
     go install github.com/evilsocket/dnssearch@master && \
-    go install github.com/003random/getJS@latest
+    go install github.com/003random/getJS@latest && \
+    go install github.com/PentestPad/subzy@latest && \
+    go install github.com/haccer/subjack@latest
+
+# subjack ships its fingerprints externally; bundle the upstream JSON so
+# the takeover scan can pass it via `subjack -c`. Path is referenced by
+# scans/takeover.sh.
+RUN wget -q https://raw.githubusercontent.com/haccer/subjack/master/fingerprints.json \
+    -O /opt/collector/fingerprints.json
 
 # 4. Ferramentas Python
 RUN python -m pip install --no-cache-dir --upgrade pip setuptools wheel && \

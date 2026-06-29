@@ -1,0 +1,96 @@
+# Subdomain takeover fingerprints loaded by scans/takeover.sh
+# (takeover_match_provider). Lines starting with '#' and blank lines are
+# ignored at load time, so section headers below cost nothing at runtime.
+#
+# Format (pipe-separated, three fields):
+#   <cname_regex>|<provider_tag>|<body_fingerprint>
+#
+#   cname_regex       Extended regex (POSIX ERE) matched case-insensitively
+#                     against the final hop of the resolved CNAME chain.
+#                     Anchor with $ when the provider only owns one TLD;
+#                     keep dots escaped (\.) to avoid wildcard surprises.
+#   provider_tag      Short slug emitted into domains_takeover.txt.
+#   body_fingerprint  Literal substring (passed to grep -F) expected in
+#                     the HTTP response body when the resource is
+#                     unclaimed. Leave empty for providers that don't
+#                     return a stable error string — the matcher will
+#                     still classify the host as MEDIUM via the CNAME but
+#                     won't be able to upgrade it to STRONG via HTTP.
+#
+# Reference / origin of these patterns:
+#   https://github.com/EdOverflow/can-i-take-over-xyz
+#   https://github.com/projectdiscovery/nuclei-templates/tree/main/http/takeovers
+#
+# Keep this list in sync with can-i-take-over-xyz — providers add and
+# remove takeover vectors regularly (Heroku, GitHub Pages and Azure have
+# all tightened verification at various points). When a provider is no
+# longer exploitable, comment the line out rather than deleting it so
+# the diff stays readable.
+
+# ============================================================
+# AWS
+# ============================================================
+s3\.amazonaws\.com$|aws-s3|NoSuchBucket
+s3-website[.-].*\.amazonaws\.com$|aws-s3-website|NoSuchBucket
+\.s3\.dualstack\..*\.amazonaws\.com$|aws-s3-dualstack|NoSuchBucket
+cloudfront\.net$|aws-cloudfront|Bad request
+elasticbeanstalk\.com$|aws-elasticbeanstalk|
+
+# ============================================================
+# GitHub / GitLab / Bitbucket
+# ============================================================
+github\.io$|github-pages|There isn't a GitHub Pages site here
+gitlab\.io$|gitlab|404
+bitbucket\.io$|bitbucket|Repository not found
+
+# ============================================================
+# Heroku
+# ============================================================
+herokuapp\.com$|heroku|No such app
+herokudns\.com$|heroku-dns|No such app
+
+# ============================================================
+# Azure
+# ============================================================
+azurewebsites\.net$|azure-web|404 Web Site not found
+cloudapp\.net$|azure-cloud|
+cloudapp\.azure\.com$|azure-cloudapp|
+trafficmanager\.net$|azure-traffic|
+blob\.core\.windows\.net$|azure-blob|
+azureedge\.net$|azure-cdn|
+
+# ============================================================
+# CDN / Edge
+# ============================================================
+fastly\.net$|fastly|Fastly error: unknown domain
+netlify\.app$|netlify|Not Found - Request ID
+netlify\.com$|netlify|Not Found - Request ID
+vercel\.app$|vercel|The deployment could not be found
+now\.sh$|vercel-now|The deployment could not be found
+surge\.sh$|surge|project not found
+
+# ============================================================
+# SaaS / CMS / Docs
+# ============================================================
+cargocollective\.com$|cargo|404 Not Found
+ghost\.io$|ghost|The thing you were looking for is no longer here
+helpjuice\.com$|helpjuice|We could not find what you're looking for
+helpscoutdocs\.com$|helpscout|No settings were found for this company
+myshopify\.com$|shopify|Sorry, this shop is currently unavailable
+readme\.io$|readme|Project doesnt exist... yet!
+statuspage\.io$|statuspage|You are being
+tumblr\.com$|tumblr|Whatever you were looking for doesn't currently exist
+uservoice\.com$|uservoice|This UserVoice subdomain is currently available
+wpengine\.com$|wpengine|The site you were looking for couldn't be found
+zendesk\.com$|zendesk|Help Center Closed
+unbouncepages\.com$|unbounce|The requested URL was not found on this server
+pantheonsite\.io$|pantheon|The gods are wise
+wordpress\.com$|wordpress|Do you want to register
+intercom\.help$|intercom|Uh oh. That page doesn't exist
+bigcartel\.com$|bigcartel|Oops! We couldn't find that page
+tilda\.ws$|tilda|Please renew your subscription
+hatenablog\.com$|hatena|404 Blog is not found
+webflow\.io$|webflow|The page you are looking for doesn't exist
+launchrock\.com$|launchrock|HTTP 404
+tictail\.com$|tictail|to your account on tictail
+ngrok\.io$|ngrok|Tunnel .* not found
