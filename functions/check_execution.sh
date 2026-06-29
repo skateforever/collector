@@ -64,6 +64,7 @@ check_execution(){
         user_agent="$(get_user_agent)"
         # Quick reachability check at startup — use the fast profile so an
         # unreachable host doesn't block the whole run for a minute.
+        local status_code
         status_code=$(curl "${curl_options_fast[@]}" -H "User-agent: ${user_agent}" -w "%{http_code}" "${url_verify}" > /dev/null)
         if [[ -z ${status_code} || "${status_code}" -eq "000" ]];then
             echo -e "You need specify a valid URL!\n"

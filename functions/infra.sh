@@ -17,6 +17,7 @@ infra_data(){
         # To avoid the warning message: "Warning: RIPE flags used with a traditional server."
         # The -- option is needed.
         echo "AS      | IP               | BGP Prefix          | CC | Registry | Allocated  | AS Name" >> "${report_dir}/infra_as.txt"
+        local IP ownerid whois_domain_out ownerid_field ownerid_candidate ib_whois
         while IFS= read -r IP; do
             echo -e "\n" >> "${log_execution_file}"
             echo "whois -h whois.cymru.com -- \"-v ${IP}\" | tail -n +2 >> \"${report_dir}/infra_as.txt\"" >> "${log_execution_file}"
@@ -67,7 +68,6 @@ infra_data(){
                     break
                 fi
             done
-            unset whois_domain_out ownerid_field ownerid_candidate
 
             for IP in $(grep -Ev "Google|Microsoft|Azure|AWS|Amazon|Cloudflare" "${report_dir}/infra_as.txt" | tail -n+2 | awk '{print $3}'); do
                 if [[ -n "${ownerid}" ]]; then
@@ -82,11 +82,9 @@ infra_data(){
                         # IPv6 block
                         # ?
                     fi
-                    unset ib_whois
                 fi
             done
         fi
-        unset ownerid
 
         [[ -s "${tmp_dir}/infra_blocks.tmp" ]] && \
             sort -u -o "${report_dir}/infra_blocks.txt" "${tmp_dir}/infra_blocks.tmp"

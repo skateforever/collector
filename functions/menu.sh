@@ -15,28 +15,33 @@
 # Rejects path separators, shell metacharacters, whitespace, schemes, etc.
 # Returns 0 on valid, 1 on invalid (and prints to stderr).
 validate_domain(){
-    local _candidate="$1"
-    if [[ -z "${_candidate}" ]]; then
+    local candidate="$1"
+    if [[ -z "${candidate}" ]]; then
         echo -e "Empty domain is not allowed." >&2
         return 1
     fi
-    if [[ ${#_candidate} -gt 253 ]]; then
-        echo -e "Domain is too long (>253 chars): ${_candidate}" >&2
+    if [[ ${#candidate} -gt 253 ]]; then
+        echo -e "Domain is too long (>253 chars): ${candidate}" >&2
         return 1
     fi
-    if ! [[ "${_candidate}" =~ ^[A-Za-z0-9]([A-Za-z0-9_-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9_-]*[A-Za-z0-9])?)*$ ]]; then
-        echo -e "Invalid domain format: ${yellow}${_candidate}${reset}" >&2
+    if ! [[ "${candidate}" =~ ^[A-Za-z0-9]([A-Za-z0-9_-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9_-]*[A-Za-z0-9])?)*$ ]]; then
+        echo -e "Invalid domain format: ${yellow}${candidate}${reset}" >&2
         return 1
     fi
     return 0
 }
 
 check_argument(){
+    # local arrays — declarar do zero a cada chamada (estava acumulando entre
+    # invocações sucessivas porque era global, mas a lógica nunca dependeu do
+    # acúmulo).
+    local options=()
     options+=(-d --domain -dl --domain-list -ed --exclude-domains -el --exclude-domain-list -h --help)
     options+=(-l --limit-urls -p --proxy -r --recon -s --subdomain-brute -u --url)
     options+=(-wc --webapp-crawler -wd --webapp-discovery -we --webapp-enum -ws --webapp-scan)
     options+=(-wld --webapp-long-detection -wsd --webapp-short-detection -ww --webapp-wordlists)
-    argument=$2
+    local argument=$2
+    local option
     if [[ -z "${argument}" ]]; then
         echo -e "The argument of ${yellow}\"$1\"${reset} it can not be ${red}\"empty\"${reset} or you forgot to inform it, please, ${yellow}specify a valid one${reset}.\n"
         usage
@@ -51,8 +56,8 @@ check_argument(){
 }
 
 menu(){
-    args=("$@")
-    args_count="$#"
+    local args=("$@")
+    args_count="$#"   # GLOBAL — lido por check_parameter_dependency() em check_execution.sh
     while [ $# -ne 0 ]; do
         case $1 in
             -d|--domain)
@@ -126,6 +131,7 @@ menu(){
                 unset IFS
                 set -f
                 IFS=","
+                local dw
                 for dw in $2; do
                     if [[ -s "${dw}" ]]; then
                         # Append the split element (a single path), not the
@@ -178,6 +184,7 @@ menu(){
                 check_argument "$1" "$2"
                 set -f
                 IFS=","
+                local ww
                 for ww in $2; do
                     if [[ -s "${ww}" ]]; then
                         # Append the split element (single path), not $2

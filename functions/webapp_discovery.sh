@@ -12,13 +12,14 @@
 ############################################################################### 
 
 get_user_agent(){
-    user_agent_file="${collector_user_agents}"
+    local user_agent_file="${collector_user_agents}"
     shuf -n 1 "${user_agent_file}"
 }
 
 webapp_alive(){
     target="$1"
     alive_file="$2"
+    local subdomain port url line http_status_code https_status_code
     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Initializing the web application discovery and this might take a certain time!"
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Testing subdomains to know if it has a web application... "
     echo -e "\n" >> "${log_execution_file}"

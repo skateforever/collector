@@ -39,6 +39,7 @@ url_recon(){
     # pattern matched incomplete addresses like '1.2.3'. Use the shared
     # IPv4_regex/IPv6_regex from collector.cfg and consider the target
     # reachable if either record resolves.
+    local url_ipv4 url_ipv6 file
     url_ipv4="$(dig +short A    "${url_domain}" 2>/dev/null | grep -Eo "${IPv4_regex}" | head -1)"
     url_ipv6="$(dig +short AAAA "${url_domain}" 2>/dev/null | head -1)"
     if [[ -n "${url_ipv4}" ]] || [[ -n "${url_ipv6}" ]]; then
@@ -47,7 +48,6 @@ url_recon(){
         message "${url_domain}" failed
         exit 1
     fi
-    unset url_ipv4 url_ipv6
 
     if [[ -s "${recon_dir}/url_test.txt" ]]; then
         webapp_enum "${url_domain}" "${recon_dir}/url_test.txt"

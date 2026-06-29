@@ -14,6 +14,7 @@
 webapp_enum(){
     target="$1"
     urls_file="$2"
+    local list index urls_tested url name file_gobuster file_dirsearch
     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Initializing the web application enumeration and this might take a certain time!"
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing web application files and dirs enumeration... "
     if [ -s "${urls_file}" ]; then
@@ -130,6 +131,7 @@ webapp_enum(){
 webapp_tech(){
     target="$1"
     urls_file="$2"
+    local url name file_tech_by_headers
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing web application technology enumeration..."
     if [ -s "${urls_file}" ]; then
         if [ -d "${report_dir}" ] && [ -d "${webapp_tech_dir}" ] ; then
@@ -172,20 +174,18 @@ webapp_tech(){
 }
 
 robots_txt(){
+    local file robots_target url
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Looking for new URLs on robots.txt... "
     for file in $("${ls_bin_path}" -1A "${webapp_enum_dir}/"); do
         unset user_agent
         user_agent="$(get_user_agent)"
         if grep -E "robots\.txt" "${webapp_enum_dir}/${file}" > /dev/null && [ -s "${webapp_enum_dir}/${file}" ] ; then
-            target=$(grep -E "Target:|Url:" "${webapp_enum_dir}/${file}" | sed -e 's/^\[+\] //' | awk '{print $2}' | sed -e 's/\/$//')
-            for url in $(curl "${curl_options[@]}" -H "User-agent: ${user_agent}" -s "${target}"/robots.txt | grep -Ev "User-agent: *" | awk '{print $2}' | sed -e "/^\/$/d"); do
-                echo "${target}${url}" >> "${report_dir}/robots_urls.txt"
+            robots_target=$(grep -E "Target:|Url:" "${webapp_enum_dir}/${file}" | sed -e 's/^\[+\] //' | awk '{print $2}' | sed -e 's/\/$//')
+            for url in $(curl "${curl_options[@]}" -H "User-agent: ${user_agent}" -s "${robots_target}"/robots.txt | grep -Ev "User-agent: *" | awk '{print $2}' | sed -e "/^\/$/d"); do
+                echo "${robots_target}${url}" >> "${report_dir}/robots_urls.txt"
                 sed -i -e 's/\r//g' -e 's/\/$//g' "${report_dir}/robots_urls.txt"
             done
         fi
-        unset target
-        unset file
-    done 
+    done
     echo "Done!"
-    unset files
 }

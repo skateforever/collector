@@ -133,8 +133,8 @@ domains_recon(){
                 grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/vhost_probe_output.txt" \
                     | sort -u > "${tmp_dir}/vhost_probe_new.tmp"
                 if [[ -s "${tmp_dir}/vhost_probe_new.tmp" ]]; then
-                    local _vp_tls_pat
-                    _vp_tls_pat="$(echo "${webapp_tls_ports[@]}" | tr ' ' '|')"
+                    local vp_tls_pat vp_new_host vp_new_ip
+                    vp_tls_pat="$(echo "${webapp_tls_ports[@]}" | tr ' ' '|')"
                     while IFS= read -r vp_new_host; do
                         vp_new_ip="$(dig +short A "${vp_new_host}" 2>/dev/null | grep -Eo "${IPv4_regex}" | head -1)"
                         if [[ -n "${vp_new_ip}" ]]; then
@@ -144,14 +144,14 @@ domains_recon(){
                             # Build vhost URLs so build_consolidated_urls picks them up.
                             # vhost_probe probes HTTP only (F-06 aside), so generate
                             # both http and https variants for all configured ports.
-                            for _vp_port in "${webapp_port_detect[@]}"; do
-                                local _vp_proto="http"
-                                [[ "${_vp_port}" =~ ^(${_vp_tls_pat})$ ]] && _vp_proto="https"
-                                if [[ "${_vp_proto}" == "http" && "${_vp_port}" == "80" ]] || \
-                                   [[ "${_vp_proto}" == "https" && "${_vp_port}" == "443" ]]; then
-                                    echo "${_vp_proto}://${vp_new_host}"
+                            for vp_port in "${webapp_port_detect[@]}"; do
+                                local vp_proto="http"
+                                [[ "${vp_port}" =~ ^(${vp_tls_pat})$ ]] && vp_proto="https"
+                                if [[ "${vp_proto}" == "http" && "${vp_port}" == "80" ]] || \
+                                   [[ "${vp_proto}" == "https" && "${vp_port}" == "443" ]]; then
+                                    echo "${vp_proto}://${vp_new_host}"
                                 else
-                                    echo "${_vp_proto}://${vp_new_host}:${_vp_port}"
+                                    echo "${vp_proto}://${vp_new_host}:${vp_port}"
                                 fi
                             done >> "${report_dir}/vhost_urls.txt"
                         fi
@@ -186,6 +186,7 @@ domains_recon(){
                     grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/spider_output.txt" \
                         | sort -u > "${tmp_dir}/spider_new.tmp"
                     if [[ -s "${tmp_dir}/spider_new.tmp" ]]; then
+                        local sp_new_host sp_new_ip
                         while IFS= read -r sp_new_host; do
                             sp_new_ip="$(dig +short A "${sp_new_host}" 2>/dev/null | grep -Eo "${IPv4_regex}" | head -1)"
                             if [[ -n "${sp_new_ip}" ]]; then
@@ -219,6 +220,7 @@ domains_recon(){
         # nuclei_scan / webapp_tech / webapp_enum. Otherwise, after the
         # first callee runs, `${urls_file}` is empty for the remaining
         # callees in the same iteration (report B-05).
+        local current_urls_file
         for current_urls_file in "${report_dir}/webapp_consolidated.txt" "${report_dir}/robots_urls.txt"; do
             if [[ -s "${current_urls_file}" ]]; then
                 aquatone_screenshot "${domain}" "${current_urls_file}"

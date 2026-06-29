@@ -11,6 +11,7 @@
 #############################################################            
 
 joining_subdomains(){
+    local subdomain chaos_root f file files_amass files_gobuster_dns files_dnssearch excluded_domain
     echo -en "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Putting all domain search results in one file... "
     if [ -d "${tmp_dir}" ] && [ -d "${report_dir}" ]; then
         if [ -s "${tmp_dir}/alienvault_output.json" ]; then
@@ -562,7 +563,8 @@ joining_subdomains(){
 }
 
 organizing_subdomains(){
-    subdomains_file="$1"
+    local subdomains_file="$1"
+    local d file_resolution
     if [ -s "${subdomains_file}" ]; then
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Getting the IPs and aliases of the domain and subdomains... "
         if [ -s "${massdns_resolvers_file}" ]; then
@@ -655,8 +657,8 @@ organizing_subdomains(){
                     for d in $(cat "${tmp_dir}/domains_alive.tmp" | sort -u); do
                         # Escape dots so the domain is treated as a literal string,
                         # not a regex wildcard — prevents false deletions.
-                        local _d_escaped="${d//./\\.}"
-                        sed -i "/^${_d_escaped}$/d" "${tmp_dir}/domains_without_resolution.tmp"
+                        local d_escaped="${d//./\\.}"
+                        sed -i "/^${d_escaped}$/d" "${tmp_dir}/domains_without_resolution.tmp"
                     done
                     echo "Done!"
                 else

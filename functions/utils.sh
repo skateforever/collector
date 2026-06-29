@@ -57,19 +57,19 @@ reset_vars(){
 # Use before writing curl command lines or response bodies to log files,
 # so that sharing the log for debugging doesn't leak credentials.
 redact_secrets(){
-    local _line="$1"
-    local _var _val
-    for _var in builtwith_api_key censys_api_id censys_api_secret \
+    local line="$1"
+    local var val
+    for var in builtwith_api_key censys_api_id censys_api_secret \
                 dnsdumpster_api_key hunterio_api lampyre_api_key \
                 riskiq_api_key riskiq_api_secret securitytrails_api_key \
                 shodan_apikey snov_api_token virustotal_api_key \
                 whoisxmlapi_api_key; do
-        _val="${!_var}"
-        if [[ -n "${_val}" ]]; then
-            _line="${_line//${_val}/***REDACTED***}"
+        val="${!var}"
+        if [[ -n "${val}" ]]; then
+            line="${line//${val}/***REDACTED***}"
         fi
     done
-    printf '%s' "${_line}"
+    printf '%s' "${line}"
 }
 
 # Scan downloaded JavaScript files for likely API keys, tokens, secrets and

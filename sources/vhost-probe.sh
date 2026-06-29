@@ -79,9 +79,9 @@ vhost_probe(){
 
         # Use https for known TLS ports, http for everything else.
         vp_proto="http"
-        local _p
-        for _p in "${webapp_tls_ports[@]}"; do
-            [[ "${_p}" == "${vp_port}" ]] && { vp_proto="https"; break; }
+        local p
+        for p in "${webapp_tls_ports[@]}"; do
+            [[ "${p}" == "${vp_port}" ]] && { vp_proto="https"; break; }
         done
         vp_url="${vp_proto}://${vp_ip}:${vp_port}"
 
@@ -116,19 +116,19 @@ vhost_probe(){
 
         local vhost_probe_port
         for vhost_probe_port in "${webapp_port_detect[@]}"; do
-            local _bp_proto="http"
-            local _p2
-            for _p2 in "${webapp_tls_ports[@]}"; do
-                [[ "${_p2}" == "${vhost_probe_port}" ]] && { _bp_proto="https"; break; }
+            local bp_proto="http"
+            local p2
+            for p2 in "${webapp_tls_ports[@]}"; do
+                [[ "${p2}" == "${vhost_probe_port}" ]] && { bp_proto="https"; break; }
             done
-            local _bp_url="${_bp_proto}://${vhost_probe_ip}:${vhost_probe_port}"
-            echo -e "\ncurl ${curl_options_fast[@]} -H \"Host: ${vhost_probe_rand_host}\" -H \"User-agent: ${user_agent}\" -o /dev/null -w \"%{http_code} %{size_download}\" \"${_bp_url}\"" >> "${log_execution_file}"
+            local bp_url="${bp_proto}://${vhost_probe_ip}:${vhost_probe_port}"
+            echo -e "\ncurl ${curl_options_fast[@]} -H \"Host: ${vhost_probe_rand_host}\" -H \"User-agent: ${user_agent}\" -o /dev/null -w \"%{http_code} %{size_download}\" \"${bp_url}\"" >> "${log_execution_file}"
             local vhost_probe_baseline_raw
             vhost_probe_baseline_raw="$(curl "${curl_options_fast[@]}" \
                 -H "Host: ${vhost_probe_rand_host}" \
                 -H "User-agent: ${user_agent}" \
                 -o /dev/null -w "%{http_code} %{size_download}" \
-                "${_bp_url}" 2>/dev/null)"
+                "${bp_url}" 2>/dev/null)"
             local vhost_probe_baseline_status vhost_probe_baseline_len
             vhost_probe_baseline_status="$(echo "${vhost_probe_baseline_raw}" | awk '{print $1}')"
             vhost_probe_baseline_len="$(echo "${vhost_probe_baseline_raw}" | awk '{print $2}')"
