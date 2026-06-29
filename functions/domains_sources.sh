@@ -25,7 +25,7 @@ subdomains_recon(){
         done
     else
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Make sure the directories structure was created. Stopping the script!"
-        echo -e "Make sure the directories structure was created. Stopping the script!" | notify "${notify_pc_args[@]}" "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
+        echo -e "Make sure the directories structure was created. Stopping the script!" | notify "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
         message "${domain}" failed
         exit 1
     fi

@@ -76,22 +76,6 @@ resolve_asset_path(){
     fi
 }
 
-# Build a notify_pc_args array that holds `-pc <path>` if the configured
-# provider config exists, or stays empty otherwise. Every `notify ...`
-# call expands "${notify_pc_args[@]}" inline; an empty array expands to
-# zero arguments, so the call gracefully falls back to notify's default
-# search path (\$HOME/.config/notify/provider-config.yaml) when no host
-# config is bind-mounted into the container.
-#
-# Called once at boot from collector main, after collector.cfg is sourced
-# and resolve_asset_path() is available.
-init_notify_pc_args(){
-    notify_pc_args=()
-    if [[ -n "${collector_notify_config}" && -s "${collector_notify_config}" ]]; then
-        notify_pc_args=(-pc "${collector_notify_config}")
-    fi
-}
-
 # Replace any occurrence of the configured API keys with a redacted marker.
 # Use before writing curl command lines or response bodies to log files,
 # so that sharing the log for debugging doesn't leak credentials.
@@ -167,7 +151,7 @@ scan_js_secrets(){
             echo
             grep -v '^#' "${out_file}" | grep -v '^$' | head -n 30
             [[ "${total}" -gt 30 ]] && echo "... ($((total - 30)) more)"
-        } | notify "${notify_pc_args[@]}" "${notify_options[@]}" -id "${channel}" > /dev/null 2>&1
+        } | notify "${notify_options[@]}" -id "${channel}" > /dev/null 2>&1
     fi
 }
 
@@ -235,7 +219,7 @@ scan_js_params(){
             echo "Top hits:"
             grep -v '^#' "${out_file}" | grep -v '^$' | head -n 30
             [[ "${total}" -gt 30 ]] && echo "... ($((total - 30)) more)"
-        } | notify "${notify_pc_args[@]}" "${notify_options[@]}" -id "${channel}" > /dev/null 2>&1
+        } | notify "${notify_options[@]}" -id "${channel}" > /dev/null 2>&1
     fi
 }
 
@@ -256,7 +240,7 @@ build_consolidated_urls(){
             trap 'cleanup_etc_hosts' EXIT
         else
             echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Warning: /etc/hosts is not writable — vhost entries will not resolve via getent. Run as root or grant write access." >> "${log_execution_file}"
-            echo "Warning: /etc/hosts not writable; vhost entries skipped." | notify "${notify_pc_args[@]}" "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
+            echo "Warning: /etc/hosts not writable; vhost entries skipped." | notify "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
         fi
     fi
     sort -u "${tmp_dir}/webapp_consolidated.tmp" > "${tmp_dir}/webapp_consolidated_sorted.tmp"

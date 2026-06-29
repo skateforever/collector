@@ -27,11 +27,12 @@ COLLECTOR_CFG="${COLLECTOR_CFG:-/opt/collector/collector.cfg}"
 NOTIFY_CONFIG="${NOTIFY_CONFIG:-/opt/collector/notify-provider.yaml}"
 APP_PORT="${APP_PORT:-127.0.0.1:8000:8000}"
 
-# The notify mount is optional. Skip it if the host file doesn't exist —
-# otherwise `docker run` would create a directory at the target path and
-# notify would fail trying to read it as a YAML file. When omitted, the
-# notify_pc_args array inside collector stays empty and notify falls back
-# to its default search path (\$HOME/.config/notify/provider-config.yaml).
+# The notify mount is OPT-IN — only injected when the host file exists.
+# Without it, every `notify ... -pc /etc/collector/notify-provider.yaml`
+# call inside the container will print a 'config not found' line on stderr
+# (visible in log_execution_file). That's intentional: a missing mount
+# should be loud, not silent. To opt out cleanly, edit collector.cfg and
+# drop -pc from notify_options.
 notify_mount_args=()
 if [[ -s "${NOTIFY_CONFIG}" ]]; then
     notify_mount_args=(-v "${NOTIFY_CONFIG}:/etc/collector/notify-provider.yaml:ro")
