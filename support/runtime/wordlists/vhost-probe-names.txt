@@ -1,12 +1,23 @@
+# vhost_probe candidate host names — one per line.
+# Lines starting with '#' and blank lines are ignored at load time.
+# Sections below group names by purpose; order does not affect behaviour.
+
+# ============================================================
+# Environments
+# ============================================================
 dev
 dev1
 dev2
 dev3
 development
 staging
-stage
 stg
 stg1
+stage
+stage1
+homolog
+hml
+hml1
 test
 test1
 test2
@@ -15,10 +26,12 @@ qa
 qa1
 qa2
 uat
+uat1
 sit
 preprod
 pre-prod
 pre
+release
 rc
 sandbox
 playground
@@ -32,30 +45,85 @@ canary
 prod
 production
 live
+hotfix
+
+# ============================================================
+# Web / app / api front
+# ============================================================
 www
+www1
+www2
 web
+web1
+web2
+webapp
+webapps
 app
 apps
+app1
+app2
+mobile
+m
+client
+portal
+intranet
+extranet
+public
+landing
+home
+legacy
 api
+api1
 api2
+api3
+api-v1
+api-v2
+apiv1
 apiv2
 v1
 v2
+v3
+graphql
+rest
+grpc
+ws
+websocket
+webhook
+webhooks
+
+# ============================================================
+# Static / CDN / media
+# ============================================================
 cdn
+cdn1
 static
+static1
 assets
 media
 img
 images
+photos
+videos
 files
-uploads
 download
 downloads
+upload
+uploads
 s3
 storage
+bucket
+cache
+
+# ============================================================
+# Admin / management UIs
+# ============================================================
 admin
 administrator
 admin1
+admin2
+adminer
+backoffice
+backend
 panel
 control
 dashboard
@@ -65,29 +133,60 @@ whm
 plesk
 mgmt
 management
-manage
 manager
-portal
 console
 ui
 gui
+admin-ui
+admin-panel
+admin-portal
+admin-api
+admin-console
+superadmin
+root
+
+# ============================================================
+# Internal / corporate
+# ============================================================
 internal
-intranet
 corp
 corporate
 private
+office
+hq
+local
+team
+
+# ============================================================
+# Networking / proxies / gateway
+# ============================================================
 vpn
+vpn1
+vpn2
 remote
 gateway
+gw
 proxy
+proxy1
 firewall
 fw
+lb
+loadbalancer
+ingress
+edge
+
+# ============================================================
+# DNS / mail
+# ============================================================
 ns
 ns1
 ns2
 dns
 mx
+mx1
 smtp
+mta
+relay
 mail
 mail1
 mail2
@@ -95,80 +194,315 @@ webmail
 imap
 pop
 exchange
+zimbra
+roundcube
+
+# ============================================================
+# CI / CD / build / deploy
+# ============================================================
 jenkins
 ci
-cd
+cicd
 build
+builds
 deploy
 deployment
 git
 gitlab
 github
 bitbucket
+gitea
 svn
 repo
 registry
 docker
+docker-registry
+harbor
+nexus
+artifactory
+argocd
+argo
+drone
+flux
+buildkite
+
+# ============================================================
+# Container / orchestration
+# ============================================================
 k8s
 kubernetes
 rancher
-vault
+openshift
+helm
+istio
 consul
+vault
+nomad
 terraform
+
+# ============================================================
+# Observability / monitoring
+# ============================================================
 monitor
 monitoring
-grafana
-kibana
-prometheus
-elk
-logstash
-splunk
-alert
-alerts
+metrics
 status
+statuspage
 uptime
 health
+trace
+tracing
+jaeger
+prometheus
+prom
+alertmanager
+grafana
+kibana
+elastic
+elasticsearch
+es
+elk
+opensearch
+logstash
+fluentd
+splunk
+datadog
+sentry
+loki
+tempo
+otel
+
+# ============================================================
+# Notifications / alerting
+# ============================================================
+alert
+alerts
+notify
+pagerduty
+opsgenie
+
+# ============================================================
+# Identity / auth / SSO
+# ============================================================
 auth
+auth-api
 sso
-login
 oauth
+oauth2
 oidc
+openid
 idp
 identity
 accounts
+account
+login
+logout
+signin
+signup
+register
+password
+reset
+mfa
+otp
+ldap
+ad
+keycloak
+auth0
+okta
+
+# ============================================================
+# Support / docs / help
+# ============================================================
 support
 help
 helpdesk
+helpcenter
 ticket
 tickets
+ticketing
+servicedesk
+freshdesk
+zendesk
+intercom
 jira
+servicenow
 docs
-doc
+documentation
 wiki
 kb
+knowledge
+faq
 forum
 community
 chat
 feedback
-backend
-frontend
+contact
+mattermost
+rocketchat
+
+# ============================================================
+# Service / microservice / queue / db
+# ============================================================
 service
 services
 svc
-rpc
-graphql
-ws
-websocket
+microservices
+worker
+workers
+jobs
+scheduler
+cron
+broker
+queue
+kafka
+rabbit
+rabbitmq
+activemq
+pulsar
+nats
+redis
+memcached
 db
+db1
+db-master
+db-slave
 database
+postgres
+postgresql
+pgadmin
+mysql
+mariadb
+phpmyadmin
+mongo
+mongodb
+cassandra
+dynamodb
+oracle
+mssql
 search
-elastic
+solr
+neo4j
+clickhouse
+influxdb
+etcd
+zookeeper
+
+# ============================================================
+# Analytics / data / BI
+# ============================================================
 analytics
-metrics
-stats
-tracking
+bi
+data
+datalake
+warehouse
+dwh
+metabase
+superset
+tableau
+redash
+looker
+
+# ============================================================
+# E-commerce / payment
+# ============================================================
 shop
 store
+storefront
 checkout
 payment
+payments
 pay
+billing
+invoice
+subscription
+cart
+order
+orders
+catalog
+products
+inventory
+pricing
+promo
+
+# ============================================================
+# HR / finance / business
+# ============================================================
+hr
+finance
+accounting
+sales
+crm
+erp
+marketing
+legal
+compliance
+audit
+
+# ============================================================
+# Files / backups / archives
+# ============================================================
+backup
+backups
+archive
+restore
+snapshot
+dump
+exports
+
+# ============================================================
+# Notebooks / ML / data engineering
+# ============================================================
+jupyter
+jupyterhub
+spark
+airflow
+prefect
+mlflow
+
+# ============================================================
+# Hyphen-pattern combos — environment + role.
+# Often missed by passive sources; this is where vhost_probe
+# pulls its weight relative to vhost_check.
+# ============================================================
+dev-api
+dev-app
+dev-admin
+dev-db
+dev-internal
+staging-api
+staging-app
+staging-admin
+staging-db
+qa-api
+qa-app
+qa-admin
+test-api
+test-admin
+uat-api
+preprod-api
+hml-api
+prod-api
+prod-admin
+internal-api
+internal-app
+internal-portal
+internal-tools
+admin-internal
+api-internal
+api-prod
+api-staging
+api-dev
+api-gateway
+api-public
+api-private
+api-legacy
+old-api
+new-api
+legacy-api
+mobile-api
+partner-api
+partner-portal
+client-portal
+client-api
+b2b
+b2c
