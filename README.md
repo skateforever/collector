@@ -255,10 +255,11 @@ collector-docker -u https://opt/collector.example.com --webapp-wordlists /opt/co
 
 ## Unattended execution
 
-Drop-in scheduling files are in `support/`:
+Drop-in scheduling files are in `support/templates/`:
 
-- `collector-cron` — daily light recon + weekly heavy run via cron (`/etc/cron.d/collector`)
-- `collector-systemd-timer` — same cadence as systemd template units (`collector@<domain>.timer`)
+- `support/templates/cron/collector` — daily light recon + weekly heavy run via cron (`/etc/cron.d/collector`)
+- `support/templates/systemd/collector@` — same cadence as systemd template units (`collector@<domain>.timer`)
+- `support/templates/notify/provider-config.yml` — example provider config for [notify](https://github.com/projectdiscovery/notify) (drop at `~/.config/notify/provider-config.yaml`)
 
 Both use `collector-docker` (or `docker run --rm` directly) — each run fires an ephemeral container. Results persist via the `/opt/collector/outputs` volume. Per-target `flock` prevents overlapping runs for the same domain when triggered by cron or timers.
 

@@ -85,7 +85,7 @@ redact_secrets(){
 scan_js_secrets(){
     local scan_dir="${1:-${webapp_js_dir}}"
     local out_file="${2:-${report_dir}/webapp_js_secrets.txt}"
-    local patterns_file="${collector_path}/support/secrets-patterns.txt"
+    local patterns_file="${collector_path}/support/runtime/patterns/secrets.txt"
     local label regex hits line total
     local channel="${notify_high_channel:-${notify_recon_channel}}"
 
@@ -151,7 +151,7 @@ scan_js_secrets(){
 scan_js_params(){
     local scan_dir="${1:-${webapp_js_dir}}"
     local out_file="${2:-${report_dir}/webapp_js_params.txt}"
-    local patterns_file="${collector_path}/support/params-patterns.txt"
+    local patterns_file="${collector_path}/support/runtime/patterns/params.txt"
     local label regex hits line total
     local channel="${notify_recon_channel}"
 
@@ -254,13 +254,13 @@ _llm_emit_artifact(){
 
 # Generates a single LLM prompt bundle from the current run containing all
 # artifacts produced by collector. Written to ${report_dir}/llm-prompt.txt.
-# Header is read from ${collector_path}/support/llm-header-prompt.txt with
+# Header is read from ${collector_path}/support/runtime/prompts/llm-header.txt with
 # __TARGET__, __TS__ and __REPORT_DIR__ replaced at generation time.
 build_llm_prompt(){
     local target="${domain:-${url_domain:-unknown}}"
     local ts="$(date +"%Y-%m-%d %H:%M:%S %z")"
     local rel f lines size
-    local header_file="${collector_path}/support/llm-header-prompt.txt"
+    local header_file="${collector_path}/support/runtime/prompts/llm-header.txt"
     local out="${report_dir}/llm-prompt.txt"
 
     [[ ! -d "${report_dir}" ]] && return 0
@@ -341,7 +341,7 @@ build_llm_prompt(){
 #
 # Designed for low-resource VPSes: SQLite means no daemon, WAL keeps
 # readers free while the per-run writer runs, and the schema lives in
-# support/collector-sqlite-schema.sqlite so the rule set is editable
+# support/runtime/schema/collector-results.sql so the rule set is editable
 # without touching bash.
 #
 # Called by the orchestrators right after build_llm_prompt.
@@ -349,7 +349,7 @@ db_usage(){
     local target="${domain:-${url_domain}}"
     local hist="${output_dir}/${target}/${target}_history.csv"
     local db="${collector_db:-${output_dir}/${collector_db_name:-collector-results-db}}"
-    local schema="${collector_db_schema:-support/collector-sqlite-schema.sqlite}"
+    local schema="${collector_db_schema:-support/runtime/schema/collector-results.sql}"
     [[ "${schema}" != /* ]] && schema="${collector_path:-.}/${schema}"
     local fresh=0
 

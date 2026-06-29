@@ -12,7 +12,7 @@
 ############################################################################### 
 
 get_user_agent(){
-    user_agent_file="${collector_path}/support/user-agents.txt"
+    user_agent_file="${collector_path}/support/runtime/wordlists/user-agents.txt"
     shuf -n 1 "${user_agent_file}"
 }
 
