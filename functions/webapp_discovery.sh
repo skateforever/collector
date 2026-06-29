@@ -13,7 +13,10 @@
 
 get_user_agent(){
     local user_agent_file="${collector_user_agents}"
-    shuf -n 1 "${user_agent_file}"
+    # Strip blank lines and # comments before sampling so the wordlist
+    # can carry section headers like "# === Desktop ===" without ever
+    # producing them as a chosen UA.
+    grep -Ev '^[[:space:]]*(#|$)' "${user_agent_file}" | shuf -n 1
 }
 
 webapp_alive(){
