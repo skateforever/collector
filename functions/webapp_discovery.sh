@@ -12,7 +12,7 @@
 ############################################################################### 
 
 get_user_agent(){
-    user_agent_file="$(resolve_asset_path "${collector_user_agents}")"
+    user_agent_file="${collector_user_agents}"
     shuf -n 1 "${user_agent_file}"
 }
 
