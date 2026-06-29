@@ -26,7 +26,7 @@ fi
 # Checking if the essencial functions there are
 for file in check_binaries.sh usage.sh message.sh menu.sh check_structure.sh \
     check_execution.sh domains_sources.sh files.sh diff.sh infra.sh webapp_crawler.sh \
-    webapp_discovery.sh webapp_scan.sh webapp_enum.sh git.sh domains_recon.sh url_recon.sh; do
+    webapp_discovery.sh webapp_enum.sh git.sh domains_recon.sh url_recon.sh; do
     function="${collector_path}/functions/${file}"
     if [ -s "${function}" ]; then
         source "${function}"
@@ -41,7 +41,7 @@ done
 # Source the scanners (network + web) — these are called by
 # domains_recon / url_recon, which were already sourced above, so the
 # function definitions must land in the shell before either runs.
-for scan in nmap.sh nuclei.sh shodan.sh; do
+for scan in acunetix.sh nmap.sh nuclei.sh shodan.sh; do
     scan_file="${collector_path}/scans/${scan}"
     if [ -s "${scan_file}" ]; then
         source "${scan_file}"

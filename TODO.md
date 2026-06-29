@@ -8,7 +8,7 @@ Improve crawler_js:</br>
 
 webapp_params function;</br>
 nmap_scan function;</br>
-Improve the nuclei option in webapp_scan;</br>
+Improve the nuclei options in scans/nuclei.sh;</br>
 emails_recon function:</br>
 
 * intelx
