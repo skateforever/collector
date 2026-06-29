@@ -281,7 +281,7 @@ Both use `collector-docker` (or `docker run --rm` directly) — each run fires a
 
 **Screenshots:** aquatone
 
-**Email recon:** Hunter.io, Lampyre, Snov.io (API-based) + page/JS crawl of `webapp_consolidated.txt`
+**Email recon:** Hunter.io, IntelX (phonebook target=2), Lampyre, Snov.io (API-based) + page/JS crawl of `webapp_consolidated.txt`
 
 **Reporting:** sqlite3, Flask, gunicorn, HTMX
 

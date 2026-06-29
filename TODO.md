@@ -11,10 +11,10 @@ nmap_scan function;</br>
 Improve the nuclei options in scans/nuclei.sh;</br>
 emails_recon function:</br>
 
-* intelx
-* hunter.io
-* lampary
-* snov
+* ~~intelx~~ **done — phonebook target=2 lookup.**
+* ~~hunter.io~~ done
+* ~~lampary~~ done (lampyre)
+* ~~snov~~ done
 
 In the future use dnsrecon, gau, massdns, sublist3r and others tools to get more subdomains and others information.</br>
 

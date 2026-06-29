@@ -62,6 +62,43 @@ emails_recon(){
             | jq -r '.emails[]?.email // .data.emails[]?.email // empty' 2>> "${log_execution_file}" >> "${emails_tmp}"
     fi
 
+    # IntelX — phonebook two-step lookup. Step 1 POSTs the search and gets an
+    # `id`; step 2 GETs /phonebook/result?id=... to fetch the actual selectors.
+    # We use target=2 (email phonebook); sources/intelx.sh uses target=1
+    # (URL phonebook) for subdomain enrichment, so the two queries are
+    # orthogonal and can share the same API key.
+    #
+    # The result payload nests email values under .selectors[].selectorvalue.
+    # We accept any value that LOOKS like an email — the host-suffix filter
+    # downstream (tr → grep -EohI webapp_email_regex) drops mismatches.
+    if [[ -n "${intelx_api_key}" ]] && [[ -n "${intelx_api_url}" ]]; then
+        local intelx_search_id intelx_search_body
+        user_agent="$(get_user_agent)"
+        echo "$(redact_secrets "curl ${curl_options[@]} -H \"User-agent: ${user_agent}\" -H \"Content-Type: application/json\" -X POST \"${intelx_api_url}/phonebook/search?k=${intelx_api_key}\" -d '{\"term\":\"${domain}\",\"buckets\":[],\"lookuplevel\":0,\"maxresults\":${intelx_emails_max_results:-10000},\"timeout\":0,\"datefrom\":\"\",\"dateto\":\"\",\"sort\":4,\"media\":0,\"terminate\":[],\"target\":2}'")" >> "${log_execution_file}"
+        intelx_search_body="$(curl "${curl_options[@]}" \
+            -H "User-agent: ${user_agent}" \
+            -H "Content-Type: application/json" \
+            -X POST "${intelx_api_url}/phonebook/search?k=${intelx_api_key}" \
+            -d "{\"term\":\"${domain}\",\"buckets\":[],\"lookuplevel\":0,\"maxresults\":${intelx_emails_max_results:-10000},\"timeout\":0,\"datefrom\":\"\",\"dateto\":\"\",\"sort\":4,\"media\":0,\"terminate\":[],\"target\":2}" \
+            2>> "${log_execution_file}")"
+        intelx_search_id="$(echo "${intelx_search_body}" | jq -r '.id // empty' 2>/dev/null)"
+        if [[ -n "${intelx_search_id}" ]]; then
+            # IntelX needs a beat to populate the result buffer; polling is
+            # available via status=1 but a fixed sleep matches the pattern
+            # already used by sources/intelx.sh and keeps the code simple.
+            sleep 3
+            echo "$(redact_secrets "curl ${curl_options_slow[@]} -H \"User-agent: ${user_agent}\" \"${intelx_api_url}/phonebook/result?k=${intelx_api_key}&id=${intelx_search_id}&limit=${intelx_emails_max_results:-10000}&offset=0\"")" >> "${log_execution_file}"
+            # Slow profile because /phonebook/result can stream a lot of rows
+            # for popular domains; default profile would time out at 60s.
+            curl "${curl_options_slow[@]}" \
+                -H "User-agent: ${user_agent}" \
+                "${intelx_api_url}/phonebook/result?k=${intelx_api_key}&id=${intelx_search_id}&limit=${intelx_emails_max_results:-10000}&offset=0" 2>> "${log_execution_file}" \
+                | jq -r '.selectors[]?.selectorvalue // empty' 2>> "${log_execution_file}" >> "${emails_tmp}"
+        else
+            echo "intelx phonebook search returned no id (rate-limited, bad key, or no hits)" >> "${log_execution_file}"
+        fi
+    fi
+
     # Webapp crawl: page roots + referenced JS
     if [[ -s "${urls_file}" ]]; then
         max_js="${webapp_email_max_js_per_url:-20}"
