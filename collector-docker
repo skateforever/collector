@@ -101,6 +101,44 @@ if [[ "${want_report_stop}" == "yes" ]]; then
     exit 0
 fi
 
+# Host-side port preflight — decides whether to publish APP_PORT.
+#
+# Three outcomes, all silent about the "why" so the recon path stays
+# quiet on happy runs:
+#   1. Host port is free → pass -p normally (default behavior).
+#   2. Host port is bound by anything at all → omit -p. The recon still
+#      completes; if the port is held by a sibling collector container,
+#      its dashboard already renders this run's results (shared outputs
+#      volume). If it's held by something unrelated, the operator sees
+#      no dashboard from this container — a conscious trade-off: never
+#      fail a recon over a busy port.
+#
+# Tool preference: ss > lsof > netstat. If none are present we skip the
+# check and let Docker itself decide (which usually means it fails, but
+# only in the rare case where the port is genuinely taken and no tool
+# is available to detect it beforehand).
+host_port=""
+if [[ "${APP_PORT}" =~ ^[0-9.]+:([0-9]+):[0-9]+$ ]]; then
+    host_port="${BASH_REMATCH[1]}"
+elif [[ "${APP_PORT}" =~ ^([0-9]+):[0-9]+$ ]]; then
+    host_port="${BASH_REMATCH[1]}"
+fi
+
+port_args=(-p "${APP_PORT}")
+if [[ -n "${host_port}" ]]; then
+    port_busy=no
+    if command -v ss >/dev/null 2>&1; then
+        ss -H -ltn "sport = :${host_port}" 2>/dev/null | grep -q . && port_busy=yes
+    elif command -v lsof >/dev/null 2>&1; then
+        lsof -iTCP:"${host_port}" -sTCP:LISTEN -Pn 2>/dev/null | grep -q . && port_busy=yes
+    elif command -v netstat >/dev/null 2>&1; then
+        netstat -ltn 2>/dev/null | awk '{print $4}' | grep -qE "[:.]${host_port}$" && port_busy=yes
+    fi
+    if [[ "${port_busy}" == "yes" ]]; then
+        port_args=()
+    fi
+fi
+
 # The notify mount is OPT-IN — only injected when the host file exists.
 # Without it, every `notify ... -pc /etc/collector/notify-provider.yaml`
 # call inside the container will print a 'config not found' line on stderr
@@ -129,6 +167,6 @@ exec docker run --rm "${name_args[@]}" \
     -v "${WORDLISTS_DIR}:/opt/collector/wordlists" \
     -v "${COLLECTOR_CFG}:/opt/collector/collector.cfg:ro" \
     "${notify_mount_args[@]}" \
-    -p "${APP_PORT}" \
+    "${port_args[@]}" \
     "${COLLECTOR_IMAGE}" \
     "$@"
