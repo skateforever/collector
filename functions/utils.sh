@@ -617,20 +617,51 @@ run_app_report(){
         return 0
     fi
 
-    # Already running? Trust the pidfile iff the process is alive. Same
-    # in both modes; only the failure message differs.
-    if [[ -s "${pidfile}" ]]; then
-        local existing
-        existing="$(cat "${pidfile}" 2>/dev/null)"
-        if [[ -n "${existing}" ]] && kill -0 "${existing}" 2>/dev/null; then
-            echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${tag}: already running (pid ${existing}) at http://${host}:${port}"
+    # ─── already-running detection ─────────────────────────────────────
+    # Two pidfiles can exist on the same outputs/ volume:
+    #   background: .app-report.pid   (written by start_app_report from
+    #               inside a recon run)
+    #   foreground: .app-report.fg.pid (written by --report-only)
+    # A live process behind EITHER pidfile blocks starting a new instance
+    # in ANY mode — both would race on the same TCP port. Hence we check
+    # both, not just the pidfile of the current mode.
+    local bg_pidfile fg_pidfile
+    bg_pidfile="${app_report_pidfile:-${output_dir}/${app_report_pidfile_name:-.app-report.pid}}"
+    fg_pidfile="$(app_report_foreground_pidfile)"
+
+    local check_file check_pid check_mode
+    for check_file in "${bg_pidfile}" "${fg_pidfile}"; do
+        [[ -s "${check_file}" ]] || continue
+        check_pid="$(cat "${check_file}" 2>/dev/null)"
+        if [[ -z "${check_pid}" ]] || ! kill -0 "${check_pid}" 2>/dev/null; then
+            # Stale pidfile from a previous run — clean and move on.
+            rm -f "${check_file}"
+            continue
+        fi
+        [[ "${check_file}" == "${fg_pidfile}" ]] && check_mode="foreground" || check_mode="background"
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${tag}: already running (pid ${check_pid}, ${check_mode} mode) at http://${host}:${port}"
+        if [[ "${mode}" == "foreground" ]]; then
+            echo -e "  stop it with ${yellow}collector --report-stop${reset} (or ${yellow}collector-docker --report-stop${reset}) before starting a new one."
+            return 1
+        fi
+        return 0
+    done
+
+    # Even without a matching pidfile, the TCP port may already be taken
+    # (someone started gunicorn by hand, or a sibling container is
+    # publishing to it). Refuse rather than let the launcher fail with an
+    # opaque 'address already in use'. `ss` is present in the collector
+    # image; when unavailable we silently skip this check and let gunicorn
+    # surface the error itself.
+    if command -v ss >/dev/null 2>&1; then
+        if ss -ltn 2>/dev/null | awk '{print $4}' | grep -qE "[:.]${port}$"; then
+            echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${tag}: port ${port} is already bound by another process."
             if [[ "${mode}" == "foreground" ]]; then
-                echo -e "  stop it with ${yellow}collector --report-stop${reset} (or ${yellow}collector-docker --report-stop${reset}) before starting a new one."
+                echo -e "  free the port or set ${yellow}app_report_port${reset} in collector.cfg to a different value."
                 return 1
             fi
             return 0
         fi
-        rm -f "${pidfile}"
     fi
 
     # Launcher selection is shared. Missing both binaries is a soft skip
