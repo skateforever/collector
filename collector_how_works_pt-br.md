@@ -222,6 +222,8 @@ collector-docker -d example.com --webapp-enum \
 
 O que entrega: `webapp/enum/` (gobuster + dirsearch), `robots_urls.txt`, `sitemap_urls.txt`, `webapp/aquatone/` (screenshots), e se algum `.git/` for exposto, `git-dumper` reconstrói o repositório.
 
+> **Os paths de wordlist são resolvidos dentro do container.** O argumento de `--webapp-wordlists` (e de `-s|--subdomain-brute`) é validado por um `[[ -s ... ]]` do bash que roda *dentro* do container — então um path do host como `~/minha.txt` falha mesmo o arquivo existindo. Copie a wordlist para `${WORDLISTS_DIR}` no host (default: `<root>/wordlists`, montado em `/opt/collector/wordlists`) e passe o path do container (como no exemplo acima), ou sobrescreva `WORDLISTS_DIR=<diretório-do-seu-arquivo>` ao invocar o `collector-docker` para que o wrapper monte esse diretório.
+
 Crawler de JS e mineração de parâmetros (também reuso):
 
 ```bash
