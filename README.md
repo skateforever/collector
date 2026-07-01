@@ -58,21 +58,32 @@ COLLECTOR_CFG=/etc/collector/collector.cfg
 
 > **Note:** `docker compose up` is **not** the right verb here. `collector` exits with the usage screen when called without arguments, which Compose would interpret as a service failure. Always use `docker compose run --rm collector <flags>`.
 
-**`collector-docker`** — thin wrapper around `docker run` that injects volumes and the default port mapping automatically. Install it once and use it like a native command:
+**`collector-docker`** — thin wrapper around `docker run` that injects volumes and the default port mapping automatically. The wrapper resolves its defaults with a hybrid strategy:
+
+- Running from a repo checkout (i.e. `collector.cfg` sits next to the script), defaults point at that checkout — `git clone` and run without any sudo or filesystem prep.
+- Installed to `/usr/local/bin/` (no `collector.cfg` next to the script), defaults fall back to `/opt/collector/`, the layout produced by `sudo install ...`.
+
+Install it once and use it like a native command:
 
 ```bash
 sudo install -m 0755 /opt/collector/collector-docker /usr/local/bin/collector-docker
+sudo mkdir -p /opt/collector/{outputs,wordlists}
+sudo cp /opt/collector/collector.cfg /opt/collector/collector.cfg
 ```
 
-Override defaults via environment variables:
+Override defaults via environment variables (`<root>` is the checkout directory or `/opt/collector`, per the rule above):
 
 | Variable | Default |
 |----------|---------|
 | `COLLECTOR_IMAGE` | `collector:latest` |
-| `OUTPUTS_DIR` | `/opt/collector/outputs` |
-| `WORDLISTS_DIR` | `/opt/collector/wordlists` |
-| `COLLECTOR_CFG` | `/opt/collector/collector.cfg` |
+| `OUTPUTS_DIR` | `<root>/outputs` |
+| `WORDLISTS_DIR` | `<root>/wordlists` |
+| `COLLECTOR_CFG` | `<root>/collector.cfg` |
+| `NOTIFY_CONFIG` | `<root>/notify-provider.yaml` (mount is skipped if missing) |
 | `APP_PORT` | `127.0.0.1:8000:8000` |
+| `REPORT_CONTAINER_NAME` | `collector-report` |
+
+When the host port in `APP_PORT` is already bound (by a previous recon container, an ongoing `--report-only` session, or any other listener), the wrapper silently drops the `-p` flag from `docker run` instead of failing with "port already allocated" — the recon still completes; if a sibling container's dashboard is publishing that port, its view mirrors this run's results (shared `outputs/` volume).
 
 ## Command reference
 
@@ -131,12 +142,16 @@ Override defaults via environment variables:
 | `-ed \| --exclude-domain <d1,d2>` | Comma-separated subdomains to exclude from results. Used with `-d`. |
 | `-el \| --exclude-domain-list <file>` | File of subdomains to exclude. Used with `-d` or `-dl`. |
 
-### Process control
+### Dashboard control
+
+The app-report dashboard is started automatically at the end of each recon (in the background). These flags let you reopen or stop it without triggering another recon.
 
 | Flag | Description |
 |------|-------------|
-| `-k \| --kill <domain>` | Kill a running collector for the given domain. |
-| `-kr \| --kill-remove <domain>` | Kill and delete the current run directory for the given domain. |
+| `-ro \| --report-only` | Open the read-only app-report dashboard against the existing `outputs/` directory and stay in the foreground. Skips recon entirely; requires a `collector-results-db` from a previous run. Ctrl-C or `--report-stop` (from another shell) stops it. |
+| `-rs \| --report-stop` | Stop a dashboard previously started with `--report-only`. Sends SIGTERM, waits 5 s, then SIGKILLs if needed. Via `collector-docker` it does the equivalent `docker stop collector-report` on the host. |
+
+> **On stopping recon runs:** collector runs in a one-shot container, so the right way to abort an in-flight recon is `docker stop <container>` on the host. To wipe artifacts, `rm -rf` the target's directory under `outputs/`. Per-target `flock` already prevents concurrent runs against the same domain.
 
 ## Common usage patterns
 
@@ -381,7 +396,16 @@ docker compose run --rm collector -d example.com --recon --webapp-discovery --we
 collector-docker -d example.com --recon --webapp-discovery --webapp-short-detection
 ```
 
-Or set `cloudflare_tunnel="yes"` in `collector.cfg` for an ephemeral `https://*.trycloudflare.com` URL.
+Reopening the dashboard from an earlier scan (no new recon):
+
+```bash
+collector-docker --report-only         # foreground, Ctrl-C to stop
+collector-docker --report-stop         # stop from another shell
+```
+
+`--report-only` names its container `collector-report` (override with `REPORT_CONTAINER_NAME=<name>`) and refuses to start when one is already running. It requires `collector-results-db` to exist in the `outputs/` directory — otherwise it aborts with a clear message rather than serving an empty dashboard.
+
+Or set `cloudflare_tunnel="yes"` in `collector.cfg` for an ephemeral `https://*.trycloudflare.com` URL (only meaningful when the dashboard runs in the background, i.e. at end-of-recon; `--report-only` doesn't publish a tunnel).
 
 ## Screenshots
 
