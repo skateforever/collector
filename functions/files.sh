@@ -7,8 +7,10 @@
 #                                                           #
 #   * joining_subdomains                                    #
 #   * organizing_subdomains                                 #
+#   * cleanup_etc_hosts                                     #
+#   * build_consolidated_urls                               #
 #                                                           #
-#############################################################            
+#############################################################
 
 joining_subdomains(){
     local subdomain chaos_root f file files_amass files_gobuster_dns files_dnssearch excluded_domain
@@ -695,4 +697,50 @@ organizing_subdomains(){
         message "${domain}" failed
         exit 1
     fi    
+}
+
+# cleanup_etc_hosts — remove the collector-managed block from /etc/hosts.
+# Called by build_consolidated_urls before writing new entries and via
+# an EXIT trap so a run always leaves the system's hosts file clean.
+cleanup_etc_hosts(){
+    sed -i '/# collector-vhosts-start/,/# collector-vhosts-end/d' /etc/hosts 2>/dev/null
+}
+
+# build_consolidated_urls — merge webapp_urls.txt and vhost_urls.txt into
+# a single deduplicated webapp_consolidated.txt, injecting temporary
+# /etc/hosts entries when the run has produced etc_hosts_file.txt so
+# getent (and by extension every downstream tool) can resolve vhosts.
+# URLs that don't resolve after the injection are logged and dropped.
+build_consolidated_urls(){
+    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Building consolidated URL list... "
+    : > "${tmp_dir}/webapp_consolidated.tmp"
+    [[ -s "${report_dir}/webapp_urls.txt" ]] && cat "${report_dir}/webapp_urls.txt" >> "${tmp_dir}/webapp_consolidated.tmp"
+    [[ -s "${report_dir}/vhost_urls.txt" ]]  && cat "${report_dir}/vhost_urls.txt"  >> "${tmp_dir}/webapp_consolidated.tmp"
+    [[ ! -s "${tmp_dir}/webapp_consolidated.tmp" ]] && { echo "Fail!"; return 0; }
+    if [[ -s "${report_dir}/etc_hosts_file.txt" ]]; then
+        cleanup_etc_hosts
+        if [[ -w "/etc/hosts" ]]; then
+            { echo "# collector-vhosts-start"; awk '{print $1"\t"$2}' "${report_dir}/etc_hosts_file.txt"; echo "# collector-vhosts-end"; } >> /etc/hosts
+            trap 'cleanup_etc_hosts' EXIT
+        else
+            echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Warning: /etc/hosts is not writable — vhost entries will not resolve via getent. Run as root or grant write access." >> "${log_execution_file}"
+            echo "Warning: /etc/hosts not writable; vhost entries skipped." | notify "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
+        fi
+    fi
+    sort -u "${tmp_dir}/webapp_consolidated.tmp" > "${tmp_dir}/webapp_consolidated_sorted.tmp"
+    : > "${tmp_dir}/webapp_consolidated_validated.tmp"
+    while IFS= read -r url; do
+        host="$(echo "${url}" | sed -E 's|^https?://([^/:]+).*|\1|')"
+        if getent hosts "${host}" > /dev/null 2>&1; then
+            echo "${url}" >> "${tmp_dir}/webapp_consolidated_validated.tmp"
+            echo "consolidated [ok]:      ${url}" >> "${log_execution_file}"
+        else
+            echo "consolidated [skipped]: ${url} (no resolution)" >> "${log_execution_file}"
+        fi
+    done < "${tmp_dir}/webapp_consolidated_sorted.tmp"
+    sort -u -o "${report_dir}/webapp_consolidated.txt" "${tmp_dir}/webapp_consolidated_validated.tmp"
+    mv "${report_dir}/webapp_urls.txt" "${tmp_dir}/webapp_urls.old" 2>/dev/null
+    mv "${report_dir}/vhost_urls.txt"  "${tmp_dir}/vhost_urls.old"  2>/dev/null
+    [[ ! -s "${report_dir}/webapp_consolidated.txt" ]] && { echo "Fail! (no resolvable hosts)"; return 0; }
+    echo "Done! ($(wc -l < "${report_dir}/webapp_consolidated.txt") URLs)"
 }
