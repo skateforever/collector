@@ -155,7 +155,16 @@ menu(){
                         # element (report B-07).
                         dns_wordlists+=("${dw}")
                     else
-                        echo -e "${dw} is not a valid file, please enter a valid one.\n"
+                        # Same host-vs-container pitfall as --webapp-wordlists:
+                        # the -s test runs inside the container, so a plain
+                        # host path (~/foo.txt) or an unmounted path looks
+                        # missing here even though it exists on the host.
+                        echo -e "${yellow}${dw}${reset} is not a valid file ${red}inside the container${reset}."
+                        echo -e "  hint: the path you passed is resolved inside the container, not on the host."
+                        echo -e "  Place the wordlist under ${yellow}\${WORDLISTS_DIR}${reset} on the host"
+                        echo -e "  (default: ${yellow}<root>/wordlists${reset}, mounted at ${yellow}/opt/collector/wordlists${reset}),"
+                        echo -e "  then pass: ${yellow}--subdomain-brute /opt/collector/wordlists/${dw##*/}${reset}"
+                        echo -e "  Or set ${yellow}WORDLISTS_DIR=<dir-that-contains-your-file>${reset} when running collector-docker.\n"
                         usage
                     fi
                 done
