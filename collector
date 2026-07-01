@@ -27,7 +27,7 @@ fi
 for file in check_binaries.sh usage.sh message.sh menu.sh check_structure.sh \
     check_execution.sh domains_sources.sh files.sh diff.sh infra.sh webapp_crawler.sh \
     webapp_discovery.sh webapp_enum.sh git.sh emails_recon.sh \
-    cloudflare_tunnel.sh app_report.sh db_usage.sh \
+    cloudflare_tunnel.sh app_report.sh db_usage.sh llm_prompt.sh \
     domains_recon.sh url_recon.sh; do
     function="${collector_path}/functions/${file}"
     if [ -s "${function}" ]; then
