@@ -112,8 +112,8 @@ BEGIN IMMEDIATE;
 INSERT OR IGNORE INTO targets(domain) VALUES ('${target}');
 
 -- Stage table mirrors the CSV payload columns ONLY (28 cols). Cloning
--- recon_runs verbatim used to pull in `ingested_at` too, leaving the
--- column NULL after .import — the subsequent `SELECT s.*, datetime('now')`
+-- recon_runs verbatim used to pull in \`ingested_at\` too, leaving the
+-- column NULL after .import — the subsequent \`SELECT s.*, datetime('now')\`
 -- then produced one too many values for the destination table. Define
 -- the schema explicitly so the import shape always matches the CSV.
 CREATE TEMP TABLE recon_runs_stage (
