@@ -74,7 +74,7 @@ redact_secrets(){
     printf '%s' "${line}"
 }
 
-# scan_js_secrets and scan_js_params moved to functions/js_scans.sh.
+# scan_js_secrets and scan_js_params moved to scans/js_scans.sh.
 
 cleanup_etc_hosts(){
     sed -i '/# collector-vhosts-start/,/# collector-vhosts-end/d' /etc/hosts 2>/dev/null
