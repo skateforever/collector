@@ -206,7 +206,21 @@ menu(){
                         # (same bug as -s/--subdomain-brute — report B-07).
                         webapp_wordlists+=("${ww}")
                     else
-                        echo -e "${ww} is not a valid file, please enter a valid one.\n"
+                        # The path is resolved INSIDE the container. When
+                        # the operator passes a host path (e.g. ~/my.txt)
+                        # or a plain filename without staging the file
+                        # under the wordlists mount, the -s test fails
+                        # here even though the file exists on the host.
+                        # The old error ('is not a valid file, please
+                        # enter a valid one') gave no hint about that
+                        # host-vs-container distinction — the new message
+                        # spells it out and shows how to fix it.
+                        echo -e "${yellow}${ww}${reset} is not a valid file ${red}inside the container${reset}."
+                        echo -e "  hint: the path you passed is resolved inside the container, not on the host."
+                        echo -e "  Place the wordlist under ${yellow}\${WORDLISTS_DIR}${reset} on the host"
+                        echo -e "  (default: ${yellow}<root>/wordlists${reset}, mounted at ${yellow}/opt/collector/wordlists${reset}),"
+                        echo -e "  then pass: ${yellow}--webapp-wordlists /opt/collector/wordlists/${ww##*/}${reset}"
+                        echo -e "  Or set ${yellow}WORDLISTS_DIR=<dir-that-contains-your-file>${reset} when running collector-docker.\n"
                         usage
                     fi
                 done
