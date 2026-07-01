@@ -37,9 +37,9 @@ collector/
 ├── collector.cfg                       config: timeouts, threads, port lists, API keys
 │
 ├── functions/                          Bash modules loaded by collector
-│   ├── utils.sh                        generic helpers, banner, reset_vars, per-target lock
+│   ├── utils.sh                        banner, reset_vars, redact_secrets
 │   ├── check_binaries.sh               verifies required binaries are present in PATH
-│   ├── check_execution.sh              validates flag combinations, deps and arguments
+│   ├── check_execution.sh              flag validation + collector_acquire_lock (per-target flock)
 │   ├── check_structure.sh              builds the per-run directory tree (recon_YYYYMMDD/…)
 │   ├── menu.sh                         CLI parser and domain validation
 │   ├── usage.sh                        help screen
@@ -47,21 +47,26 @@ collector/
 │   ├── domains_sources.sh              orchestrates calls to every module under sources/
 │   ├── domains_recon.sh                main pipeline for -d/-dl (recon + webapp + scan)
 │   ├── url_recon.sh                    alternative pipeline for -u (webapp only)
-│   ├── files.sh                        consolidates every source's output into domains_found.txt
+│   ├── files.sh                        joining/organizing subdomains + build_consolidated_urls (URL merge, /etc/hosts injection)
 │   ├── diff.sh                         computes per-artifact deltas vs. previous run
 │   ├── infra.sh                        ASN/IPv4/IPv6/netblocks + zone transfer
 │   ├── emails_recon.sh                 email harvesting via APIs + crawl
 │   ├── webapp_discovery.sh             httpx + port list + webapp_consolidated.txt
 │   ├── webapp_enum.sh                  gobuster + dirsearch + aquatone + robots/sitemap
 │   ├── webapp_crawler.sh               katana + waybackurls + JS and parameter extraction
-│   └── git.sh                          git-dumper for exposed .git/ repositories
+│   ├── git.sh                          git-dumper for exposed .git/ repositories
+│   ├── app_report.sh                   Flask/gunicorn dashboard lifecycle (background + --report-only foreground)
+│   ├── cloudflare_tunnel.sh            cloudflared quick-tunnel for the dashboard (opt-in)
+│   ├── db_usage.sh                     idempotent SQLite ingestion of the per-run history CSV
+│   └── llm_prompt.sh                   build_llm_prompt + llm_emit_artifact (LLM bundle builder)
 │
 ├── scans/                              scanners invoked by the recon pipelines
 │   ├── nmap.sh                         port scan
 │   ├── shodan.sh                       Shodan API enrichment
 │   ├── nuclei.sh                       web vulnerability scan
 │   ├── acunetix.sh                     optional Acunetix integration
-│   └── takeover.sh                     subjack + subzy + custom fingerprints
+│   ├── takeover.sh                     subjack + subzy + custom fingerprints
+│   └── js_scans.sh                     scan_js_secrets + scan_js_params (regex-based JS static scan)
 │
 ├── sources/                            ~60 OSINT modules — one file per source/technique
 │   ├── alienvault.sh, crt.sh, certspotter.sh, securitytrails.sh, virustotal.sh,
@@ -98,7 +103,7 @@ collector/
 The container entrypoint is the `collector` script. The flow is, in short:
 
 1. **Bootstrap.** `collector` loads `functions/utils.sh` (banner, helpers, global-variable reset) and then `source`s `collector.cfg` to inherit timeouts, threads, short/long port lists and API keys.
-2. **Module loading.** Every essential file under `functions/` (`menu.sh`, `usage.sh`, `check_*`, `domains_*`, `url_recon.sh`, `webapp_*`, `emails_recon.sh`, `git.sh`, `diff.sh`, `files.sh`, `infra.sh`) and `scans/` (`acunetix.sh`, `nmap.sh`, `nuclei.sh`, `shodan.sh`) is sourced in sequence.
+2. **Module loading.** Every essential file under `functions/` (`menu.sh`, `usage.sh`, `check_*`, `domains_*`, `url_recon.sh`, `webapp_*`, `emails_recon.sh`, `git.sh`, `diff.sh`, `files.sh`, `infra.sh`, plus the app-report/dashboard modules `cloudflare_tunnel.sh`, `app_report.sh`, `db_usage.sh`, `llm_prompt.sh`) and `scans/` (`acunetix.sh`, `nmap.sh`, `nuclei.sh`, `shodan.sh`, `js_scans.sh`) is sourced in sequence.
 3. **Validation.** `check_container` confirms execution is happening inside Docker (the script aborts otherwise); `check_binaries` validates the presence of the required tools in PATH.
 4. **CLI parsing.** `menu "$@"` processes the flags (`-d`, `-dl`, `-u`, `-r`, `-wd`, `-we`, `-ws`, `-wc`, etc.). `validate_domain` applies a strict regex to each target. With no arguments, `usage` is shown.
 5. **Coherence.** `check_execution` validates invalid flag combinations, `check_parameter_conflicts` rejects mutually exclusive ones, `check_directory_permission` ensures `/opt/collector/outputs` is writable.
@@ -266,6 +271,19 @@ collector-docker -d example.com \
 ```
 
 What you get: **every** artifact described in section 4, including `llm-prompt.txt`, an updated `<domain>_history.csv`, ingestion into `collector-results-db` and the dashboard running on `http://127.0.0.1:8000`. This is typically the command wired into cron/systemd (weekly) — the per-artifact diff ensures only changes hit the notification channel.
+
+### 5.4. Reopening the dashboard without a new recon
+
+At the end of every recon, `start_app_report` puts the Flask/gunicorn dashboard in the background so the operator has an interface ready to browse the results. Once that container exits (or the process is killed), the dashboard goes with it — but the data is preserved in the shared `outputs/` volume. To read it again without triggering another scan, use `--report-only`:
+
+```bash
+collector-docker --report-only        # foreground gunicorn on 127.0.0.1:8000, Ctrl-C stops
+collector-docker --report-stop        # stop from another shell
+```
+
+`--report-only` requires a `collector-results-db` inside `outputs/` (it aborts with a clear message otherwise), refuses to start when another instance is already running (via pidfile + host-port probe), and is a strict read-only path — the Flask app opens the SQLite database with `mode=ro`. The wrapper names that container `collector-report` (override via `REPORT_CONTAINER_NAME=<name>` in the environment), which is what `--report-stop` targets on the host.
+
+When the host port in `APP_PORT` (default `127.0.0.1:8000:8000`) is already bound — for instance because a previous recon left a background dashboard running, or a sibling container is publishing to it — `collector-docker` silently drops the `-p` flag from `docker run` rather than aborting with "port already allocated". The recon still completes, and the running dashboard already renders the new run's data because `outputs/` is shared.
 
 ## 6. Further details
 
