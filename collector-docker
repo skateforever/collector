@@ -1,31 +1,72 @@
 #!/bin/bash
-# collector-docker — wrapper que injeta volumes e porta padrão
+# collector-docker — wrapper that injects the standard volumes and port
 #
-# Uso idêntico ao collector direto:
+# Usage is identical to running collector directly:
 #   collector-docker -d example.com --recon --webapp-discovery --webapp-short-detection
 #   collector-docker -dl /opt/collector/outputs/targets.list --recon --webapp-discovery
 #   collector-docker --help
 #
-# Variáveis de ambiente para override:
-#   COLLECTOR_IMAGE   — imagem Docker (default: collector:latest)
-#   OUTPUTS_DIR       — diretório de outputs (default: /opt/collector/outputs)
-#   WORDLISTS_DIR     — diretório de wordlists (default: /opt/collector/wordlists)
-#   COLLECTOR_CFG     — path do collector.cfg (default: /opt/collector/collector.cfg)
-#   NOTIFY_CONFIG     — path do provider-config do notify
-#                       (default: /opt/collector/notify-provider.yaml — opcional;
-#                       se o host não tiver esse arquivo, a flag -v abaixo cria
-#                       um diretório vazio e o collector cai no fallback default).
-#   APP_PORT          — mapeamento da porta do dashboard (default: 127.0.0.1:8000:8000)
+# Default path resolution (hybrid):
+#   1. If the script is running from a repo checkout (i.e. collector.cfg
+#      lives next to the script itself), the defaults point at that
+#      checkout — you can run it straight after 'git clone' with no sudo
+#      and no need to copy anything into /opt/.
+#   2. Otherwise (typical when the binary was installed into
+#      /usr/local/bin/), the defaults fall back to /opt/collector/, which
+#      is the layout expected when you run 'sudo install ...'.
+#   Any variable below can be overridden explicitly in the environment
+#   to point at a different path.
 #
-# Instalação:
+# Environment variables for overrides:
+#   COLLECTOR_IMAGE   — Docker image (default: collector:latest)
+#   OUTPUTS_DIR       — outputs directory (default: <root>/outputs; created
+#                       by this script if missing so Docker does not create
+#                       it as root)
+#   WORDLISTS_DIR     — wordlists directory (default: <root>/wordlists)
+#   COLLECTOR_CFG     — path to collector.cfg (default: <root>/collector.cfg)
+#   NOTIFY_CONFIG     — path to the notify provider-config file
+#                       (default: <root>/notify-provider.yaml — optional;
+#                       if the host file does not exist, the mount is
+#                       skipped and collector falls back to its default).
+#   APP_PORT          — dashboard port mapping (default: 127.0.0.1:8000:8000)
+#
+# Installation:
 #   sudo install -m 0755 collector-docker /usr/local/bin/collector-docker
+#   sudo mkdir -p /opt/collector/{outputs,wordlists}
+#   sudo cp collector.cfg /opt/collector/collector.cfg
+
+# Real directory of this script (resolves symlinks and relative paths).
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Pick the default root: repo checkout if collector.cfg sits next to the
+# script, otherwise /opt/collector (installed layout).
+if [[ -f "${SCRIPT_DIR}/collector.cfg" ]]; then
+    DEFAULT_ROOT="${SCRIPT_DIR}"
+else
+    DEFAULT_ROOT="/opt/collector"
+fi
 
 COLLECTOR_IMAGE="${COLLECTOR_IMAGE:-collector:latest}"
-OUTPUTS_DIR="${OUTPUTS_DIR:-/opt/collector/outputs}"
-WORDLISTS_DIR="${WORDLISTS_DIR:-/opt/collector/wordlists}"
-COLLECTOR_CFG="${COLLECTOR_CFG:-/opt/collector/collector.cfg}"
-NOTIFY_CONFIG="${NOTIFY_CONFIG:-/opt/collector/notify-provider.yaml}"
+OUTPUTS_DIR="${OUTPUTS_DIR:-${DEFAULT_ROOT}/outputs}"
+WORDLISTS_DIR="${WORDLISTS_DIR:-${DEFAULT_ROOT}/wordlists}"
+COLLECTOR_CFG="${COLLECTOR_CFG:-${DEFAULT_ROOT}/collector.cfg}"
+NOTIFY_CONFIG="${NOTIFY_CONFIG:-${DEFAULT_ROOT}/notify-provider.yaml}"
 APP_PORT="${APP_PORT:-127.0.0.1:8000:8000}"
+
+# Pre-create the host directories that Docker would otherwise auto-create
+# as root when mounting them as volumes (which then breaks ownership of
+# the outputs produced inside the container).
+mkdir -p "${OUTPUTS_DIR}" "${WORDLISTS_DIR}" 2>/dev/null || true
+
+# Sanity check: if COLLECTOR_CFG does not exist (or is a directory), abort
+# with a clear message — otherwise Docker would create an empty directory
+# on the host and try to mount it on top of the /opt/collector/collector.cfg
+# file inside the container, failing with "not a directory".
+if [[ ! -f "${COLLECTOR_CFG}" ]]; then
+    echo "collector-docker: COLLECTOR_CFG not found: ${COLLECTOR_CFG}" >&2
+    echo "  copy collector.cfg to that path, or set COLLECTOR_CFG=<path> in the environment." >&2
+    exit 1
+fi
 
 # The notify mount is OPT-IN — only injected when the host file exists.
 # Without it, every `notify ... -pc /etc/collector/notify-provider.yaml`
