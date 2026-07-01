@@ -117,6 +117,8 @@ When the host port in `APP_PORT` is already bound (by a previous recon container
 | `-ww \| --webapp-wordlists <file[,file]>` | Extra wordlists for `-we`. |
 | `-l \| --limit-urls <n>` | Limit enumeration to the top N URLs (used with `-d`). |
 
+> **Wordlist paths are resolved inside the container.** `-ww` and `-s|--subdomain-brute` both pass paths straight through to a bash `[[ -s ... ]]` test that runs *inside* the container, so a host path like `~/my.txt` or `/home/leandro/lists/big.txt` won't work by itself. Stage the file under `${WORDLISTS_DIR}` on the host (default: `<root>/wordlists`, mounted at `/opt/collector/wordlists`) and pass the container path — e.g. `--webapp-wordlists /opt/collector/wordlists/big.txt`. Alternatively, override `WORDLISTS_DIR=<dir-that-contains-your-file>` when invoking `collector-docker` so the wrapper mounts that dir instead.
+
 ### Webapp crawler
 
 | Flag | Description |
