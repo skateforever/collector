@@ -68,6 +68,39 @@ if [[ ! -f "${COLLECTOR_CFG}" ]]; then
     exit 1
 fi
 
+# Detect report flags in "$@" so we can:
+#   --report-only  → name the container 'collector-report' and refuse if
+#                    another one is already running (Docker's --name
+#                    collision gives a clear error, no port race).
+#   --report-stop  → do NOT spawn a new container; call `docker stop`
+#                    on the running one from the host. The in-container
+#                    stop_app_report_foreground path is unreachable when
+#                    the caller is only the host wrapper (no other
+#                    container is running the collector binary), so
+#                    dispatching from here is the only way that works.
+# Long/short forms are both accepted, matching the collector CLI.
+REPORT_CONTAINER_NAME="${REPORT_CONTAINER_NAME:-collector-report}"
+want_report_only=no
+want_report_stop=no
+for arg in "$@"; do
+    case "${arg}" in
+        -ro|--report-only) want_report_only=yes ;;
+        -rs|--report-stop) want_report_stop=yes ;;
+    esac
+done
+
+# --report-stop wins over --report-only (mirrors the ordering inside
+# collector so `--report-only --report-stop` means "stop").
+if [[ "${want_report_stop}" == "yes" ]]; then
+    if docker ps --format '{{.Names}}' | grep -qx "${REPORT_CONTAINER_NAME}"; then
+        docker stop "${REPORT_CONTAINER_NAME}" >/dev/null && \
+            echo "collector-docker: stopped ${REPORT_CONTAINER_NAME}"
+    else
+        echo "collector-docker: no running container named ${REPORT_CONTAINER_NAME}"
+    fi
+    exit 0
+fi
+
 # The notify mount is OPT-IN — only injected when the host file exists.
 # Without it, every `notify ... -pc /etc/collector/notify-provider.yaml`
 # call inside the container will print a 'config not found' line on stderr
@@ -79,7 +112,19 @@ if [[ -s "${NOTIFY_CONFIG}" ]]; then
     notify_mount_args=(-v "${NOTIFY_CONFIG}:/etc/collector/notify-provider.yaml:ro")
 fi
 
-exec docker run --rm \
+# Only the report-only container needs a stable name (so --report-stop
+# from another shell can find it). Recon containers stay anonymous.
+name_args=()
+if [[ "${want_report_only}" == "yes" ]]; then
+    if docker ps --format '{{.Names}}' | grep -qx "${REPORT_CONTAINER_NAME}"; then
+        echo "collector-docker: container '${REPORT_CONTAINER_NAME}' is already running." >&2
+        echo "  stop it first with: collector-docker --report-stop" >&2
+        exit 1
+    fi
+    name_args=(--name "${REPORT_CONTAINER_NAME}")
+fi
+
+exec docker run --rm "${name_args[@]}" \
     -v "${OUTPUTS_DIR}:/opt/collector/outputs" \
     -v "${WORDLISTS_DIR}:/opt/collector/wordlists" \
     -v "${COLLECTOR_CFG}:/opt/collector/collector.cfg:ro" \

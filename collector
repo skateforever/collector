@@ -60,6 +60,25 @@ check_binaries
 
 [[ $# -eq 0 ]] && { echo -e "You're using the collector without parameters.\n" ; usage ; } || menu "$@"
 
+# --report-stop / --report-only short-circuit every step below (target
+# validation, lock acquisition, directory creation, recon). The app-report
+# Flask app is strictly read-only over the existing outputs/, so there's
+# nothing to validate here beyond what start_app_report_foreground already
+# checks (DB present, app-report dir present). exec inside that function
+# replaces this shell with gunicorn — Ctrl-C then reaches gunicorn directly.
+#
+# --report-stop is checked FIRST so `collector --report-only --report-stop`
+# means "stop, don't start" instead of racing on the pidfile.
+if [[ "${report_stop_check}" == "yes" ]]; then
+    stop_app_report_foreground
+    exit $?
+fi
+
+if [[ "${report_only_check}" == "yes" ]]; then
+    start_app_report_foreground
+    exit $?
+fi
+
 check_execution
 check_parameter_conflicts
 check_directory_permission

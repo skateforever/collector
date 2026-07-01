@@ -37,7 +37,7 @@ check_argument(){
     # acúmulo).
     local options=()
     options+=(-d --domain -dl --domain-list -ed --exclude-domains -el --exclude-domain-list -h --help)
-    options+=(-l --limit-urls -p --proxy -r --recon -s --subdomain-brute -u --url)
+    options+=(-l --limit-urls -p --proxy -r --recon -ro --report-only -rs --report-stop -s --subdomain-brute -u --url)
     options+=(-wc --webapp-crawler -wd --webapp-discovery -we --webapp-enum -ws --webapp-scan)
     options+=(-wld --webapp-long-detection -wsd --webapp-short-detection -ww --webapp-wordlists)
     local argument=$2
@@ -124,6 +124,21 @@ menu(){
                 ;;
             -r|--recon)
                 recon_check="yes"
+                shift
+                ;;
+            -ro|--report-only)
+                # Opens the read-only app-report dashboard against the existing
+                # outputs/ directory without triggering recon. Handled early
+                # in collector (right after menu) so target/lock/validation
+                # blocks are skipped entirely.
+                report_only_check="yes"
+                shift
+                ;;
+            -rs|--report-stop)
+                # Stops a report dashboard previously started with
+                # --report-only (foreground gunicorn, pidfile-tracked).
+                # Also handled early in collector; no target needed.
+                report_stop_check="yes"
                 shift
                 ;;
             -s|--subdomain-brute)

@@ -51,6 +51,8 @@ reset_vars(){
     unset webapp_scan_check
     unset webapp_port_detect
     unset webapp_wordlists
+    unset report_only_check
+    unset report_stop_check
 }
 
 # Replace any occurrence of the configured API keys with a redacted marker.
@@ -606,6 +608,154 @@ start_app_report(){
     if [[ "${cloudflare_tunnel:-no}" == "yes" ]]; then
         start_cloudflare_tunnel "${port}"
     fi
+}
+
+# _app_report_foreground_pidfile — path resolver shared by the start and
+# stop paths. Kept as a helper so both agree on where the file lives.
+# The suffix (.fg) differentiates the foreground pidfile from the one
+# start_app_report writes for its background gunicorn, so a recon run
+# and a --report-only session can coexist without clobbering each other.
+_app_report_foreground_pidfile(){
+    local base="${app_report_pidfile_name:-.app-report.pid}"
+    echo "${app_report_pidfile:-${output_dir}/${base%.pid}.fg.pid}"
+}
+
+# start_app_report_foreground — variant used by `collector --report-only`.
+# Differences from start_app_report (which is called at the tail end of a
+# recon run):
+#   - Runs gunicorn in the FOREGROUND via exec, so the collector process
+#     stays alive until the operator hits Ctrl-C or SIGTERM (from
+#     `collector --report-stop`). The recon path needs to move on after
+#     starting the dashboard, so it backgrounds it; the report-only path
+#     has nothing else to do.
+#   - Writes a pidfile before exec so --report-stop can find and signal
+#     the gunicorn master. Not used by start_app_report itself, hence the
+#     .fg.pid suffix.
+#   - Refuses to start if that pidfile points at a live process, so
+#     rerunning --report-only doesn't accidentally leave a zombie
+#     dashboard.
+#   - Preflight checks the DB exists before spawning gunicorn, so the
+#     user sees a clean error instead of a Flask 503 later.
+start_app_report_foreground(){
+    if [[ "${app_report_enabled:-yes}" != "yes" ]]; then
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} start_app_report_foreground: app_report_enabled=no in collector.cfg, refusing to start."
+        return 1
+    fi
+    local app_dir="${app_report_dir:-app-report}"
+    [[ "${app_dir}" != /* ]] && app_dir="${collector_path:-.}/${app_dir}"
+    local host="${app_report_host:-127.0.0.1}"
+    local port="${app_report_port:-8000}"
+    local db="${collector_db:-${output_dir}/${collector_db_name:-collector-results-db}}"
+    local pidfile
+    pidfile="$(_app_report_foreground_pidfile)"
+
+    if [[ ! -d "${app_dir}" ]]; then
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} start_app_report_foreground: ${app_dir} not found."
+        return 1
+    fi
+    if [[ ! -f "${db}" ]]; then
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} start_app_report_foreground: collector-results-db not found at ${db}."
+        echo -e "  no scan has completed on this outputs dir, so there is nothing to render."
+        return 1
+    fi
+
+    # Already running? Refuse instead of racing on the port. The user can
+    # stop the existing one with --report-stop, or leave it running and
+    # just open the browser.
+    if [[ -s "${pidfile}" ]]; then
+        local existing
+        existing="$(cat "${pidfile}" 2>/dev/null)"
+        if [[ -n "${existing}" ]] && kill -0 "${existing}" 2>/dev/null; then
+            echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} start_app_report_foreground: already running (pid ${existing}) at http://${host}:${port}"
+            echo -e "  stop it with ${yellow}collector --report-stop${reset} (or ${yellow}collector-docker --report-stop${reset}) before starting a new one."
+            return 1
+        fi
+        # Stale pidfile — process is gone, drop it and continue.
+        rm -f "${pidfile}"
+    fi
+
+    export COLLECTOR_DB="${db}"
+    export COLLECTOR_OUTPUT_DIR="${output_dir}"
+    export APP_REPORT_HOST="${host}"
+    export APP_REPORT_PORT="${port}"
+
+    cd "${app_dir}" || return 1
+
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} start_app_report_foreground: serving at http://${host}:${port} (Ctrl-C or --report-stop to stop)"
+
+    # Record OUR pid before exec — after exec, $$ is inherited by gunicorn
+    # (same PID, different program), so --report-stop still targets the
+    # right process. Written to a temp path + rename so a concurrent
+    # --report-stop never sees a half-written file.
+    echo "$$" > "${pidfile}.tmp" && mv "${pidfile}.tmp" "${pidfile}"
+
+    # exec so gunicorn replaces the collector process — no orphaned parent,
+    # and Ctrl-C reaches gunicorn cleanly. Prefer gunicorn, fall back to
+    # 'python3 app.py' for dev environments without gunicorn.
+    if command -v gunicorn >/dev/null 2>&1; then
+        exec gunicorn --workers 1 --bind "${host}:${port}" \
+            --access-logfile - --error-logfile - app:app
+    elif command -v python3 >/dev/null 2>&1; then
+        exec python3 app.py
+    else
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} start_app_report_foreground: neither gunicorn nor python3 found."
+        rm -f "${pidfile}"
+        return 1
+    fi
+}
+
+# stop_app_report_foreground — counterpart of start_app_report_foreground.
+# Signals the gunicorn master recorded in the pidfile with SIGTERM (which
+# gunicorn handles gracefully), waits up to 5 seconds, then escalates to
+# SIGKILL. Also cleans up stale pidfiles. Returns 0 on success or when
+# there was nothing to stop, 1 only if the kill escalation failed.
+#
+# Note on containers: when the dashboard was started via `collector-docker
+# --report-only`, the gunicorn PID lives inside that container's PID
+# namespace, not the host's. `collector-docker --report-stop` handles that
+# case by running `docker stop` from the host; this function is the
+# in-container half, invoked when the operator hits `collector
+# --report-stop` inside the same container (or runs the collector
+# natively on the host).
+stop_app_report_foreground(){
+    local pidfile
+    pidfile="$(_app_report_foreground_pidfile)"
+
+    if [[ ! -s "${pidfile}" ]]; then
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} stop_app_report_foreground: no pidfile at ${pidfile} — nothing to stop."
+        return 0
+    fi
+
+    local pid
+    pid="$(cat "${pidfile}" 2>/dev/null)"
+    if [[ -z "${pid}" ]] || ! kill -0 "${pid}" 2>/dev/null; then
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} stop_app_report_foreground: stale pidfile (pid ${pid:-?} not alive), removing."
+        rm -f "${pidfile}"
+        return 0
+    fi
+
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} stop_app_report_foreground: sending SIGTERM to gunicorn (pid ${pid})"
+    kill -TERM "${pid}" 2>/dev/null
+
+    local waited=0
+    while [[ "${waited}" -lt 5 ]]; do
+        if ! kill -0 "${pid}" 2>/dev/null; then
+            rm -f "${pidfile}"
+            echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} stop_app_report_foreground: stopped."
+            return 0
+        fi
+        sleep 1
+        waited=$((waited + 1))
+    done
+
+    # Didn't exit within 5s — force it.
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} stop_app_report_foreground: SIGTERM ignored after 5s, escalating to SIGKILL."
+    if kill -KILL "${pid}" 2>/dev/null; then
+        rm -f "${pidfile}"
+        return 0
+    fi
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} stop_app_report_foreground: SIGKILL failed for pid ${pid}."
+    return 1
 }
 
 # Launch a cloudflared quick-tunnel pointing at the local app-report
