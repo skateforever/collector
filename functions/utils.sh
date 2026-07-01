@@ -243,7 +243,7 @@ build_consolidated_urls(){
 # Internal helper: emits a delimited + optionally truncated section for
 # one artifact file into an already-open output file descriptor.
 # Args: $1=out_file $2=report_dir $3=relative_path $4=max_lines
-_llm_emit_artifact(){
+llm_emit_artifact(){
     local out_file="$1" base="$2" rel="$3"
     local f="${base}/${rel}"
     [[ ! -s "${f}" ]] && return 0
@@ -326,7 +326,7 @@ build_llm_prompt(){
         echo
     } >> "${out}"
     for rel in "${artifacts[@]}"; do
-        _llm_emit_artifact "${out}" "${report_dir}" "${rel}"
+        llm_emit_artifact "${out}" "${report_dir}" "${rel}"
     done
     {
         echo "===== END OF BUNDLE ====="
@@ -535,54 +535,144 @@ SQL
     fi
 }
 
-# Launch the read-only Flask+HTMX UI in the background. PID-file based:
-# if a previous recon run already started it, this is a no-op so multiple
-# concurrent runs don't fight over the socket.
-start_app_report(){
+# app_report_foreground_pidfile — path resolver shared by the foreground
+# start and stop paths. Kept as a helper so both agree on where the file
+# lives. The .fg suffix differentiates the foreground pidfile from the
+# background one written by mode=background below, so a recon run (which
+# leaves a background dashboard) and a --report-only session can coexist
+# without clobbering each other.
+app_report_foreground_pidfile(){
+    local base="${app_report_pidfile_name:-.app-report.pid}"
+    echo "${app_report_pidfile:-${output_dir}/${base%.pid}.fg.pid}"
+}
+
+# run_app_report — single implementation behind start_app_report (called
+# at the tail of a recon run, backgrounded) and start_app_report_foreground
+# (called by `collector --report-only`, exec-replaces this shell).
+#
+# Everything the two variants used to duplicate lives here:
+#   * enablement gate (app_report_enabled)
+#   * resolution of app_dir / host / port / db
+#   * "already running?" pidfile check with stale-file cleanup
+#   * env-var exports consumed by app.py
+#   * gunicorn preferred, python3 app.py fallback
+#
+# Mode-dependent behavior is fenced by "$1":
+#   background  — nohup + &, redirects logs to file, optional cloudflare
+#                 tunnel, returns after confirming the child is alive.
+#                 A missing app_dir / DB is a soft skip (return 0) so a
+#                 recon run isn't aborted by a missing UI.
+#   foreground  — exec so gunicorn takes over PID $$, logs to stdout, no
+#                 tunnel, no return-on-success (exec never returns).
+#                 Preflight failures are hard errors (return 1) since the
+#                 whole point of the invocation is to serve the UI.
+run_app_report(){
+    local mode="$1"
+    local tag                    # log-line prefix and pidfile lookup key
+    case "${mode}" in
+        background) tag="start_app_report" ;;
+        foreground) tag="start_app_report_foreground" ;;
+        *) echo "run_app_report: unknown mode '${mode}'" >&2; return 2 ;;
+    esac
+
     if [[ "${app_report_enabled:-yes}" != "yes" ]]; then
+        # Background path used to silently return; foreground path now
+        # tells the operator why nothing happened — either way, we bail.
+        if [[ "${mode}" == "foreground" ]]; then
+            echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${tag}: app_report_enabled=no in collector.cfg, refusing to start."
+            return 1
+        fi
         return 0
     fi
+
     local app_dir="${app_report_dir:-app-report}"
     [[ "${app_dir}" != /* ]] && app_dir="${collector_path:-.}/${app_dir}"
     local host="${app_report_host:-127.0.0.1}"
     local port="${app_report_port:-8000}"
-    local pidfile="${app_report_pidfile:-${output_dir}/${app_report_pidfile_name:-.app-report.pid}}"
-    local logfile="${app_report_logfile:-${output_dir}/${app_report_logfile_name:-.app-report.log}}"
     local db="${collector_db:-${output_dir}/${collector_db_name:-collector-results-db}}"
+    local pidfile logfile
+    if [[ "${mode}" == "foreground" ]]; then
+        pidfile="$(app_report_foreground_pidfile)"
+        logfile=""   # foreground writes to stdout/stderr, no file
+    else
+        pidfile="${app_report_pidfile:-${output_dir}/${app_report_pidfile_name:-.app-report.pid}}"
+        logfile="${app_report_logfile:-${output_dir}/${app_report_logfile_name:-.app-report.log}}"
+    fi
 
     if [[ ! -d "${app_dir}" ]]; then
-        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} start_app_report: ${app_dir} not found, skipping."
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${tag}: ${app_dir} not found."
+        [[ "${mode}" == "foreground" ]] && return 1 || return 0
+    fi
+    # DB preflight was missing in the old background path; adding it here
+    # so both modes fail cleanly instead of letting Flask return 503 later.
+    if [[ ! -f "${db}" ]]; then
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${tag}: collector-results-db not found at ${db}."
+        if [[ "${mode}" == "foreground" ]]; then
+            echo -e "  no scan has completed on this outputs dir, so there is nothing to render."
+            return 1
+        fi
+        # Background: still soft-skip — the recon that called us will
+        # write the DB on the next db_usage call, and a re-invocation
+        # will find it.
         return 0
     fi
 
-    # Already running? Trust the PID file iff the process is alive.
+    # Already running? Trust the pidfile iff the process is alive. Same
+    # in both modes; only the failure message differs.
     if [[ -s "${pidfile}" ]]; then
         local existing
         existing="$(cat "${pidfile}" 2>/dev/null)"
         if [[ -n "${existing}" ]] && kill -0 "${existing}" 2>/dev/null; then
-            echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} start_app_report: already running (pid ${existing}) at http://${host}:${port}"
+            echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${tag}: already running (pid ${existing}) at http://${host}:${port}"
+            if [[ "${mode}" == "foreground" ]]; then
+                echo -e "  stop it with ${yellow}collector --report-stop${reset} (or ${yellow}collector-docker --report-stop${reset}) before starting a new one."
+                return 1
+            fi
             return 0
         fi
         rm -f "${pidfile}"
     fi
 
-    # Need either gunicorn (preferred) or python3 fallback for dev.
+    # Launcher selection is shared. Missing both binaries is a soft skip
+    # in background (the recon carries on without a UI) but a hard error
+    # in foreground (nothing else to do).
     local launcher=""
     if command -v gunicorn >/dev/null 2>&1; then
         launcher="gunicorn"
     elif command -v python3 >/dev/null 2>&1; then
         launcher="python3"
     else
-        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} start_app_report: neither gunicorn nor python3 found, skipping."
-        return 0
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${tag}: neither gunicorn nor python3 found."
+        [[ "${mode}" == "foreground" ]] && return 1 || return 0
     fi
 
+    export COLLECTOR_DB="${db}"
+    export COLLECTOR_OUTPUT_DIR="${output_dir}"
+    export APP_REPORT_HOST="${host}"
+    export APP_REPORT_PORT="${port}"
+
+    if [[ "${mode}" == "foreground" ]]; then
+        cd "${app_dir}" || return 1
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${tag}: serving at http://${host}:${port} (Ctrl-C or --report-stop to stop)"
+        # Record OUR pid before exec — after exec, $$ is inherited by
+        # gunicorn (same PID, different program), so --report-stop still
+        # targets the right process. Written to a temp path + rename so a
+        # concurrent --report-stop never sees a half-written file.
+        echo "$$" > "${pidfile}.tmp" && mv "${pidfile}.tmp" "${pidfile}"
+        if [[ "${launcher}" == "gunicorn" ]]; then
+            exec gunicorn --workers 1 --bind "${host}:${port}" \
+                --access-logfile - --error-logfile - app:app
+        else
+            exec python3 app.py
+        fi
+        # exec should have replaced us. If we reach here, exec itself failed.
+        rm -f "${pidfile}"
+        return 1
+    fi
+
+    # ─── background path ───────────────────────────────────────────────
     (
         cd "${app_dir}" || exit 1
-        export COLLECTOR_DB="${db}"
-        export COLLECTOR_OUTPUT_DIR="${output_dir}"
-        export APP_REPORT_HOST="${host}"
-        export APP_REPORT_PORT="${port}"
         if [[ "${launcher}" == "gunicorn" ]]; then
             nohup gunicorn --workers 1 --bind "${host}:${port}" \
                 --access-logfile - --error-logfile - app:app \
@@ -595,9 +685,9 @@ start_app_report(){
 
     sleep 1
     if [[ -s "${pidfile}" ]] && kill -0 "$(cat "${pidfile}")" 2>/dev/null; then
-        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} start_app_report: serving at http://${host}:${port} (pid $(cat "${pidfile}"), log ${logfile})"
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${tag}: serving at http://${host}:${port} (pid $(cat "${pidfile}"), log ${logfile})"
     else
-        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} start_app_report: failed to start (see ${logfile})"
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${tag}: failed to start (see ${logfile})"
         rm -f "${pidfile}"
         return 1
     fi
@@ -605,104 +695,16 @@ start_app_report(){
     # Optional Cloudflare quick-tunnel — gives the gunicorn we just started
     # an ephemeral https://*.trycloudflare.com URL so the dashboard is
     # reachable without exposing the VPS IP/port. Opt-in via collector.cfg.
+    # Only meaningful for the background path (foreground is one-shot).
     if [[ "${cloudflare_tunnel:-no}" == "yes" ]]; then
         start_cloudflare_tunnel "${port}"
     fi
 }
 
-# _app_report_foreground_pidfile — path resolver shared by the start and
-# stop paths. Kept as a helper so both agree on where the file lives.
-# The suffix (.fg) differentiates the foreground pidfile from the one
-# start_app_report writes for its background gunicorn, so a recon run
-# and a --report-only session can coexist without clobbering each other.
-_app_report_foreground_pidfile(){
-    local base="${app_report_pidfile_name:-.app-report.pid}"
-    echo "${app_report_pidfile:-${output_dir}/${base%.pid}.fg.pid}"
-}
-
-# start_app_report_foreground — variant used by `collector --report-only`.
-# Differences from start_app_report (which is called at the tail end of a
-# recon run):
-#   - Runs gunicorn in the FOREGROUND via exec, so the collector process
-#     stays alive until the operator hits Ctrl-C or SIGTERM (from
-#     `collector --report-stop`). The recon path needs to move on after
-#     starting the dashboard, so it backgrounds it; the report-only path
-#     has nothing else to do.
-#   - Writes a pidfile before exec so --report-stop can find and signal
-#     the gunicorn master. Not used by start_app_report itself, hence the
-#     .fg.pid suffix.
-#   - Refuses to start if that pidfile points at a live process, so
-#     rerunning --report-only doesn't accidentally leave a zombie
-#     dashboard.
-#   - Preflight checks the DB exists before spawning gunicorn, so the
-#     user sees a clean error instead of a Flask 503 later.
-start_app_report_foreground(){
-    if [[ "${app_report_enabled:-yes}" != "yes" ]]; then
-        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} start_app_report_foreground: app_report_enabled=no in collector.cfg, refusing to start."
-        return 1
-    fi
-    local app_dir="${app_report_dir:-app-report}"
-    [[ "${app_dir}" != /* ]] && app_dir="${collector_path:-.}/${app_dir}"
-    local host="${app_report_host:-127.0.0.1}"
-    local port="${app_report_port:-8000}"
-    local db="${collector_db:-${output_dir}/${collector_db_name:-collector-results-db}}"
-    local pidfile
-    pidfile="$(_app_report_foreground_pidfile)"
-
-    if [[ ! -d "${app_dir}" ]]; then
-        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} start_app_report_foreground: ${app_dir} not found."
-        return 1
-    fi
-    if [[ ! -f "${db}" ]]; then
-        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} start_app_report_foreground: collector-results-db not found at ${db}."
-        echo -e "  no scan has completed on this outputs dir, so there is nothing to render."
-        return 1
-    fi
-
-    # Already running? Refuse instead of racing on the port. The user can
-    # stop the existing one with --report-stop, or leave it running and
-    # just open the browser.
-    if [[ -s "${pidfile}" ]]; then
-        local existing
-        existing="$(cat "${pidfile}" 2>/dev/null)"
-        if [[ -n "${existing}" ]] && kill -0 "${existing}" 2>/dev/null; then
-            echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} start_app_report_foreground: already running (pid ${existing}) at http://${host}:${port}"
-            echo -e "  stop it with ${yellow}collector --report-stop${reset} (or ${yellow}collector-docker --report-stop${reset}) before starting a new one."
-            return 1
-        fi
-        # Stale pidfile — process is gone, drop it and continue.
-        rm -f "${pidfile}"
-    fi
-
-    export COLLECTOR_DB="${db}"
-    export COLLECTOR_OUTPUT_DIR="${output_dir}"
-    export APP_REPORT_HOST="${host}"
-    export APP_REPORT_PORT="${port}"
-
-    cd "${app_dir}" || return 1
-
-    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} start_app_report_foreground: serving at http://${host}:${port} (Ctrl-C or --report-stop to stop)"
-
-    # Record OUR pid before exec — after exec, $$ is inherited by gunicorn
-    # (same PID, different program), so --report-stop still targets the
-    # right process. Written to a temp path + rename so a concurrent
-    # --report-stop never sees a half-written file.
-    echo "$$" > "${pidfile}.tmp" && mv "${pidfile}.tmp" "${pidfile}"
-
-    # exec so gunicorn replaces the collector process — no orphaned parent,
-    # and Ctrl-C reaches gunicorn cleanly. Prefer gunicorn, fall back to
-    # 'python3 app.py' for dev environments without gunicorn.
-    if command -v gunicorn >/dev/null 2>&1; then
-        exec gunicorn --workers 1 --bind "${host}:${port}" \
-            --access-logfile - --error-logfile - app:app
-    elif command -v python3 >/dev/null 2>&1; then
-        exec python3 app.py
-    else
-        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} start_app_report_foreground: neither gunicorn nor python3 found."
-        rm -f "${pidfile}"
-        return 1
-    fi
-}
+# Thin wrappers preserve the historical call-sites (domains_recon.sh,
+# url_recon.sh, collector) — no other file had to change for the refactor.
+start_app_report(){ run_app_report background; }
+start_app_report_foreground(){ run_app_report foreground; }
 
 # stop_app_report_foreground — counterpart of start_app_report_foreground.
 # Signals the gunicorn master recorded in the pidfile with SIGTERM (which
@@ -719,7 +721,7 @@ start_app_report_foreground(){
 # natively on the host).
 stop_app_report_foreground(){
     local pidfile
-    pidfile="$(_app_report_foreground_pidfile)"
+    pidfile="$(app_report_foreground_pidfile)"
 
     if [[ ! -s "${pidfile}" ]]; then
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} stop_app_report_foreground: no pidfile at ${pidfile} — nothing to stop."
