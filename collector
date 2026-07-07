@@ -154,9 +154,18 @@ if  [[ "${domainlist_check}" == "yes" && -s "${domain_list}" ]]; then
 fi
 
 if [[ "${url_check}" == "yes" && -n "${url_verify}" ]]; then
+    if [[ "${dry_run_check}" == "yes" ]]; then
+        echo -e "${yellow}Pre-flight checks passed:${reset}"
+        echo -e "  Target:       ${url_verify} (URL mode)"
+        echo -e "  Domain:       ${url_domain}"
+        echo -e "  Wordlists:    ${#webapp_wordlists[@]}"
+        echo -e "  Proxy:        ${use_proxy:-no} ${proxy_ip:-}"
+        exit 0
+    fi
     collector_acquire_lock "${url_domain}"
     check_is_known_target "${url_domain}"
     create_directory_structure
     check_parameter_dependency
     url_recon
+    exit 0
 fi
