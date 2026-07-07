@@ -34,6 +34,7 @@ collector/
 │
 ├── collector                           main Bash script (container entrypoint)
 ├── collector-docker                    host wrapper: injects -v / -p and calls docker run
+├── collector-update                    update script: git pull + conditional rebuild
 ├── collector.cfg                       config: timeouts, threads, port lists, API keys
 │
 ├── functions/                          Bash modules loaded by collector
@@ -192,7 +193,29 @@ Every final artifact lives under `outputs/<domain>/recon_YYYYMMDD/`:
 
 ## 5. How to run collector
 
-### 5.0. Pre-flight validation (dry run)
+### 5.0. Keeping collector up to date
+
+The `collector-update` script automates pulling changes and rebuilding the Docker image **only when necessary**:
+
+```bash
+./collector-update              # git pull + conditional rebuild
+./collector-update --pull-only  # git pull without building
+./collector-update --build-only # rebuild without pulling
+./collector-update --force-build # rebuild even if no structural changes
+```
+
+The script inspects changed files and only triggers an image rebuild when **structural files** change (Dockerfiles, `functions/check_binaries.sh`). Script-only changes are served instantly via volume mounts in `collector-docker`, so no rebuild is needed.
+
+Optional: install the `post-merge` git hook to auto-rebuild after every `git pull`:
+
+```bash
+git config core.hooksPath support/templates/githooks
+# Now git pull automatically triggers rebuild when structural files change
+```
+
+**Important note:** `collector-docker` mounts scripts (`collector`, `functions/`, `scans/`, `sources/`, `support/runtime/`) as read-only volumes from the host. This means code changes are instantly available without rebuilding the Docker image. The image only needs rebuilding when binaries or system packages change.
+
+### 5.1. Pre-flight validation (dry run)
 
 Before kicking off a long-running pipeline, use `-dr` (or `--dry-run`) to validate that config, locks, and directory permissions are in order:
 
@@ -204,7 +227,7 @@ This executes every pre-flight check (CLI parsing, domain validation, directory 
 
 The examples below use the `collector-docker` wrapper, which automatically injects the volumes (`outputs`, `wordlists`, `collector.cfg`) and `-p 127.0.0.1:8000:8000`. The same commands work directly with `docker run --rm -v … collector:latest <flags>` or `docker compose run --rm collector <flags>`.
 
-### 5.1. Basic reconnaissance commands
+### 5.2. Basic reconnaissance commands
 
 Pure recon — only discovers subdomains, infra, ASN, IPs and runs nmap/Shodan. No HTTP traffic:
 
@@ -230,7 +253,7 @@ collector-docker -d example.com --recon --webapp-discovery --webapp-short-detect
 
 What you get: everything above plus `vhost_subdomains.txt` (STRONG), `vhost_subdomains_weak.txt`, `etc_hosts_file.txt`. Vhost validation probes every IP in `infra_ipv4.txt` on the configured port list using dual-tool (curl + httpx) cross-validation, and optionally `ffuf` for the wordlist-based probe.
 
-### 5.2. Intermediate commands
+### 5.3. Intermediate commands
 
 Directory and file enumeration against an existing recon (reuses the most recent `recon_YYYYMMDD/`):
 
@@ -278,7 +301,7 @@ collector-docker -u https://app.example.com \
 
 What you get: the full webapp pipeline (enum + robots + sitemap + crawler + nuclei + aquatone) limited to the given URL. Ideal for scopes restricted to a single application.
 
-### 5.3. Full collector command
+### 5.4. Full collector command
 
 End-to-end pipeline — recon + web discovery + vhost + enumeration + crawler + vulnerability scan — in a single shot:
 
@@ -293,7 +316,7 @@ collector-docker -d example.com \
 
 What you get: **every** artifact described in section 4, including `llm-prompt.txt`, an updated `<domain>_history.csv`, ingestion into `collector-results-db` and the dashboard running on `http://127.0.0.1:8000`. This is typically the command wired into cron/systemd (weekly) — the per-artifact diff ensures only changes hit the notification channel.
 
-### 5.4. Reopening the dashboard without a new recon
+### 5.5. Reopening the dashboard without a new recon
 
 At the end of every recon, `start_app_report` puts the Flask/gunicorn dashboard in the background so the operator has an interface ready to browse the results. Once that container exits (or the process is killed), the dashboard goes with it — but the data is preserved in the shared `outputs/` volume. To read it again without triggering another scan, use `--report-only`:
 
@@ -306,7 +329,7 @@ collector-docker --report-stop        # stop from another shell
 
 When the host port in `APP_PORT` (default `127.0.0.1:8000:8000`) is already bound — for instance because a previous recon left a background dashboard running, or a sibling container is publishing to it — `collector-docker` silently drops the `-p` flag from `docker run` rather than aborting with "port already allocated". The recon still completes, and the running dashboard already renders the new run's data because `outputs/` is shared.
 
-## 5.5. Vhost-specific configuration (collector.cfg)
+### 5.6. Vhost-specific configuration (collector.cfg)
 
 Vhost discovery has its own tuning section in `collector.cfg`. These variables only matter when `-vv|--vhost-validation` is used:
 

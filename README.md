@@ -4,10 +4,12 @@ collector is a Bash script that automates reconnaissance and information gatheri
 
 ## Quick start
 
-Build the image once:
+Build the image once (or use `collector-update` for automated builds):
 
 ```bash
-docker build -t collector:latest /opt/collector
+docker build -t collector:latest .
+# or with collector-update script
+./collector-update --build-only
 ```
 
 Run a full recon + webapp discovery:
@@ -58,7 +60,9 @@ COLLECTOR_CFG=/etc/collector/collector.cfg
 
 > **Note:** `docker compose up` is **not** the right verb here. `collector` exits with the usage screen when called without arguments, which Compose would interpret as a service failure. Always use `docker compose run --rm collector <flags>`.
 
-**`collector-docker`** — thin wrapper around `docker run` that injects volumes and the default port mapping automatically. The wrapper resolves its defaults with a hybrid strategy:
+**`collector-docker`** — thin wrapper around `docker run` that injects volumes and the default port mapping automatically. **Scripts (`collector`, `functions/`, `scans/`, `sources/`, `support/runtime/`) are mounted as read-only volumes from the host**, meaning code changes are instantly available without rebuilding the Docker image. The image only needs rebuilding when binaries or system packages change.
+
+The wrapper resolves its defaults with a hybrid strategy:
 
 - Running from a repo checkout (i.e. `collector.cfg` sits next to the script), defaults point at that checkout — `git clone` and run without any sudo or filesystem prep.
 - Installed to `/usr/local/bin/` (no `collector.cfg` next to the script), defaults fall back to `/opt/collector/`, the layout produced by `sudo install ...`.
@@ -84,6 +88,26 @@ Override defaults via environment variables (`<root>` is the checkout directory 
 | `REPORT_CONTAINER_NAME` | `collector-report` |
 
 When the host port in `APP_PORT` is already bound (by a previous recon container, an ongoing `--report-only` session, or any other listener), the wrapper silently drops the `-p` flag from `docker run` instead of failing with "port already allocated" — the recon still completes; if a sibling container's dashboard is publishing that port, its view mirrors this run's results (shared `outputs/` volume).
+
+## Keeping collector up to date
+
+The `collector-update` script automates pulling changes and rebuilding the Docker image **only when necessary**:
+
+```bash
+./collector-update              # git pull + conditional rebuild
+./collector-update --pull-only  # git pull without building
+./collector-update --build-only # rebuild without pulling
+./collector-update --force-build # rebuild even if no structural changes
+```
+
+The script inspects changed files and only triggers an image rebuild when **structural files** change (Dockerfiles, `functions/check_binaries.sh`). Script-only changes are served instantly via volume mounts in `collector-docker`, so no rebuild is needed.
+
+Optional: install the `post-merge` git hook to auto-rebuild after every `git pull`:
+
+```bash
+git config core.hooksPath support/templates/githooks
+# Now git pull automatically triggers rebuild when structural files change
+```
 
 ## Command reference
 

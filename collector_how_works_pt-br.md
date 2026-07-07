@@ -34,6 +34,7 @@ collector/
 │
 ├── collector                           script Bash principal (entrypoint do container)
 ├── collector-docker                    wrapper de host: injeta -v e -p e chama docker run
+├── collector-update                    script de atualização: git pull + rebuild condicional
 ├── collector.cfg                       configuração: timeouts, threads, listas de portas, APIs
 │
 ├── functions/                          módulos Bash carregados pelo collector
@@ -192,7 +193,29 @@ Todos os artefatos finais vivem em `outputs/<domain>/recon_YYYYMMDD/`:
 
 ## 5. Comandos para executar o collector
 
-### 5.0. Validação pré-voo (dry run)
+### 5.0. Mantendo o collector atualizado
+
+O script `collector-update` automatiza o pull de mudanças e rebuild da imagem Docker **apenas quando necessário**:
+
+```bash
+./collector-update              # git pull + rebuild condicional
+./collector-update --pull-only  # apenas git pull, sem rebuild
+./collector-update --build-only # apenas rebuild, sem pull
+./collector-update --force-build # força rebuild mesmo sem mudanças estruturais
+```
+
+O script inspeciona os arquivos modificados e só dispara rebuild da imagem quando **arquivos estruturais** mudam (Dockerfiles, `functions/check_binaries.sh`). Mudanças apenas em scripts são servidas instantaneamente via montagem de volumes no `collector-docker`, então não precisam de rebuild.
+
+Opcional: instale o hook git `post-merge` para auto-rebuild após cada `git pull`:
+
+```bash
+git config core.hooksPath support/templates/githooks
+# Agora git pull dispara rebuild automaticamente quando arquivos estruturais mudam
+```
+
+**Nota importante:** O `collector-docker` monta os scripts (`collector`, `functions/`, `scans/`, `sources/`, `support/runtime/`) como volumes read-only do host. Isso significa que alterações de código ficam disponíveis instantaneamente sem rebuild da imagem Docker. A imagem só precisa ser reconstruída quando binários ou pacotes do sistema mudam.
+
+### 5.2. Validação pré-voo (dry run)
 
 Antes de disparar um pipeline demorado, use `-dr` (ou `--dry-run`) para validar que configuração, locks e permissões estão corretos:
 
@@ -204,7 +227,7 @@ Isso executa todas as validações pré-voo (parse de CLI, validação de domín
 
 Os exemplos abaixo usam o wrapper `collector-docker`, que injeta automaticamente os volumes (`outputs`, `wordlists`, `collector.cfg`) e o `-p 127.0.0.1:8000:8000`. Os mesmos comandos funcionam diretamente com `docker run --rm -v … collector:latest <flags>` ou `docker compose run --rm collector <flags>`.
 
-### 5.1. Comandos básicos de reconhecimento
+### 5.3. Comandos básicos de reconhecimento
 
 Recon "puro" — só descobre subdomínios, infra, ASN, IPs e roda nmap/Shodan. Não toca em HTTP:
 
@@ -230,7 +253,7 @@ collector-docker -d example.com --recon --webapp-discovery --webapp-short-detect
 
 O que entrega: tudo acima + `vhost_subdomains.txt` (STRONG), `vhost_subdomains_weak.txt`, `etc_hosts_file.txt`. A validação de vhost sonda cada IP de `infra_ipv4.txt` na lista de portas configurada usando validação cruzada dual-tool (curl + httpx), e opcionalmente `ffuf` para o probe baseado em wordlist.
 
-### 5.2. Comandos intermediários
+### 5.4. Comandos intermediários
 
 Enumeração de diretórios/arquivos contra um recon já feito (reuso do `recon_YYYYMMDD/` mais recente):
 
@@ -278,7 +301,7 @@ collector-docker -u https://app.example.com \
 
 O que entrega: pipeline de webapp completo (enum + robots + sitemap + crawler + nuclei + aquatone) contra apenas a URL informada. Ideal para escopos restritos a uma única aplicação.
 
-### 5.3. Comando completo do collector
+### 5.5. Comando completo do collector
 
 Pipeline end-to-end — recon + descoberta web + vhost + enumeração + crawler + scan de vulnerabilidades — em um único disparo:
 
@@ -293,7 +316,7 @@ collector-docker -d example.com \
 
 O que entrega: **todos** os artefatos descritos na seção 4, incluindo `llm-prompt.txt`, `<domain>_history.csv` atualizado, ingestão no `collector-results-db` e dashboard subindo em `http://127.0.0.1:8000`. Tipicamente é o comando agendado em cron/systemd (semanal) — o diff por artefato garante que apenas as mudanças vão para o canal de notificação.
 
-### 5.4. Reabrir o dashboard sem rodar um novo recon
+### 5.6. Reabrir o dashboard sem rodar um novo recon
 
 Ao final de cada recon, `start_app_report` sobe o dashboard Flask/gunicorn em background para que o operador tenha uma interface pronta para navegar nos resultados. Quando aquele container termina (ou o processo é derrubado), o dashboard vai junto — mas os dados continuam preservados no volume compartilhado `outputs/`. Para consultá-los de novo sem disparar outro scan, use `--report-only`:
 
@@ -306,7 +329,7 @@ collector-docker --report-stop        # encerra a partir de outro shell
 
 Quando a porta host de `APP_PORT` (default `127.0.0.1:8000:8000`) já está ocupada — por exemplo porque um recon anterior deixou um dashboard em background rodando, ou outro container publica ali —, o `collector-docker` silenciosamente omite o `-p` do `docker run` em vez de abortar com "port already allocated". O recon continua e o dashboard já em execução renderiza os dados do novo run porque `outputs/` é compartilhado.
 
-## 5.5. Configuração específica de vhost (collector.cfg)
+### 5.7. Configuração específica de vhost (collector.cfg)
 
 A descoberta de vhosts tem sua própria seção de tuning no `collector.cfg`. Estas variáveis só importam quando `-vv|--vhost-validation` é utilizado:
 
