@@ -83,7 +83,6 @@ Override defaults via environment variables (`<root>` is the checkout directory 
 | `OUTPUTS_DIR` | `<root>/outputs` |
 | `WORDLISTS_DIR` | `<root>/wordlists` |
 | `COLLECTOR_CFG` | `<root>/collector.cfg` |
-| `NOTIFY_CONFIG` | `<root>/notify-provider.yaml` (mount is skipped if missing) |
 | `APP_PORT` | `127.0.0.1:8000:8000` |
 | `REPORT_CONTAINER_NAME` | `collector-report` |
 
@@ -314,7 +313,7 @@ Drop-in scheduling files are in `support/templates/`:
 
 - `support/templates/cron/collector` — daily light recon + weekly heavy run via cron (`/etc/cron.d/collector`)
 - `support/templates/systemd/collector@` — same cadence as systemd template units (`collector@<domain>.timer`)
-- `support/templates/notify/provider-config.yml` — example provider config for [notify](https://github.com/projectdiscovery/notify). Copy to `./notify-provider.yaml` (git-ignored), fill in webhook URLs, and the file is bind-mounted onto `/etc/collector/notify-provider.yaml` inside the container. Without this mount notifications fall back silently; override path via `NOTIFY_CONFIG` in `.env`
+- `support/templates/alerts/` — alert provider templates for [notify](https://github.com/projectdiscovery/notify): Discord, Slack, Teams, Telegram, Signal. Templates are baked into the Docker image at `/opt/collector/support/templates/alerts/`. To use a custom provider config (e.g., with real webhook URLs), copy your config outside the repo and bind-mount via `ALERT_PROVIDER` in your `.env`. See `support/templates/alerts/README.md` for setup guides and examples.
 
 Both use `collector-docker` (or `docker run --rm` directly) — each run fires an ephemeral container. Results persist via the `/opt/collector/outputs` volume. Per-target `flock` prevents overlapping runs for the same domain when triggered by cron or timers.
 
