@@ -11,6 +11,14 @@
 
 domains_recon(){
     (# Show the directory structure
+    cleanup_on_exit(){
+        rm -f "${tmp_dir}"/vhost_pair_*.tmp 2>/dev/null
+        rm -f "${tmp_dir}"/vhost_probe_worker_*.txt 2>/dev/null
+        rm -rf "${tmp_dir}"/resolve_* 2>/dev/null
+        rm -f "${tmp_dir}"/_alive_sorted.tmp 2>/dev/null
+    }
+    trap cleanup_on_exit EXIT
+
     echo "The directory structure you will have to work with, is..."
     echo " "
     echo "${output_dir}/${domain}"
