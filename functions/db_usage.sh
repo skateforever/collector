@@ -106,10 +106,11 @@ db_usage(){
         echo "${row}"
     } > "${stage}"
 
+    local target_safe="${target//\'/\'\'}"
     sqlite3 "${db}" 2>> "${log_execution_file}" <<SQL
 .bail on
 BEGIN IMMEDIATE;
-INSERT OR IGNORE INTO targets(domain) VALUES ('${target}');
+INSERT OR IGNORE INTO targets(domain) VALUES ('${target_safe}');
 
 -- Stage table mirrors the CSV payload columns ONLY (28 cols). Cloning
 -- recon_runs verbatim used to pull in \`ingested_at\` too, leaving the
