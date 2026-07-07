@@ -102,7 +102,7 @@ vhost_probe_ffuf(){
             # Parse ffuf CSV output: extract matched hostnames
             if [[ -s "${ffuf_out}" ]]; then
                 # ffuf CSV: first line is header, columns vary but input field is always present
-                tail -n+2 "${ffuf_out}" | while IFS=',' read -r _ _ _ _ _ input _rest; do
+                tail -n+2 "${ffuf_out}" | while IFS=',' read -r x1 x2 x3 x4 x5 input rest; do
                     [[ -n "${input}" && "${input}" != "input" ]] && echo "${input}.${domain}"
                 done >> "${tmp_dir}/vhost_probe_output.txt"
             fi
