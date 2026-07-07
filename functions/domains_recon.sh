@@ -114,6 +114,7 @@ domains_recon(){
         shodan_scan
         if [[ "${webapp_discovery_check}" == "yes" ]]; then
             webapp_alive "${domain}" "${report_dir}/domains_alive.txt"
+            if [[ "${vhost_validation_check}" == "yes" ]]; then
             source "${collector_path}/sources/vhost-check.sh"
             [[ -s "${report_dir}/domains_without_resolution.txt" ]] && [[ -s "${report_dir}/infra_ipv4.txt" ]] && \
                 vhost_check "${report_dir}/domains_without_resolution.txt" "${report_dir}/infra_ipv4.txt"
@@ -173,6 +174,7 @@ domains_recon(){
                     sort -u -o "${report_dir}/vhost_urls.txt" "${report_dir}/vhost_urls.txt"
                 fi
             fi
+            fi  # end vhost_validation_check
             # Build the consolidated URL list once — after both vhost_check and
             # vhost_probe have finished writing to vhost_urls.txt. The call that
             # was previously inside vhost_check() was removed so that probe hits

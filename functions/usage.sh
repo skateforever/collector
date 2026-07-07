@@ -32,6 +32,8 @@ usage(){
     echo -e "\t\t\t\t        The success of use those tools is a good wordlist:"
     echo -e "\t\t\t\t        use ${yellow}-s /path/to/wordlist1,/path/to/wordlist2${reset} OR ${yellow}--subdomain-brute /path/to/wordlist1,/path/to/wordlist2${reset}"
     echo -e "\t-u  |--url                    - Specify a valid url [${red}needed${reset}] to retrieve information from specified URL using the webapp_enum function."
+    echo -e "\t-vv |--vhost-validation       - Will execute vhost_check and vhost_probe against live IPs to discover virtual hosts."
+    echo -e "\t\t\t\t        ${red}used only with${reset} ${yellow}-d|--domain${reset} and ${yellow}-wd|--webapp-discovery${reset}. Without this flag, vhost checks are skipped."
     echo -e "\t-wc |--webapp-crawler         - Will execute web application crawler to get js files and look for url parameters${reset},"
     echo -e "\t-wd |--webapp-discovery       - Will execute the function webapp_alive, ${yellow}execute only with the -r|--recon and -wsd|--webapp-short-detection or --wld|--webapp-long-detections options${reset},"
     echo -e "\t                                without this option the collector will reduce time execution and receive only domains and subdomains"
