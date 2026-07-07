@@ -24,7 +24,7 @@ validate_domain(){
         echo -e "Domain is too long (>253 chars): ${candidate}" >&2
         return 1
     fi
-    if ! [[ "${candidate}" =~ ^[A-Za-z0-9]([A-Za-z0-9_-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9_-]*[A-Za-z0-9])?)*$ ]]; then
+    if ! [[ "${candidate}" =~ ^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)*$ ]]; then
         echo -e "Invalid domain format: ${yellow}${candidate}${reset}" >&2
         return 1
     fi
