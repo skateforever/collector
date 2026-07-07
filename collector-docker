@@ -31,10 +31,11 @@
 #                       it as root)
 #   WORDLISTS_DIR     — wordlists directory (default: <root>/wordlists)
 #   COLLECTOR_CFG     — path to collector.cfg (default: <root>/collector.cfg)
-#   NOTIFY_CONFIG     — path to the notify provider-config file
-#                       (default: <root>/notify-provider.yaml — optional;
+#   ALERT_PROVIDER    — path to the alert provider config file
+#                       (default: <root>/discord-provider.yaml — optional;
 #                       if the host file does not exist, the mount is
-#                       skipped and collector falls back to its default).
+#                       skipped and collector uses the template baked into
+#                       the image at /opt/collector/support/templates/alerts/).
 #   APP_PORT          — dashboard port mapping (default: 127.0.0.1:8000:8000)
 #
 # Installation:
@@ -57,7 +58,7 @@ COLLECTOR_IMAGE="${COLLECTOR_IMAGE:-collector:latest}"
 OUTPUTS_DIR="${OUTPUTS_DIR:-${DEFAULT_ROOT}/outputs}"
 WORDLISTS_DIR="${WORDLISTS_DIR:-${DEFAULT_ROOT}/wordlists}"
 COLLECTOR_CFG="${COLLECTOR_CFG:-${DEFAULT_ROOT}/collector.cfg}"
-NOTIFY_CONFIG="${NOTIFY_CONFIG:-${DEFAULT_ROOT}/notify-provider.yaml}"
+ALERT_PROVIDER="${ALERT_PROVIDER:-${DEFAULT_ROOT}/discord-provider.yaml}"
 APP_PORT="${APP_PORT:-127.0.0.1:8000:8000}"
 
 # Pre-create the host directories that Docker would otherwise auto-create
@@ -146,15 +147,13 @@ if [[ -n "${host_port}" ]]; then
     fi
 fi
 
-# The notify mount is OPT-IN — only injected when the host file exists.
-# Without it, every `notify ... -pc /etc/collector/notify-provider.yaml`
-# call inside the container will print a 'config not found' line on stderr
-# (visible in log_execution_file). That's intentional: a missing mount
-# should be loud, not silent. To opt out cleanly, edit collector.cfg and
-# drop -pc from notify_options.
-notify_mount_args=()
-if [[ -s "${NOTIFY_CONFIG}" ]]; then
-    notify_mount_args=(-v "${NOTIFY_CONFIG}:/etc/collector/notify-provider.yaml:ro")
+# The alert provider mount is OPT-IN — only injected when the host file exists.
+# Without it, collector uses the default template baked into the image at
+# /opt/collector/support/templates/alerts/discord-provider.yaml.
+# This is intentional: a missing custom config is not an error.
+alert_mount_args=()
+if [[ -s "${ALERT_PROVIDER}" ]]; then
+    alert_mount_args=(-v "${ALERT_PROVIDER}:/opt/collector/support/templates/alerts/discord-provider.yaml:ro")
 fi
 
 # Only the report-only container needs a stable name (so --report-stop
@@ -182,6 +181,8 @@ if [[ -d "${DEFAULT_ROOT}/functions" ]]; then
     )
     [[ -d "${DEFAULT_ROOT}/support/runtime" ]] && \
         script_mount_args+=(-v "${DEFAULT_ROOT}/support/runtime:/opt/collector/support/runtime:ro")
+    [[ -d "${DEFAULT_ROOT}/support/templates/alerts" ]] && \
+        script_mount_args+=(-v "${DEFAULT_ROOT}/support/templates/alerts:/opt/collector/support/templates/alerts:ro")
 fi
 
 exec docker run --rm "${name_args[@]}" \
@@ -190,7 +191,7 @@ exec docker run --rm "${name_args[@]}" \
     -v "${WORDLISTS_DIR}:/opt/collector/wordlists" \
     -v "${COLLECTOR_CFG}:/opt/collector/collector.cfg:ro" \
     "${script_mount_args[@]}" \
-    "${notify_mount_args[@]}" \
+    "${alert_mount_args[@]}" \
     "${port_args[@]}" \
     "${COLLECTOR_IMAGE}" \
     "$@"
