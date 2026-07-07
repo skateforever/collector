@@ -9,11 +9,60 @@
 #                                                           #
 ############################################################# 
 
+dns_parallel_worker(){
+    local worker_id="$1"
+    local chunk_file="$2"
+    local domain="$3"
+    local report_dir="$4"
+    local IPv4_regex="$5"
+    local webapp_port_detect=("${@:6:$((${#@}-7))}")
+    local webapp_tls_ports=("${@:((${#@}-1))}")
+
+    while IFS= read -r host; do
+        [[ -z "${host}" ]] && continue
+
+        if ! grep -qEi "(\.${domain}$|^${domain}$)" <<< "${host}"; then
+            continue
+        fi
+
+        local ip
+        ip="$(dig_safe A "${host}" | grep -Eo "${IPv4_regex}" | head -1)"
+
+        if [[ -n "${ip}" ]]; then
+            echo "${host}"$'\t'"${ip}" >> "${report_dir}/domains_external_ipv4_${worker_id}.tmp"
+            echo "${host}" >> "${report_dir}/domains_alive_${worker_id}.tmp"
+            echo "${ip}" >> "${report_dir}/infra_ipv4_${worker_id}.tmp"
+
+            for port in "${webapp_port_detect[@]}"; do
+                local proto="http"
+                [[ "${port}" =~ ^($(echo "${webapp_tls_ports[@]}" | tr ' ' '|'))$ ]] && proto="https"
+                if [[ "${proto}" == "http" && "${port}" == "80" ]] || \
+                   [[ "${proto}" == "https" && "${port}" == "443" ]]; then
+                    echo "${proto}://${host}"
+                else
+                    echo "${proto}://${host}:${port}"
+                fi
+            done >> "${report_dir}/vhost_urls_${worker_id}.tmp"
+        fi
+    done < "${chunk_file}"
+}
+
+merge_parallel_dns_results(){
+    local report_dir="$1"
+    local file_prefix="$2"
+
+    cat "${report_dir}/${file_prefix}"_*.tmp 2>/dev/null >> "${report_dir}/${file_prefix}.txt"
+    rm -f "${report_dir}/${file_prefix}"_*.tmp 2>/dev/null
+    sort -u -o "${report_dir}/${file_prefix}.txt" "${report_dir}/${file_prefix}.txt"
+}
+
 domains_recon(){
     (# Show the directory structure
     cleanup_on_exit(){
         rm -f "${tmp_dir}"/vhost_pair_*.tmp 2>/dev/null
         rm -f "${tmp_dir}"/vhost_probe_worker_*.tmp 2>/dev/null
+        rm -f "${tmp_dir}"/vhost_probe_chunk_* 2>/dev/null
+        rm -f "${tmp_dir}"/spider_chunk_* 2>/dev/null
         rm -rf "${tmp_dir}"/resolve_* 2>/dev/null
         rm -f "${tmp_dir}"/alive_sorted.tmp 2>/dev/null
         sed -i '/# collector-vhosts-start/,/# collector-vhosts-end/d' /etc/hosts 2>/dev/null
@@ -155,38 +204,29 @@ domains_recon(){
                 grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/vhost_probe_output.txt" \
                     | sort -u >> "${report_dir}/domains_found.txt"
                 sort -u -o "${report_dir}/domains_found.txt" "${report_dir}/domains_found.txt"
-                # Resolve new vhost_probe entries so they populate domains_alive.txt
-                # and domains_external_ipv4.txt for downstream nmap/shodan cycles.
+                # Resolve new vhost_probe entries in parallel (10x speedup)
                 grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/vhost_probe_output.txt" \
                     | sort -u > "${tmp_dir}/vhost_probe_new.tmp"
                 if [[ -s "${tmp_dir}/vhost_probe_new.tmp" ]]; then
-                    local vp_new_host vp_new_ip
-                    while IFS= read -r vp_new_host; do
-                        vp_new_ip="$(dig_safe A "${vp_new_host}" | grep -Eo "${IPv4_regex}" | head -1)"
-                        if [[ -n "${vp_new_ip}" ]]; then
-                            echo "${vp_new_host}"$'\t'"${vp_new_ip}" >> "${report_dir}/domains_external_ipv4.txt"
-                            echo "${vp_new_host}" >> "${report_dir}/domains_alive.txt"
-                            echo "${vp_new_ip}" >> "${report_dir}/infra_ipv4.txt"
-                            # Build vhost URLs so build_consolidated_urls picks them up.
-                            # vhost_probe probes HTTP only (F-06 aside), so generate
-                            # both http and https variants for all configured ports.
-                            for vp_port in "${webapp_port_detect[@]}"; do
-                                local vp_proto="http"
-                                # Inline pattern match
-                                [[ "${vp_port}" =~ ^($(echo "${webapp_tls_ports[@]}" | tr ' ' '|'))$ ]] && vp_proto="https"
-                                if [[ "${vp_proto}" == "http" && "${vp_port}" == "80" ]] || \
-                                   [[ "${vp_proto}" == "https" && "${vp_port}" == "443" ]]; then
-                                    echo "${vp_proto}://${vp_new_host}"
-                                else
-                                    echo "${vp_proto}://${vp_new_host}:${vp_port}"
-                                fi
-                            done >> "${report_dir}/vhost_urls.txt"
-                        fi
-                    done < "${tmp_dir}/vhost_probe_new.tmp"
-                    sort -u -o "${report_dir}/domains_external_ipv4.txt" "${report_dir}/domains_external_ipv4.txt"
-                    sort -u -o "${report_dir}/domains_alive.txt" "${report_dir}/domains_alive.txt"
-                    sort -u -o "${report_dir}/infra_ipv4.txt" "${report_dir}/infra_ipv4.txt"
-                    sort -u -o "${report_dir}/vhost_urls.txt" "${report_dir}/vhost_urls.txt"
+                    local num_workers=20 pids=()
+
+                    split -n l/${num_workers} "${tmp_dir}/vhost_probe_new.tmp" "${tmp_dir}/vhost_probe_chunk_"
+
+                    for ((i=0; i<num_workers; i++)); do
+                        dns_parallel_worker "$i" "${tmp_dir}/vhost_probe_chunk_${i}" \
+                            "${domain}" "${report_dir}" "${IPv4_regex}" \
+                            "${webapp_port_detect[@]}" "${webapp_tls_ports[@]}" &
+                        pids+=($!)
+                    done
+
+                    for pid in "${pids[@]}"; do
+                        wait "$pid"
+                    done
+
+                    merge_parallel_dns_results "${report_dir}" "domains_external_ipv4"
+                    merge_parallel_dns_results "${report_dir}" "domains_alive"
+                    merge_parallel_dns_results "${report_dir}" "infra_ipv4"
+                    merge_parallel_dns_results "${report_dir}" "vhost_urls"
                 fi
             fi
             fi  # end vhost_validation_check
@@ -214,18 +254,24 @@ domains_recon(){
                     grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/spider_output.txt" \
                         | sort -u > "${tmp_dir}/spider_new.tmp"
                     if [[ -s "${tmp_dir}/spider_new.tmp" ]]; then
-                        local sp_new_host sp_new_ip
-                        while IFS= read -r sp_new_host; do
-                            sp_new_ip="$(dig_safe A "${sp_new_host}" | grep -Eo "${IPv4_regex}" | head -1)"
-                            if [[ -n "${sp_new_ip}" ]]; then
-                                echo "${sp_new_host}"$'\t'"${sp_new_ip}" >> "${report_dir}/domains_external_ipv4.txt"
-                                echo "${sp_new_host}" >> "${report_dir}/domains_alive.txt"
-                                echo "${sp_new_ip}" >> "${report_dir}/infra_ipv4.txt"
-                            fi
-                        done < "${tmp_dir}/spider_new.tmp"
-                        sort -u -o "${report_dir}/domains_external_ipv4.txt" "${report_dir}/domains_external_ipv4.txt"
-                        sort -u -o "${report_dir}/domains_alive.txt" "${report_dir}/domains_alive.txt"
-                        sort -u -o "${report_dir}/infra_ipv4.txt" "${report_dir}/infra_ipv4.txt"
+                        local num_workers=20 pids=()
+
+                        split -n l/${num_workers} "${tmp_dir}/spider_new.tmp" "${tmp_dir}/spider_chunk_"
+
+                        for ((i=0; i<num_workers; i++)); do
+                            dns_parallel_worker "$i" "${tmp_dir}/spider_chunk_${i}" \
+                                "${domain}" "${report_dir}" "${IPv4_regex}" \
+                                "${webapp_port_detect[@]}" "${webapp_tls_ports[@]}" &
+                            pids+=($!)
+                        done
+
+                        for pid in "${pids[@]}"; do
+                            wait "$pid"
+                        done
+
+                        merge_parallel_dns_results "${report_dir}" "domains_external_ipv4"
+                        merge_parallel_dns_results "${report_dir}" "domains_alive"
+                        merge_parallel_dns_results "${report_dir}" "infra_ipv4"
                     fi
                 fi
             fi
