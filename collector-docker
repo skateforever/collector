@@ -25,18 +25,21 @@
 #   Dockerfile or check_binaries.sh modifications).
 #
 # Environment variables for overrides:
-#   COLLECTOR_IMAGE   — Docker image (default: collector:latest)
-#   OUTPUTS_DIR       — outputs directory (default: <root>/outputs; created
-#                       by this script if missing so Docker does not create
-#                       it as root)
-#   WORDLISTS_DIR     — wordlists directory (default: <root>/wordlists)
-#   COLLECTOR_CFG     — path to collector.cfg (default: <root>/collector.cfg)
-#   ALERT_PROVIDER    — path to the alert provider config file
-#                       (default: <root>/discord-provider.yaml — optional;
-#                       if the host file does not exist, the mount is
-#                       skipped and collector uses the template baked into
-#                       the image at /opt/collector/support/templates/alerts/).
-#   APP_PORT          — dashboard port mapping (default: 127.0.0.1:8000:8000)
+#   COLLECTOR_IMAGE       — Docker image (default: collector:latest)
+#   OUTPUTS_DIR           — outputs directory (default: <root>/outputs)
+#   WORDLISTS_DIR         — wordlists directory (default: <root>/wordlists)
+#   COLLECTOR_CFG         — path to collector.cfg (default: <root>/collector.cfg)
+#   ALERT_PROVIDER_TYPE   — alert provider type: discord, slack, teams, telegram, signal
+#                           (default: discord; read from collector.cfg if available)
+#   ALERT_PROVIDER_FILE   — path to alert provider config file
+#                           (default: <root>/{type}-provider.yaml — optional;
+#                           if missing, uses template baked into image)
+#   APP_PORT              — dashboard port mapping (default: 127.0.0.1:8000:8000)
+#
+# Configuration precedence (alert provider type):
+#   1. ALERT_PROVIDER_TYPE environment variable (if set)
+#   2. collector.cfg notify_config value (if available)
+#   3. Default: discord
 #
 # Installation:
 #   sudo install -m 0755 collector-docker /usr/local/bin/collector-docker
@@ -58,8 +61,26 @@ COLLECTOR_IMAGE="${COLLECTOR_IMAGE:-collector:latest}"
 OUTPUTS_DIR="${OUTPUTS_DIR:-${DEFAULT_ROOT}/outputs}"
 WORDLISTS_DIR="${WORDLISTS_DIR:-${DEFAULT_ROOT}/wordlists}"
 COLLECTOR_CFG="${COLLECTOR_CFG:-${DEFAULT_ROOT}/collector.cfg}"
-ALERT_PROVIDER="${ALERT_PROVIDER:-${DEFAULT_ROOT}/discord-provider.yaml}"
 APP_PORT="${APP_PORT:-127.0.0.1:8000:8000}"
+
+# Determine alert provider type
+# Priority: env var > collector.cfg > default
+get_alert_provider_type() {
+    if [[ -n "${ALERT_PROVIDER_TYPE}" ]]; then
+        echo "${ALERT_PROVIDER_TYPE}"
+    elif [[ -f "${COLLECTOR_CFG}" ]]; then
+        # Extract provider type from notify_config path in collector.cfg
+        # e.g., /opt/collector/support/templates/alerts/discord-provider.yaml → discord
+        grep "^notify_config=" "${COLLECTOR_CFG}" | \
+            sed -E 's|.*alerts/([a-z]+)-provider\.ya?ml.*|\1|' | \
+            head -1
+    fi
+    # Fallback to discord if nothing found
+    [[ -z "$1" ]] && echo "discord"
+}
+
+ALERT_PROVIDER_TYPE="$(get_alert_provider_type)"
+ALERT_PROVIDER_FILE="${ALERT_PROVIDER_FILE:-${DEFAULT_ROOT}/${ALERT_PROVIDER_TYPE}-provider.yaml}"
 
 # Pre-create the host directories that Docker would otherwise auto-create
 # as root when mounting them as volumes (which then breaks ownership of
@@ -149,11 +170,11 @@ fi
 
 # The alert provider mount is OPT-IN — only injected when the host file exists.
 # Without it, collector uses the default template baked into the image at
-# /opt/collector/support/templates/alerts/discord-provider.yaml.
+# /opt/collector/support/templates/alerts/{type}-provider.yaml.
 # This is intentional: a missing custom config is not an error.
 alert_mount_args=()
-if [[ -s "${ALERT_PROVIDER}" ]]; then
-    alert_mount_args=(-v "${ALERT_PROVIDER}:/opt/collector/support/templates/alerts/discord-provider.yaml:ro")
+if [[ -s "${ALERT_PROVIDER_FILE}" ]]; then
+    alert_mount_args=(-v "${ALERT_PROVIDER_FILE}:/opt/collector/support/templates/alerts/${ALERT_PROVIDER_TYPE}-provider.yaml:ro")
 fi
 
 # Only the report-only container needs a stable name (so --report-stop
