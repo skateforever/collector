@@ -30,7 +30,7 @@ joining_subdomains(){
 
         if [ -s "${tmp_dir}/amass_output.tmp" ]; then
             echo "Parsing amass search" >> "${log_execution_file}"
-            # Na v5 a saída já vem limpa, apenas filtramos pelo domínio correto
+            # In v5 the output is already clean, we only filter by the correct domain
             grep -E "^.*\.${domain}" "${tmp_dir}/amass_output.tmp" \
                 | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
@@ -464,7 +464,7 @@ joining_subdomains(){
             for f in "${files_amass[@]}"; do
                 file="${tmp_dir}"/"${f}"
                 if [[ -s "${file}" ]]; then
-                    # Ajustado para ler a saída limpa do Amass v5
+                    # Adjusted to read the clean output from Amass v5
                     grep -E "^.*\.${domain}" "${file}" \
                         | sort -u >> "${tmp_dir}/domains_found.tmp" \
                         2>> "${log_execution_file}"

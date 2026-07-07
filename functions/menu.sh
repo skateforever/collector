@@ -32,9 +32,9 @@ validate_domain(){
 }
 
 check_argument(){
-    # local arrays — declarar do zero a cada chamada (estava acumulando entre
-    # invocações sucessivas porque era global, mas a lógica nunca dependeu do
-    # acúmulo).
+    # local arrays — rebuild from scratch on each call (was accumulating across
+    # successive invocations because it was global, but the logic never relied
+    # on the accumulation).
     local options=()
     options+=(-d --domain -dl --domain-list -ed --exclude-domains -el --exclude-domain-list -h --help)
     options+=(-l --limit-urls -p --proxy -r --recon -ro --report-only -rs --report-stop -s --subdomain-brute -u --url)

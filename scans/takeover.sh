@@ -13,34 +13,34 @@
 #           vhost  cname_chain  provider  confidence  fpr   #
 #                                                           #
 # Confidence:                                               #
-#   STRONG  -> CNAME aponta para provedor conhecido AND     #
+#   STRONG  -> CNAME points to known provider AND           #
 #              (nuclei matched OR active resource check     #
-#              confirma NoSuchBucket/NXDOMAIN apex)         #
-#   MEDIUM  -> CNAME -> provedor conhecido, sem confirmação #
-#              ativa (revisar manualmente)                  #
-#   WEAK    -> só nuclei/subzy/subjack reportou (sem CNAME  #
-#              casando) ou apex NXDOMAIN sem fingerprint    #
+#              confirms NoSuchBucket/NXDOMAIN apex)         #
+#   MEDIUM  -> CNAME -> known provider, no active           #
+#              confirmation (review manually)               #
+#   WEAK    -> only nuclei/subzy/subjack reported (no CNAME #
+#              match) or apex NXDOMAIN without fingerprint  #
 #                                                           #
 # Sources:                                                  #
 #   - https://github.com/EdOverflow/can-i-take-over-xyz     #
 #   - nuclei-templates/http/takeovers/                      #
 #############################################################
 
-# Provedores conhecidos. O array `takeover_fingerprints` é populado em
-# tempo de execução a partir do arquivo externo configurado em
+# Known providers. The `takeover_fingerprints` array is populated at
+# runtime from the external file configured in
 # collector.cfg via ${collector_takeover_fingerprints} (default:
 # support/runtime/wordlists/takeover-fingerprints.txt).
 #
-# Cada linha do arquivo segue o formato:
-#   "<regex de host de destino do CNAME>|<provider tag>|<fingerprint string esperado no body>"
+# Each line in the file follows the format:
+#   "<regex matching CNAME destination host>|<provider tag>|<expected fingerprint string in body>"
 #
-# Linhas começando com '#' e linhas em branco são ignoradas no load.
+# Lines starting with '#' and blank lines are ignored on load.
 takeover_fingerprints=()
 
-# Carrega o arquivo de fingerprints para o array global takeover_fingerprints.
-# Idempotente: pode ser chamada várias vezes; sempre reescreve o array.
-# Retorna 0 com pelo menos uma entrada carregada, 1 se o arquivo está
-# ausente/vazio (chamador deve abortar).
+# Loads the fingerprints file into the global takeover_fingerprints array.
+# Idempotent: can be called multiple times; always rewrites the array.
+# Returns 0 with at least one entry loaded, 1 if the file is missing/empty
+# (caller should abort).
 takeover_load_fingerprints(){
     local fpr_file="${1:-${collector_takeover_fingerprints}}"
     takeover_fingerprints=()
@@ -49,9 +49,9 @@ takeover_load_fingerprints(){
     fi
     local line
     while IFS= read -r line; do
-        # ignora comentários e linhas em branco
+        # skip comments and blank lines
         [[ -z "${line}" || "${line}" =~ ^[[:space:]]*# ]] && continue
-        # remove espaços em branco nas pontas
+        # trim leading/trailing whitespace
         line="${line#"${line%%[![:space:]]*}"}"
         line="${line%"${line##*[![:space:]]}"}"
         [[ -z "${line}" ]] && continue
@@ -60,8 +60,8 @@ takeover_load_fingerprints(){
     [[ "${#takeover_fingerprints[@]}" -gt 0 ]]
 }
 
-# Cadeia CNAME completa: dig recursivo até A/AAAA ou NXDOMAIN.
-# Retorna lista de hosts (CNAMEs encontrados) separados por " -> ".
+# Full CNAME chain: recursive dig until A/AAAA or NXDOMAIN.
+# Returns list of hosts (CNAMEs found) separated by " -> ".
 takeover_cname_chain(){
     local host="$1"
     local depth=0
@@ -78,17 +78,17 @@ takeover_cname_chain(){
     echo "${chain}"
 }
 
-# Verifica se o apex do CNAME está com zona órfã (NXDOMAIN nos NS).
-# Sinal muito forte de takeover (especialmente em delegações DNS antigas).
+# Checks if the CNAME apex has an orphaned zone (NXDOMAIN on NS).
+# Very strong takeover signal (especially on old DNS delegations).
 takeover_apex_nxdomain(){
     local fqdn="$1"
-    # extrai apex (últimos 2 ou 3 labels — heurística simples)
+    # extract apex (last 2 or 3 labels — simple heuristic)
     local apex
     apex="$(echo "${fqdn}" | awk -F. '{n=NF; if (n<=2) print $0; else print $(n-1)"."$n}')"
     local soa
     soa="$(dig +short SOA "${apex}" 2>/dev/null)"
     if [[ -z "${soa}" ]]; then
-        # confirma com status
+        # confirm via status
         local rc
         rc="$(dig +noall +comments "${apex}" 2>/dev/null | grep -oE 'status: [A-Z]+' | awk '{print $2}' | head -1)"
         [[ "${rc}" == "NXDOMAIN" || "${rc}" == "SERVFAIL" ]] && return 0
@@ -96,8 +96,8 @@ takeover_apex_nxdomain(){
     return 1
 }
 
-# Match do destino do CNAME contra a tabela de fingerprints.
-# Imprime "<provider>|<fingerprint>" em stdout, ou nada se não bater.
+# Match the CNAME destination against the fingerprints table.
+# Prints "<provider>|<fingerprint>" on stdout, or nothing if no match.
 takeover_match_provider(){
     local cname_target="$1"
     local entry pattern provider fpr
@@ -113,7 +113,7 @@ takeover_match_provider(){
     return 1
 }
 
-# Confirmação ativa: faz um GET no vhost e procura a fingerprint no body.
+# Active confirmation: GET the vhost and look for the fingerprint in the body.
 takeover_confirm_http(){
     local vhost="$1"
     local fpr="$2"
@@ -129,11 +129,11 @@ takeover_confirm_http(){
     return 1
 }
 
-# Confirmação ativa específica de S3 (bucket existe ou não).
+# Active confirmation specific to S3 (bucket exists or not).
 takeover_confirm_s3(){
     local cname_target="$1"
     local bucket
-    # s3 estilos: <bucket>.s3.amazonaws.com, <bucket>.s3-website-...
+    # s3 styles: <bucket>.s3.amazonaws.com, <bucket>.s3-website-...
     bucket="$(echo "${cname_target}" | sed -E 's/\.s3([.-][^.]+)?\.amazonaws\.com\.?$//')"
     [[ -z "${bucket}" || "${bucket}" == "${cname_target}" ]] && return 1
     # HEAD direto no endpoint
@@ -160,8 +160,8 @@ takeover_scan(){
         return 0
     fi
 
-    # Carrega a tabela de fingerprints do arquivo externo. Sem ela o
-    # matcher de CNAME fica inútil — interrompe cedo com mensagem clara.
+    # Load the fingerprints table from the external file. Without it the
+    # CNAME matcher is useless — abort early with a clear message.
     if ! takeover_load_fingerprints "${collector_takeover_fingerprints}"; then
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Takeover fingerprints file missing or empty (${collector_takeover_fingerprints:-unset})."
         echo "Takeover fingerprints file missing or empty (${collector_takeover_fingerprints:-unset})." \
@@ -172,7 +172,7 @@ takeover_scan(){
 
     : > "${output_file}"
 
-    # 1) nuclei takeover templates (silent, mantém o padrão de nuclei.sh)
+    # 1) nuclei takeover templates (silent, follows the nuclei.sh pattern)
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Running nuclei takeover templates... "
     if command -v nuclei > /dev/null 2>&1; then
         nuclei -no-color -silent -update-templates > /dev/null 2>&1
@@ -217,13 +217,13 @@ takeover_scan(){
         [[ -z "${fqdn}" ]] && continue
         chain="$(takeover_cname_chain "${fqdn}")"
         final_cname="${chain##* -> }"
-        # se não há CNAME, chain == fqdn — só vale como takeover se houver
-        # apex NXDOMAIN do próprio domínio (caso raro de NS órfão) OU se
-        # nuclei/subzy/subjack tiverem reportado
+        # if there is no CNAME, chain == fqdn — only counts as takeover if
+        # there is an apex NXDOMAIN of the domain itself (rare orphan NS case)
+        # OR if nuclei/subzy/subjack reported it
         if [[ "${chain}" == "${fqdn}" ]]; then
             apex_dead=""
             takeover_apex_nxdomain "${fqdn}" && apex_dead="apex_nxdomain"
-            # checa se algum scanner mencionou esse host
+            # check if any scanner mentioned this host
             if grep -qF "${fqdn}" "${nuclei_out}" 2>/dev/null \
                 || grep -qF "${fqdn}" "${subzy_out}" 2>/dev/null \
                 || grep -qF "${fqdn}" "${subjack_out}" 2>/dev/null \
@@ -235,12 +235,12 @@ takeover_scan(){
             continue
         fi
 
-        # tenta casar com provider conhecido
+        # try to match against known provider
         if match="$(takeover_match_provider "${final_cname}")"; then
             provider="${match%%|*}"
             fpr="${match##*|}"
             confidence="MEDIUM"
-            # confirmação ativa
+            # active confirmation
             if [[ "${provider}" == aws-s3* ]] && takeover_confirm_s3 "${final_cname}"; then
                 confidence="STRONG"
             elif takeover_confirm_http "${fqdn}" "${fpr}"; then
@@ -252,8 +252,8 @@ takeover_scan(){
                 "${fqdn}" "${chain}" "${provider}" "${confidence}" "${fpr:-n/a}" >> "${output_file}"
             [[ "${confidence}" == "STRONG" ]] && ((critical_findings += 1)) || ((high_findings += 1))
         else
-            # provider não-listado mas com CNAME — vale registrar como WEAK
-            # se algum scanner pegou OU se apex está morto
+            # unlisted provider but has CNAME — worth recording as WEAK
+            # if any scanner caught it OR if the apex is dead
             apex_dead=""
             takeover_apex_nxdomain "${final_cname}" && apex_dead="apex_nxdomain"
             if grep -qF "${fqdn}" "${nuclei_out}" 2>/dev/null \
@@ -270,7 +270,7 @@ takeover_scan(){
 
     sort -u -o "${output_file}" "${output_file}"
 
-    # 5) Notify (mesmo padrão de nuclei.sh)
+    # 5) Notify (same pattern as nuclei.sh)
     if [[ -s "${output_file}" ]]; then
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Sending takeover notifications... "
         # STRONG -> critical
@@ -290,8 +290,8 @@ takeover_scan(){
     fi
 }
 
-# Se chamado direto (não via source), executa standalone.
-# Uso: takeover.sh <domain> <input_file> [report_dir]
+# If called directly (not via source), run standalone.
+# Usage: takeover.sh <domain> <input_file> [report_dir]
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     if [[ $# -lt 2 ]]; then
         echo "Usage: $0 <domain> <domains_without_resolution.txt> [report_dir]"
@@ -304,14 +304,14 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     tmp_dir="${tmp_dir:-/tmp}"
     nuclei_dir="${nuclei_dir:-${report_dir}}"
     log_execution_file="${log_execution_file:-/tmp/takeover_$$.log}"
-    # defaults pra rodar sem o collector
+    # defaults to run without the collector
     yellow=""; red=""; green=""; reset=""
     [[ ${#curl_options_fast[@]} -eq 0 ]] && curl_options_fast=(-k -s --connect-timeout 5 --max-time 15 --max-redirs 3 --proto-redir =http,https)
     [[ ${#notify_options[@]} -eq 0 ]] && notify_options=(-silent)
     [[ -z "${notify_recon_channel}" ]] && notify_recon_channel="recon"
     [[ -z "${notify_critical_channel}" ]] && notify_critical_channel="critical"
     [[ -z "${notify_high_channel}" ]] && notify_high_channel="high"
-    # Resolve o arquivo de fingerprints relativo ao script quando não veio do collector.cfg.
+    # Resolve the fingerprints file relative to the script when not set by collector.cfg.
     if [[ -z "${collector_takeover_fingerprints}" ]]; then
         _script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
         collector_takeover_fingerprints="${_script_dir}/../support/runtime/wordlists/takeover-fingerprints.txt"
