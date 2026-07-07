@@ -1,0 +1,41 @@
+# Dockerfile.patch — lightweight rebuild that patches scripts into the
+# existing collector image WITHOUT pulling the base image from Docker Hub.
+# Use when the registry is unreachable or you only changed bash scripts.
+#
+# Usage:
+#   docker build -f Dockerfile.patch -t collector:latest .
+#
+# This copies all project files over the existing image, preserving the
+# compiled Go binaries, Python packages, and system packages already
+# installed. It only updates the bash scripts, configs, and support files.
+#
+# If Go tools are missing (ffuf, subjack, subzy), it installs them.
+FROM collector:latest
+
+WORKDIR /opt/collector
+
+# Install missing Go tools that were added after the original image build.
+# These are no-ops if already present (go install is idempotent).
+RUN command -v ffuf >/dev/null 2>&1 || go install github.com/ffuf/ffuf/v2@latest && \
+    command -v subjack >/dev/null 2>&1 || go install github.com/haccer/subjack@latest && \
+    command -v subzy >/dev/null 2>&1 || go install github.com/PentestPad/subzy@latest
+
+# subjack fingerprints file
+RUN [ -f /opt/collector/fingerprints.json ] || \
+    wget -q https://raw.githubusercontent.com/haccer/subjack/master/fingerprints.json \
+    -O /opt/collector/fingerprints.json 2>/dev/null || true
+
+COPY collector collector.cfg collector-docker collector-update ./
+COPY functions/ functions/
+COPY scans/ scans/
+COPY sources/ sources/
+COPY support/runtime/ support/runtime/
+
+RUN chmod +x collector collector-docker collector-update && \
+    chmod +x functions/*.sh && \
+    chmod +x scans/*.sh && \
+    chmod +x sources/*.sh
+
+RUN sed -i 's|^output_dir=.*|output_dir="/opt/collector/outputs"|' collector.cfg
+
+ENTRYPOINT ["/opt/collector/collector"]

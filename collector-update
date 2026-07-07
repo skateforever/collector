@@ -77,7 +77,21 @@ if [[ "${do_build}" == true ]]; then
     echo "==> Building Docker image: ${COLLECTOR_IMAGE}"
     echo "    Dockerfile: ${DOCKERFILE}"
     # shellcheck disable=SC2086
-    docker build ${BUILD_ARGS} -f "${DOCKERFILE}" -t "${COLLECTOR_IMAGE}" .
+    if ! docker build ${BUILD_ARGS} -f "${DOCKERFILE}" -t "${COLLECTOR_IMAGE}" . 2>&1; then
+        # Full build failed (registry unreachable, network issue, etc).
+        # Fall back to Dockerfile.patch which layers on the existing image.
+        if [[ -f "${SCRIPT_DIR}/Dockerfile.patch" ]] && docker image inspect "${COLLECTOR_IMAGE}" >/dev/null 2>&1; then
+            echo ""
+            echo "==> Full build failed. Falling back to Dockerfile.patch (scripts-only update)..."
+            docker build ${BUILD_ARGS} -f "${SCRIPT_DIR}/Dockerfile.patch" -t "${COLLECTOR_IMAGE}" . || {
+                echo "collector-update: patch build also failed." >&2
+                exit 1
+            }
+        else
+            echo "collector-update: build failed and no fallback available." >&2
+            exit 1
+        fi
+    fi
     echo ""
     echo "==> Build complete: ${COLLECTOR_IMAGE}"
     docker images --format "    {{.Repository}}:{{.Tag}}  {{.Size}}  {{.CreatedAt}}" \
