@@ -44,14 +44,14 @@ vhost_check_pair(){
     local baseline_host
     baseline_host="$(tr -dc 'a-z' </dev/urandom | fold -w 10 | head -n1).${domain}"
 
-    local baseline_body="${tmp_dir}/vhost_baseline_body.${ip}_${port}.$$"
-    local vhost_body="${tmp_dir}/vhost_body.${ip}_${port}.$$"
-
-    # Baseline (host that should never resolve to anything real)
-    echo "curl ${curl_options_fast[@]} -H \"User-Agent: ${user_agent_baseline}\" -H \"Host: ${baseline_host}\" \"${url}\"" >> "${log_execution_file}"
-    local curl_unresp_size curl_unresp_hash
-    curl_unresp_size="$(curl "${curl_options_fast[@]}" -H "User-Agent: ${user_agent_baseline}" -H "Host: ${baseline_host}" -o "${baseline_body}" -w '%{size_download}' "${url}" 2>> "${log_execution_file}")"
-    curl_unresp_hash="$(md5sum "${baseline_body}" 2>/dev/null | awk '{print $1}')"
+    # Baseline (host that should never resolve to anything real).
+    # Capture size + hash in a single curl call: pipe body to md5sum while
+    # collecting size_download from -w. No temp file needed.
+    echo "curl ${curl_options_fast[*]} -H \"User-Agent: ${user_agent_baseline}\" -H \"Host: ${baseline_host}\" \"${url}\"" >> "${log_execution_file}"
+    local curl_unresp_size curl_unresp_hash _curl_baseline_raw
+    _curl_baseline_raw="$(curl "${curl_options_fast[@]}" -H "User-Agent: ${user_agent_baseline}" -H "Host: ${baseline_host}" -w $'\n%{size_download}' "${url}" 2>> "${log_execution_file}")"
+    curl_unresp_hash="$(printf '%s' "${_curl_baseline_raw%$'\n'*}" | md5sum | awk '{print $1}')"
+    curl_unresp_size="${_curl_baseline_raw##*$'\n'}"
 
     # Early exit: if baseline gets no TCP connection, skip this port entirely.
     if [[ "${curl_unresp_size}" == "0" ]] && [[ -z "${curl_unresp_hash}" || "${curl_unresp_hash}" == "d41d8cd98f00b204e9800998ecf8427e" ]]; then
@@ -68,16 +68,16 @@ vhost_check_pair(){
     # Per-vhost probes. seen_responses dedupes within this worker.
     local -A seen_responses
     local vhost
-    local curl_vhost_size curl_vhost_hash
+    local curl_vhost_size curl_vhost_hash _curl_vhost_raw
     local httpx_vhost_output httpx_vhost_size httpx_vhost_hash
     local curl_diff httpx_diff confidence combo_key
 
     while IFS= read -r vhost; do
         [[ -z "${vhost}" ]] && continue
 
-        echo "curl ${curl_options_fast[@]} -H \"User-Agent: ${user_agent_vhost}\" -H \"Host: ${vhost}\" \"${url}\"" >> "${log_execution_file}"
-        curl_vhost_size="$(curl "${curl_options_fast[@]}" -H "User-Agent: ${user_agent_vhost}" -H "Host: ${vhost}" -o "${vhost_body}" -w '%{size_download}' "${url}" 2>> "${log_execution_file}")"
-        curl_vhost_hash="$(md5sum "${vhost_body}" 2>/dev/null | awk '{print $1}')"
+        _curl_vhost_raw="$(curl "${curl_options_fast[@]}" -H "User-Agent: ${user_agent_vhost}" -H "Host: ${vhost}" -w $'\n%{size_download}' "${url}" 2>> "${log_execution_file}")"
+        curl_vhost_hash="$(printf '%s' "${_curl_vhost_raw%$'\n'*}" | md5sum | awk '{print $1}')"
+        curl_vhost_size="${_curl_vhost_raw##*$'\n'}"
 
         echo "echo \"${url}\" | httpx -silent -timeout 10 -retries 0 -H \"Host: ${vhost}\" -H \"User-Agent: ${user_agent_vhost}\" -content-length -hash md5" >> "${log_execution_file}"
         httpx_vhost_output="$(echo "${url}" | httpx -silent -timeout 10 -retries 0 -H "Host: ${vhost}" -H "User-Agent: ${user_agent_vhost}" -content-length -hash md5 2>> "${log_execution_file}")"
@@ -107,7 +107,6 @@ vhost_check_pair(){
         fi
     done < "${vhost_name_file}"
 
-    rm -f "${baseline_body}" "${vhost_body}"
 }
 
 vhost_check(){
