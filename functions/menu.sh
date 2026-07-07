@@ -105,7 +105,7 @@ menu(){
                 ;;
             -l|--limit-urls)
                 check_argument "$1" "$2"
-                if [[ -n "$2" && "$2" == ?(-)+([0-9]) ]]; then
+                if [[ -n "$2" && "$2" =~ ^-?[0-9]+$ ]]; then
                     limit_urls="$2"
                     limiturls_check="yes"
                     shift 2
