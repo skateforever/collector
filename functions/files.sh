@@ -460,7 +460,7 @@ joining_subdomains(){
 
         if [ ${#dns_wordlists[@]} -gt 0 ]; then
             echo "Parsing amass brute" >> "${log_execution_file}"
-            files_amass=($("${ls_bin_path}" -1A "${tmp_dir}/" | grep "amass_brute_output" 2> /dev/null))
+            mapfile -t files_amass < <(find "${tmp_dir}" -maxdepth 1 -name "amass_brute_output*" -printf '%f\n' 2>/dev/null)
             for f in "${files_amass[@]}"; do
                 file="${tmp_dir}"/"${f}"
                 if [[ -s "${file}" ]]; then
@@ -473,7 +473,7 @@ joining_subdomains(){
             done
 
             echo "Parsing gobuster brute" >> "${log_execution_file}"
-            files_gobuster_dns=($("${ls_bin_path}" -1A "${tmp_dir}/" | grep "gobuster_dns_output" 2> /dev/null))
+            mapfile -t files_gobuster_dns < <(find "${tmp_dir}" -maxdepth 1 -name "gobuster_dns_output*" -printf '%f\n' 2>/dev/null)
             for f in "${files_gobuster_dns[@]}"; do
                 file="${tmp_dir}"/"${f}"
                 if [[ -s "${file}" ]]; then
@@ -487,7 +487,7 @@ joining_subdomains(){
             done
 
             echo "Parsing dnssearch" >> "${log_execution_file}"
-            files_dnssearch=($("${ls_bin_path}" -1A "${tmp_dir}/" | grep "dnssearch_output_" 2> /dev/null))
+            mapfile -t files_dnssearch < <(find "${tmp_dir}" -maxdepth 1 -name "dnssearch_output_*" -printf '%f\n' 2>/dev/null)
             for f in "${files_dnssearch[@]}"; do
                 file="${tmp_dir}"/"${f}"
                 if [[ -s "${file}" ]]; then
