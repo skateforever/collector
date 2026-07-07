@@ -6,6 +6,9 @@ collector.orig
 ./functions/externo/
 app-report/__pycache__/
 
+# Ignore workspace directory
+./workspace/
+
 # Local code-review simulation reports — kept out of the repo;
 # they are working artifacts of each audit round.
 collector_simulation_report*.md
