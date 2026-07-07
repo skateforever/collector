@@ -86,6 +86,23 @@ redact_secrets(){
 # app-report lifecycle moved to functions/app_report.sh.
 # start_cloudflare_tunnel moved to functions/cloudflare_tunnel.sh.
 
+wait_with_timeout(){
+    local pattern="$1"
+    local max_procs="${2:-1}"
+    local timeout_secs="${3:-3600}"
+    local elapsed=0
+    while [[ "$(pgrep -acf "${pattern}" 2>/dev/null || echo 0)" -ge "${max_procs}" ]]; do
+        sleep 5
+        ((elapsed += 5))
+        if [[ "${elapsed}" -ge "${timeout_secs}" ]]; then
+            echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} WARNING: wait timed out after ${timeout_secs}s for '${pattern}', killing stale processes"
+            pkill -9 -f "${pattern}" 2>/dev/null
+            sleep 2
+            break
+        fi
+    done
+}
+
 validate_ipv4_file(){
     local file="$1"
     if [[ ! -s "${file}" ]]; then return 0; fi
