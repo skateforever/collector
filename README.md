@@ -60,7 +60,7 @@ COLLECTOR_CFG=/etc/collector/collector.cfg
 
 > **Note:** `docker compose up` is **not** the right verb here. `collector` exits with the usage screen when called without arguments, which Compose would interpret as a service failure. Always use `docker compose run --rm collector <flags>`.
 
-**`collector-docker`** — thin wrapper around `docker run` that injects volumes and the default port mapping automatically. **All scripts and configuration are mounted as read-only volumes from the host** (`collector`, `functions/`, `scans/`, `sources/`, `support/runtime/`, `support/templates/alerts/`, `collector.cfg`), meaning code changes are instantly available without rebuilding the Docker image. The image only needs rebuilding when binaries or system packages change (Dockerfile or `check_binaries.sh` modifications).
+**`collector-docker`** — thin wrapper around `docker run` that injects volumes and the default port mapping automatically. **All scripts and configuration are mounted as read-only volumes from the host** (`collector`, `functions/`, `scans/`, `sources/`, `support/runtime/`, `support/templates/alerts-notify/`, `collector.cfg`), meaning code changes are instantly available without rebuilding the Docker image. The image only needs rebuilding when binaries or system packages change (Dockerfile or `check_binaries.sh` modifications).
 
 See [Docker Volume Strategy](support/docker/VOLUME_STRATEGY.md) for detailed documentation on how volumes are mounted and replicated from host to container.
 
@@ -317,22 +317,22 @@ Drop-in scheduling files are in `support/templates/`:
 
 - `support/templates/cron/collector` — daily light recon + weekly heavy run via cron (`/etc/cron.d/collector`)
 - `support/templates/systemd/collector@` — same cadence as systemd template units (`collector@<domain>.timer`)
-- `support/templates/alerts/` — multi-provider alert configuration templates for [notify](https://github.com/projectdiscovery/notify):
+- `support/templates/alerts-notify/` — multi-provider alert configuration templates for [notify](https://github.com/projectdiscovery/notify):
   - **Discord** — `discord-provider.yml`
   - **Slack** — `slack-provider.yml`
   - **Microsoft Teams** — `teams-provider.yml`
   - **Telegram** — `telegram-provider.yml`
   - **Signal** — `signal-provider.yml`
   
-  Templates are baked into the Docker image at `/opt/collector/support/templates/alerts/`. To use a custom provider:
-  1. Copy the template: `cp support/templates/alerts/{provider}-provider.yml ./{provider}-provider.yaml`
+  Templates are baked into the Docker image at `/opt/collector/support/templates/alerts-notify/`. To use a custom provider:
+  1. Copy the template: `cp support/templates/alerts-notify/{provider}-provider.yml ./{provider}-provider.yaml`
   2. Fill in webhook URLs or credentials
-  3. Configure in `collector.cfg`: `notify_config="/opt/collector/support/templates/alerts/{provider}-provider.yaml"`
+  3. Configure in `collector.cfg`: `notify_config="/opt/collector/support/templates/alerts-notify/{provider}-provider.yaml"`
   4. Run: `collector-docker -d example.com --recon`
   
   Or override via environment: `ALERT_PROVIDER_TYPE=slack ALERT_PROVIDER_FILE=./slack-provider.yaml collector-docker ...`
   
-  See `support/templates/alerts/README.md` for detailed setup guides for each provider.
+  See `support/templates/alerts-notify/README.md` for detailed setup guides for each provider.
 
 Both use `collector-docker` (or `docker run --rm` directly) — each run fires an ephemeral container. Results persist via the `/opt/collector/outputs` volume. Per-target `flock` prevents overlapping runs for the same domain when triggered by cron or timers.
 

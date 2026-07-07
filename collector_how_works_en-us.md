@@ -92,15 +92,14 @@ collector/
 │   └── templates/                      drop-ins for automation
 │       ├── cron/collector              daily/weekly cron
 │       ├── systemd/collector@          systemd timer template
-│       ├── alerts/                     alert provider templates (Discord, Slack, Teams, Telegram, Signal)
-│       │   ├── discord-provider.yml
-│       │   ├── slack-provider.yml
-│       │   ├── teams-provider.yml
-│       │   ├── telegram-provider.yml
-│       │   ├── signal-provider.yml
-│       │   ├── README.md               setup guide for each provider
-│       │   └── MIGRATION.md            migration guide from legacy notify system
-│       └── notify/                     (legacy) old notify template
+│       └── alerts-notify/              alert provider templates (Discord, Slack, Teams, Telegram, Signal)
+│           ├── discord-provider.yml
+│           ├── slack-provider.yml
+│           ├── teams-provider.yml
+│           ├── telegram-provider.yml
+│           ├── signal-provider.yml
+│           ├── README.md               setup guide for each provider
+│           └── MIGRATION.md            migration guide from legacy notify system
 │
 ├── app-report/                         read-only dashboard (Flask + HTMX + gunicorn)
 │   ├── app.py                          routes, reads collector-results-db

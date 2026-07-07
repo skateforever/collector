@@ -55,7 +55,7 @@ HOST                                      CONTAINER
 ├── scans/                             → scans/ (live from host)
 ├── sources/                           → sources/ (live from host)
 ├── support/runtime/                   → support/runtime/ (live from host)
-├── support/templates/alerts/          → support/templates/alerts/ (live from host)
+├── support/templates/alerts-notify/          → support/templates/alerts-notify/ (live from host)
 ├── collector.cfg                      → collector.cfg (live from host)
 ├── outputs/ (rw)                      → outputs/ (writable for results)
 └── wordlists/ (rw)                    → wordlists/ (writable for data)
@@ -84,7 +84,7 @@ $ collector-docker -d example.com --recon
 
 ```bash
 # On Host - Add new provider
-$ cp support/templates/alerts/slack-provider.yml ./slack-provider.yaml
+$ cp support/templates/alerts-notify/slack-provider.yml ./slack-provider.yaml
 $ # Edit with webhook URLs
 $ vim slack-provider.yaml
 
@@ -155,7 +155,7 @@ $ OUTPUTS_DIR=/data/outputs \
 - ✅ `sources/*.sh` — Changes available immediately next execution
 - ✅ `collector` — Main script, live from host
 - ✅ `collector.cfg` — Read at startup, changes affect next execution
-- ✅ `support/templates/alerts/*` — Live from host
+- ✅ `support/templates/alerts-notify/*` — Live from host
 - ✅ `support/runtime/*` — Live from host
 
 ### Files That Are Baked (from image):

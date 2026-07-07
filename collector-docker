@@ -70,7 +70,7 @@ get_alert_provider_type() {
         echo "${ALERT_PROVIDER_TYPE}"
     elif [[ -f "${COLLECTOR_CFG}" ]]; then
         # Extract provider type from notify_config path in collector.cfg
-        # e.g., /opt/collector/support/templates/alerts/discord-provider.yaml → discord
+        # e.g., /opt/collector/support/templates/alerts-notify/discord-provider.yaml → discord
         grep "^notify_config=" "${COLLECTOR_CFG}" | \
             sed -E 's|.*alerts/([a-z]+)-provider\.ya?ml.*|\1|' | \
             head -1
@@ -170,11 +170,11 @@ fi
 
 # The alert provider mount is OPT-IN — only injected when the host file exists.
 # Without it, collector uses the default template baked into the image at
-# /opt/collector/support/templates/alerts/{type}-provider.yaml.
+# /opt/collector/support/templates/alerts-notify/{type}-provider.yaml.
 # This is intentional: a missing custom config is not an error.
 alert_mount_args=()
 if [[ -s "${ALERT_PROVIDER_FILE}" ]]; then
-    alert_mount_args=(-v "${ALERT_PROVIDER_FILE}:/opt/collector/support/templates/alerts/${ALERT_PROVIDER_TYPE}-provider.yaml:ro")
+    alert_mount_args=(-v "${ALERT_PROVIDER_FILE}:/opt/collector/support/templates/alerts-notify/${ALERT_PROVIDER_TYPE}-provider.yaml:ro")
 fi
 
 # Only the report-only container needs a stable name (so --report-stop
