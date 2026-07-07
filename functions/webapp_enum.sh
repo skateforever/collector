@@ -76,7 +76,7 @@ webapp_enum(){
                             while [[ "$(pgrep -acf "[d]irsearch.*${target}|[g]obuster.*${target}|[f]fuf.*${target}")" -ge "${webapp_enum_total_processes}" ]]; do
                                 sleep 1
                             done
-                            [[ "${limit_urls}" -eq "${urls_tested}" ]] && break
+                            [[ -n "${limit_urls}" && "${limit_urls}" -eq "${urls_tested}" ]] && break
                             (( urls_tested+=1 ))
                             unset file_dirsearch
                             unset file_gobuster
