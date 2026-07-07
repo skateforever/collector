@@ -525,7 +525,8 @@ joining_subdomains(){
             if [ ${#excluded_domains[@]} -gt 0 ] && [ -s "${report_dir}/domains_found.txt" ]; then
                 echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Excluding the subdomains from command line option... "
                 for subdomain in "${excluded_domains[@]}"; do
-                    sed -i "/^${subdomain}$/d" "${report_dir}/domains_found.txt"
+                    local ed_escaped="${subdomain//./\\.}"
+                    sed -i "/^${ed_escaped}$/d" "${report_dir}/domains_found.txt"
                 done
                 unset subdomain
                 # Fixing blank lines after excluding domains
