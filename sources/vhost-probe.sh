@@ -79,7 +79,7 @@ vhost_probe(){
         [[ "${vp_diff}" -lt 0 ]] && vp_diff=$(( vp_diff * -1 ))
         if [[ "${vp_status}" != "${vp_baseline_status}" || "${vp_diff}" -gt 200 ]]; then
             echo -e "\nvhost hit: ${vp_host} on ${vp_ip}:${vp_port} (${vp_status}, ${vp_len}B)" >> "${log_execution_file}"
-            echo "${vp_host}" >> "${tmp_dir}/vhost_probe_output.txt"
+            echo "${vp_host}" >> "${tmp_dir}/vhost_probe_worker_$$.txt"
         fi
     }
 
@@ -142,6 +142,9 @@ vhost_probe(){
         wait "${vhost_probe_pid}" 2>/dev/null
     done
 
+    # Merge per-worker results
+    cat "${tmp_dir}"/vhost_probe_worker_*.txt >> "${tmp_dir}/vhost_probe_output.txt" 2>/dev/null
+    rm -f "${tmp_dir}"/vhost_probe_worker_*.txt
     sort -u -o "${tmp_dir}/vhost_probe_output.txt" "${tmp_dir}/vhost_probe_output.txt" 2>/dev/null
     echo "Done!"
 }
