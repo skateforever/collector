@@ -119,6 +119,17 @@ if [[ "${domain_check}" == "yes" && -n "${domain}" ]]; then
 fi
 
 if  [[ "${domainlist_check}" == "yes" && -s "${domain_list}" ]]; then
+    if [[ "${dry_run_check}" == "yes" ]]; then
+        echo -e "${yellow}Pre-flight checks passed:${reset}"
+        echo -e "  Target:       ${domain_list} (domain list)"
+        echo -e "  Domains:      $(grep -cvE '^[[:space:]]*(#|$)' "${domain_list}") entries"
+        echo -e "  Port detect:  ${#webapp_port_detect[@]} ports"
+        echo -e "  Wordlists:    ${#webapp_wordlists[@]}"
+        echo -e "  DNS wordlists: ${#dns_wordlists[@]}"
+        echo -e "  Proxy:        ${use_proxy:-no} ${proxy_ip:-}"
+        echo -e "  Shodan:       ${shodan_use:-no}"
+        exit 0
+    fi
     unset domain
     while read -r domain; do
         # Skip blank lines and comments, and reject malformed entries instead
