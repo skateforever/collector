@@ -37,8 +37,8 @@ git_rebuild(){
                     git-dumper --proxy "http://${proxy_ip}" "${git_target}" "${target_dir}" >> "${log_execution_file}" 2>&1
                     echo "Done!"
                     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Downloading files from repository... "
-                    dir_origem="${PWD}"
-                    cd "${target_dir}" || continue
+                    (
+                    cd "${target_dir}" || exit 1
                     for repo_file in $(git ls-files); do
                         repo_file_dir=$(dirname "${repo_file}")
                         if [[ ! -d "${repo_file_dir}" ]] && [[ "${repo_file_dir}" != "." ]]; then
@@ -51,7 +51,7 @@ git_rebuild(){
                        sleep 1
                     done
                     echo "Done!"
-                    cd "${dir_origem}" || exit
+                    )
                 fi
             else
                 # Probe for .git/config: fast profile (see comment above).
@@ -66,8 +66,8 @@ git_rebuild(){
                     git-dumper "${git_target}" "${target_dir}" >> "${log_execution_file}" 2>&1
                     echo "Done!"
                     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Downloading files from repository... "
-                    dir_origem="${PWD}"
-                    cd "${target_dir}" || continue
+                    (
+                    cd "${target_dir}" || exit 1
                     for repo_file in $(git ls-files); do
                         repo_file_dir=$(dirname "${repo_file}")
                         if [[ ! -d "${repo_file_dir}" ]] && [[ "${repo_file_dir}" != "." ]]; then
@@ -80,7 +80,7 @@ git_rebuild(){
                         sleep 1
                     done
                     echo "Done!"
-                    cd "${dir_origem}" || exit
+                    )
                 fi
             fi
             # Defensive cleanup if the probe didn't match and the file was
