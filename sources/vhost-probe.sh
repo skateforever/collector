@@ -114,6 +114,11 @@ vhost_probe(){
             vhost_probe_baseline_len="$(echo "${vhost_probe_baseline_raw}" | awk '{print $2}')"
             [[ -z "${vhost_probe_baseline_len}" ]] && vhost_probe_baseline_len=0
 
+            # Early exit: if baseline gets no response, skip this port.
+            if [[ "${vhost_probe_baseline_status}" == "000" || -z "${vhost_probe_baseline_status}" ]]; then
+                continue
+            fi
+
         for vhost_probe_word in "${vhost_probe_words[@]}"; do
             # Reap finished workers
             vhost_probe_alive_pids=()

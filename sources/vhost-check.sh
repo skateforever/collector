@@ -53,6 +53,12 @@ vhost_check_pair(){
     curl_unresp_size="$(curl "${curl_options_fast[@]}" -H "User-Agent: ${user_agent_baseline}" -H "Host: ${baseline_host}" -o "${baseline_body}" -w '%{size_download}' "${url}" 2>> "${log_execution_file}")"
     curl_unresp_hash="$(md5sum "${baseline_body}" 2>/dev/null | awk '{print $1}')"
 
+    # Early exit: if baseline gets no TCP connection, skip this port entirely.
+    if [[ "${curl_unresp_size}" == "0" ]] && [[ -z "${curl_unresp_hash}" || "${curl_unresp_hash}" == "d41d8cd98f00b204e9800998ecf8427e" ]]; then
+        rm -f "${baseline_body}" "${vhost_body}"
+        return 0
+    fi
+
     echo "echo \"${url}\" | httpx -silent -timeout 10 -retries 0 -H \"Host: ${baseline_host}\" -H \"User-Agent: ${user_agent_baseline}\" -content-length -hash md5" >> "${log_execution_file}"
     local httpx_unresp_output httpx_unresp_size httpx_unresp_hash
     httpx_unresp_output="$(echo "${url}" | httpx -silent -timeout 10 -retries 0 -H "Host: ${baseline_host}" -H "User-Agent: ${user_agent_baseline}" -content-length -hash md5 2>> "${log_execution_file}")"
