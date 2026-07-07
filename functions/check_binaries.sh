@@ -31,7 +31,6 @@ check_binaries(){
 
     if [ -z "${chromium_bin}" ]; then
         echo -e "The ${red}chromium does not exist${reset} on the system!"
-        echo -e "The ${red}chromium does not exist${reset} on the system!"
         ((count += 1))
     fi
 
