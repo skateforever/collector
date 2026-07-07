@@ -73,7 +73,7 @@ webapp_enum(){
                                     -w "${list}:FUZZ" -e "${ffuf_ext_param}" \
                                     -u "${url}/FUZZ" -o "${webapp_enum_dir}/${file_ffuf}" 2>> "${log_execution_file}" &
                             fi
-                            while [[ "$(pgrep -acf "[d]irsearch.*${target}|[g]obuster.*${target}|[f]fuf.*${target}")" -ge "${webapp_enum_total_processes}" ]]; do
+                            while [[ "$(pgrep -cf "[d]irsearch.*${target}|[g]obuster.*${target}|[f]fuf.*${target}")" -ge "${webapp_enum_total_processes}" ]]; do
                                 sleep 1
                             done
                             [[ -n "${limit_urls}" && "${limit_urls}" -eq "${urls_tested}" ]] && break
