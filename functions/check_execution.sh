@@ -11,6 +11,25 @@
 #   * check_parameter_conflicts                             #
 #   * check_parameter_dependency                            #
 #                                                           #
+# Parameter dependency tree:                                #
+#                                                           #
+#   -wd|--webapp-discovery                                  #
+#       ├─ requires: -wld OR -wsd (port detection mode)     #
+#       ├─ requires: -r|--recon (for domains_alive.txt)     #
+#       └─ enables:                                         #
+#           ├─ -wc|--webapp-crawler                         #
+#           ├─ -we|--webapp-enum (also needs -ww)           #
+#           ├─ -ws|--webapp-scan                            #
+#           └─ -vv|--vhost-validation                       #
+#                                                           #
+#   -we|--webapp-enum                                       #
+#       ├─ requires: -wd|--webapp-discovery                 #
+#       └─ requires: -ww|--webapp-wordlists                 #
+#                                                           #
+#   -wld|--webapp-long-detection                            #
+#   -wsd|--webapp-short-detection                           #
+#       └─ requires: -wd|--webapp-discovery                 #
+#                                                           #
 #############################################################
 
 check_container(){
@@ -117,41 +136,47 @@ check_parameter_dependency(){
 
         # Web Application Crawler Check
         if [[ "${webapp_crawler_check}" == "yes" && ( ! -s "${report_dir}/webapp_consolidated.txt" && "${webapp_discovery_check}" != "yes" ) ]] ; then
-            echo -e "You are trying to run web application crawler without having previously web application discovery, use the -wd|--webapp-discovery option and run again.\n"
+            echo -e "The -wc|--webapp-crawler option requires -wd|--webapp-discovery to discover web applications first."
+            echo -e "Run with -wd|--webapp-discovery (and -wsd or -wld) to generate webapp_consolidated.txt, then run crawler.\n"
             usage
         fi
 
         # Web Application Discovery Check
         if [[ "${webapp_discovery_check}" == "yes" && ( ! -s "${report_dir}/domains_alive.txt" && "${recon_check}" != "yes" ) ]] ; then
-            echo -e "You are trying to run web application enumeration without having previously web application discovery, use the -r|--recon option and run again.\n"
+            echo -e "The -wd|--webapp-discovery option requires -r|--recon to discover alive domains first."
+            echo -e "Run with -r|--recon to generate domains_alive.txt, then run web application discovery.\n"
             usage
         fi
 
         if [[ "${webapp_discovery_check}" == "yes" && ${#webapp_port_detect[@]} -eq 0 ]]; then
-            echo -e "You are trying to find out which web applications are active, but forgot to specify which ports to test."
-            echo -e "Choose one of the options -wld|--webapp-long-detection or -wsd|--webapp-short-detection and run again.\n"
+            echo -e "The -wd|--webapp-discovery option requires a port detection mode."
+            echo -e "Add -wld|--webapp-long-detection or -wsd|--webapp-short-detection to specify which ports to probe.\n"
             usage
         fi
 
         if [[ "${webapp_discovery_check}" != "yes" && ${#webapp_port_detect[@]} -gt 0 ]]; then
-            echo -e "You trying to execute collector to perform web application discovery without setting -wd|--webapp-discovery option.\n"
+            echo -e "The -wld|--webapp-long-detection and -wsd|--webapp-short-detection options require -wd|--webapp-discovery."
+            echo -e "Add -wd|--webapp-discovery to enable web application discovery with the specified port detection mode.\n"
             usage
         fi
 
         # Web Application Enumeration Check
         if [[ "${webapp_enum_check}" == "yes" && ( ! -s "${report_dir}/webapp_consolidated.txt" && "${webapp_discovery_check}" != "yes" ) ]] ; then
-            echo -e "You are trying to run web application enumeration without having previously web application discovery, use the -wd|--webapp-discovery option and run again.\n"
+            echo -e "The -we|--webapp-enum option requires -wd|--webapp-discovery to discover web applications first."
+            echo -e "Run with -wd|--webapp-discovery (and -wsd or -wld) to generate webapp_consolidated.txt, then run enumeration.\n"
             usage
         fi
 
         if [[ "${webapp_enum_check}" == "yes" && ${#webapp_wordlists[@]} -eq 0 ]]; then
-            echo -e "Please, ${yellow}make sure${reset} you have at least one wordlist to web directory and file discovery!\n"
+            echo -e "The -we|--webapp-enum option requires at least one wordlist for directory and file discovery."
+            echo -e "Add -ww|--webapp-wordlists /path/to/wordlist to specify wordlists for enumeration.\n"
             usage
         fi
 
         # Web Application Scan Check
         if [[ "${webapp_scan_check}" == "yes" && ( ! -s "${report_dir}/webapp_consolidated.txt" && "${webapp_discovery_check}" != "yes" ) ]] ; then
-            echo -e "You are trying to run web application scan without having previously web application discovery, use the -wd|--webapp-discovery option and run again.\n"
+            echo -e "The -ws|--webapp-scan option requires -wd|--webapp-discovery to discover web applications first."
+            echo -e "Run with -wd|--webapp-discovery (and -wsd or -wld) to generate webapp_consolidated.txt, then run scan.\n"
             usage
         fi
     fi
