@@ -16,6 +16,7 @@ domains_recon(){
         rm -f "${tmp_dir}"/vhost_probe_worker_*.tmp 2>/dev/null
         rm -rf "${tmp_dir}"/resolve_* 2>/dev/null
         rm -f "${tmp_dir}"/alive_sorted.tmp 2>/dev/null
+        sed -i '/# collector-vhosts-start/,/# collector-vhosts-end/d' /etc/hosts 2>/dev/null
     }
     trap cleanup_on_exit EXIT
 

@@ -94,7 +94,7 @@ wait_with_timeout(){
     local max_procs="${2:-1}"
     local timeout_secs="${3:-3600}"
     local elapsed=0
-    while [[ "$(pgrep -acf "${pattern}" 2>/dev/null || echo 0)" -ge "${max_procs}" ]]; do
+    while [[ "$(pgrep -cf "${pattern}" 2>/dev/null || echo 0)" -ge "${max_procs}" ]]; do
         sleep 5
         ((elapsed += 5))
         if [[ "${elapsed}" -ge "${timeout_secs}" ]]; then

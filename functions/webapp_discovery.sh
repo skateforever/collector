@@ -21,7 +21,7 @@ get_user_agent(){
 
 webapp_alive(){
     local target="$1"
-    alive_file="$2"
+    local alive_file="$2"
     local subdomain port url line http_status_code https_status_code
     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Initializing the web application discovery and this might take a certain time!"
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Testing subdomains to know if it has a web application... "
