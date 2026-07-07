@@ -94,6 +94,7 @@ When the host port in `APP_PORT` is already bound (by a previous recon container
 | `-d \| --domain <domain>` | Single target domain. |
 | `-dl \| --domain-list <file>` | File with one domain per line (`#` for comments). |
 | `-u \| --url <url>` | Single URL — skips infra/subdomain recon, runs webapp enum only. |
+| `-dr \| --dry-run` | Run all pre-flight validations (config, locks, structure) and print a summary without executing any recon. Useful to confirm setup before a long run. |
 
 ### Recon
 
@@ -101,11 +102,12 @@ When the host port in `APP_PORT` is already bound (by a previous recon container
 |------|-------------|
 | `-r \| --recon` | Passive + active subdomain discovery, DNS, infra enrichment (AS/IPs/netblocks), nmap, Shodan. Entry point for any new target. |
 
-### Webapp discovery (requires `--recon` or existing `domains_alive.txt`)
+### Webapp discovery and vhost validation (requires `--recon` or existing `domains_alive.txt`)
 
 | Flag | Description |
 |------|-------------|
-| `-wd \| --webapp-discovery` | Probes live hosts for active HTTP(S) services, runs vhost discovery, builds `webapp_consolidated.txt`. |
+| `-wd \| --webapp-discovery` | Probes live hosts for active HTTP(S) services and builds `webapp_consolidated.txt`. Vhost discovery is **not** included unless `-vv` is also passed. |
+| `-vv \| --vhost-validation` | Runs `vhost_check` and `vhost_probe` against live IPs to discover virtual hosts (STRONG/WEAK classification). Requires `-wd`. Without this flag, vhost checks are skipped entirely. |
 | `-wsd \| --webapp-short-detection` | Uses the short port list from `collector.cfg` (`web_port_short_detection`). Use with `-wd`. |
 | `-wld \| --webapp-long-detection` | Uses the long port list from `collector.cfg` (`web_port_long_detection`). Use with `-wd`. |
 
@@ -157,7 +159,7 @@ The app-report dashboard is started automatically at the end of each recon (in t
 
 ## Common usage patterns
 
-Full recon + webapp discovery (short port list):
+Full recon + webapp discovery (short port list, no vhost):
 
 ```bash
 docker run --rm \
@@ -173,7 +175,13 @@ docker compose run --rm collector \
 collector-docker -d example.com --recon --webapp-discovery --webapp-short-detection
 ```
 
-Full recon + webapp discovery + enum + scan in one shot:
+Full recon + webapp discovery + vhost validation (short port list):
+
+```bash
+collector-docker -d example.com --recon --webapp-discovery --webapp-short-detection --vhost-validation
+```
+
+Full recon + webapp discovery + enum + scan in one shot (with vhost):
 
 ```bash
 docker run --rm \
@@ -181,11 +189,11 @@ docker run --rm \
   -v /opt/collector/wordlists:/opt/collector/wordlists \
   -v /opt/collector/collector.cfg:/opt/collector/collector.cfg:ro \
   collector:latest \
-  -d example.com --recon --webapp-discovery --webapp-short-detection \
+  -d example.com --recon --webapp-discovery --webapp-short-detection --vhost-validation \
   --webapp-enum --webapp-wordlists /opt/collector/wordlists/common.txt --webapp-scan
 
 docker compose run --rm collector \
-  -d example.com --recon --webapp-discovery --webapp-short-detection \
+  -d example.com --recon --webapp-discovery --webapp-short-detection --vhost-validation \
   --webapp-enum --webapp-wordlists /opt/collector/wordlists/common.txt --webapp-scan
 
 collector-docker -d example.com --recon --webapp-discovery --webapp-short-detection \
@@ -270,6 +278,12 @@ docker compose run --rm collector \
 collector-docker -u https://opt/collector.example.com --webapp-wordlists /opt/collector/wordlists/common.txt
 ```
 
+Pre-flight check (dry run) — validates config and parameters without running anything:
+
+```bash
+collector-docker -d example.com --recon --webapp-discovery --webapp-short-detection --dry-run
+```
+
 ## Unattended execution
 
 Drop-in scheduling files are in `support/templates/`:
@@ -307,7 +321,8 @@ Both use `collector-docker` (or `docker run --rm` directly) — each run fires a
 - Per-run dated folder (`recon_YYYYMMDD`) with logs, tmp, and structured report tree
 - Subdomain discovery via passive sources + active DNS bruteforce
 - Infrastructure enrichment: AS / IPv4 / IPv6 / netblocks / nmap / Shodan
-- vhost discovery: parallel curl + httpx probing, STRONG vs. WEAK confidence classification, automatic `/etc/hosts` injection inside the container so all tools resolve vhosts transparently
+- vhost discovery (opt-in via `-vv`): parallel curl + httpx probing, STRONG vs. WEAK confidence classification, automatic `/etc/hosts` injection inside the container so all tools resolve vhosts transparently. Optional `ffuf`-backed mode for orders-of-magnitude faster probing (set `vhost_use_ffuf=yes` in `collector.cfg`)
+- `-dr|--dry-run` pre-flight validation mode — confirm config and parameters before a long run
 - Per-artifact diff vs. previous run — only deltas pushed to notify channel
 - Email harvesting from APIs + page/JS crawl filtered to the target domain
 - JS scraping and parameter mining with sink classification (SQLi/XSS/SSRF/XXE/CMD/...)

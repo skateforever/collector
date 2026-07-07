@@ -105,11 +105,12 @@ O entrypoint do container é o script `collector`. Resumidamente o fluxo é:
 1. **Bootstrap.** `collector` carrega `functions/utils.sh` (banner, helpers, reset de variáveis globais) e depois faz `source collector.cfg` para herdar timeouts, threads, listas de portas curta/longa e chaves de API.
 2. **Carga de módulos.** Em sequência são feitos `source` em todos os arquivos de `functions/` essenciais (`menu.sh`, `usage.sh`, `check_*`, `domains_*`, `url_recon.sh`, `webapp_*`, `emails_recon.sh`, `git.sh`, `diff.sh`, `files.sh`, `infra.sh`, além dos módulos do dashboard `cloudflare_tunnel.sh`, `app_report.sh`, `db_usage.sh`, `llm_prompt.sh`) e em `scans/` (`acunetix.sh`, `nmap.sh`, `nuclei.sh`, `shodan.sh`, `js_scans.sh`).
 3. **Validações.** `check_container` confirma que está rodando dentro do Docker (o script aborta fora dele); `check_binaries` valida a presença das ferramentas no PATH.
-4. **Parse de CLI.** `menu "$@"` processa as flags (`-d`, `-dl`, `-u`, `-r`, `-wd`, `-we`, `-ws`, `-wc`, etc.). `validate_domain` aplica regex estrita a cada alvo. Sem argumentos, `usage` é exibido.
+4. **Parse de CLI.** `menu "$@"` processa as flags (`-d`, `-dl`, `-u`, `-r`, `-wd`, `-we`, `-ws`, `-wc`, `-vv`, `-dr`, etc.). `validate_domain` aplica regex estrita a cada alvo. Sem argumentos, `usage` é exibido.
 5. **Coerência.** `check_execution` valida combinações de flags inválidas, `check_parameter_conflicts` impede combinações mutuamente exclusivas, `check_directory_permission` testa se `/opt/collector/outputs` é gravável.
 6. **Lock por alvo.** `collector_acquire_lock "${domain}"` usa `flock` para impedir execuções concorrentes contra o mesmo domínio (preserva a integridade dos `*_diff.txt`).
 7. **Estrutura de diretórios.** `create_directory_structure` cria `outputs/<domain>/recon_YYYYMMDD/{log,tmp,report/{scan/{nmap,nuclei,shodan},webapp/{aquatone,enum,javascript,params,tech}}}`. Em modo "reuse" (rodando `-we`/`-ws`/`-wc` sem `-r`) ele reaproveita o recon_dir mais recente que tenha `domains_alive.txt`.
-8. **Roteamento por modo de execução.** `domains_recon` (para `-d`/`-dl`) ou `url_recon` (para `-u`) decidem o subconjunto do pipeline a executar com base nas flags presentes. O fluxo "happy path" completo de `-d --recon --webapp-discovery --webapp-enum --webapp-crawler --webapp-scan` é:
+8. **Saída dry-run.** Se `-dr` (ou `--dry-run`) for passado, o script imprime um resumo de pré-voo (alvo, IPv4 regex, timeouts, wordlists, lista de portas, proxy, Shodan) e termina com exit 0 sem executar recon.
+9. **Roteamento por modo de execução.** `domains_recon` (para `-d`/`-dl`) ou `url_recon` (para `-u`) decidem o subconjunto do pipeline a executar com base nas flags presentes. O fluxo "happy path" completo de `-d --recon --webapp-discovery --vhost-validation --webapp-enum --webapp-crawler --webapp-scan` é:
    1. `subdomains_recon` — dispara em paralelo todas as fontes em `sources/` (APIs OSINT + bruteforce DNS opcional + amass/subfinder/tlsx);
    2. `joining_subdomains` — `files.sh` consolida todas as saídas brutas em `tmp/` num único `domains_found.txt`, deduplicado e filtrado pelo domínio raiz;
    3. `diff_domains` — gera `domains_diff.txt` (delta em relação ao último run);
@@ -117,7 +118,7 @@ O entrypoint do container é o script `collector`. Resumidamente o fluxo é:
    5. `infra_data` — coleta ASN, blocos de IP, IPv4/IPv6 (internos vs. externos), tenta `zone transfer`;
    6. `nmap_scan` + `shodan_scan` — varredura de portas no conjunto de IPs externos;
    7. `webapp_alive` — `httpx` contra `domains_alive.txt` na lista de portas (curta com `-wsd` ou longa com `-wld`);
-   8. `vhost_check` + `vhost_probe` — descobre vhosts servidos pelos IPs externos cujo nome não resolve em DNS, classifica em STRONG/WEAK, escreve `etc_hosts_file.txt` e adiciona ao `/etc/hosts` do container para que as demais ferramentas resolvam transparentemente;
+   8. `vhost_check` + `vhost_probe` **(somente quando `-vv|--vhost-validation` é passado)** — descobre vhosts servidos pelos IPs externos cujo nome não resolve em DNS, classifica em STRONG/WEAK, escreve `etc_hosts_file.txt` e adiciona ao `/etc/hosts` do container para que as demais ferramentas resolvam transparentemente. Quando `vhost_use_ffuf=yes` no `collector.cfg`, `vhost_probe` delega ao `ffuf` para descoberta muito mais rápida via wordlist;
    9. `build_consolidated_urls` — produz `webapp_consolidated.txt` (todas as URLs HTTP(S) vivas, DNS + vhosts STRONG);
    10. `webapp_tech` — captura cabeçalhos de resposta para fingerprinting (em `report/webapp/tech/`);
    11. `emails_recon` — Hunter.io + IntelX (phonebook target=2) + Lampyre + Snov.io + crawl de páginas/JS do consolidado;
@@ -191,6 +192,16 @@ Todos os artefatos finais vivem em `outputs/<domain>/recon_YYYYMMDD/`:
 
 ## 5. Comandos para executar o collector
 
+### 5.0. Validação pré-voo (dry run)
+
+Antes de disparar um pipeline demorado, use `-dr` (ou `--dry-run`) para validar que configuração, locks e permissões estão corretos:
+
+```bash
+collector-docker -d example.com --recon --webapp-discovery --webapp-short-detection -dr
+```
+
+Isso executa todas as validações pré-voo (parse de CLI, validação de domínio, criação de diretórios, aquisição de lock) e imprime um resumo dos parâmetros resolvidos. Termina com exit 0 sem gerar tráfego.
+
 Os exemplos abaixo usam o wrapper `collector-docker`, que injeta automaticamente os volumes (`outputs`, `wordlists`, `collector.cfg`) e o `-p 127.0.0.1:8000:8000`. Os mesmos comandos funcionam diretamente com `docker run --rm -v … collector:latest <flags>` ou `docker compose run --rm collector <flags>`.
 
 ### 5.1. Comandos básicos de reconhecimento
@@ -209,7 +220,15 @@ Recon + descoberta de aplicações web na lista curta de portas (definida em `co
 collector-docker -d example.com --recon --webapp-discovery --webapp-short-detection
 ```
 
-O que entrega: tudo do comando anterior + `webapp_consolidated.txt` (URLs HTTP(S) vivas), `vhost_subdomains.txt` (STRONG), `vhost_subdomains_weak.txt`, `etc_hosts_file.txt`, e `webapp/tech/` com cabeçalhos de fingerprinting. Este é o ponto de entrada típico para qualquer alvo novo.
+O que entrega: tudo do comando anterior + `webapp_consolidated.txt` (URLs HTTP(S) vivas) e `webapp/tech/` com cabeçalhos de fingerprinting. Este é o ponto de entrada típico para qualquer alvo novo. **Nota:** a descoberta de vhosts (`vhost_subdomains.txt`, `etc_hosts_file.txt`) exige o uso adicional de `-vv|--vhost-validation`.
+
+Recon + descoberta de aplicações web **com validação de vhost**:
+
+```bash
+collector-docker -d example.com --recon --webapp-discovery --webapp-short-detection --vhost-validation
+```
+
+O que entrega: tudo acima + `vhost_subdomains.txt` (STRONG), `vhost_subdomains_weak.txt`, `etc_hosts_file.txt`. A validação de vhost sonda cada IP de `infra_ipv4.txt` na lista de portas configurada usando validação cruzada dual-tool (curl + httpx), e opcionalmente `ffuf` para o probe baseado em wordlist.
 
 ### 5.2. Comandos intermediários
 
@@ -261,12 +280,12 @@ O que entrega: pipeline de webapp completo (enum + robots + sitemap + crawler + 
 
 ### 5.3. Comando completo do collector
 
-Pipeline end-to-end — recon + descoberta web + enumeração + crawler + scan de vulnerabilidades — em um único disparo:
+Pipeline end-to-end — recon + descoberta web + vhost + enumeração + crawler + scan de vulnerabilidades — em um único disparo:
 
 ```bash
 collector-docker -d example.com \
   --recon \
-  --webapp-discovery --webapp-short-detection \
+  --webapp-discovery --webapp-short-detection --vhost-validation \
   --webapp-enum --webapp-wordlists /opt/collector/wordlists/common.txt \
   --webapp-crawler \
   --webapp-scan
@@ -286,6 +305,29 @@ collector-docker --report-stop        # encerra a partir de outro shell
 `--report-only` exige um `collector-results-db` dentro de `outputs/` (aborta com mensagem clara caso contrário), recusa iniciar quando outra instância já estiver rodando (via pidfile + sondagem de porta no host) e é estritamente read-only — o Flask abre o SQLite com `mode=ro`. O wrapper nomeia esse container como `collector-report` (sobrescreva via `REPORT_CONTAINER_NAME=<nome>` no ambiente), que é o alvo de `--report-stop` no host.
 
 Quando a porta host de `APP_PORT` (default `127.0.0.1:8000:8000`) já está ocupada — por exemplo porque um recon anterior deixou um dashboard em background rodando, ou outro container publica ali —, o `collector-docker` silenciosamente omite o `-p` do `docker run` em vez de abortar com "port already allocated". O recon continua e o dashboard já em execução renderiza os dados do novo run porque `outputs/` é compartilhado.
+
+## 5.5. Configuração específica de vhost (collector.cfg)
+
+A descoberta de vhosts tem sua própria seção de tuning no `collector.cfg`. Estas variáveis só importam quando `-vv|--vhost-validation` é utilizado:
+
+```bash
+# vhost - performance tuning
+vhost_check_processes=8            # workers paralelos para vhost_check (curl+httpx por par IP:porta)
+vhost_probe_processes=50           # workers paralelos para vhost_probe (single curl leve cada)
+vhost_probe_batch_size=50          # words por worker no vhost_probe (reduz overhead de fork)
+vhost_port_detect=(80 443 8080 8443)  # portas para brute de vhost (independente de webapp_port_detect)
+vhost_connect_timeout=5            # timeout de connect do curl para vhost (segundos)
+vhost_max_time=5                   # max-time do curl para vhost (segundos)
+vhost_prefilter_timeout=3          # timeout do pré-filtro TCP (segundos) — descarta portas sem resposta
+vhost_use_ffuf="no"                # usar ffuf para vhost_probe em vez do loop bash (yes/no)
+vhost_ffuf_threads=50              # threads do ffuf quando habilitado
+```
+
+Comportamentos chave controlados por essas variáveis:
+
+- **Pré-filtro TCP:** antes de forçar uma porta, um teste rápido de TCP connect (`vhost_prefilter_timeout`) descarta portas fechadas — evita milhares de timeouts desperdiçados na lista longa de portas.
+- **Early-exit em baselines mortos:** se o request de baseline (host aleatório) retorna status `000` (connection refused), aquele par (IP, porta) é inteiramente ignorado.
+- **Modo ffuf:** configurar `vhost_use_ffuf=yes` substitui o loop Bash do probe por uma única invocação de `ffuf` por par (IP, porta) — ordens de magnitude mais rápido para wordlists grandes. Cai no loop Bash se `ffuf` não estiver no PATH.
 
 ## 6. Mais detalhes
 
