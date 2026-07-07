@@ -19,10 +19,14 @@ shodan_scan(){
         # never executed (report B-09).
         if [ "${shodan_just_scan_main_domain}" == "yes" ] && [ "${shodan_scans}" -gt 1 ]; then
             local IP
-            for IP in $(cat "${report_dir}/infra_ipv4.txt"); do
-                echo "shodan scan submit ${IP} > ${shodan_dir}/shodan_scan.txt" >> "${log_execution_file}"
-                "shodan" scan submit "${IP}" > "${shodan_dir}/shodan_scan.txt" 2>> "${log_execution_file}" &
-            done
+            while IFS= read -r IP; do
+                [[ -z "${IP}" ]] && continue
+                echo "shodan scan submit ${IP} >> ${shodan_dir}/shodan_scan_${IP}.txt" >> "${log_execution_file}"
+                "shodan" scan submit "${IP}" >> "${shodan_dir}/shodan_scan_${IP}.txt" 2>> "${log_execution_file}" &
+            done < "${report_dir}/infra_ipv4.txt"
+            wait
+            cat "${shodan_dir}"/shodan_scan_*.txt > "${shodan_dir}/shodan_scan.txt" 2>/dev/null
+            rm -f "${shodan_dir}"/shodan_scan_*.txt
         fi
         echo "Done!"
     fi
