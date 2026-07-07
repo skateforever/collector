@@ -9,7 +9,7 @@
 # 2. Create webhooks for each channel (Server Settings → Integrations → Webhooks)
 # 3. Copy this file: cp support/templates/alerts/discord-provider.yml ./discord-provider.yaml
 # 4. Fill in the discord_webhook_url values
-# 5. Bind-mount into container: -v ./discord-provider.yaml:/etc/collector/alerts/discord.yaml
+# 5. Bind-mount into container: -v ./discord-provider.yaml:/opt/collector/support/templates/alerts/discord-provider.yaml
 #
 # Channels:
 # - recon: reconnaissance findings

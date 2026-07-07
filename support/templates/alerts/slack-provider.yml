@@ -11,7 +11,7 @@
 # 4. Create webhooks for each channel (#recon, #critical, #high, etc)
 # 5. Copy this file: cp support/templates/alerts/slack-provider.yml ./slack-provider.yaml
 # 6. Fill in the slack_webhook_url values
-# 7. Bind-mount into container: -v ./slack-provider.yaml:/etc/collector/alerts/slack.yaml
+# 7. Bind-mount into container: -v ./slack-provider.yaml:/opt/collector/support/templates/alerts/slack-provider.yaml
 #
 # Channels:
 # - recon: reconnaissance findings

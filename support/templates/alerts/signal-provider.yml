@@ -23,7 +23,7 @@
 # 4. Setup this config:
 #    - Copy this file: cp support/templates/alerts/signal-provider.yml ./signal-provider.yaml
 #    - Fill in signal_account and signal_recipient values
-#    - Bind-mount into container: -v ./signal-provider.yaml:/etc/collector/alerts/signal.yaml
+#    - Bind-mount into container: -v ./signal-provider.yaml:/opt/collector/support/templates/alerts/signal-provider.yaml
 #
 # Channels:
 # - recon: reconnaissance findings (group or contact)

@@ -14,7 +14,7 @@
 # 7. Copy the webhook URL
 # 8. Copy this file: cp support/templates/alerts/teams-provider.yml ./teams-provider.yaml
 # 9. Fill in the teams_webhook_url values
-# 10. Bind-mount into container: -v ./teams-provider.yaml:/etc/collector/alerts/teams.yaml
+# 10. Bind-mount into container: -v ./teams-provider.yaml:/opt/collector/support/templates/alerts/teams-provider.yaml
 #
 # Channels:
 # - recon: reconnaissance findings

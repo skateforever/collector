@@ -21,7 +21,7 @@
 # 3. Setup this config:
 #    - Copy this file: cp support/templates/alerts/telegram-provider.yml ./telegram-provider.yaml
 #    - Fill in telegram_bot_token and telegram_chat_id values
-#    - Bind-mount into container: -v ./telegram-provider.yaml:/etc/collector/alerts/telegram.yaml
+#    - Bind-mount into container: -v ./telegram-provider.yaml:/opt/collector/support/templates/alerts/telegram-provider.yaml
 #
 # Channels:
 # - recon: reconnaissance findings

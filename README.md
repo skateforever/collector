@@ -80,9 +80,9 @@ Override defaults via environment variables (`<root>` is the checkout directory 
 | Variable | Default |
 |----------|---------|
 | `COLLECTOR_IMAGE` | `collector:latest` |
-| `OUTPUTS_DIR` | `<root>/outputs` |
-| `WORDLISTS_DIR` | `<root>/wordlists` |
-| `COLLECTOR_CFG` | `<root>/collector.cfg` |
+| `OUTPUTS_DIR` | `<root>/outputs` (mounted to `/opt/collector/outputs`) |
+| `WORDLISTS_DIR` | `<root>/wordlists` (mounted to `/opt/collector/wordlists`) |
+| `COLLECTOR_CFG` | `<root>/collector.cfg` (mounted to `/opt/collector/collector.cfg`) |
 | `APP_PORT` | `127.0.0.1:8000:8000` |
 | `REPORT_CONTAINER_NAME` | `collector-report` |
 

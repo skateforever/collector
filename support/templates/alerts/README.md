@@ -57,16 +57,16 @@ Edit each config file and add your webhook URLs or credentials.
 #### Using docker compose:
 ```bash
 docker compose run --rm \
-  -v $(pwd)/discord-provider.yaml:/etc/collector/alerts/discord.yaml \
-  -v $(pwd)/slack-provider.yaml:/etc/collector/alerts/slack.yaml \
+  -v $(pwd)/discord-provider.yaml:/opt/collector/support/templates/alerts/discord-provider.yaml \
+  -v $(pwd)/slack-provider.yaml:/opt/collector/support/templates/alerts/slack-provider.yaml \
   collector -d example.com --recon
 ```
 
 #### Using collector-docker:
 ```bash
 collector-docker \
-  -v $(pwd)/discord-provider.yaml:/etc/collector/alerts/discord.yaml \
-  -v $(pwd)/slack-provider.yaml:/etc/collector/alerts/slack.yaml \
+  -v $(pwd)/discord-provider.yaml:/opt/collector/support/templates/alerts/discord-provider.yaml \
+  -v $(pwd)/slack-provider.yaml:/opt/collector/support/templates/alerts/slack-provider.yaml \
   -d example.com --recon
 ```
 
@@ -181,26 +181,48 @@ collector-docker \
   -d example.com --recon --webapp-discovery
 ```
 
-## Environment Variables
+## Integration with collector.cfg
 
-For CI/CD, use environment variables instead of mounting files:
+The default path in `collector.cfg` is:
 
 ```bash
-# Discord
-export DISCORD_WEBHOOK_RECON="https://..."
-export DISCORD_WEBHOOK_HIGH="https://..."
-export DISCORD_WEBHOOK_CRITICAL="https://..."
+notify_config="/opt/collector/support/templates/alerts/discord-provider.yaml"
+```
 
-# Slack
-export SLACK_WEBHOOK_RECON="https://..."
-export SLACK_WEBHOOK_CRITICAL="https://..."
+The alert templates are baked into the Docker image at `/opt/collector/support/templates/alerts/`.
 
-# Telegram
-export TELEGRAM_BOT_TOKEN="123456:ABC-..."
-export TELEGRAM_CHAT_RECON="-1234567890"
+To use a custom provider config with your webhook URLs, bind-mount it:
 
-# Teams
-export TEAMS_WEBHOOK_CRITICAL="https://..."
+```bash
+# Replace the default with your custom config
+docker compose run --rm \
+  -v ./my-discord-config.yaml:/opt/collector/support/templates/alerts/discord-provider.yaml \
+  collector -d example.com --recon
+```
+
+## Environment Variables
+
+For CI/CD, generate provider configs dynamically:
+
+```bash
+# Create Discord config from env vars
+cat > discord-provider.yaml << EOF
+discord:
+  - id: "recon"
+    discord_channel: "reconnaissance"
+    discord_username: "Collector"
+    discord_format: "{{data}}"
+    discord_webhook_url: "${DISCORD_WEBHOOK_RECON}"
+  - id: "critical"
+    discord_channel: "critical"
+    discord_username: "Collector"
+    discord_format: "{{data}}"
+    discord_webhook_url: "${DISCORD_WEBHOOK_CRITICAL}"
+EOF
+
+docker compose run --rm \
+  -v ./discord-provider.yaml:/opt/collector/support/templates/alerts/discord-provider.yaml \
+  collector -d example.com --recon
 ```
 
 ## Best Practices

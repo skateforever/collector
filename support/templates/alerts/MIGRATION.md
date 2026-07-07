@@ -69,23 +69,24 @@ services:
 services:
   collector:
     volumes:
-      - ./discord-provider.yaml:/etc/collector/alerts/discord.yaml
-      - ./slack-provider.yaml:/etc/collector/alerts/slack.yaml
+      - ./discord-provider.yaml:/opt/collector/support/templates/alerts/discord-provider.yaml
+      - ./slack-provider.yaml:/opt/collector/support/templates/alerts/slack-provider.yaml
 ```
 
 ### Step 5: Update collector.cfg
 
 If you have custom references to notify paths:
 
-#### Old
+#### Old  
 ```bash
 notify_config="/etc/collector/notify-provider.yaml"
 ```
 
 #### New
 ```bash
-alert_config_dir="/etc/collector/alerts"
-alert_providers="discord,slack,teams"
+# Alert providers are now in support/templates/alerts/
+# The default config points to the Discord template:
+notify_config="/opt/collector/support/templates/alerts/discord-provider.yaml"
 ```
 
 ### Step 6: Clean Up
@@ -131,16 +132,16 @@ Check if your docker-compose or collector-docker command still references old pa
 ```bash
 # Search for old references
 grep -r "notify-provider" docker-compose.yml
-grep -r "/etc/collector/notify-provider.yaml" collector.cfg
+grep "notify_config" collector.cfg
 ```
 
 Update to use new paths:
 ```bash
 # OLD
--v ./notify-provider.yaml:/etc/collector/notify-provider.yaml
+-v ./notify-provider.yaml:/opt/collector/support/templates/alerts/notify-provider.yaml
 
 # NEW
--v ./discord-provider.yaml:/etc/collector/alerts/discord.yaml
+-v ./discord-provider.yaml:/opt/collector/support/templates/alerts/discord-provider.yaml
 ```
 
 ### Webhooks not working?
@@ -155,9 +156,9 @@ You can use multiple providers simultaneously:
 
 ```bash
 docker compose run --rm \
-  -v ./discord-provider.yaml:/etc/collector/alerts/discord.yaml \
-  -v ./slack-provider.yaml:/etc/collector/alerts/slack.yaml \
-  -v ./telegram-provider.yaml:/etc/collector/alerts/telegram.yaml \
+  -v ./discord-provider.yaml:/opt/collector/support/templates/alerts/discord-provider.yaml \
+  -v ./slack-provider.yaml:/opt/collector/support/templates/alerts/slack-provider.yaml \
+  -v ./telegram-provider.yaml:/opt/collector/support/templates/alerts/telegram-provider.yaml \
   collector -d example.com --recon
 ```
 
