@@ -111,12 +111,13 @@ create_directory_structure(){
     fi
 
     if [[ "${only_webapp_enum}" == "yes" ]]; then
-        for d in $("${ls_bin_path}" -1t "${output_dir}/${domain}" | grep -Ev "log$"); do
+        while IFS= read -r d; do
+            [[ -z "${d}" ]] && continue
             if [[ -s "${output_dir}/${domain}/${d}/report/webapp_consolidated.txt" ]]; then
                 recon_dir="${output_dir}/${domain}/${d}"
                 break
             fi
-        done
+        done < <(ls -1t "${output_dir}/${domain}" 2>/dev/null | grep -Ev "^log$")
         # log dirs
         log_dir="${recon_dir}/log"
         log_execution_file="${log_dir}/recon_${date_recon}.log"
