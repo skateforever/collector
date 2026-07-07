@@ -84,10 +84,8 @@ menu(){
                 ;;
             -ed|--exclude-domains)
                 check_argument "$1" "$2"
-                set -f
-                IFS=","
-                excluded_domains+=($2)
-                unset IFS
+                IFS="," read -ra _ed_parts <<< "$2"
+                excluded_domains+=("${_ed_parts[@]}")
                 excludedomain_check="yes"
                 shift 2
                 ;;
@@ -143,11 +141,9 @@ menu(){
                 ;;
             -s|--subdomain-brute)
                 check_argument "$1" "$2"
-                unset IFS
-                set -f
-                IFS=","
+                IFS="," read -ra _sb_parts <<< "$2"
                 local dw
-                for dw in $2; do
+                for dw in "${_sb_parts[@]}"; do
                     if [[ -s "${dw}" ]]; then
                         # Append the split element (a single path), not the
                         # raw comma-joined $2. Previous code (`+=("$2")`)
@@ -168,7 +164,6 @@ menu(){
                         usage
                     fi
                 done
-                unset IFS
                 subdomainbrute_check="yes"
                 shift 2
                 ;;
@@ -206,10 +201,9 @@ menu(){
                 ;;
             -ww|--webapp-wordlists)
                 check_argument "$1" "$2"
-                set -f
-                IFS=","
+                IFS="," read -ra _ww_parts <<< "$2"
                 local ww
-                for ww in $2; do
+                for ww in "${_ww_parts[@]}"; do
                     if [[ -s "${ww}" ]]; then
                         # Append the split element (single path), not $2
                         # (same bug as -s/--subdomain-brute — report B-07).
@@ -233,7 +227,6 @@ menu(){
                         usage
                     fi
                 done
-                unset IFS
                 shift 2
                 ;;
             *)
