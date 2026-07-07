@@ -44,18 +44,13 @@ check_execution(){
         usage
     fi
 
-    if [[ -n "${domain_check}" && "${domain_check}" == "yes" ]] && [[ ( -n "${domainlist_check}" && "${domainlist_check}" == "yes" ) && ( -n "${url_check}" && "${url_check}" == "yes" ) ]]; then
-        echo -e "You can not use the option -d|--domain with -dl|--domain-list or -u|--url and vice versa.\n"
-        usage
-    fi
+    local mode_count=0
+    [[ "${domain_check}" == "yes" ]] && ((mode_count += 1))
+    [[ "${domainlist_check}" == "yes" ]] && ((mode_count += 1))
+    [[ "${url_check}" == "yes" ]] && ((mode_count += 1))
 
-    if [[ -n "${domainlist_check}" && "${domainlist_check}" == "yes" ]] && [[ ( -n "${domain_check}" && "${domain_check}" == "yes" ) && ( -n "${url_check}" && "${url_check}" == "yes" ) ]]; then
-        echo -e "You can not use the option -dl|--domain-list with -d|--domain or -u|--url and vice versa.\n"
-        usage
-    fi
-
-    if [[ -n "${url_check}" && "${url_check}" == "yes" ]] && [[ ( -n "${domain_check}" && "${domain_check}" == "yes" ) && ( -n "${domainlist_check}" && "${domainlist_check}" == "yes" ) ]]; then
-        echo -e "You can not use the option -u|--url with -d|--domain or -dl|--domain-list and vice versa.\n"
+    if [[ "${mode_count}" -gt 1 ]]; then
+        echo -e "You can only use ONE of -d|--domain, -dl|--domain-list, or -u|--url at a time.\n"
         usage
     fi
 
