@@ -576,13 +576,24 @@ organizing_subdomains(){
                 -w "${tmp_dir}/resolution_massdns.tmp" "${subdomains_file}" > /dev/null 2>&1
         fi
 
-        for d in $(cat "${subdomains_file}"); do
-            dig +nocmd +nocomments +noquestion +noqr +nostats +timeout=2 -t A "${d}" >> "${tmp_dir}/resolution_dig.tmp"
-        done
-
-        for d in $(cat "${subdomains_file}"); do
-            host -W 2 -t A "${d}" >> "${tmp_dir}/resolution_host.tmp"
-        done
+        local _resolve_dir="${tmp_dir}/resolve_$$"
+        mkdir -p "${_resolve_dir}"
+        local _ridx=0
+        while IFS= read -r d; do
+            [[ -z "${d}" ]] && continue
+            (
+                dig +nocmd +nocomments +noquestion +noqr +nostats +timeout=2 -t A "${d}" \
+                    > "${_resolve_dir}/dig_${_ridx}.tmp" 2>/dev/null
+                host -W 2 -t A "${d}" \
+                    > "${_resolve_dir}/host_${_ridx}.tmp" 2>/dev/null
+            ) &
+            ((_ridx += 1))
+            [[ $((_ridx % 16)) -eq 0 ]] && wait
+        done < "${subdomains_file}"
+        wait
+        cat "${_resolve_dir}"/dig_*.tmp > "${tmp_dir}/resolution_dig.tmp" 2>/dev/null
+        cat "${_resolve_dir}"/host_*.tmp > "${tmp_dir}/resolution_host.tmp" 2>/dev/null
+        rm -rf "${_resolve_dir}"
         echo "Done!"
 
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Organizing and handling domain files... "
