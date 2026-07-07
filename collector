@@ -131,25 +131,59 @@ if  [[ "${domainlist_check}" == "yes" && -s "${domain_list}" ]]; then
         exit 0
     fi
     unset domain
+    local total_domains=0 successful_runs=0 failed_runs=0 skipped_runs=0
+
     while read -r domain; do
+        ((total_domains += 1))
+
         # Skip blank lines and comments, and reject malformed entries instead
         # of letting them flow into URLs and filesystem paths.
-        [[ -z "${domain}" || "${domain}" =~ ^[[:space:]]*# ]] && continue
+        [[ -z "${domain}" || "${domain}" =~ ^[[:space:]]*# ]] && { ((skipped_runs += 1)); continue; }
         domain="${domain//[[:space:]]/}"
+
         if ! validate_domain "${domain}"; then
             echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Skipping invalid domain from ${domain_list}: ${domain}"
+            ((skipped_runs += 1))
             continue
         fi
+
+        echo -e "${yellow}[Processing ${total_domains}]${reset} ${domain}..."
+
         # In list mode the lock is acquired/released per-target via a
         # subshell so flock's FD goes out of scope when the target finishes.
         (
+            set -e  # Exit on any error
             collector_acquire_lock "${domain}"
             check_is_known_target "${domain}"
             create_directory_structure
             check_parameter_dependency
             domains_recon
         )
+        local exit_code=$?
+
+        if [[ "${exit_code}" -eq 0 ]]; then
+            ((successful_runs += 1))
+            echo -e "${green}[${successful_runs}/${total_domains} ✓]${reset} ${domain} completed successfully"
+        else
+            ((failed_runs += 1))
+            echo -e "${red}[${failed_runs}/${total_domains} ✗]${reset} ${domain} failed with exit code ${exit_code}"
+        fi
     done < "${domain_list}"
+
+    # Summary ao final
+    echo ""
+    echo -e "${yellow}════════════════════════════════════════════════════════════${reset}"
+    echo -e "${yellow}Domain List Summary:${reset}"
+    echo -e "  Total domains:  ${total_domains}"
+    echo -e "  Successful:     ${green}${successful_runs}${reset}"
+    echo -e "  Failed:         ${red}${failed_runs}${reset}"
+    echo -e "  Skipped:        ${yellow}${skipped_runs}${reset}"
+    echo -e "${yellow}════════════════════════════════════════════════════════════${reset}"
+
+    # Exit com código apropriado
+    if [[ "${failed_runs}" -gt 0 ]]; then
+        exit 1
+    fi
     exit 0
 fi
 

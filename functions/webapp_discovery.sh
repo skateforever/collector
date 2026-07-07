@@ -44,16 +44,29 @@ webapp_alive(){
             local batch=0
             for port in "${webapp_port_detect[@]}"; do
                 (
+                    # Arquivo temporário ÚNICO por worker (usando PID do subshell)
+                    local worker_tmp="${tmp_dir}/webapp_urls_$$.tmp"
+
                     echo "curl ${curl_options_fast[*]} ${curl_proxy_args[*]} -H \"User-agent: ${user_agent}\" -L -w \"%{response_code}\n\" \"http://${subdomain}:${port}\" -o /dev/null" >> "${log_execution_file}"
                     http_status_code=$(curl "${curl_options_fast[@]}" "${curl_proxy_args[@]}" -H "User-agent: ${user_agent}" -L -w "%{response_code}\n" "http://${subdomain}:${port}" -o /dev/null 2>> "${log_execution_file}")
-                    if [[ "${http_status_code}" =~ ^[1-5][0-9]{2}$ ]]; then
-                        echo "http://${subdomain}:${port}" >> "${tmp_dir}/webapp_urls.tmp"
+                    local http_curl_exit=$?
+
+                    # Apenas adicionar se curl succeeded (exit 0) E status é HTTP válido
+                    if [[ "${http_curl_exit}" -eq 0 ]] && [[ "${http_status_code}" =~ ^[1-5][0-9]{2}$ ]]; then
+                        echo "http://${subdomain}:${port}" >> "${worker_tmp}"
+                    elif [[ "${http_curl_exit}" -ne 0 ]]; then
+                        echo "curl failed for http://${subdomain}:${port} (exit code: ${http_curl_exit})" >> "${log_execution_file}"
                     fi
 
                     echo "curl ${curl_options_fast[*]} ${curl_proxy_args[*]} -H \"User-agent: ${user_agent}\" -L -w \"%{response_code}\n\" \"https://${subdomain}:${port}\" -o /dev/null" >> "${log_execution_file}"
                     https_status_code=$(curl "${curl_options_fast[@]}" "${curl_proxy_args[@]}" -H "User-agent: ${user_agent}" -L -w "%{response_code}\n" "https://${subdomain}:${port}" -o /dev/null 2>> "${log_execution_file}")
-                    if [[ "${https_status_code}" =~ ^[1-5][0-9]{2}$ ]]; then
-                        echo "https://${subdomain}:${port}" >> "${tmp_dir}/webapp_urls.tmp"
+                    local https_curl_exit=$?
+
+                    # Apenas adicionar se curl succeeded (exit 0) E status é HTTP válido
+                    if [[ "${https_curl_exit}" -eq 0 ]] && [[ "${https_status_code}" =~ ^[1-5][0-9]{2}$ ]]; then
+                        echo "https://${subdomain}:${port}" >> "${worker_tmp}"
+                    elif [[ "${https_curl_exit}" -ne 0 ]]; then
+                        echo "curl failed for https://${subdomain}:${port} (exit code: ${https_curl_exit})" >> "${log_execution_file}"
                     fi
                 ) &
                 ((batch += 1))
@@ -63,8 +76,11 @@ webapp_alive(){
                 fi
             done
             wait
-            sleep 1
         done < "${report_dir}/domains_alive.txt"
+
+        # Merge seguro: todos os workers terminaram, agora consolidar
+        cat "${tmp_dir}"/webapp_urls_*.tmp 2>/dev/null | sort -u > "${tmp_dir}/webapp_urls.tmp"
+        rm -f "${tmp_dir}"/webapp_urls_*.tmp
 
         echo "httpx "${httpx_options[@]}" ${httpx_proxy_args[*]} -p $(echo "${webapp_port_detect[@]}" | sed 's/ /,/g') -l ${report_dir}/domains_alive.txt >> ${tmp_dir}/webapp_urls.tmp" >> "${log_execution_file}"
         httpx "${httpx_options[@]}" "${httpx_proxy_args[@]}" -p $(echo "${webapp_port_detect[@]}" | sed 's/ /,/g') -l "${report_dir}/domains_alive.txt" >> "${tmp_dir}/webapp_urls.tmp" 2>> "${log_execution_file}"

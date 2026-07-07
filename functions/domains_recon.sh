@@ -126,10 +126,24 @@ domains_recon(){
                 awk '{print $1}' "${tmp_dir}/vhost_subdomains_strong.tmp" \
                     | grep -Ei "(\.${domain}$|^${domain}$)" | sort -u >> "${report_dir}/domains_found.txt"
                 sort -u -o "${report_dir}/domains_found.txt" "${report_dir}/domains_found.txt"
-                while IFS=$'\t' read -r vc_ip vc_host; do
-                    echo "${vc_host}"$'\t'"${vc_ip}" >> "${report_dir}/domains_external_ipv4.txt"
-                    echo "${vc_host}" >> "${report_dir}/domains_alive.txt"
-                done < "${report_dir}/etc_hosts_file.txt"
+
+                # Ler APENAS strong vhosts (fonte correta) e fazer lookup do IP em etc_hosts_file.txt
+                while IFS= read -r vc_host; do
+                    # Validar que é do target domain (defesa extra)
+                    if ! grep -qEi "(\.${domain}$|^${domain}$)" <<< "${vc_host}"; then
+                        continue
+                    fi
+
+                    # Lookup IP no etc_hosts_file.txt
+                    local vc_ip
+                    vc_ip="$(grep -F "${vc_host}" "${report_dir}/etc_hosts_file.txt" | awk '{print $1}' | head -1)"
+
+                    if [[ -n "${vc_ip}" ]]; then
+                        echo "${vc_host}"$'\t'"${vc_ip}" >> "${report_dir}/domains_external_ipv4.txt"
+                        echo "${vc_host}" >> "${report_dir}/domains_alive.txt"
+                    fi
+                done < "${tmp_dir}/vhost_subdomains_strong.tmp"
+
                 sort -u -o "${report_dir}/domains_external_ipv4.txt" "${report_dir}/domains_external_ipv4.txt"
                 sort -u -o "${report_dir}/domains_alive.txt" "${report_dir}/domains_alive.txt"
             fi
