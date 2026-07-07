@@ -39,7 +39,7 @@ check_argument(){
     options+=(-d --domain -dl --domain-list -ed --exclude-domains -el --exclude-domain-list -h --help)
     options+=(-l --limit-urls -p --proxy -r --recon -ro --report-only -rs --report-stop -s --subdomain-brute -u --url)
     options+=(-vv --vhost-validation -wc --webapp-crawler -wd --webapp-discovery -we --webapp-enum -ws --webapp-scan)
-    options+=(-wld --webapp-long-detection -wsd --webapp-short-detection -ww --webapp-wordlists)
+    options+=(-wld --webapp-long-detection -wsd --webapp-short-detection -ww --webapp-wordlists -dr --dry-run)
     local argument=$2
     local option
     if [[ -z "${argument}" ]]; then

@@ -45,6 +45,8 @@ usage(){
     echo -e "\t-wsd|--webapp-short-detection - Will execute the short list of ports setup in collector.cfg as variable web_port_short_detection."
     echo -e "\t-ww |--webapp-wordlists       - Specity more wordlists to put in web_wordlist array as the first wordlist to enumerate dirs and files from website."
     echo -e "\t\t\t\t        use ${yellow}-ww /path/to/wordlist1,/path/to/wordlist2${reset} OR ${yellow}--web-wordlists /path/to/wordlist1,/path/to/wordlist2${reset}"
+    echo -e "\t-dr |--dry-run               - Validate configuration and pre-flight checks without executing any recon."
+    echo -e "\t\t\t\t        Prints target, wordlists, port detection, proxy settings, and exits."
     echo ""
     ) 1>&2; exit 1
 }

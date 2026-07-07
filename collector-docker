@@ -163,6 +163,7 @@ if [[ "${want_report_only}" == "yes" ]]; then
 fi
 
 exec docker run --rm "${name_args[@]}" \
+    -e "TERM=${TERM:-dumb}" \
     -v "${OUTPUTS_DIR}:/opt/collector/outputs" \
     -v "${WORDLISTS_DIR}:/opt/collector/wordlists" \
     -v "${COLLECTOR_CFG}:/opt/collector/collector.cfg:ro" \
