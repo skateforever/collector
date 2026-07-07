@@ -86,6 +86,19 @@ redact_secrets(){
 # app-report lifecycle moved to functions/app_report.sh.
 # start_cloudflare_tunnel moved to functions/cloudflare_tunnel.sh.
 
+validate_ipv4_file(){
+    local file="$1"
+    if [[ ! -s "${file}" ]]; then return 0; fi
+    local total valid invalid
+    total=$(wc -l < "${file}")
+    valid=$(awk '{print $NF}' "${file}" | grep -cE '^([0-9]{1,3}\.){3}[0-9]{1,3}$' || echo 0)
+    invalid=$((total - valid))
+    if [[ "${invalid}" -gt 0 ]]; then
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} WARNING: ${file} has ${invalid}/${total} invalid entries. Cleaning..."
+        awk '{if ($NF ~ /^([0-9]{1,3}\.){3}[0-9]{1,3}$/) print}' "${file}" > "${file}.clean" && mv "${file}.clean" "${file}"
+    fi
+}
+
 # Escape dots in a domain name for use in regex patterns.
 escape_domain_re(){
     printf '%s' "${1//./\\.}"
