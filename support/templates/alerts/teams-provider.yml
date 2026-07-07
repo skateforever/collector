@@ -1,0 +1,57 @@
+# Microsoft Teams Provider Configuration
+# Template for alerting via Microsoft Teams webhooks
+#
+# This file is a TEMPLATE — it carries webhook URLs that grant control
+# over your Teams channels and MUST NOT be committed to version control.
+#
+# Setup Instructions:
+# 1. Go to Microsoft Teams and select a Team
+# 2. Create channels for alerts (#recon, #critical, #high, etc) or use existing
+# 3. Right-click channel → Connectors → Configure
+# 4. Search for "Incoming Webhook" → Configure
+# 5. Give webhook a name (e.g., "Collector Alerts")
+# 6. Optionally upload an image for the webhook
+# 7. Copy the webhook URL
+# 8. Copy this file: cp support/templates/alerts/teams-provider.yml ./teams-provider.yaml
+# 9. Fill in the teams_webhook_url values
+# 10. Bind-mount into container: -v ./teams-provider.yaml:/etc/collector/alerts/teams.yaml
+#
+# Channels:
+# - recon: reconnaissance findings
+# - low: low severity findings
+# - medium: medium severity findings
+# - high: high severity findings
+# - critical: critical severity findings
+#
+# Note: Teams supports Adaptive Card format for rich formatting (JSON)
+
+teams:
+  - id: "recon"
+    teams_channel: "Reconnaissance"
+    teams_username: "Collector"
+    teams_format: "{{data}}"
+    teams_webhook_url: ""
+
+  - id: "low"
+    teams_channel: "Low Severity"
+    teams_username: "Collector"
+    teams_format: "{{data}}"
+    teams_webhook_url: ""
+
+  - id: "medium"
+    teams_channel: "Medium Severity"
+    teams_username: "Collector"
+    teams_format: "{{data}}"
+    teams_webhook_url: ""
+
+  - id: "high"
+    teams_channel: "High Severity"
+    teams_username: "Collector"
+    teams_format: "{{data}}"
+    teams_webhook_url: ""
+
+  - id: "critical"
+    teams_channel: "Critical Severity"
+    teams_username: "Collector"
+    teams_format: "{{data}}"
+    teams_webhook_url: ""

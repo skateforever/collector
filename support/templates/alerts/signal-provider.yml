@@ -1,0 +1,62 @@
+# Signal Provider Configuration
+# Template for alerting via Signal Bot (signal-cli)
+#
+# This file is a TEMPLATE — it carries phone numbers and message recipient IDs
+# that enable messaging via Signal and MUST NOT be committed to version control.
+#
+# Setup Instructions:
+# 1. Install signal-cli on your system:
+#    - macOS: brew install signal-cli
+#    - Linux: Download from https://github.com/AsamK/signal-cli
+#    - Docker: Image already includes signal-cli
+#
+# 2. Register your Signal account:
+#    - signal-cli -u +1234567890 register
+#    - signal-cli -u +1234567890 verify <verification-code>
+#    (Replace +1234567890 with your actual phone number)
+#
+# 3. Get recipient IDs:
+#    - Create Signal groups for different severity levels
+#    - Get the group ID or contact phone number for each
+#    - Format: group_id (for groups) or +1234567890 (for contacts)
+#
+# 4. Setup this config:
+#    - Copy this file: cp support/templates/alerts/signal-provider.yml ./signal-provider.yaml
+#    - Fill in signal_account and signal_recipient values
+#    - Bind-mount into container: -v ./signal-provider.yaml:/etc/collector/alerts/signal.yaml
+#
+# Channels:
+# - recon: reconnaissance findings (group or contact)
+# - low: low severity findings
+# - medium: medium severity findings
+# - high: high severity findings
+# - critical: critical severity findings (recommended: separate group)
+#
+# Warning: Signal is primarily for small teams. Consider Telegram/Discord for large deployments.
+# Note: Requires signal-cli daemon running (signal-cli -u +<your_number> daemon)
+
+signal:
+  - id: "recon"
+    signal_account: "+1234567890"
+    signal_recipient: ""
+    signal_format: "{{data}}"
+
+  - id: "low"
+    signal_account: "+1234567890"
+    signal_recipient: ""
+    signal_format: "{{data}}"
+
+  - id: "medium"
+    signal_account: "+1234567890"
+    signal_recipient: ""
+    signal_format: "{{data}}"
+
+  - id: "high"
+    signal_account: "+1234567890"
+    signal_recipient: ""
+    signal_format: "{{data}}"
+
+  - id: "critical"
+    signal_account: "+1234567890"
+    signal_recipient: ""
+    signal_format: "{{data}}"

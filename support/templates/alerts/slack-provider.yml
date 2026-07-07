@@ -1,0 +1,54 @@
+# Slack Provider Configuration
+# Template for alerting via Slack webhooks
+#
+# This file is a TEMPLATE — it carries webhook URLs that grant control
+# over your Slack channels and MUST NOT be committed to version control.
+#
+# Setup Instructions:
+# 1. Go to https://api.slack.com/apps
+# 2. Create a new app (or select existing)
+# 3. Enable "Incoming Webhooks"
+# 4. Create webhooks for each channel (#recon, #critical, #high, etc)
+# 5. Copy this file: cp support/templates/alerts/slack-provider.yml ./slack-provider.yaml
+# 6. Fill in the slack_webhook_url values
+# 7. Bind-mount into container: -v ./slack-provider.yaml:/etc/collector/alerts/slack.yaml
+#
+# Channels:
+# - recon: reconnaissance findings
+# - low: low severity findings
+# - medium: medium severity findings
+# - high: high severity findings
+# - critical: critical severity findings
+#
+# Note: Slack format supports rich formatting with JSON blocks for better readability
+
+slack:
+  - id: "recon"
+    slack_channel: "#recon"
+    slack_username: "Collector"
+    slack_format: "{{data}}"
+    slack_webhook_url: ""
+
+  - id: "low"
+    slack_channel: "#low"
+    slack_username: "Collector"
+    slack_format: "{{data}}"
+    slack_webhook_url: ""
+
+  - id: "medium"
+    slack_channel: "#medium"
+    slack_username: "Collector"
+    slack_format: "{{data}}"
+    slack_webhook_url: ""
+
+  - id: "high"
+    slack_channel: "#high"
+    slack_username: "Collector"
+    slack_format: "{{data}}"
+    slack_webhook_url: ""
+
+  - id: "critical"
+    slack_channel: "#critical"
+    slack_username: "Collector"
+    slack_format: "{{data}}"
+    slack_webhook_url: ""

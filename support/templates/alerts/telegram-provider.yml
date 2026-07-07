@@ -1,0 +1,59 @@
+# Telegram Provider Configuration
+# Template for alerting via Telegram Bot API
+#
+# This file is a TEMPLATE — it carries bot tokens and chat IDs that grant control
+# over your Telegram channels and MUST NOT be committed to version control.
+#
+# Setup Instructions:
+# 1. Create a Telegram Bot:
+#    - Open Telegram and search for @BotFather
+#    - Send /newbot command
+#    - Follow instructions to create bot
+#    - Copy the bot token (format: 123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11)
+#
+# 2. Get Chat IDs:
+#    - Create Telegram groups or channels for alerts
+#    - Add your bot to each group/channel
+#    - Send a message in the group
+#    - Visit: https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getUpdates
+#    - Find your chat ID in the response (negative number for groups)
+#
+# 3. Setup this config:
+#    - Copy this file: cp support/templates/alerts/telegram-provider.yml ./telegram-provider.yaml
+#    - Fill in telegram_bot_token and telegram_chat_id values
+#    - Bind-mount into container: -v ./telegram-provider.yaml:/etc/collector/alerts/telegram.yaml
+#
+# Channels:
+# - recon: reconnaissance findings
+# - low: low severity findings
+# - medium: medium severity findings
+# - high: high severity findings
+# - critical: critical severity findings
+#
+# Note: Telegram supports HTML and Markdown formatting
+
+telegram:
+  - id: "recon"
+    telegram_bot_token: ""
+    telegram_chat_id: ""
+    telegram_format: "{{data}}"
+
+  - id: "low"
+    telegram_bot_token: ""
+    telegram_chat_id: ""
+    telegram_format: "{{data}}"
+
+  - id: "medium"
+    telegram_bot_token: ""
+    telegram_chat_id: ""
+    telegram_format: "{{data}}"
+
+  - id: "high"
+    telegram_bot_token: ""
+    telegram_chat_id: ""
+    telegram_format: "{{data}}"
+
+  - id: "critical"
+    telegram_bot_token: ""
+    telegram_chat_id: ""
+    telegram_format: "{{data}}"

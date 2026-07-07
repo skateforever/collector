@@ -1,0 +1,50 @@
+# Discord Provider Configuration
+# Template for alerting via Discord webhooks
+#
+# This file is a TEMPLATE — it carries webhook URLs that grant control
+# over your Discord channels and MUST NOT be committed to version control.
+#
+# Setup Instructions:
+# 1. Create a Discord server and text channels (e.g., #recon, #critical, #high)
+# 2. Create webhooks for each channel (Server Settings → Integrations → Webhooks)
+# 3. Copy this file: cp support/templates/alerts/discord-provider.yml ./discord-provider.yaml
+# 4. Fill in the discord_webhook_url values
+# 5. Bind-mount into container: -v ./discord-provider.yaml:/etc/collector/alerts/discord.yaml
+#
+# Channels:
+# - recon: reconnaissance findings
+# - low: low severity findings
+# - medium: medium severity findings
+# - high: high severity findings
+# - critical: critical severity findings
+
+discord:
+  - id: "recon"
+    discord_channel: "reconnaissance"
+    discord_username: "Collector"
+    discord_format: "{{data}}"
+    discord_webhook_url: ""
+
+  - id: "low"
+    discord_channel: "low"
+    discord_username: "Collector"
+    discord_format: "{{data}}"
+    discord_webhook_url: ""
+
+  - id: "medium"
+    discord_channel: "medium"
+    discord_username: "Collector"
+    discord_format: "{{data}}"
+    discord_webhook_url: ""
+
+  - id: "high"
+    discord_channel: "high"
+    discord_username: "Collector"
+    discord_format: "{{data}}"
+    discord_webhook_url: ""
+
+  - id: "critical"
+    discord_channel: "critical"
+    discord_username: "Collector"
+    discord_format: "{{data}}"
+    discord_webhook_url: ""
