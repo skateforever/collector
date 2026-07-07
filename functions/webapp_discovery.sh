@@ -38,31 +38,33 @@ webapp_alive(){
             httpx_proxy_args=(-http-proxy "${proxy_ip}")
         fi
 
-        for subdomain in $(cat "${report_dir}/domains_alive.txt"); do
+        while IFS= read -r subdomain; do
+            [[ -z "${subdomain}" ]] && continue
+            user_agent="$(get_user_agent)"
+            local batch=0
             for port in "${webapp_port_detect[@]}"; do
                 (
-                    user_agent="$(get_user_agent)"
-
-                    # Alive check across many subdomain x port combinations: use the
-                    # fast profile so unresponsive targets fail quickly instead of
-                    # adding up to a multi-hour stall.
-                    echo "curl ${curl_options_fast[@]} ${curl_proxy_args[*]} -H \"User-agent: ${user_agent}\" -L -w \"%{response_code}\n\" \"http://${subdomain}:${port}\" -o /dev/null" >> "${log_execution_file}"
+                    echo "curl ${curl_options_fast[*]} ${curl_proxy_args[*]} -H \"User-agent: ${user_agent}\" -L -w \"%{response_code}\n\" \"http://${subdomain}:${port}\" -o /dev/null" >> "${log_execution_file}"
                     http_status_code=$(curl "${curl_options_fast[@]}" "${curl_proxy_args[@]}" -H "User-agent: ${user_agent}" -L -w "%{response_code}\n" "http://${subdomain}:${port}" -o /dev/null 2>> "${log_execution_file}")
                     if [[ "${http_status_code}" =~ ^[1-5][0-9]{2}$ ]]; then
                         echo "http://${subdomain}:${port}" >> "${tmp_dir}/webapp_urls.tmp"
                     fi
 
-                    echo "curl ${curl_options_fast[@]} ${curl_proxy_args[*]} -H \"User-agent: ${user_agent}\" -L -w \"%{response_code}\n\" \"https://${subdomain}:${port}\" -o /dev/null" >> "${log_execution_file}"
+                    echo "curl ${curl_options_fast[*]} ${curl_proxy_args[*]} -H \"User-agent: ${user_agent}\" -L -w \"%{response_code}\n\" \"https://${subdomain}:${port}\" -o /dev/null" >> "${log_execution_file}"
                     https_status_code=$(curl "${curl_options_fast[@]}" "${curl_proxy_args[@]}" -H "User-agent: ${user_agent}" -L -w "%{response_code}\n" "https://${subdomain}:${port}" -o /dev/null 2>> "${log_execution_file}")
                     if [[ "${https_status_code}" =~ ^[1-5][0-9]{2}$ ]]; then
                         echo "https://${subdomain}:${port}" >> "${tmp_dir}/webapp_urls.tmp"
                     fi
                 ) &
+                ((batch += 1))
+                if [[ "${batch}" -ge 20 ]]; then
+                    wait
+                    batch=0
+                fi
             done
-            # Wait for all prots in this subdomain to finish before moving
             wait
             sleep 1
-        done
+        done < "${report_dir}/domains_alive.txt"
 
         echo "httpx "${httpx_options[@]}" ${httpx_proxy_args[*]} -p $(echo "${webapp_port_detect[@]}" | sed 's/ /,/g') -l ${report_dir}/domains_alive.txt >> ${tmp_dir}/webapp_urls.tmp" >> "${log_execution_file}"
         httpx "${httpx_options[@]}" "${httpx_proxy_args[@]}" -p $(echo "${webapp_port_detect[@]}" | sed 's/ /,/g') -l "${report_dir}/domains_alive.txt" >> "${tmp_dir}/webapp_urls.tmp" 2>> "${log_execution_file}"
