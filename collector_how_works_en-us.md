@@ -86,10 +86,21 @@ collector/
 │   │   ├── patterns/                   regexes for secrets and sensitive parameter names
 │   │   ├── prompts/                    header for llm-prompt.txt
 │   │   └── schema/                     SQL schema for collector-results-db
+│   ├── docker/                         Docker configuration and volume strategy
+│   │   ├── docker.env.template         template for environment variables (Docker Compose)
+│   │   └── VOLUME_STRATEGY.md          detailed documentation on volumes (code replication)
 │   └── templates/                      drop-ins for automation
 │       ├── cron/collector              daily/weekly cron
 │       ├── systemd/collector@          systemd timer template
-│       └── notify/provider-config.yml  example projectdiscovery/notify provider config
+│       ├── alerts/                     alert provider templates (Discord, Slack, Teams, Telegram, Signal)
+│       │   ├── discord-provider.yml
+│       │   ├── slack-provider.yml
+│       │   ├── teams-provider.yml
+│       │   ├── telegram-provider.yml
+│       │   ├── signal-provider.yml
+│       │   ├── README.md               setup guide for each provider
+│       │   └── MIGRATION.md            migration guide from legacy notify system
+│       └── notify/                     (legacy) old notify template
 │
 ├── app-report/                         read-only dashboard (Flask + HTMX + gunicorn)
 │   ├── app.py                          routes, reads collector-results-db
