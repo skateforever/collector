@@ -53,6 +53,9 @@ reset_vars(){
     unset webapp_wordlists
     unset report_only_check
     unset report_stop_check
+    unset dry_run_check
+    unset vhost_validation_check
+    unset args_count
 }
 
 # Replace any occurrence of the configured API keys with a redacted marker.
