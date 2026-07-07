@@ -81,14 +81,13 @@ webapp_alive(){
         fi
 
         if [[ -s "${tmp_dir}/webapp_urls.tmp" ]]; then
-            # sort -u will remove the port if curl and httpx find the same open port
-            for url in $(cat "${tmp_dir}/webapp_urls.tmp" | sort -u); do
+            while IFS= read -r url; do
+                [[ -z "${url}" ]] && continue
                 user_agent="$(get_user_agent)"
-
                 if ! curl "${curl_options[@]}" "${curl_proxy_args[@]}" -H "User-agent: ${user_agent}" "${url}" 2>/dev/null | grep -qiE "${webapp_waf_regex}"; then
                     echo "${url}"
                 fi
-            done > "${report_dir}/webapp_urls.txt"
+            done < <(sort -u "${tmp_dir}/webapp_urls.tmp") > "${report_dir}/webapp_urls.txt"
             sed -i -E 's|^(http://.+):80$|\1|; s|^(https://.+):443$|\1|' "${report_dir}/webapp_urls.txt"
             sort -u -o "${report_dir}/webapp_urls.txt" "${report_dir}/webapp_urls.txt"
         fi
