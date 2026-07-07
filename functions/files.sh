@@ -674,12 +674,11 @@ organizing_subdomains(){
         if [ -s "${tmp_dir}/domains_alive.tmp" ]; then
             if cp "${subdomains_file}" "${tmp_dir}/domains_without_resolution.tmp"; then
                 if [ -s "${tmp_dir}/domains_without_resolution.tmp" ]; then
-                    for d in $(cat "${tmp_dir}/domains_alive.tmp" | sort -u); do
-                        # Escape dots so the domain is treated as a literal string,
-                        # not a regex wildcard — prevents false deletions.
-                        local d_escaped="${d//./\\.}"
-                        sed -i "/^${d_escaped}$/d" "${tmp_dir}/domains_without_resolution.tmp"
-                    done
+                    sort -u "${tmp_dir}/domains_alive.tmp" > "${tmp_dir}/_alive_sorted.tmp"
+                    grep -vFxf "${tmp_dir}/_alive_sorted.tmp" "${tmp_dir}/domains_without_resolution.tmp" \
+                        > "${tmp_dir}/domains_without_resolution.tmp.new" \
+                        && mv "${tmp_dir}/domains_without_resolution.tmp.new" "${tmp_dir}/domains_without_resolution.tmp"
+                    rm -f "${tmp_dir}/_alive_sorted.tmp"
                     echo "Done!"
                 else
                     echo "Fail!"
