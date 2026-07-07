@@ -35,6 +35,91 @@ _vhost_port_alive(){
         -o /dev/null -w "%{http_code}" "${_proto}://${_ip}:${_port}" 2>/dev/null | grep -qE '^[1-5][0-9]{2}$'
 }
 
+# Fast vhost probe using ffuf's native vhost mode.
+# Replaces the bash curl loop with a single ffuf invocation per (IP, port).
+# Requires: ffuf in PATH, vhost_use_ffuf=yes in collector.cfg.
+_vhost_probe_ffuf(){
+    local _ffuf_ip_file="$1"
+    local _ffuf_threads="${vhost_ffuf_threads:-50}"
+    local _ffuf_wordlist="${collector_vhost_probe_words}"
+
+    if [[ ! -s "${_ffuf_wordlist}" ]]; then
+        echo "Fail! (wordlist missing: ${_ffuf_wordlist})"
+        return 0
+    fi
+
+    : > "${tmp_dir}/vhost_probe_output.txt"
+    local _ffuf_ip _ffuf_port _ffuf_proto _ffuf_url
+    local _ffuf_baseline_size _ffuf_rand_host _ffuf_out _p
+
+    while IFS= read -r _ffuf_ip; do
+        [[ -z "${_ffuf_ip}" ]] && continue
+        _ffuf_ip="$(echo "${_ffuf_ip}" | grep -Eo "${IPv4_regex}")"
+        [[ -z "${_ffuf_ip}" ]] && continue
+
+        local -a _vp_ports=()
+        if [[ "${#vhost_port_detect[@]}" -gt 0 ]]; then
+            _vp_ports=("${vhost_port_detect[@]}")
+        else
+            _vp_ports=("${webapp_port_detect[@]}")
+        fi
+
+        for _ffuf_port in "${_vp_ports[@]}"; do
+            _ffuf_proto="http"
+            for _p in "${webapp_tls_ports[@]}"; do
+                [[ "${_p}" == "${_ffuf_port}" ]] && { _ffuf_proto="https"; break; }
+            done
+            _ffuf_url="${_ffuf_proto}://${_ffuf_ip}:${_ffuf_port}"
+
+            # Get baseline response size with random hostname
+            _ffuf_rand_host="$(tr -dc 'a-z' </dev/urandom | fold -w 12 | head -n1).${domain}"
+            _ffuf_baseline_size="$(curl -k -s --connect-timeout 3 --max-time 5 \
+                -H "Host: ${_ffuf_rand_host}" \
+                -o /dev/null -w "%{size_download}" \
+                "${_ffuf_url}" 2>/dev/null)"
+
+            # Skip port if no response
+            [[ -z "${_ffuf_baseline_size}" || "${_ffuf_baseline_size}" == "0" ]] && continue
+
+            _ffuf_out="${tmp_dir}/ffuf_vhost_${_ffuf_ip}_${_ffuf_port}.tmp"
+
+            # ffuf vhost mode: FUZZ is replaced with each wordlist entry
+            # -fs filters out responses matching baseline size (false positives)
+            # -t threads, -timeout per-request timeout
+            echo "ffuf -u ${_ffuf_url} -H \"Host: FUZZ.${domain}\" -w ${_ffuf_wordlist} -fs ${_ffuf_baseline_size} -t ${_ffuf_threads}" >> "${log_execution_file}"
+            ffuf -u "${_ffuf_url}" \
+                -H "Host: FUZZ.${domain}" \
+                -w "${_ffuf_wordlist}" \
+                -fs "${_ffuf_baseline_size}" \
+    # Fast path: use ffuf if available and enabled.
+    if [[ "${vhost_use_ffuf}" == "yes" ]] && command -v ffuf &>/dev/null; then
+        _vhost_probe_ffuf "${vhost_probe_ip_file}"
+        echo "Done! (ffuf mode)"
+        return 0
+    fi
+
+                -t "${_ffuf_threads}" \
+                -timeout 5 \
+                -s \
+                -noninteractive \
+                -mc all \
+                -o "${_ffuf_out}" \
+                -of csv 2>> "${log_execution_file}"
+
+            # Parse ffuf CSV output: extract matched hostnames
+            if [[ -s "${_ffuf_out}" ]]; then
+                # ffuf CSV: first line is header, columns vary but input field is always present
+                tail -n+2 "${_ffuf_out}" | while IFS=',' read -r _ _ _ _ _ input _rest; do
+                    [[ -n "${input}" && "${input}" != "input" ]] && echo "${input}.${domain}"
+                done >> "${tmp_dir}/vhost_probe_output.txt"
+            fi
+            rm -f "${_ffuf_out}"
+        done
+    done < "${_ffuf_ip_file}"
+
+    sort -u -o "${tmp_dir}/vhost_probe_output.txt" "${tmp_dir}/vhost_probe_output.txt" 2>/dev/null
+}
+
 vhost_probe(){
     local vhost_probe_ip_file="${1}"
     if [[ ! -s "${vhost_probe_ip_file}" ]]; then
