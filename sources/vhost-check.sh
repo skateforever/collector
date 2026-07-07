@@ -30,6 +30,12 @@ vhost_check_pair(){
     local out_file="$4"
     local proto="http"
     local p
+    local -a _vc_curl_opts=()
+    if [[ "${#vhost_curl_options[@]}" -gt 0 ]]; then
+        _vc_curl_opts=("${vhost_curl_options[@]}")
+    else
+        _vc_curl_opts=("${curl_options_fast[@]}")
+    fi
 
     # Switch to https:// for known TLS ports.
     for p in "${webapp_tls_ports[@]}"; do
@@ -47,9 +53,9 @@ vhost_check_pair(){
     # Baseline (host that should never resolve to anything real).
     # Capture size + hash in a single curl call: pipe body to md5sum while
     # collecting size_download from -w. No temp file needed.
-    echo "curl ${curl_options_fast[*]} -H \"User-Agent: ${user_agent_baseline}\" -H \"Host: ${baseline_host}\" \"${url}\"" >> "${log_execution_file}"
+    echo "curl ${_vc_curl_opts[*]} -H \"User-Agent: ${user_agent_baseline}\" -H \"Host: ${baseline_host}\" \"${url}\"" >> "${log_execution_file}"
     local curl_unresp_size curl_unresp_hash _curl_baseline_raw
-    _curl_baseline_raw="$(curl "${curl_options_fast[@]}" -H "User-Agent: ${user_agent_baseline}" -H "Host: ${baseline_host}" -w $'\n%{size_download}' "${url}" 2>> "${log_execution_file}")"
+    _curl_baseline_raw="$(curl "${_vc_curl_opts[@]}" -H "User-Agent: ${user_agent_baseline}" -H "Host: ${baseline_host}" -w $'\n%{size_download}' "${url}" 2>> "${log_execution_file}")"
     curl_unresp_hash="$(printf '%s' "${_curl_baseline_raw%$'\n'*}" | md5sum | awk '{print $1}')"
     curl_unresp_size="${_curl_baseline_raw##*$'\n'}"
 
@@ -75,7 +81,7 @@ vhost_check_pair(){
     while IFS= read -r vhost; do
         [[ -z "${vhost}" ]] && continue
 
-        _curl_vhost_raw="$(curl "${curl_options_fast[@]}" -H "User-Agent: ${user_agent_vhost}" -H "Host: ${vhost}" -w $'\n%{size_download}' "${url}" 2>> "${log_execution_file}")"
+        _curl_vhost_raw="$(curl "${_vc_curl_opts[@]}" -H "User-Agent: ${user_agent_vhost}" -H "Host: ${vhost}" -w $'\n%{size_download}' "${url}" 2>> "${log_execution_file}")"
         curl_vhost_hash="$(printf '%s' "${_curl_vhost_raw%$'\n'*}" | md5sum | awk '{print $1}')"
         curl_vhost_size="${_curl_vhost_raw##*$'\n'}"
 

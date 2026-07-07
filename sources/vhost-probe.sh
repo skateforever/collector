@@ -50,6 +50,12 @@ vhost_probe(){
     fi
     local vhost_probe_pids=()
     local vhost_probe_pid vhost_probe_alive_pids=()
+    local -a _vhost_curl_opts=()
+    if [[ "${#vhost_curl_options[@]}" -gt 0 ]]; then
+        _vhost_curl_opts=("${vhost_curl_options[@]}")
+    else
+        _vhost_curl_opts=("${curl_options_fast[@]}")
+    fi
 
     # Batch worker: probes a slice of the wordlist for a single (IP, port) pair.
     # Args: $1=IP $2=port $3=baseline_status $4=baseline_len $5..=words
@@ -68,7 +74,7 @@ vhost_probe(){
 
         for _bp_word in "$@"; do
             _bp_host="${_bp_word}.${domain}"
-            _bp_raw="$(curl "${curl_options_fast[@]}" \
+            _bp_raw="$(curl "${_vhost_curl_opts[@]}" \
                 -H "Host: ${_bp_host}" \
                 -H "User-agent: ${_bp_ua}" \
                 -o /dev/null -w "%{http_code} %{size_download}" \
@@ -105,7 +111,7 @@ vhost_probe(){
             done
             local bp_url="${bp_proto}://${vhost_probe_ip}:${vhost_probe_port}"
             local vhost_probe_baseline_raw
-            vhost_probe_baseline_raw="$(curl "${curl_options_fast[@]}" \
+            vhost_probe_baseline_raw="$(curl "${_vhost_curl_opts[@]}" \
                 -H "Host: ${vhost_probe_rand_host}" \
                 -H "User-agent: ${user_agent}" \
                 -o /dev/null -w "%{http_code} %{size_download}" \
