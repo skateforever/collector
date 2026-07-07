@@ -16,7 +16,7 @@ WORKDIR /opt/collector
 RUN pacman -Syu --noconfirm && pacman -S --noconfirm \
     gcc git curl wget unzip make base-devel procps-ng \
     libpcap openssl libffi \
-    jq bind-tools whois html2text chromium nmap sqlite \
+    jq bind-tools whois html2text chromium nmap sqlite libxml2 \
     nano vim iputils \
     python python-pip \
     && pacman -Scc --noconfirm
