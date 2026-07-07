@@ -101,6 +101,19 @@ if [[ "${domain_check}" == "yes" && -n "${domain}" ]]; then
     check_is_known_target "${domain}"
     create_directory_structure
     check_parameter_dependency
+    if [[ "${dry_run_check}" == "yes" ]]; then
+        echo -e "${yellow}Pre-flight checks passed:${reset}"
+        echo -e "  Target:       ${domain:-${url_domain}}"
+        echo -e "  IPv4 regex:   ${IPv4_regex:-(UNDEFINED!)}"
+        echo -e "  nmap timeout: $(printf '%s ' "${nmap_options[@]}" | grep -oE '\-\-host-timeout [^ ]+' | awk '{print $2}')"
+        echo -e "  Wordlists:    ${#webapp_wordlists[@]}"
+        echo -e "  DNS wordlists: ${#dns_wordlists[@]}"
+        echo -e "  Port detect:  ${#webapp_port_detect[@]} ports"
+        echo -e "  Proxy:        ${use_proxy:-no} ${proxy_ip:-}"
+        echo -e "  Shodan:       ${shodan_use:-no}"
+        [[ -z "${IPv4_regex}" ]] && echo -e "  ${red}CRITICAL: IPv4_regex undefined!${reset}"
+        exit 0
+    fi
     domains_recon
     exit 0
 fi

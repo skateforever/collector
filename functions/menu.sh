@@ -229,6 +229,10 @@ menu(){
                 done
                 shift 2
                 ;;
+            -dr|--dry-run)
+                dry_run_check="yes"
+                shift
+                ;;
             *)
                 echo -e "You are specifying the parameter ${yellow}$1${reset}, which is invalid.\n"
                 usage
