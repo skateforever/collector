@@ -745,15 +745,17 @@ build_consolidated_urls(){
     fi
     sort -u "${tmp_dir}/webapp_consolidated.tmp" > "${tmp_dir}/webapp_consolidated_sorted.tmp"
     : > "${tmp_dir}/webapp_consolidated_validated.tmp"
-    while IFS= read -r url; do
-        host="$(echo "${url}" | sed -E 's|^https?://([^/:]+).*|\1|')"
+    # Paralelizar com xargs (16 workers) para getent resolution
+    cat "${tmp_dir}/webapp_consolidated_sorted.tmp" | xargs -P 16 -I {} bash -c '
+        url="$1"
+        host=$(echo "${url}" | sed -E "s|^https?://([^/:]+).*|\1|")
         if getent hosts "${host}" > /dev/null 2>&1; then
-            echo "${url}" >> "${tmp_dir}/webapp_consolidated_validated.tmp"
-            echo "consolidated [ok]:      ${url}" >> "${log_execution_file}"
+            echo "${url}"
+            echo "consolidated [ok]:      ${url}" >> "'"${log_execution_file}"'"
         else
-            echo "consolidated [skipped]: ${url} (no resolution)" >> "${log_execution_file}"
+            echo "consolidated [skipped]: ${url} (no resolution)" >> "'"${log_execution_file}"'"
         fi
-    done < "${tmp_dir}/webapp_consolidated_sorted.tmp"
+    ' _ {} >> "${tmp_dir}/webapp_consolidated_validated.tmp"
     sort -u -o "${report_dir}/webapp_consolidated.txt" "${tmp_dir}/webapp_consolidated_validated.tmp"
     mv "${report_dir}/webapp_urls.txt" "${tmp_dir}/webapp_urls.old" 2>/dev/null
     mv "${report_dir}/vhost_urls.txt"  "${tmp_dir}/vhost_urls.old"  2>/dev/null

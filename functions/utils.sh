@@ -94,11 +94,35 @@ wait_with_timeout(){
     local max_procs="${2:-1}"
     local timeout_secs="${3:-3600}"
     local elapsed=0
-    while [[ "$(pgrep -cf "${pattern}" 2>/dev/null || echo 0)" -ge "${max_procs}" ]]; do
+    local proc_count
+
+    while true; do
+        # Obtém contagem de processos com tratamento seguro
+        proc_count=$(pgrep -cf "${pattern}" 2>/dev/null)
+        local pgrep_result=$?
+
+        # Se pgrep falhou (não encontrou ou erro)
+        if [[ ${pgrep_result} -eq 1 ]]; then
+            # Exit code 1 = No processes matched (esperado)
+            proc_count=0
+        elif [[ ${pgrep_result} -ne 0 ]]; then
+            # Erro real (permissão, sintaxe, etc) - falhar abertamente
+            echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ERROR: pgrep failed (exit code: ${pgrep_result}) for pattern '${pattern}'. Possible permission issue."
+            return 1
+        fi
+
+        # Log detalhado para debugging
+        [[ ${elapsed} -eq 0 ]] && echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Waiting for '${pattern}' to drop below ${max_procs} procs (currently: ${proc_count})"
+
+        # Verificar condição de limite
+        if [[ ${proc_count} -lt ${max_procs} ]]; then
+            break
+        fi
+
         sleep 5
         ((elapsed += 5))
         if [[ "${elapsed}" -ge "${timeout_secs}" ]]; then
-            echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} WARNING: wait timed out after ${timeout_secs}s for '${pattern}', killing stale processes"
+            echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} WARNING: wait timed out after ${timeout_secs}s for '${pattern}' (${proc_count} procs still running), killing stale processes"
             pkill -9 -f "${pattern}" 2>/dev/null
             sleep 2
             break
@@ -158,5 +182,4 @@ dig_safe(){
     # +tries=1: single attempt (no retry)
     # +short: clean output format
     dig +short +time=2 +tries=1 "${record_type}" "${hostname}" 2>/dev/null
-}
 }

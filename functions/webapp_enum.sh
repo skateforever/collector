@@ -279,11 +279,17 @@ sitemap_xml(){
         return 0
     fi
 
+    # Load queue into memory array for efficient BFS traversal
+    local -a queue_entries=()
+    while IFS=$'\t' read -r sm_url depth; do
+        queue_entries+=("${sm_url}	${depth}")
+    done < "${queue_file}"
+
     # BFS over <sitemapindex> children, breadth bounded by max_index.
-    while [[ -s "${queue_file}" ]] && [[ "${processed}" -lt "${max_index}" ]]; do
-        IFS=$'\t' read -r sm_url depth < "${queue_file}"
-        # Pop the head off the queue.
-        tail -n +2 "${queue_file}" > "${queue_file}.tmp" && mv "${queue_file}.tmp" "${queue_file}"
+    local queue_index=0
+    while [[ ${queue_index} -lt ${#queue_entries[@]} ]] && [[ "${processed}" -lt "${max_index}" ]]; do
+        IFS=$'\t' read -r sm_url depth <<< "${queue_entries[${queue_index}]}"
+        ((queue_index++))
         [[ -z "${sm_url}" ]] && continue
         processed=$((processed + 1))
 

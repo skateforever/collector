@@ -67,6 +67,7 @@ domains_recon(){
         rm -f "${tmp_dir}"/alive_sorted.tmp 2>/dev/null
         pkill -P $$ 2>/dev/null
         sed -i '/# collector-vhosts-start/,/# collector-vhosts-end/d' /etc/hosts 2>/dev/null
+        cleanup_etc_hosts 2>/dev/null
     }
     trap cleanup_on_exit EXIT
 

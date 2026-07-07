@@ -69,15 +69,30 @@ infra_data(){
                 fi
             done
 
-            for IP in $(grep -Ev "Google|Microsoft|Azure|AWS|Amazon|Cloudflare" "${report_dir}/infra_as.txt" | tail -n+2 | awk '{print $3}'); do
+            local -a ip_batch=()
+            while IFS= read -r IP; do
                 if [[ -n "${ownerid}" ]]; then
-                    sleep 2
-                    ib_whois="$(whois "${IP}" 2>/dev/null)"
-                    if echo "${ib_whois}" | grep -qiF "${ownerid}"; then
-                        echo "${ib_whois}" | grep -E "^[[:space:]]*(${IP%%.*}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/[0-9]{1,2})" >> "${tmp_dir}/infra_blocks.tmp"
+                    ip_batch+=("${IP}")
+                    if [[ ${#ip_batch[@]} -ge 5 ]]; then
+                        for batch_ip in "${ip_batch[@]}"; do
+                            ib_whois="$(whois "${batch_ip}" 2>/dev/null)"
+                            if echo "${ib_whois}" | grep -qiF "${ownerid}"; then
+                                echo "${ib_whois}" | grep -E "^[[:space:]]*(${batch_ip%%.*}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/[0-9]{1,2})" >> "${tmp_dir}/infra_blocks.tmp"
+                            fi
+                        done &
+                        ip_batch=()
                     fi
                 fi
-            done
+            done < <(grep -Ev "Google|Microsoft|Azure|AWS|Amazon|Cloudflare" "${report_dir}/infra_as.txt" | tail -n+2 | awk '{print $3}')
+            if [[ ${#ip_batch[@]} -gt 0 ]]; then
+                for batch_ip in "${ip_batch[@]}"; do
+                    ib_whois="$(whois "${batch_ip}" 2>/dev/null)"
+                    if echo "${ib_whois}" | grep -qiF "${ownerid}"; then
+                        echo "${ib_whois}" | grep -E "^[[:space:]]*(${batch_ip%%.*}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/[0-9]{1,2})" >> "${tmp_dir}/infra_blocks.tmp"
+                    fi
+                done &
+            fi
+            wait
         fi
 
         [[ -s "${tmp_dir}/infra_blocks.tmp" ]] && \

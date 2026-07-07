@@ -66,11 +66,12 @@ spider_src(){
         fi
     done < "${spider_urls_file}"
 
-    # BFS crawl
+    # BFS crawl with index-based queue traversal (O(1) instead of O(n) array shift)
     local spider_entry spider_url spider_depth spider_page_body spider_js spider_link
-    while [[ ${#spider_queue[@]} -gt 0 && "${spider_fetched}" -lt "${spider_max_pages}" ]]; do
-        spider_entry="${spider_queue[0]}"
-        spider_queue=("${spider_queue[@]:1}")
+    local spider_queue_index=0
+    while [[ ${spider_queue_index} -lt ${#spider_queue[@]} && "${spider_fetched}" -lt "${spider_max_pages}" ]]; do
+        spider_entry="${spider_queue[${spider_queue_index}]}"
+        ((spider_queue_index++))
         spider_url="${spider_entry%:*}"
         spider_depth="${spider_entry##*:}"
         spider_fetched=$(( spider_fetched + 1 ))

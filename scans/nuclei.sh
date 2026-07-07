@@ -13,6 +13,7 @@ nuclei_scan(){
     local target="$1"
     local urls_file="$2"
     local url
+    local url
     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Initializing the web application scan with nuclei and this might take a certain time!"
     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing nuclei web application vulnerability scan..."
     if [ "$#" != 2 ] || [ ! -s "${urls_file}" ]; then
