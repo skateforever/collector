@@ -160,8 +160,7 @@ domains_recon(){
                 grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/vhost_probe_output.txt" \
                     | sort -u > "${tmp_dir}/vhost_probe_new.tmp"
                 if [[ -s "${tmp_dir}/vhost_probe_new.tmp" ]]; then
-                    local vp_tls_pat vp_new_host vp_new_ip
-                    vp_tls_pat="$(echo "${webapp_tls_ports[@]}" | tr ' ' '|')"
+                    local vp_new_host vp_new_ip
                     while IFS= read -r vp_new_host; do
                         vp_new_ip="$(dig_safe A "${vp_new_host}" | grep -Eo "${IPv4_regex}" | head -1)"
                         if [[ -n "${vp_new_ip}" ]]; then
@@ -173,7 +172,8 @@ domains_recon(){
                             # both http and https variants for all configured ports.
                             for vp_port in "${webapp_port_detect[@]}"; do
                                 local vp_proto="http"
-                                [[ "${vp_port}" =~ ^(${vp_tls_pat})$ ]] && vp_proto="https"
+                                # Inline pattern match
+                                [[ "${vp_port}" =~ ^($(echo "${webapp_tls_ports[@]}" | tr ' ' '|'))$ ]] && vp_proto="https"
                                 if [[ "${vp_proto}" == "http" && "${vp_port}" == "80" ]] || \
                                    [[ "${vp_proto}" == "https" && "${vp_port}" == "443" ]]; then
                                     echo "${vp_proto}://${vp_new_host}"

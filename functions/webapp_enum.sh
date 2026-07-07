@@ -78,20 +78,12 @@ webapp_enum(){
                             done
                             [[ -n "${limit_urls}" && "${limit_urls}" -eq "${urls_tested}" ]] && break
                             (( urls_tested+=1 ))
-                            unset file_dirsearch
-                            unset file_gobuster
-                            unset file_ffuf
-                            unset name
-                            unset url
                         done < "${urls_file}"
                     else
                         echo -e "\t\t    ${red}Error:${reset} ${list} does not exist or is empty!"
                         echo -e "Error: ${list} does not exist or is empty!" | notify "${notify_options[@]}" -id "${notify_files_channel}"
                         continue
                     fi
-                    unset index
-                    unset list
-                    unset urls_tested
                 done
                 echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Waiting the dirsearch, gobuster and ffuf finish... "
                 while pgrep -af "[d]irsearch.*${target}" > /dev/null \
