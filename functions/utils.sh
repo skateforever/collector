@@ -143,3 +143,20 @@ run_summary(){
         "$((SECONDS / 60))" "$((SECONDS % 60))" \
         | notify "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
 }
+
+# Wrapper seguro para dig com timeout
+dig_safe(){
+    # Usage: dig_safe <record_type> <hostname>
+    # Example: dig_safe A example.com
+    # Example: dig_safe CNAME www.example.com
+    local record_type="${1:-A}"
+    local hostname="$2"
+
+    [[ -z "${hostname}" ]] && return 1
+
+    # +time=2: timeout de 2 segundos
+    # +tries=1: apenas 1 tentativa (não retry)
+    # +short: output limpo
+    dig +short +time=2 +tries=1 "${record_type}" "${hostname}" 2>/dev/null
+}
+}

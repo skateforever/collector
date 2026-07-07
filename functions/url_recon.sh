@@ -40,8 +40,8 @@ url_recon(){
     # IPv4_regex/IPv6_regex from collector.cfg and consider the target
     # reachable if either record resolves.
     local url_ipv4 url_ipv6 file
-    url_ipv4="$(dig +short A    "${url_domain}" 2>/dev/null | grep -Eo "${IPv4_regex}" | head -1)"
-    url_ipv6="$(dig +short AAAA "${url_domain}" 2>/dev/null | head -1)"
+    url_ipv4="$(dig_safe A    "${url_domain}" | grep -Eo "${IPv4_regex}" | head -1)"
+    url_ipv6="$(dig_safe AAAA "${url_domain}" | head -1)"
     if [[ -n "${url_ipv4}" ]] || [[ -n "${url_ipv6}" ]]; then
         echo "${url_domain}" > "${recon_dir}/url_test.txt"
     else

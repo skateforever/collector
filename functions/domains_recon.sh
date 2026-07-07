@@ -163,7 +163,7 @@ domains_recon(){
                     local vp_tls_pat vp_new_host vp_new_ip
                     vp_tls_pat="$(echo "${webapp_tls_ports[@]}" | tr ' ' '|')"
                     while IFS= read -r vp_new_host; do
-                        vp_new_ip="$(dig +short A "${vp_new_host}" 2>/dev/null | grep -Eo "${IPv4_regex}" | head -1)"
+                        vp_new_ip="$(dig_safe A "${vp_new_host}" | grep -Eo "${IPv4_regex}" | head -1)"
                         if [[ -n "${vp_new_ip}" ]]; then
                             echo "${vp_new_host}"$'\t'"${vp_new_ip}" >> "${report_dir}/domains_external_ipv4.txt"
                             echo "${vp_new_host}" >> "${report_dir}/domains_alive.txt"
@@ -216,7 +216,7 @@ domains_recon(){
                     if [[ -s "${tmp_dir}/spider_new.tmp" ]]; then
                         local sp_new_host sp_new_ip
                         while IFS= read -r sp_new_host; do
-                            sp_new_ip="$(dig +short A "${sp_new_host}" 2>/dev/null | grep -Eo "${IPv4_regex}" | head -1)"
+                            sp_new_ip="$(dig_safe A "${sp_new_host}" | grep -Eo "${IPv4_regex}" | head -1)"
                             if [[ -n "${sp_new_ip}" ]]; then
                                 echo "${sp_new_host}"$'\t'"${sp_new_ip}" >> "${report_dir}/domains_external_ipv4.txt"
                                 echo "${sp_new_host}" >> "${report_dir}/domains_alive.txt"
