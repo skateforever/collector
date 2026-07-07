@@ -86,13 +86,9 @@ RUN chmod +x collector && chmod +x functions/*.sh && chmod +x scans/*.sh && chmo
 # collector-docker / docker run -v <host_path>:/opt/collector/outputs.
 RUN sed -i 's|^output_dir=.*|output_dir="/opt/collector/outputs"|' collector.cfg
 
-# Pre-create the directory that holds the notify provider config when the
-# operator opts in. The actual file is bind-mounted from the host onto
-# /etc/collector/notify-provider.yaml; pre-creating /etc/collector keeps
-# the mount target predictable on hosts where Docker is strict about the
-# parent dir existing before mounting. Without an operator-supplied
-# config, the file path stays absent and collector skips the -pc flag.
-RUN mkdir -p /etc/collector
+# Alert provider configs are in support/templates/alerts/ and are baked
+# into the image. No pre-creation needed — they're part of the COPY . .
+# that brings in the entire repository structure at /opt/collector.
 
 # Expose the app-report (Flask/gunicorn) dashboard port.
 EXPOSE 8000
