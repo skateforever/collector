@@ -1,0 +1,45 @@
+#!/bin/bash
+# post-merge hook — automatically rebuild Docker image after git pull
+#
+# Install:
+#   cp support/templates/githooks/post-merge .git/hooks/post-merge
+#   chmod +x .git/hooks/post-merge
+#
+# Or configure git to use the templates directory:
+#   git config core.hooksPath support/templates/githooks
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Resolve repo root (hook lives in .git/hooks/ or support/templates/githooks/)
+if [[ -f "${SCRIPT_DIR}/../../collector-update" ]]; then
+    REPO_ROOT="${SCRIPT_DIR}/../.."
+elif [[ -f "${SCRIPT_DIR}/collector-update" ]]; then
+    REPO_ROOT="${SCRIPT_DIR}"
+else
+    REPO_ROOT="$(git rev-parse --show-toplevel)"
+fi
+
+cd "${REPO_ROOT}" || exit 0
+
+# Check if any Docker-relevant files changed in this merge
+changed_files="$(git diff-tree -r --name-only --no-commit-id ORIG_HEAD HEAD 2>/dev/null)"
+
+docker_relevant=false
+while IFS= read -r f; do
+    case "${f}" in
+        Dockerfile*|collector|collector.cfg|functions/*|scans/*|sources/*|support/runtime/*)
+            docker_relevant=true
+            break
+            ;;
+    esac
+done <<< "${changed_files}"
+
+if [[ "${docker_relevant}" == true ]]; then
+    echo ""
+    echo "==> collector: source files changed — rebuilding Docker image..."
+    if [[ -x "${REPO_ROOT}/collector-update" ]]; then
+        "${REPO_ROOT}/collector-update" --build-only
+    else
+        echo "    Run: ./collector-update --build-only"
+    fi
+fi

@@ -1,0 +1,88 @@
+#!/bin/bash
+# collector-update — pull latest changes and rebuild the Docker image
+#
+# Usage:
+#   collector-update              # pull + rebuild
+#   collector-update --build-only # skip pull, just rebuild
+#   collector-update --pull-only  # pull without rebuilding
+#
+# This script ensures the Docker image always matches the repository state.
+# Run it after a git pull, or let it handle both steps automatically.
+#
+# Environment variables:
+#   COLLECTOR_IMAGE  — image name:tag (default: collector:latest)
+#   DOCKERFILE       — Dockerfile to use (default: Dockerfile)
+#   BUILD_ARGS       — extra docker build arguments (e.g. --no-cache)
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "${SCRIPT_DIR}"
+
+COLLECTOR_IMAGE="${COLLECTOR_IMAGE:-collector:latest}"
+DOCKERFILE="${DOCKERFILE:-Dockerfile}"
+BUILD_ARGS="${BUILD_ARGS:-}"
+
+do_pull=true
+do_build=true
+
+for arg in "$@"; do
+    case "${arg}" in
+        --build-only) do_pull=false ;;
+        --pull-only)  do_build=false ;;
+        --no-cache)   BUILD_ARGS="--no-cache ${BUILD_ARGS}" ;;
+        --help|-h)
+            echo "Usage: collector-update [--build-only] [--pull-only] [--no-cache]"
+            echo ""
+            echo "  --build-only   Skip git pull, only rebuild the Docker image"
+            echo "  --pull-only    Pull changes without rebuilding"
+            echo "  --no-cache     Pass --no-cache to docker build"
+            echo ""
+            echo "Environment:"
+            echo "  COLLECTOR_IMAGE=${COLLECTOR_IMAGE}"
+            echo "  DOCKERFILE=${DOCKERFILE}"
+            exit 0
+            ;;
+        *)
+            echo "collector-update: unknown option '${arg}'" >&2
+            echo "  run 'collector-update --help' for usage" >&2
+            exit 1
+            ;;
+    esac
+done
+
+if [[ "${do_pull}" == true ]]; then
+    echo "==> Pulling latest changes..."
+    current_branch="$(git rev-parse --abbrev-ref HEAD)"
+    before="$(git rev-parse HEAD)"
+    git pull --ff-only origin "${current_branch}" || {
+        echo "collector-update: git pull failed (non-fast-forward?)." >&2
+        echo "  resolve manually, then re-run with --build-only" >&2
+        exit 1
+    }
+    after="$(git rev-parse HEAD)"
+    if [[ "${before}" == "${after}" ]]; then
+        echo "    Already up to date (${after:0:7})."
+        if [[ "${do_build}" == false ]]; then
+            exit 0
+        fi
+    else
+        echo "    Updated: ${before:0:7} -> ${after:0:7}"
+        git --no-pager log --oneline "${before}..${after}"
+    fi
+fi
+
+if [[ "${do_build}" == true ]]; then
+    echo ""
+    echo "==> Building Docker image: ${COLLECTOR_IMAGE}"
+    echo "    Dockerfile: ${DOCKERFILE}"
+    # shellcheck disable=SC2086
+    docker build ${BUILD_ARGS} -f "${DOCKERFILE}" -t "${COLLECTOR_IMAGE}" .
+    echo ""
+    echo "==> Build complete: ${COLLECTOR_IMAGE}"
+    docker images --format "    {{.Repository}}:{{.Tag}}  {{.Size}}  {{.CreatedAt}}" \
+        | grep "${COLLECTOR_IMAGE%%:*}" | head -3
+fi
+
+echo ""
+echo "Done. Run 'collector-docker --help' to verify."
