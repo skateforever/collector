@@ -203,19 +203,26 @@ webapp_tech(){
 }
 
 robots_txt(){
-    local file robots_target url
+    local robots_target url user_agent file
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Looking for new URLs on robots.txt... "
-    for file in $("${ls_bin_path}" -1A "${webapp_enum_dir}/"); do
-        unset user_agent
-        user_agent="$(get_user_agent)"
-        if grep -E "robots\.txt" "${webapp_enum_dir}/${file}" > /dev/null && [ -s "${webapp_enum_dir}/${file}" ] ; then
-            robots_target=$(grep -E "Target:|Url:" "${webapp_enum_dir}/${file}" | sed -e 's/^\[+\] //' | awk '{print $2}' | sed -e 's/\/$//')
-            for url in $(curl "${curl_options[@]}" -H "User-agent: ${user_agent}" -s "${robots_target}"/robots.txt | grep -Ev "User-agent: *" | awk '{print $2}' | sed -e "/^\/$/d"); do
-                echo "${robots_target}${url}" >> "${report_dir}/robots_urls.txt"
-                sed -i -e 's/\r//g' -e 's/\/$//g' "${report_dir}/robots_urls.txt"
-            done
+    while IFS= read -r -d '' file; do
+        file="$(basename "${file}")"
+        [[ ! -s "${webapp_enum_dir}/${file}" ]] && continue
+        if grep -qE "robots\.txt" "${webapp_enum_dir}/${file}"; then
+            robots_target=$(grep -E "Target:|Url:" "${webapp_enum_dir}/${file}" | sed -e 's/^\[+\] //' | awk '{print $2}' | head -1 | sed -e 's/\/$//')
+            [[ -z "${robots_target}" ]] && continue
+            user_agent="$(get_user_agent)"
+            curl "${curl_options[@]}" -H "User-agent: ${user_agent}" -s "${robots_target}/robots.txt" 2>/dev/null \
+                | grep -Ev "^[[:space:]]*(User-agent|#|$)" \
+                | awk '{print $2}' \
+                | sed -e '/^\/$/d' -e 's/\r//g' -e 's/\/$//' \
+                | while IFS= read -r url; do
+                    [[ -z "${url}" ]] && continue
+                    echo "${robots_target}${url}"
+                done >> "${report_dir}/robots_urls.txt"
         fi
-    done
+    done < <(find "${webapp_enum_dir}" -maxdepth 1 -type f -print0)
+    [[ -s "${report_dir}/robots_urls.txt" ]] && sort -u -o "${report_dir}/robots_urls.txt" "${report_dir}/robots_urls.txt"
     echo "Done!"
 }
 
