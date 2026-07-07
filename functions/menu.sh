@@ -172,7 +172,7 @@ menu(){
                 url_verify="$2"
                 url_check="yes"
                 [[ -n "${url_verify}" && "${url_check}" == "yes" ]] && directory_structure="url"
-                url_domain=$(echo "${url_verify}" | sed -e 's/http.*\/\///' | awk -F'/' '{print $1}' | xargs -I {} basename {})
+                url_domain=$(echo "${url_verify}" | sed -E 's|^https?://||' | awk -F'[/:#?]' '{print $1}')
                 shift 2
                 ;;
             -wc|--webapp-crawler)
