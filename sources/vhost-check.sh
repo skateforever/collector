@@ -20,6 +20,19 @@
 #
 #############################################################
 
+# Quick TCP-connect probe to discard ports that don't answer at all.
+# Returns 0 if the port is open, 1 otherwise.
+_vhost_port_alive(){
+    local _ip="$1" _port="$2" _timeout="${vhost_prefilter_timeout:-3}"
+    local _proto="http"
+    local _p
+    for _p in "${webapp_tls_ports[@]}"; do
+        [[ "${_p}" == "${_port}" ]] && { _proto="https"; break; }
+    done
+    curl -k -s --connect-timeout "${_timeout}" --max-time "${_timeout}" \
+        -o /dev/null -w "%{http_code}" "${_proto}://${_ip}:${_port}" 2>/dev/null | grep -qE '^[1-5][0-9]{2}$'
+}
+
 # Worker that probes a single (IP, port) pair against every dead vhost.
 # Spawned in background by vhost_check() so pairs run in parallel.
 # Args: $1=IP $2=port $3=vhost_name_file $4=output file (per-worker)
@@ -142,6 +155,8 @@ vhost_check(){
         while IFS= read -r IP; do
             [[ -z "${IP}" ]] && continue
             for port in "${_vhost_ports[@]}"; do
+                # Skip ports that don't respond to TCP at all.
+                _vhost_port_alive "${IP}" "${port}" || continue
                 # Reap dead workers and block while at capacity.
                 while :; do
                     alive=()

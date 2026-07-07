@@ -22,6 +22,19 @@
 #
 #############################################################
 
+# Quick TCP-connect probe to discard ports that don't answer at all.
+# Returns 0 if the port is open, 1 otherwise.
+_vhost_port_alive(){
+    local _ip="$1" _port="$2" _timeout="${vhost_prefilter_timeout:-3}"
+    local _proto="http"
+    local _p
+    for _p in "${webapp_tls_ports[@]}"; do
+        [[ "${_p}" == "${_port}" ]] && { _proto="https"; break; }
+    done
+    curl -k -s --connect-timeout "${_timeout}" --max-time "${_timeout}" \
+        -o /dev/null -w "%{http_code}" "${_proto}://${_ip}:${_port}" 2>/dev/null | grep -qE '^[1-5][0-9]{2}$'
+}
+
 vhost_probe(){
     local vhost_probe_ip_file="${1}"
     if [[ ! -s "${vhost_probe_ip_file}" ]]; then
@@ -104,6 +117,7 @@ vhost_probe(){
 
         local vhost_probe_port
         for vhost_probe_port in "${_vhost_ports[@]}"; do
+            _vhost_port_alive "${vhost_probe_ip}" "${vhost_probe_port}" || continue
             local bp_proto="http"
             local p2
             for p2 in "${webapp_tls_ports[@]}"; do
