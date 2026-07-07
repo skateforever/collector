@@ -37,9 +37,11 @@ joining_subdomains(){
 
         if [ -s "${tmp_dir}/builtwith_subdomain_output.json" ]; then
             echo "Parsing builtwith" >> "${log_execution_file}"
-            for subdomain in $(jq -r '.Results[].Result.Paths[].SubDomain' "${tmp_dir}/builtwith_subdomain_output.json"); do
-                [[ "${subdomain}" != "${domain}" ]] && echo "${subdomain}" | sed "s/$/\.${domain}/"
-            done | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
+            jq -r '.Results[].Result.Paths[].SubDomain // empty' "${tmp_dir}/builtwith_subdomain_output.json" 2>> "${log_execution_file}" \
+                | while IFS= read -r subdomain; do
+                    [[ -z "${subdomain}" || "${subdomain}" == "${domain}" ]] && continue
+                    echo "${subdomain}.${domain}"
+                done | sort -u >> "${tmp_dir}/domains_found.tmp"
         fi
 
         if [ -s "${tmp_dir}/certspotter_output.json" ]; then
@@ -129,9 +131,11 @@ joining_subdomains(){
 
         if [ -s "${tmp_dir}/securitytrails_output.json" ]; then
             echo "Parsing security trails" >> "${log_execution_file}"
-            for subdomain in $(jq -r '.subdomains[]' "${tmp_dir}/securitytrails_output.json"); do
-                [[ "${subdomain}" != "${domain}" ]] && echo "${subdomain}" | sed "s/$/\.${domain}/"
-            done | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
+            jq -r '.subdomains[] // empty' "${tmp_dir}/securitytrails_output.json" 2>> "${log_execution_file}" \
+                | while IFS= read -r subdomain; do
+                    [[ -z "${subdomain}" || "${subdomain}" == "${domain}" ]] && continue
+                    echo "${subdomain}.${domain}"
+                done | sort -u >> "${tmp_dir}/domains_found.tmp"
         fi
 
         if [ -s "${tmp_dir}/shodan_output.txt" ]; then
