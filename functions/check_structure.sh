@@ -96,7 +96,7 @@ create_directory_structure(){
         log_execution_file="${log_dir}/url_${date_recon}.log"
         tmp_dir="${recon_dir}/tmp"
         # report dirs
-        report_dir="${recon_dir}/${url_base}/report"
+        report_dir="${recon_dir}/report"
         scan_dir="${report_dir}/scan"
         webapp_dir="${report_dir}/webapp"
         # scan dirs
