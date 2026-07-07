@@ -92,6 +92,11 @@ check_parameter_conflicts(){
         echo -e "You can only use this -s|--subdomain-brute option with -d|--domain!\n"
         usage
     fi
+
+    if [[ "${vhost_validation_check}" == "yes" && "${webapp_discovery_check}" != "yes" ]]; then
+        echo -e "The -vv|--vhost-validation option requires -wd|--webapp-discovery to work.\n"
+        usage
+    fi
 }
 
 check_parameter_dependency(){
