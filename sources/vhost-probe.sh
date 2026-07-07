@@ -91,13 +91,6 @@ _vhost_probe_ffuf(){
                 -H "Host: FUZZ.${domain}" \
                 -w "${_ffuf_wordlist}" \
                 -fs "${_ffuf_baseline_size}" \
-    # Fast path: use ffuf if available and enabled.
-    if [[ "${vhost_use_ffuf}" == "yes" ]] && command -v ffuf &>/dev/null; then
-        _vhost_probe_ffuf "${vhost_probe_ip_file}"
-        echo "Done! (ffuf mode)"
-        return 0
-    fi
-
                 -t "${_ffuf_threads}" \
                 -timeout 5 \
                 -s \
@@ -127,6 +120,14 @@ vhost_probe(){
     fi
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing vhost probe... "
     : > "${tmp_dir}/vhost_probe_output.txt"
+
+    # Fast path: use ffuf if available and enabled.
+    if [[ "${vhost_use_ffuf}" == "yes" ]] && command -v ffuf &>/dev/null; then
+        _vhost_probe_ffuf "${vhost_probe_ip_file}"
+        echo "Done! (ffuf mode)"
+        return 0
+    fi
+
     # Word list lives at ${collector_vhost_probe_words} (configured in
     # collector.cfg, default: support/runtime/wordlists/vhost-probe-names.txt).
     # One name per line; blank lines and lines starting with '#' are ignored
