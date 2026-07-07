@@ -177,14 +177,14 @@ domains_recon(){
                     | grep -Ei "(\.${domain}$|^${domain}$)" | sort -u >> "${report_dir}/domains_found.txt"
                 sort -u -o "${report_dir}/domains_found.txt" "${report_dir}/domains_found.txt"
 
-                # Ler APENAS strong vhosts (fonte correta) e fazer lookup do IP em etc_hosts_file.txt
+                # Read ONLY strong vhosts (correct source) and lookup IP in etc_hosts_file.txt
                 while IFS= read -r vc_host; do
-                    # Validar que é do target domain (defesa extra)
+                    # Validate that it belongs to target domain (defense in depth)
                     if ! grep -qEi "(\.${domain}$|^${domain}$)" <<< "${vc_host}"; then
                         continue
                     fi
 
-                    # Lookup IP no etc_hosts_file.txt
+                    # Lookup IP in etc_hosts_file.txt
                     local vc_ip
                     vc_ip="$(grep -F "${vc_host}" "${report_dir}/etc_hosts_file.txt" | awk '{print $1}' | head -1)"
 

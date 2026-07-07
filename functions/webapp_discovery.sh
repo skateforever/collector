@@ -44,14 +44,14 @@ webapp_alive(){
             local batch=0
             for port in "${webapp_port_detect[@]}"; do
                 (
-                    # Arquivo temporário ÚNICO por worker (usando PID do subshell)
+                    # Per-worker unique temp file (using subshell PID)
                     local worker_tmp="${tmp_dir}/webapp_urls_$$.tmp"
 
                     echo "curl ${curl_options_fast[*]} ${curl_proxy_args[*]} -H \"User-agent: ${user_agent}\" -L -w \"%{response_code}\n\" \"http://${subdomain}:${port}\" -o /dev/null" >> "${log_execution_file}"
                     http_status_code=$(curl "${curl_options_fast[@]}" "${curl_proxy_args[@]}" -H "User-agent: ${user_agent}" -L -w "%{response_code}\n" "http://${subdomain}:${port}" -o /dev/null 2>> "${log_execution_file}")
                     local http_curl_exit=$?
 
-                    # Apenas adicionar se curl succeeded (exit 0) E status é HTTP válido
+                    # Only add if curl succeeded (exit 0) AND HTTP status is valid
                     if [[ "${http_curl_exit}" -eq 0 ]] && [[ "${http_status_code}" =~ ^[1-5][0-9]{2}$ ]]; then
                         echo "http://${subdomain}:${port}" >> "${worker_tmp}"
                     elif [[ "${http_curl_exit}" -ne 0 ]]; then
@@ -62,7 +62,7 @@ webapp_alive(){
                     https_status_code=$(curl "${curl_options_fast[@]}" "${curl_proxy_args[@]}" -H "User-agent: ${user_agent}" -L -w "%{response_code}\n" "https://${subdomain}:${port}" -o /dev/null 2>> "${log_execution_file}")
                     local https_curl_exit=$?
 
-                    # Apenas adicionar se curl succeeded (exit 0) E status é HTTP válido
+                    # Only add if curl succeeded (exit 0) AND HTTP status is valid
                     if [[ "${https_curl_exit}" -eq 0 ]] && [[ "${https_status_code}" =~ ^[1-5][0-9]{2}$ ]]; then
                         echo "https://${subdomain}:${port}" >> "${worker_tmp}"
                     elif [[ "${https_curl_exit}" -ne 0 ]]; then

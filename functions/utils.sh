@@ -144,7 +144,7 @@ run_summary(){
         | notify "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
 }
 
-# Wrapper seguro para dig com timeout
+# Safe wrapper for dig with timeout
 dig_safe(){
     # Usage: dig_safe <record_type> <hostname>
     # Example: dig_safe A example.com
@@ -154,9 +154,9 @@ dig_safe(){
 
     [[ -z "${hostname}" ]] && return 1
 
-    # +time=2: timeout de 2 segundos
-    # +tries=1: apenas 1 tentativa (não retry)
-    # +short: output limpo
+    # +time=2: 2-second timeout
+    # +tries=1: single attempt (no retry)
+    # +short: clean output format
     dig +short +time=2 +tries=1 "${record_type}" "${hostname}" 2>/dev/null
 }
 }
