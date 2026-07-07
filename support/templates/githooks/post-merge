@@ -21,25 +21,29 @@ fi
 
 cd "${REPO_ROOT}" || exit 0
 
-# Check if any Docker-relevant files changed in this merge
+# Check if any structural files changed (files that affect Docker image binaries).
+# Script-only changes don't need a rebuild — they're mounted from the host.
 changed_files="$(git diff-tree -r --name-only --no-commit-id ORIG_HEAD HEAD 2>/dev/null)"
 
-docker_relevant=false
+rebuild_needed=false
 while IFS= read -r f; do
     case "${f}" in
-        Dockerfile*|collector|collector.cfg|functions/*|scans/*|sources/*|support/runtime/*)
-            docker_relevant=true
+        Dockerfile*|functions/check_binaries.sh)
+            rebuild_needed=true
             break
             ;;
     esac
 done <<< "${changed_files}"
 
-if [[ "${docker_relevant}" == true ]]; then
+if [[ "${rebuild_needed}" == true ]]; then
     echo ""
-    echo "==> collector: source files changed — rebuilding Docker image..."
+    echo "==> collector: structural changes detected — rebuilding Docker image..."
     if [[ -x "${REPO_ROOT}/collector-update" ]]; then
         "${REPO_ROOT}/collector-update" --build-only
     else
         echo "    Run: ./collector-update --build-only"
     fi
+else
+    echo ""
+    echo "==> collector: updated (scripts mounted from host, no rebuild needed)."
 fi

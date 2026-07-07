@@ -25,18 +25,25 @@ BUILD_ARGS="${BUILD_ARGS:-}"
 
 do_pull=true
 do_build=true
+force_build=false
 
 for arg in "$@"; do
     case "${arg}" in
-        --build-only) do_pull=false ;;
+        --build-only) do_pull=false; force_build=true ;;
         --pull-only)  do_build=false ;;
+        --force-build) force_build=true ;;
         --no-cache)   BUILD_ARGS="--no-cache ${BUILD_ARGS}" ;;
         --help|-h)
-            echo "Usage: collector-update [--build-only] [--pull-only] [--no-cache]"
+            echo "Usage: collector-update [--build-only] [--pull-only] [--force-build] [--no-cache]"
             echo ""
             echo "  --build-only   Skip git pull, only rebuild the Docker image"
             echo "  --pull-only    Pull changes without rebuilding"
+            echo "  --force-build  Rebuild even if no structural changes detected"
             echo "  --no-cache     Pass --no-cache to docker build"
+            echo ""
+            echo "The image is only rebuilt when structural files change (Dockerfiles,"
+            echo "binary dependencies). Script changes are picked up automatically via"
+            echo "host volume mounts in collector-docker."
             echo ""
             echo "Environment:"
             echo "  COLLECTOR_IMAGE=${COLLECTOR_IMAGE}"
@@ -50,6 +57,10 @@ for arg in "$@"; do
             ;;
     esac
 done
+
+# Files that require a Docker image rebuild (binary/package changes).
+# Script-only changes are served via volume mounts and don't need a rebuild.
+STRUCTURAL_PATTERNS="Dockerfile|functions/check_binaries.sh"
 
 if [[ "${do_pull}" == true ]]; then
     echo "==> Pulling latest changes..."
@@ -69,10 +80,26 @@ if [[ "${do_pull}" == true ]]; then
     else
         echo "    Updated: ${before:0:7} -> ${after:0:7}"
         git --no-pager log --oneline "${before}..${after}"
+
+        # Check if any structural files changed (requires image rebuild)
+        structural_changed="$(git diff --name-only "${before}" "${after}" | grep -E "${STRUCTURAL_PATTERNS}" || true)"
+        if [[ -n "${structural_changed}" ]]; then
+            echo ""
+            echo "    Structural changes detected (image rebuild needed):"
+            echo "${structural_changed}" | sed 's/^/      /'
+            force_build=true
+        else
+            echo ""
+            echo "    Only script changes detected — no image rebuild needed."
+            echo "    Scripts are mounted from host via collector-docker."
+            if [[ "${force_build}" != true ]]; then
+                do_build=false
+            fi
+        fi
     fi
 fi
 
-if [[ "${do_build}" == true ]]; then
+if [[ "${do_build}" == true ]] && [[ "${force_build}" == true ]]; then
     echo ""
     echo "==> Building Docker image: ${COLLECTOR_IMAGE}"
     echo "    Dockerfile: ${DOCKERFILE}"
@@ -98,5 +125,10 @@ if [[ "${do_build}" == true ]]; then
         | grep "${COLLECTOR_IMAGE%%:*}" | head -3
 fi
 
-echo ""
-echo "Done. Run 'collector-docker --help' to verify."
+if [[ "${do_build}" == true ]] && [[ "${force_build}" != true ]]; then
+    echo ""
+    echo "Done. No image rebuild needed — scripts are served from host volumes."
+else
+    echo ""
+    echo "Done. Run 'collector-docker --help' to verify."
+fi

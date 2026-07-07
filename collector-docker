@@ -17,6 +17,13 @@
 #   Any variable below can be overridden explicitly in the environment
 #   to point at a different path.
 #
+# Volume mounts strategy:
+#   Scripts (collector, functions/, scans/, sources/, support/runtime/)
+#   are mounted read-only from the host repo. This means any code change
+#   is immediately available without rebuilding the Docker image. The
+#   image only needs to be rebuilt when binaries/packages change (i.e.
+#   Dockerfile or check_binaries.sh modifications).
+#
 # Environment variables for overrides:
 #   COLLECTOR_IMAGE   — Docker image (default: collector:latest)
 #   OUTPUTS_DIR       — outputs directory (default: <root>/outputs; created
@@ -162,11 +169,27 @@ if [[ "${want_report_only}" == "yes" ]]; then
     name_args=(--name "${REPORT_CONTAINER_NAME}")
 fi
 
+# Mount scripts from the host so the container always uses the latest code
+# without requiring a Docker image rebuild. The image only needs to provide
+# the compiled binaries (Go tools, Python packages, system utilities).
+script_mount_args=()
+if [[ -d "${DEFAULT_ROOT}/functions" ]]; then
+    script_mount_args+=(
+        -v "${DEFAULT_ROOT}/collector:/opt/collector/collector:ro"
+        -v "${DEFAULT_ROOT}/functions:/opt/collector/functions:ro"
+        -v "${DEFAULT_ROOT}/scans:/opt/collector/scans:ro"
+        -v "${DEFAULT_ROOT}/sources:/opt/collector/sources:ro"
+    )
+    [[ -d "${DEFAULT_ROOT}/support/runtime" ]] && \
+        script_mount_args+=(-v "${DEFAULT_ROOT}/support/runtime:/opt/collector/support/runtime:ro")
+fi
+
 exec docker run --rm "${name_args[@]}" \
     -e "TERM=${TERM:-dumb}" \
     -v "${OUTPUTS_DIR}:/opt/collector/outputs" \
     -v "${WORDLISTS_DIR}:/opt/collector/wordlists" \
     -v "${COLLECTOR_CFG}:/opt/collector/collector.cfg:ro" \
+    "${script_mount_args[@]}" \
     "${notify_mount_args[@]}" \
     "${port_args[@]}" \
     "${COLLECTOR_IMAGE}" \
