@@ -531,11 +531,12 @@ joining_subdomains(){
             if [ -s "${excludedomain_list}" ] && [ -s "${report_dir}/domains_found.txt" ]; then
                 echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Excluding the subdomains from file list option... "
                 cp "${excludedomain_list}" "${report_dir}/domains_excluded.txt"
-                while read -r excluded_domain; do
-                    sed -i "s/${excluded_domain}//" "${report_dir}/domains_found.txt"
+                while IFS= read -r excluded_domain; do
+                    [[ -z "${excluded_domain}" || "${excluded_domain}" =~ ^[[:space:]]*# ]] && continue
+                    local ed_escaped="${excluded_domain//./\\.}"
+                    ed_escaped="${ed_escaped//\//\\/}"
+                    sed -i "/^${ed_escaped}$/d" "${report_dir}/domains_found.txt"
                 done < "${excludedomain_list}"
-                # Fixing blank lines after excluding domains
-                sed -i '/^$/d' "${report_dir}/domains_found.txt"
                 echo "Done!"
             fi
         else
