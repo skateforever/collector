@@ -27,32 +27,42 @@ nuclei_scan(){
                 echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing nuclei scan... "
                 nuclei -no-color -silent -update > /dev/null 2>&1
                 nuclei -no-color -silent -update-templates > /dev/null 2>&1
+                local -a _nuclei_pids=()
                 while IFS= read -r url; do
-                    # Rotate User-Agent per URL — matches the get_user_agent
-                    # pattern used by every other tool in collector. The
-                    # previous approach of baking ${agent} into nuclei_options
-                    # at source time was broken: ${agent} is never defined,
-                    # and the \"...\" escapes split the header across argv
-                    # slots (see report B-01).
                     unset user_agent
                     user_agent="$(get_user_agent)"
                     if [ -n "${use_proxy}" ] && [ "${use_proxy}" == "yes" ]; then
-                        echo "echo ${url} | nuclei ${nuclei_options[@]} -H \"User-Agent: ${user_agent}\" -proxy-url \"http://${proxy_ip}\"" >> "${log_execution_file}"
+                        echo "echo ${url} | nuclei ${nuclei_options[*]} -H \"User-Agent: ${user_agent}\" -proxy-url \"http://${proxy_ip}\"" >> "${log_execution_file}"
                         echo "${url}" | nuclei "${nuclei_options[@]}" -H "User-Agent: ${user_agent}" -proxy-url "http://${proxy_ip}" >> "${nuclei_scan_file}" 2>> "${log_execution_file}" &
                     else
-                        echo "echo ${url} | nuclei ${nuclei_options[@]} -H \"User-Agent: ${user_agent}\"" >> "${log_execution_file}"
+                        echo "echo ${url} | nuclei ${nuclei_options[*]} -H \"User-Agent: ${user_agent}\"" >> "${log_execution_file}"
                         echo "${url}" | nuclei "${nuclei_options[@]}" -H "User-Agent: ${user_agent}" >> "${nuclei_scan_file}" 2>> "${log_execution_file}" &
                     fi
-                    while [[ "$(pgrep -acf "[n]uclei")" -ge "${webapp_enum_total_processes}" ]]; do
+                    _nuclei_pids+=($!)
+                    # Reap finished PIDs and throttle
+                    local _alive=0 _new_pids=()
+                    for _pid in "${_nuclei_pids[@]}"; do
+                        if kill -0 "${_pid}" 2>/dev/null; then
+                            ((_alive += 1))
+                            _new_pids+=("${_pid}")
+                        fi
+                    done
+                    _nuclei_pids=("${_new_pids[@]}")
+                    while [[ "${_alive}" -ge "${webapp_enum_total_processes}" ]]; do
                         sleep 1
+                        _alive=0; _new_pids=()
+                        for _pid in "${_nuclei_pids[@]}"; do
+                            if kill -0 "${_pid}" 2>/dev/null; then
+                                ((_alive += 1))
+                                _new_pids+=("${_pid}")
+                            fi
+                        done
+                        _nuclei_pids=("${_new_pids[@]}")
                     done
                 done < "${urls_file}"
-                # Drain the last batch of background nuclei jobs before
-                # reading the result file — without this `wait`, the grep
-                # below can race the final findings and notify with an
-                # incomplete view (report B-06).
-                while pgrep -af "[n]uclei" > /dev/null; do
-                    sleep 1
+                # Drain all remaining nuclei jobs
+                for _pid in "${_nuclei_pids[@]}"; do
+                    wait "${_pid}" 2>/dev/null
                 done
                 echo "Done!"
                 # Notifying the finds
