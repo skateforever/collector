@@ -51,50 +51,46 @@ vhost_probe(){
     local vhost_probe_pids=()
     local vhost_probe_pid vhost_probe_alive_pids=()
 
-    # Worker probes a single (IP, port, word) triple.
-    # Args: $1=IP  $2=port  $3=word  $4=baseline_status  $5=baseline_len
-    _vhost_probe_worker(){
-        local vp_ip="${1}"
-        local vp_port="${2}"
-        local vp_word="${3}"
-        local vp_baseline_status="${4}"
-        local vp_baseline_len="${5}"
-        local vp_host="${vp_word}.${domain}"
-        local vp_ua vp_proto vp_url
-        vp_ua="$(get_user_agent)"
+    # Batch worker: probes a slice of the wordlist for a single (IP, port) pair.
+    # Args: $1=IP $2=port $3=baseline_status $4=baseline_len $5..=words
+    _vhost_probe_batch_worker(){
+        local _bp_ip="$1" _bp_port="$2" _bp_baseline_status="$3" _bp_baseline_len="$4"
+        shift 4
+        local _bp_proto="http" _bp_url _bp_ua _bp_word _bp_host
+        local _bp_raw _bp_status _bp_len _bp_diff
+        local _p
 
-        # Use https for known TLS ports, http for everything else.
-        vp_proto="http"
-        local p
-        for p in "${webapp_tls_ports[@]}"; do
-            [[ "${p}" == "${vp_port}" ]] && { vp_proto="https"; break; }
+        for _p in "${webapp_tls_ports[@]}"; do
+            [[ "${_p}" == "${_bp_port}" ]] && { _bp_proto="https"; break; }
         done
-        vp_url="${vp_proto}://${vp_ip}:${vp_port}"
+        _bp_url="${_bp_proto}://${_bp_ip}:${_bp_port}"
+        _bp_ua="$(get_user_agent)"
 
-        local vp_raw
-        vp_raw="$(curl "${curl_options_fast[@]}" \
-            -H "Host: ${vp_host}" \
-            -H "User-agent: ${vp_ua}" \
-            -o /dev/null -w "%{http_code} %{size_download}" \
-            "${vp_url}" 2>/dev/null)"
-        local vp_status vp_len vp_diff
-        vp_status="$(echo "${vp_raw}" | awk '{print $1}')"
-        vp_len="$(echo "${vp_raw}" | awk '{print $2}')"
-        [[ -z "${vp_len}" ]] && vp_len=0
-        vp_diff=$(( vp_len - vp_baseline_len ))
-        [[ "${vp_diff}" -lt 0 ]] && vp_diff=$(( vp_diff * -1 ))
-        if [[ "${vp_status}" != "${vp_baseline_status}" || "${vp_diff}" -gt 200 ]]; then
-            echo -e "\nvhost hit: ${vp_host} on ${vp_ip}:${vp_port} (${vp_status}, ${vp_len}B)" >> "${log_execution_file}"
-            echo "${vp_host}" >> "${tmp_dir}/vhost_probe_worker_$$.txt"
-        fi
+        for _bp_word in "$@"; do
+            _bp_host="${_bp_word}.${domain}"
+            _bp_raw="$(curl "${curl_options_fast[@]}" \
+                -H "Host: ${_bp_host}" \
+                -H "User-agent: ${_bp_ua}" \
+                -o /dev/null -w "%{http_code} %{size_download}" \
+                "${_bp_url}" 2>/dev/null)"
+            _bp_status="${_bp_raw%% *}"
+            _bp_len="${_bp_raw##* }"
+            [[ -z "${_bp_len}" ]] && _bp_len=0
+            _bp_diff=$(( _bp_len - _bp_baseline_len ))
+            [[ "${_bp_diff}" -lt 0 ]] && _bp_diff=$(( -_bp_diff ))
+            if [[ "${_bp_status}" != "${_bp_baseline_status}" || "${_bp_diff}" -gt 200 ]]; then
+                echo "${_bp_host}" >> "${tmp_dir}/vhost_probe_output.txt"
+            fi
+        done
     }
+
+    local _batch_size="${vhost_probe_batch_size:-50}"
 
     while IFS= read -r vhost_probe_ip; do
         [[ -z "${vhost_probe_ip}" ]] && continue
         vhost_probe_ip="$(echo "${vhost_probe_ip}" | grep -Eo "${IPv4_regex}")"
         [[ -z "${vhost_probe_ip}" ]] && continue
 
-        # Compute a fresh per-(IP, port) baseline using a random hostname.
         local vhost_probe_rand_host
         vhost_probe_rand_host="$(tr -dc 'a-z' </dev/urandom | fold -w 12 | head -n1).${domain}"
         unset user_agent
@@ -108,7 +104,6 @@ vhost_probe(){
                 [[ "${p2}" == "${vhost_probe_port}" ]] && { bp_proto="https"; break; }
             done
             local bp_url="${bp_proto}://${vhost_probe_ip}:${vhost_probe_port}"
-            echo -e "\ncurl ${curl_options_fast[@]} -H \"Host: ${vhost_probe_rand_host}\" -H \"User-agent: ${user_agent}\" -o /dev/null -w \"%{http_code} %{size_download}\" \"${bp_url}\"" >> "${log_execution_file}"
             local vhost_probe_baseline_raw
             vhost_probe_baseline_raw="$(curl "${curl_options_fast[@]}" \
                 -H "Host: ${vhost_probe_rand_host}" \
@@ -116,8 +111,8 @@ vhost_probe(){
                 -o /dev/null -w "%{http_code} %{size_download}" \
                 "${bp_url}" 2>/dev/null)"
             local vhost_probe_baseline_status vhost_probe_baseline_len
-            vhost_probe_baseline_status="$(echo "${vhost_probe_baseline_raw}" | awk '{print $1}')"
-            vhost_probe_baseline_len="$(echo "${vhost_probe_baseline_raw}" | awk '{print $2}')"
+            vhost_probe_baseline_status="${vhost_probe_baseline_raw%% *}"
+            vhost_probe_baseline_len="${vhost_probe_baseline_raw##* }"
             [[ -z "${vhost_probe_baseline_len}" ]] && vhost_probe_baseline_len=0
 
             # Early exit: if baseline gets no response, skip this port.
@@ -125,26 +120,52 @@ vhost_probe(){
                 continue
             fi
 
-        for vhost_probe_word in "${vhost_probe_words[@]}"; do
-            # Reap finished workers
-            vhost_probe_alive_pids=()
-            for vhost_probe_pid in "${vhost_probe_pids[@]}"; do
-                kill -0 "${vhost_probe_pid}" 2>/dev/null && vhost_probe_alive_pids+=("${vhost_probe_pid}")
+            # Dispatch batches of words
+            local _batch=() _i=0
+            for vhost_probe_word in "${vhost_probe_words[@]}"; do
+                _batch+=("${vhost_probe_word}")
+                ((_i += 1))
+                if [[ "${_i}" -ge "${_batch_size}" ]]; then
+                    # Reap finished workers and throttle
+                    vhost_probe_alive_pids=()
+                    for vhost_probe_pid in "${vhost_probe_pids[@]}"; do
+                        kill -0 "${vhost_probe_pid}" 2>/dev/null && vhost_probe_alive_pids+=("${vhost_probe_pid}")
+                    done
+                    vhost_probe_pids=("${vhost_probe_alive_pids[@]}")
+                    while [[ "${#vhost_probe_pids[@]}" -ge "${vhost_probe_max_workers}" ]]; do
+                        sleep 0.3
+                        vhost_probe_alive_pids=()
+                        for vhost_probe_pid in "${vhost_probe_pids[@]}"; do
+                            kill -0 "${vhost_probe_pid}" 2>/dev/null && vhost_probe_alive_pids+=("${vhost_probe_pid}")
+                        done
+                        vhost_probe_pids=("${vhost_probe_alive_pids[@]}")
+                    done
+                    _vhost_probe_batch_worker "${vhost_probe_ip}" "${vhost_probe_port}" \
+                        "${vhost_probe_baseline_status}" "${vhost_probe_baseline_len}" "${_batch[@]}" &
+                    vhost_probe_pids+=("$!")
+                    _batch=()
+                    _i=0
+                fi
             done
-            vhost_probe_pids=("${vhost_probe_alive_pids[@]}")
-            # Block while at capacity
-            while [[ "${#vhost_probe_pids[@]}" -ge "${vhost_probe_max_workers}" ]]; do
-                sleep 0.5
+            # Dispatch remaining words
+            if [[ "${#_batch[@]}" -gt 0 ]]; then
                 vhost_probe_alive_pids=()
                 for vhost_probe_pid in "${vhost_probe_pids[@]}"; do
                     kill -0 "${vhost_probe_pid}" 2>/dev/null && vhost_probe_alive_pids+=("${vhost_probe_pid}")
                 done
                 vhost_probe_pids=("${vhost_probe_alive_pids[@]}")
-            done
-            _vhost_probe_worker "${vhost_probe_ip}" "${vhost_probe_port}" "${vhost_probe_word}" \
-                "${vhost_probe_baseline_status}" "${vhost_probe_baseline_len}" &
-            vhost_probe_pids+=("$!")
-        done
+                while [[ "${#vhost_probe_pids[@]}" -ge "${vhost_probe_max_workers}" ]]; do
+                    sleep 0.3
+                    vhost_probe_alive_pids=()
+                    for vhost_probe_pid in "${vhost_probe_pids[@]}"; do
+                        kill -0 "${vhost_probe_pid}" 2>/dev/null && vhost_probe_alive_pids+=("${vhost_probe_pid}")
+                    done
+                    vhost_probe_pids=("${vhost_probe_alive_pids[@]}")
+                done
+                _vhost_probe_batch_worker "${vhost_probe_ip}" "${vhost_probe_port}" \
+                    "${vhost_probe_baseline_status}" "${vhost_probe_baseline_len}" "${_batch[@]}" &
+                vhost_probe_pids+=("$!")
+            fi
         done  # end port loop
     done < "${vhost_probe_ip_file}"
 
@@ -153,9 +174,7 @@ vhost_probe(){
         wait "${vhost_probe_pid}" 2>/dev/null
     done
 
-    # Merge per-worker results
-    cat "${tmp_dir}"/vhost_probe_worker_*.txt >> "${tmp_dir}/vhost_probe_output.txt" 2>/dev/null
-    rm -f "${tmp_dir}"/vhost_probe_worker_*.txt
+    # Deduplicate results
     sort -u -o "${tmp_dir}/vhost_probe_output.txt" "${tmp_dir}/vhost_probe_output.txt" 2>/dev/null
     echo "Done!"
 }
