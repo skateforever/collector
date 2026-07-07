@@ -119,6 +119,12 @@ vhost_check(){
     local IP port per_worker_out
     local -a worker_pids=()
     local pid alive
+    local -a _vhost_ports=()
+    if [[ "${#vhost_port_detect[@]}" -gt 0 ]]; then
+        _vhost_ports=("${vhost_port_detect[@]}")
+    else
+        _vhost_ports=("${webapp_port_detect[@]}")
+    fi
 
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Looking for vhost with dead subdomains... "
     echo -e "\n" >> "${log_execution_file}"
@@ -130,7 +136,7 @@ vhost_check(){
         # Fan out: one worker per (IP, port) pair, capped at max_workers.
         while IFS= read -r IP; do
             [[ -z "${IP}" ]] && continue
-            for port in "${webapp_port_detect[@]}"; do
+            for port in "${_vhost_ports[@]}"; do
                 # Reap dead workers and block while at capacity.
                 while :; do
                     alive=()

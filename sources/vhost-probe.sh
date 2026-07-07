@@ -41,7 +41,13 @@ vhost_probe(){
         echo "Fail! (wordlist missing or empty: ${collector_vhost_probe_words})"
         return 0
     fi
-    local vhost_probe_max_workers="${vhost_check_processes:-8}"
+    local vhost_probe_max_workers="${vhost_probe_processes:-50}"
+    local -a _vhost_ports=()
+    if [[ "${#vhost_port_detect[@]}" -gt 0 ]]; then
+        _vhost_ports=("${vhost_port_detect[@]}")
+    else
+        _vhost_ports=("${webapp_port_detect[@]}")
+    fi
     local vhost_probe_pids=()
     local vhost_probe_pid vhost_probe_alive_pids=()
 
@@ -95,7 +101,7 @@ vhost_probe(){
         user_agent="$(get_user_agent)"
 
         local vhost_probe_port
-        for vhost_probe_port in "${webapp_port_detect[@]}"; do
+        for vhost_probe_port in "${_vhost_ports[@]}"; do
             local bp_proto="http"
             local p2
             for p2 in "${webapp_tls_ports[@]}"; do
