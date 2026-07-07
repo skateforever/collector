@@ -183,7 +183,7 @@ vhost_probe(){
             _bp_diff=$(( _bp_len - _bp_baseline_len ))
             [[ "${_bp_diff}" -lt 0 ]] && _bp_diff=$(( -_bp_diff ))
             if [[ "${_bp_status}" != "${_bp_baseline_status}" || "${_bp_diff}" -gt 200 ]]; then
-                echo "${_bp_host}" >> "${tmp_dir}/vhost_probe_output.txt"
+                echo "${_bp_host}" >> "${tmp_dir}/vhost_probe_worker_${_bp_ip}_${_bp_port}_$$.tmp"
             fi
         done
     }
@@ -279,7 +279,9 @@ vhost_probe(){
         wait "${vhost_probe_pid}" 2>/dev/null
     done
 
-    # Deduplicate results
+    # Merge per-worker outputs and deduplicate
+    cat "${tmp_dir}"/vhost_probe_worker_*.tmp >> "${tmp_dir}/vhost_probe_output.txt" 2>/dev/null
+    rm -f "${tmp_dir}"/vhost_probe_worker_*.tmp
     sort -u -o "${tmp_dir}/vhost_probe_output.txt" "${tmp_dir}/vhost_probe_output.txt" 2>/dev/null
     echo "Done!"
 }
