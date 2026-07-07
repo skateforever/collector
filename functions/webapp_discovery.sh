@@ -20,7 +20,7 @@ get_user_agent(){
 }
 
 webapp_alive(){
-    target="$1"
+    local target="$1"
     alive_file="$2"
     local subdomain port url line http_status_code https_status_code
     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Initializing the web application discovery and this might take a certain time!"
@@ -142,7 +142,7 @@ webapp_alive(){
 
 aquatone_screenshot(){
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Starting aquatone screenshot... "
-    target="$1"
+    local target="$1"
     urls_file="$2"
     if [ -s "${urls_file}" ]; then
         if [ ! -d "${aquatone_files_dir}" ]; then

@@ -10,7 +10,7 @@
 #############################################################
 
 nuclei_scan(){
-    target="$1"
+    local target="$1"
     urls_file="$2"
     local url
     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Initializing the web application scan with nuclei and this might take a certain time!"

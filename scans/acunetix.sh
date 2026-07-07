@@ -14,7 +14,7 @@
 #############################################################
 
 acunetix_scan(){
-    target="$1"
+    local target="$1"
     urls_file="$2"
     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Initializing the web application scan with acunetix and this might take a certain time!"
     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing acunetix web application vulnerability scan..."

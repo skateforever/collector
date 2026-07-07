@@ -12,7 +12,7 @@
 ########################################################################### 
 
 webapp_enum(){
-    target="$1"
+    local target="$1"
     urls_file="$2"
     local list index urls_tested url name file_gobuster file_dirsearch file_ffuf ffuf_ext_param
     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Initializing the web application enumeration and this might take a certain time!"
@@ -158,7 +158,7 @@ webapp_enum(){
 }
 
 webapp_tech(){
-    target="$1"
+    local target="$1"
     urls_file="$2"
     local url name file_tech_by_headers
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing web application technology enumeration..."
