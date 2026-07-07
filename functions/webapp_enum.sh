@@ -13,7 +13,7 @@
 
 webapp_enum(){
     local target="$1"
-    urls_file="$2"
+    local urls_file="$2"
     local list index urls_tested url name file_gobuster file_dirsearch file_ffuf ffuf_ext_param
     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Initializing the web application enumeration and this might take a certain time!"
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing web application files and dirs enumeration... "
@@ -139,7 +139,6 @@ webapp_enum(){
             fi
         else
             echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Make sure the directories structure was created. Stopping the script!"
-            unset urls_file
             echo -e "Make sure the directories structure was created. Stopping the script!" | notify "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
             message "${target}" failed
             exit 1
@@ -150,16 +149,14 @@ webapp_enum(){
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} You probably forgot to add --webapp-discovery option to execute, or really, we have a problem with script execution."
         echo -e "Make sure the ${urls_file} exist and isn't empty. \nYou probably forgot to add --webapp-discovery option to execute, or really, we have a problem with script execution." | notify "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
         message "${target}" failed
-        unset urls_file
         exit 1
     fi
-    unset urls_file
     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Web application enumeration is done!"
 }
 
 webapp_tech(){
     local target="$1"
-    urls_file="$2"
+    local urls_file="$2"
     local url name file_tech_by_headers
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing web application technology enumeration..."
     if [ -s "${urls_file}" ]; then
@@ -196,10 +193,8 @@ webapp_tech(){
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Make sure the ${urls_file} exist and isn't empty."
         echo -e "Make sure the ${urls_file} exist and isn't empty." | notify "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
         message "${target}" failed
-        unset urls_file
         exit 1
     fi
-    unset urls_file
 }
 
 robots_txt(){

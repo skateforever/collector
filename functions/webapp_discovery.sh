@@ -143,7 +143,7 @@ webapp_alive(){
 aquatone_screenshot(){
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Starting aquatone screenshot... "
     local target="$1"
-    urls_file="$2"
+    local urls_file="$2"
     if [ -s "${urls_file}" ]; then
         if [ ! -d "${aquatone_files_dir}" ]; then
             if mkdir -p "${aquatone_files_dir}" ; then
@@ -155,7 +155,6 @@ aquatone_screenshot(){
                 echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Something got wrong, wasnt possible create directory ${aquatone_files_dir}."
                 echo -e "Something got wrong, wasnt possible create directory ${aquatone_files_dir}.\n\tPlease, look what got wrong and run the script again. Stopping the script!" | notify "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
                 message "${target}" failed
-                unset urls_file
                 exit 1
             fi
         else
@@ -168,12 +167,8 @@ aquatone_screenshot(){
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Make sure the ${urls_file} exist and isn't empty."
         echo -e "Make sure the ${urls_file} exist and isn't empty." | notify "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
         message "${target}" failed
-        unset urls_file
         exit 1
     fi
-    unset aquatone_log
-    unset aquatone_files_dir
-    unset urls_file
     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Finish aquatone screenshot!"
     echo -e "Finish aquatone screenshot!" | notify "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
 }
