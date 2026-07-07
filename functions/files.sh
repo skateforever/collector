@@ -506,8 +506,9 @@ joining_subdomains(){
             sed -E -i 's/\.\./\./g ; s/^http(|s):\/\///g ; s/ //g ; s/^$//g ; /^[[:space:]]*$/d' "${tmp_dir}/domains_found.tmp"
             # Removing duplicated domains per subdomain
             # Example: www.domain.com.domain.com
-            while grep -qE "${domain}\.${domain}$" "${tmp_dir}/domains_found.tmp"; do
-                sed -i "s/${domain}\.${domain}$/${domain}/" "${tmp_dir}/domains_found.tmp"
+            local _domain_re="${domain//./\\.}"
+            while grep -qF "${domain}.${domain}" "${tmp_dir}/domains_found.tmp"; do
+                sed -i "s/${_domain_re}\.${_domain_re}$/${_domain_re}/" "${tmp_dir}/domains_found.tmp"
             done
 
             if tr '[:upper:]' '[:lower:]' < "${tmp_dir}/domains_found.tmp" \

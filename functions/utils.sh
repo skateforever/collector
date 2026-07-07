@@ -85,3 +85,8 @@ redact_secrets(){
 
 # app-report lifecycle moved to functions/app_report.sh.
 # start_cloudflare_tunnel moved to functions/cloudflare_tunnel.sh.
+
+# Escape dots in a domain name for use in regex patterns.
+escape_domain_re(){
+    printf '%s' "${1//./\\.}"
+}
