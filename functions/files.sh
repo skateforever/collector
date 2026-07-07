@@ -510,9 +510,9 @@ joining_subdomains(){
             sed -E -i 's/\.\./\./g ; s/^http(|s):\/\///g ; s/ //g ; s/^$//g ; /^[[:space:]]*$/d' "${tmp_dir}/domains_found.tmp"
             # Removing duplicated domains per subdomain
             # Example: www.domain.com.domain.com
-            local _domain_re="${domain//./\\.}"
+            local domain_re="${domain//./\\.}"
             while grep -qF "${domain}.${domain}" "${tmp_dir}/domains_found.tmp"; do
-                sed -i "s/${_domain_re}\.${_domain_re}$/${_domain_re}/" "${tmp_dir}/domains_found.tmp"
+                sed -i "s/${domain_re}\.${domain_re}$/${domain_re}/" "${tmp_dir}/domains_found.tmp"
             done
 
             if tr '[:upper:]' '[:lower:]' < "${tmp_dir}/domains_found.tmp" \
@@ -581,24 +581,24 @@ organizing_subdomains(){
                 -w "${tmp_dir}/resolution_massdns.tmp" "${subdomains_file}" > /dev/null 2>&1
         fi
 
-        local _resolve_dir="${tmp_dir}/resolve_$$"
-        mkdir -p "${_resolve_dir}"
-        local _ridx=0
+        local resolve_dir="${tmp_dir}/resolve_$$"
+        mkdir -p "${resolve_dir}"
+        local ridx=0
         while IFS= read -r d; do
             [[ -z "${d}" ]] && continue
             (
                 dig +nocmd +nocomments +noquestion +noqr +nostats +timeout=2 -t A "${d}" \
-                    > "${_resolve_dir}/dig_${_ridx}.tmp" 2>/dev/null
+                    > "${resolve_dir}/dig_${ridx}.tmp" 2>/dev/null
                 host -W 2 -t A "${d}" \
-                    > "${_resolve_dir}/host_${_ridx}.tmp" 2>/dev/null
+                    > "${resolve_dir}/host_${ridx}.tmp" 2>/dev/null
             ) &
-            ((_ridx += 1))
-            [[ $((_ridx % 16)) -eq 0 ]] && wait
+            ((ridx += 1))
+            [[ $((ridx % 16)) -eq 0 ]] && wait
         done < "${subdomains_file}"
         wait
-        cat "${_resolve_dir}"/dig_*.tmp > "${tmp_dir}/resolution_dig.tmp" 2>/dev/null
-        cat "${_resolve_dir}"/host_*.tmp > "${tmp_dir}/resolution_host.tmp" 2>/dev/null
-        rm -rf "${_resolve_dir}"
+        cat "${resolve_dir}"/dig_*.tmp > "${tmp_dir}/resolution_dig.tmp" 2>/dev/null
+        cat "${resolve_dir}"/host_*.tmp > "${tmp_dir}/resolution_host.tmp" 2>/dev/null
+        rm -rf "${resolve_dir}"
         echo "Done!"
 
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Organizing and handling domain files... "

@@ -125,7 +125,7 @@ escape_domain_re(){
 }
 
 run_summary(){
-    local _target="${1:-${domain}}"
+    local summary_target="${1:-${domain}}"
     echo ""
     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Run Summary:"
     echo -e "  Subdomains found:  $(wc -l < "${report_dir}/domains_found.txt" 2>/dev/null || echo 0)"
@@ -135,7 +135,7 @@ run_summary(){
     echo -e "  Nuclei findings:   $(wc -l < "${nuclei_scan_file}" 2>/dev/null || echo 0)"
     echo -e "  Duration:          $((SECONDS / 60))m $((SECONDS % 60))s"
     printf "Run complete: %s | %s subdomains | %s alive | %s webapps | %s findings | %dm%ds" \
-        "${_target}" \
+        "${summary_target}" \
         "$(wc -l < "${report_dir}/domains_found.txt" 2>/dev/null || echo 0)" \
         "$(wc -l < "${report_dir}/domains_alive.txt" 2>/dev/null || echo 0)" \
         "$(wc -l < "${report_dir}/webapp_consolidated.txt" 2>/dev/null || echo 0)" \

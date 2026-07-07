@@ -313,8 +313,8 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     [[ -z "${notify_high_channel}" ]] && notify_high_channel="high"
     # Resolve the fingerprints file relative to the script when not set by collector.cfg.
     if [[ -z "${collector_takeover_fingerprints}" ]]; then
-        _script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-        collector_takeover_fingerprints="${_script_dir}/../support/runtime/wordlists/takeover-fingerprints.txt"
+        script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+        collector_takeover_fingerprints="${script_dir}/../support/runtime/wordlists/takeover-fingerprints.txt"
     fi
     type get_user_agent >/dev/null 2>&1 || get_user_agent(){ echo "Mozilla/5.0 (X11; Linux x86_64) takeover-scan/1.0"; }
     takeover_scan "${domain}" "${input_file_arg}"

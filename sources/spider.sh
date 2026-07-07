@@ -38,7 +38,7 @@ spider_src(){
     local spider_js_urls=()
     local -A spider_js_seen_map=()
 
-    _spider_collect_links(){
+    spider_collect_links(){
         local spider_body="$1"
         local spider_base="$2"
         # href/src attributes — normalise relative paths to absolute
@@ -48,7 +48,7 @@ spider_src(){
         done
     }
 
-    _spider_collect_js(){
+    spider_collect_js(){
         local spider_body="$1"
         local spider_base="$2"
         echo "${spider_body}" | grep -oiE 'src="[^"]+\.js[^"]*"' | grep -oE '"[^"]+"' | tr -d '"' | while IFS= read -r spider_jsref; do
@@ -88,7 +88,7 @@ spider_src(){
                 spider_js_urls+=("${spider_js}")
                 spider_js_seen_map["${spider_js}"]=1
             fi
-        done < <(_spider_collect_js "${spider_page_body}" "${spider_url}")
+        done < <(spider_collect_js "${spider_page_body}" "${spider_url}")
         if [[ "${spider_depth}" -lt "${spider_max_depth}" ]]; then
             while IFS= read -r spider_link; do
                 [[ -z "${spider_link}" ]] && continue
@@ -96,7 +96,7 @@ spider_src(){
                     spider_queue+=("${spider_link}:$(( spider_depth + 1 ))")
                     spider_visited_map["${spider_link}"]=1
                 fi
-            done < <(_spider_collect_links "${spider_page_body}" "${spider_url}")
+            done < <(spider_collect_links "${spider_page_body}" "${spider_url}")
         fi
     done
 

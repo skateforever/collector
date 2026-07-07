@@ -14,7 +14,7 @@ ns-brute-src(){
     ns_brute_candidates=()
     ns_brute_seen_ips=()
 
-    _ns_brute_add_candidate(){
+    ns_brute_add_candidate(){
         local ns_host="${1}"
         local ns_ip
         ns_host="$(echo "${ns_host}" | sed 's/\.$//')"
@@ -31,18 +31,18 @@ ns-brute-src(){
     echo -e "\ndig +short NS \"${domain}\"" >> "${log_execution_file}"
     while IFS= read -r ns_brute_ns; do
         [[ -z "${ns_brute_ns}" ]] && continue
-        _ns_brute_add_candidate "${ns_brute_ns}"
+        ns_brute_add_candidate "${ns_brute_ns}"
     done < <(dig +short NS "${domain}" 2>/dev/null)
 
     # SOA MNAME — the real primary, often differs from published NS
     echo -e "\ndig +short SOA \"${domain}\" (MNAME)" >> "${log_execution_file}"
     ns_brute_mname="$(dig +short SOA "${domain}" 2>/dev/null | awk '{print $1}')"
-    [[ -n "${ns_brute_mname}" ]] && _ns_brute_add_candidate "${ns_brute_mname}"
+    [[ -n "${ns_brute_mname}" ]] && ns_brute_add_candidate "${ns_brute_mname}"
 
     # Brute-force common NS naming patterns
     ns_brute_prefixes=(ns ns1 ns2 ns3 ns4 ns5 dns dns1 dns2 dns3 nameserver nameserver1 nameserver2 resolver auth hidden primary secondary slave)
     for ns_brute_prefix in "${ns_brute_prefixes[@]}"; do
-        _ns_brute_add_candidate "${ns_brute_prefix}.${domain}"
+        ns_brute_add_candidate "${ns_brute_prefix}.${domain}"
     done
 
     if [[ ${#ns_brute_candidates[@]} -eq 0 ]]; then

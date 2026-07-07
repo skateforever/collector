@@ -27,7 +27,7 @@ nuclei_scan(){
                 echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing nuclei scan... "
                 nuclei -no-color -silent -update > /dev/null 2>&1
                 nuclei -no-color -silent -update-templates > /dev/null 2>&1
-                local -a _nuclei_pids=()
+                local -a nucleinpids=()
                 while IFS= read -r url; do
                     unset user_agent
                     user_agent="$(get_user_agent)"
@@ -38,31 +38,31 @@ nuclei_scan(){
                         echo "echo ${url} | nuclei ${nuclei_options[*]} -H \"User-Agent: ${user_agent}\"" >> "${log_execution_file}"
                         echo "${url}" | nuclei "${nuclei_options[@]}" -H "User-Agent: ${user_agent}" >> "${nuclei_scan_file}" 2>> "${log_execution_file}" &
                     fi
-                    _nuclei_pids+=($!)
+                    nucleinpids+=($!)
                     # Reap finished PIDs and throttle
-                    local _alive=0 _new_pids=()
-                    for _pid in "${_nuclei_pids[@]}"; do
-                        if kill -0 "${_pid}" 2>/dev/null; then
-                            ((_alive += 1))
-                            _new_pids+=("${_pid}")
+                    local alive_count=0 newnpids=()
+                    for npid in "${nucleinpids[@]}"; do
+                        if kill -0 "${npid}" 2>/dev/null; then
+                            ((alive_count += 1))
+                            newnpids+=("${npid}")
                         fi
                     done
-                    _nuclei_pids=("${_new_pids[@]}")
-                    while [[ "${_alive}" -ge "${webapp_enum_total_processes}" ]]; do
+                    nucleinpids=("${newnpids[@]}")
+                    while [[ "${alive_count}" -ge "${webapp_enum_total_processes}" ]]; do
                         sleep 1
-                        _alive=0; _new_pids=()
-                        for _pid in "${_nuclei_pids[@]}"; do
-                            if kill -0 "${_pid}" 2>/dev/null; then
-                                ((_alive += 1))
-                                _new_pids+=("${_pid}")
+                        alive_count=0; newnpids=()
+                        for npid in "${nucleinpids[@]}"; do
+                            if kill -0 "${npid}" 2>/dev/null; then
+                                ((alive_count += 1))
+                                newnpids+=("${npid}")
                             fi
                         done
-                        _nuclei_pids=("${_new_pids[@]}")
+                        nucleinpids=("${newnpids[@]}")
                     done
                 done < "${urls_file}"
                 # Drain all remaining nuclei jobs
-                for _pid in "${_nuclei_pids[@]}"; do
-                    wait "${_pid}" 2>/dev/null
+                for npid in "${nucleinpids[@]}"; do
+                    wait "${npid}" 2>/dev/null
                 done
                 echo "Done!"
                 # Notifying the finds

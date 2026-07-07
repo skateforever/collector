@@ -22,15 +22,15 @@
 
 # Quick TCP-connect probe to discard ports that don't answer at all.
 # Returns 0 if the port is open, 1 otherwise.
-_vhost_port_alive(){
-    local _ip="$1" _port="$2" _timeout="${vhost_prefilter_timeout:-3}"
-    local _proto="http"
-    local _p
-    for _p in "${webapp_tls_ports[@]}"; do
-        [[ "${_p}" == "${_port}" ]] && { _proto="https"; break; }
+vhost_port_alive(){
+    local vpa_ip="$1" vpa_port="$2" vpa_timeout="${vhost_prefilter_timeout:-3}"
+    local vpa_proto="http"
+    local vpa_p
+    for vpa_p in "${webapp_tls_ports[@]}"; do
+        [[ "${vpa_p}" == "${vpa_port}" ]] && { vpa_proto="https"; break; }
     done
-    curl -k -s --connect-timeout "${_timeout}" --max-time "${_timeout}" \
-        -o /dev/null -w "%{http_code}" "${_proto}://${_ip}:${_port}" 2>/dev/null | grep -qE '^[1-5][0-9]{2}$'
+    curl -k -s --connect-timeout "${vpa_timeout}" --max-time "${vpa_timeout}" \
+        -o /dev/null -w "%{http_code}" "${vpa_proto}://${vpa_ip}:${vpa_port}" 2>/dev/null | grep -qE '^[1-5][0-9]{2}$'
 }
 
 # Worker that probes a single (IP, port) pair against every dead vhost.
@@ -43,11 +43,11 @@ vhost_check_pair(){
     local out_file="$4"
     local proto="http"
     local p
-    local -a _vc_curl_opts=()
+    local -a vc_curl_opts=()
     if [[ "${#vhost_curl_options[@]}" -gt 0 ]]; then
-        _vc_curl_opts=("${vhost_curl_options[@]}")
+        vc_curl_opts=("${vhost_curl_options[@]}")
     else
-        _vc_curl_opts=("${curl_options_fast[@]}")
+        vc_curl_opts=("${curl_options_fast[@]}")
     fi
 
     # Switch to https:// for known TLS ports.
@@ -66,11 +66,11 @@ vhost_check_pair(){
     # Baseline (host that should never resolve to anything real).
     # Capture size + hash in a single curl call: pipe body to md5sum while
     # collecting size_download from -w. No temp file needed.
-    echo "curl ${_vc_curl_opts[*]} -H \"User-Agent: ${user_agent_baseline}\" -H \"Host: ${baseline_host}\" \"${url}\"" >> "${log_execution_file}"
-    local curl_unresp_size curl_unresp_hash _curl_baseline_raw
-    _curl_baseline_raw="$(curl "${_vc_curl_opts[@]}" -H "User-Agent: ${user_agent_baseline}" -H "Host: ${baseline_host}" -w $'\n%{size_download}' "${url}" 2>> "${log_execution_file}")"
-    curl_unresp_hash="$(printf '%s' "${_curl_baseline_raw%$'\n'*}" | md5sum | awk '{print $1}')"
-    curl_unresp_size="${_curl_baseline_raw##*$'\n'}"
+    echo "curl ${vc_curl_opts[*]} -H \"User-Agent: ${user_agent_baseline}\" -H \"Host: ${baseline_host}\" \"${url}\"" >> "${log_execution_file}"
+    local curl_unresp_size curl_unresp_hash curl_baseline_raw
+    curl_baseline_raw="$(curl "${vc_curl_opts[@]}" -H "User-Agent: ${user_agent_baseline}" -H "Host: ${baseline_host}" -w $'\n%{size_download}' "${url}" 2>> "${log_execution_file}")"
+    curl_unresp_hash="$(printf '%s' "${curl_baseline_raw%$'\n'*}" | md5sum | awk '{print $1}')"
+    curl_unresp_size="${curl_baseline_raw##*$'\n'}"
 
     # Early exit: if baseline gets no TCP connection, skip this port entirely.
     if [[ "${curl_unresp_size}" == "0" ]] && [[ -z "${curl_unresp_hash}" || "${curl_unresp_hash}" == "d41d8cd98f00b204e9800998ecf8427e" ]]; then
@@ -87,16 +87,16 @@ vhost_check_pair(){
     # Per-vhost probes. seen_responses dedupes within this worker.
     local -A seen_responses
     local vhost
-    local curl_vhost_size curl_vhost_hash _curl_vhost_raw
+    local curl_vhost_size curl_vhost_hash curl_vhost_raw
     local httpx_vhost_output httpx_vhost_size httpx_vhost_hash
     local curl_diff httpx_diff confidence combo_key
 
     while IFS= read -r vhost; do
         [[ -z "${vhost}" ]] && continue
 
-        _curl_vhost_raw="$(curl "${_vc_curl_opts[@]}" -H "User-Agent: ${user_agent_vhost}" -H "Host: ${vhost}" -w $'\n%{size_download}' "${url}" 2>> "${log_execution_file}")"
-        curl_vhost_hash="$(printf '%s' "${_curl_vhost_raw%$'\n'*}" | md5sum | awk '{print $1}')"
-        curl_vhost_size="${_curl_vhost_raw##*$'\n'}"
+        curl_vhost_raw="$(curl "${vc_curl_opts[@]}" -H "User-Agent: ${user_agent_vhost}" -H "Host: ${vhost}" -w $'\n%{size_download}' "${url}" 2>> "${log_execution_file}")"
+        curl_vhost_hash="$(printf '%s' "${curl_vhost_raw%$'\n'*}" | md5sum | awk '{print $1}')"
+        curl_vhost_size="${curl_vhost_raw##*$'\n'}"
 
         echo "echo \"${url}\" | httpx -silent -timeout 10 -retries 0 -H \"Host: ${vhost}\" -H \"User-Agent: ${user_agent_vhost}\" -content-length -hash md5" >> "${log_execution_file}"
         httpx_vhost_output="$(echo "${url}" | httpx -silent -timeout 10 -retries 0 -H "Host: ${vhost}" -H "User-Agent: ${user_agent_vhost}" -content-length -hash md5 2>> "${log_execution_file}")"
@@ -137,11 +137,11 @@ vhost_check(){
     local IP port per_worker_out
     local -a worker_pids=()
     local pid alive
-    local -a _vhost_ports=()
+    local -a vc_ports=()
     if [[ "${#vhost_port_detect[@]}" -gt 0 ]]; then
-        _vhost_ports=("${vhost_port_detect[@]}")
+        vc_ports=("${vhost_port_detect[@]}")
     else
-        _vhost_ports=("${webapp_port_detect[@]}")
+        vc_ports=("${webapp_port_detect[@]}")
     fi
 
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Looking for vhost with dead subdomains... "
@@ -154,9 +154,9 @@ vhost_check(){
         # Fan out: one worker per (IP, port) pair, capped at max_workers.
         while IFS= read -r IP; do
             [[ -z "${IP}" ]] && continue
-            for port in "${_vhost_ports[@]}"; do
+            for port in "${vc_ports[@]}"; do
                 # Skip ports that don't respond to TCP at all.
-                _vhost_port_alive "${IP}" "${port}" || continue
+                vhost_port_alive "${IP}" "${port}" || continue
                 # Reap dead workers and block while at capacity.
                 while :; do
                     alive=()
