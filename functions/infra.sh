@@ -71,16 +71,10 @@ infra_data(){
 
             for IP in $(grep -Ev "Google|Microsoft|Azure|AWS|Amazon|Cloudflare" "${report_dir}/infra_as.txt" | tail -n+2 | awk '{print $3}'); do
                 if [[ -n "${ownerid}" ]]; then
-                    # Capture once — reuse for both the ownership check and CIDR extraction.
+                    sleep 2
                     ib_whois="$(whois "${IP}" 2>/dev/null)"
-                    # Case-insensitive, literal match — registries vary in casing
-                    # and the ownerid may include regex metacharacters.
                     if echo "${ib_whois}" | grep -qiF "${ownerid}"; then
-                        sleep 3
-                        # IPv4 block
-                        echo "${ib_whois}" | grep -E "${IP%%.*}.*\/[0-9]{2}$" >> "${tmp_dir}/infra_blocks.tmp"
-                        # IPv6 block
-                        # ?
+                        echo "${ib_whois}" | grep -E "^[[:space:]]*(${IP%%.*}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/[0-9]{1,2})" >> "${tmp_dir}/infra_blocks.tmp"
                     fi
                 fi
             done
