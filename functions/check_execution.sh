@@ -20,7 +20,7 @@
 #           ├─ -wc|--webapp-crawler                         #
 #           ├─ -we|--webapp-enum (also needs -ww)           #
 #           ├─ -ws|--webapp-scan                            #
-#           └─ -vv|--vhost-validation                       #
+#           └─ -vc|--vhost-check                            #
 #                                                           #
 #   -we|--webapp-enum                                       #
 #       ├─ requires: -wd|--webapp-discovery                 #
@@ -112,8 +112,8 @@ check_parameter_conflicts(){
         usage
     fi
 
-    if [[ "${vhost_validation_check}" == "yes" && "${webapp_discovery_check}" != "yes" ]]; then
-        echo -e "The -vv|--vhost-validation option requires -wd|--webapp-discovery to work.\n"
+    if [[ "${vhost_check_check}" == "yes" && "${webapp_discovery_check}" != "yes" ]]; then
+        echo -e "The -vc|--vhost-check option requires -wd|--webapp-discovery to work.\n"
         usage
     fi
 }

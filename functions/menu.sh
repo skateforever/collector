@@ -38,7 +38,7 @@ check_argument(){
     local options=()
     options+=(-d --domain -dl --domain-list -ed --exclude-domains -el --exclude-domain-list -h --help)
     options+=(-l --limit-urls -p --proxy -r --recon -ro --report-only -rs --report-stop -s --subdomain-brute -u --url)
-    options+=(-vv --vhost-validation -wc --webapp-crawler -wd --webapp-discovery -we --webapp-enum -ws --webapp-scan)
+    options+=(-vc --vhost-check -wc --webapp-crawler -wd --webapp-discovery -we --webapp-enum -ws --webapp-scan)
     options+=(-wld --webapp-long-detection -wsd --webapp-short-detection -ww --webapp-wordlists -dr --dry-run)
     local argument=$2
     local option
@@ -124,8 +124,8 @@ menu(){
                 recon_check="yes"
                 shift
                 ;;
-            -vv|--vhost-validation)
-                vhost_validation_check="yes"
+            -vc|--vhost-check)
+                vhost_check_check="yes"
                 shift
                 ;;
             -ro|--report-only)

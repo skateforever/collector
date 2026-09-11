@@ -116,12 +116,12 @@ The container entrypoint is the `collector` script. The flow is, in short:
 1. **Bootstrap.** `collector` loads `functions/utils.sh` (banner, helpers, global-variable reset) and then `source`s `collector.cfg` to inherit timeouts, threads, short/long port lists and API keys.
 2. **Module loading.** Every essential file under `functions/` (`menu.sh`, `usage.sh`, `check_*`, `domains_*`, `url_recon.sh`, `webapp_*`, `emails_recon.sh`, `git.sh`, `diff.sh`, `files.sh`, `infra.sh`, plus the app-report/dashboard modules `cloudflare_tunnel.sh`, `app_report.sh`, `db_usage.sh`, `llm_prompt.sh`) and `scans/` (`acunetix.sh`, `nmap.sh`, `nuclei.sh`, `shodan.sh`, `js_scans.sh`) is sourced in sequence.
 3. **Validation.** `check_container` confirms execution is happening inside Docker (the script aborts otherwise); `check_binaries` validates the presence of the required tools in PATH.
-4. **CLI parsing.** `menu "$@"` processes the flags (`-d`, `-dl`, `-u`, `-r`, `-wd`, `-we`, `-ws`, `-wc`, `-vv`, `-dr`, etc.). `validate_domain` applies a strict regex to each target. With no arguments, `usage` is shown.
+4. **CLI parsing.** `menu "$@"` processes the flags (`-d`, `-dl`, `-u`, `-r`, `-wd`, `-we`, `-ws`, `-wc`, `-vc`, `-dr`, etc.). `validate_domain` applies a strict regex to each target. With no arguments, `usage` is shown.
 5. **Coherence.** `check_execution` validates invalid flag combinations, `check_parameter_conflicts` rejects mutually exclusive ones, `check_directory_permission` ensures `/opt/collector/outputs` is writable.
 6. **Per-target lock.** `collector_acquire_lock "${domain}"` uses `flock` to prevent concurrent runs against the same domain (so the `*_diff.txt` artifacts stay consistent).
 7. **Directory tree.** `create_directory_structure` builds `outputs/<domain>/recon_YYYYMMDD/{log,tmp,report/{scan/{nmap,nuclei,shodan},webapp/{aquatone,enum,javascript,params,tech}}}`. In "reuse" mode (running `-we`/`-ws`/`-wc` without `-r`), it picks the most recent recon_dir that has a `domains_alive.txt`.
 8. **Dry-run exit.** If `-dr` (or `--dry-run`) is passed, the script prints a pre-flight summary (target, IPv4 regex, timeouts, wordlists, port list, proxy, Shodan) and exits 0 without executing recon.
-9. **Mode routing.** `domains_recon` (for `-d`/`-dl`) or `url_recon` (for `-u`) decides which subset of the pipeline to execute based on the flags present. The full happy-path for `-d --recon --webapp-discovery --vhost-validation --webapp-enum --webapp-crawler --webapp-scan` is:
+9. **Mode routing.** `domains_recon` (for `-d`/`-dl`) or `url_recon` (for `-u`) decides which subset of the pipeline to execute based on the flags present. The full happy-path for `-d --recon --webapp-discovery --vhost-check --webapp-enum --webapp-crawler --webapp-scan` is:
    1. `subdomains_recon` — fans out all `sources/` modules in parallel (OSINT APIs + optional DNS bruteforce + amass/subfinder/tlsx);
    2. `joining_subdomains` — `files.sh` consolidates every raw output under `tmp/` into a single deduplicated `domains_found.txt` filtered to the root domain;
    3. `diff_domains` — produces `domains_diff.txt` (delta vs. previous run);
@@ -129,7 +129,7 @@ The container entrypoint is the `collector` script. The flow is, in short:
    5. `infra_data` — collects ASN, IP blocks, IPv4/IPv6 (internal vs. external), attempts a zone transfer;
    6. `nmap_scan` + `shodan_scan` — port scan on the external IP set;
    7. `webapp_alive` — `httpx` against `domains_alive.txt` across the port list (short with `-wsd` or long with `-wld`);
-   8. `vhost_check` + `vhost_probe` **(only when `-vv|--vhost-validation` is passed)** — discover vhosts served by external IPs whose names do not resolve in DNS, classify STRONG/WEAK, write `etc_hosts_file.txt` and inject it into the container's `/etc/hosts` so every downstream tool resolves them transparently. When `vhost_use_ffuf=yes` in `collector.cfg`, `vhost_probe` delegates to `ffuf` for significantly faster wordlist-based discovery;
+   8. `vhost_check` + `vhost_probe` **(only when `-vc|--vhost-check` is passed)** — discover vhosts served by external IPs whose names do not resolve in DNS, classify STRONG/WEAK, write `etc_hosts_file.txt` and inject it into the container's `/etc/hosts` so every downstream tool resolves them transparently. When `vhost_use_ffuf=yes` in `collector.cfg`, `vhost_probe` delegates to `ffuf` for significantly faster wordlist-based discovery;
    9. `build_consolidated_urls` — produces `webapp_consolidated.txt` (every live HTTP(S) URL, DNS + STRONG vhosts);
    10. `webapp_tech` — captures response headers for fingerprinting (in `report/webapp/tech/`);
    11. `emails_recon` — Hunter.io + IntelX (phonebook target=2) + Lampyre + Snov.io + page/JS crawl of the consolidated list;
@@ -253,12 +253,12 @@ Recon + web application discovery using the short port list (defined in `collect
 collector-docker -d example.com --recon --webapp-discovery --webapp-short-detection
 ```
 
-What you get: everything from the previous command plus `webapp_consolidated.txt` (live HTTP(S) URLs) and `webapp/tech/` with fingerprinting headers. This is the typical entry point for any new target. **Note:** vhost discovery (`vhost_subdomains.txt`, `etc_hosts_file.txt`) requires adding `-vv|--vhost-validation`.
+What you get: everything from the previous command plus `webapp_consolidated.txt` (live HTTP(S) URLs) and `webapp/tech/` with fingerprinting headers. This is the typical entry point for any new target. **Note:** vhost discovery (`vhost_subdomains.txt`, `etc_hosts_file.txt`) requires adding `-vc|--vhost-check`.
 
 Recon + web application discovery **with vhost validation**:
 
 ```bash
-collector-docker -d example.com --recon --webapp-discovery --webapp-short-detection --vhost-validation
+collector-docker -d example.com --recon --webapp-discovery --webapp-short-detection --vhost-check
 ```
 
 What you get: everything above plus `vhost_subdomains.txt` (STRONG), `vhost_subdomains_weak.txt`, `etc_hosts_file.txt`. Vhost validation probes every IP in `infra_ipv4.txt` on the configured port list using dual-tool (curl + httpx) cross-validation, and optionally `ffuf` for the wordlist-based probe.
@@ -318,7 +318,7 @@ End-to-end pipeline — recon + web discovery + vhost + enumeration + crawler + 
 ```bash
 collector-docker -d example.com \
   --recon \
-  --webapp-discovery --webapp-short-detection --vhost-validation \
+  --webapp-discovery --webapp-short-detection --vhost-check \
   --webapp-enum --webapp-wordlists /opt/collector/wordlists/common.txt \
   --webapp-crawler \
   --webapp-scan
@@ -341,7 +341,7 @@ When the host port in `APP_PORT` (default `127.0.0.1:8000:8000`) is already boun
 
 ### 5.6. Vhost-specific configuration (collector.cfg)
 
-Vhost discovery has its own tuning section in `collector.cfg`. These variables only matter when `-vv|--vhost-validation` is used:
+Vhost discovery has its own tuning section in `collector.cfg`. These variables only matter when `-vc|--vhost-check` is used:
 
 ```bash
 # vhost - performance tuning

@@ -54,7 +54,7 @@ reset_vars(){
     unset report_only_check
     unset report_stop_check
     unset dry_run_check
-    unset vhost_validation_check
+    unset vhost_check_check
     unset args_count
 }
 
