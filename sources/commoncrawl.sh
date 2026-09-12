@@ -17,7 +17,7 @@ commoncrawl-src(){
     echo "${commoncrawl_db}" >> "${log_execution_file}"
     if [[ ! "${commoncrawl_db}" =~ ^https?://.*commoncrawl\.org/ ]]; then
         echo "commoncrawl: unexpected CDX URL '${commoncrawl_db}', skipping" >> "${log_execution_file}"
-        echo "Done! (skipped)"
+        echo "Skipped!"
         return 0
     fi
     echo "curl ${curl_options_slow[@]} -H \"User-agent: ${user_agent}\" \"${commoncrawl_db}?url=*.${domain}/&output=json\"" >> "${log_execution_file}"
