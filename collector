@@ -98,38 +98,54 @@ cleanup_global(){
     local exit_code=$?
 
     echo ""
-    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Graceful shutdown initiated (exit code: ${exit_code})"
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Graceful shutdown initiated (exit code: ${exit_code})."
 
     if [[ -n "${log_execution_file}" && -f "${log_execution_file}" ]]; then
         sync "${log_execution_file}" 2>/dev/null
-        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Logs flushed"
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Logs flushed."
     fi
 
     pkill -P $$ 2>/dev/null
     wait 2>/dev/null
-    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Subprocesses terminated"
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Subprocesses terminated."
 
     if [[ -n "${collector_lock_fd}" ]]; then
         flock -u "${collector_lock_fd}" 2>/dev/null
         exec {collector_lock_fd}>&-
-        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Lock released"
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Lock released."
     fi
 
     if [[ -n "${tmp_dir}" && -d "${tmp_dir}" ]]; then
         rm -f "${tmp_dir}"/vhost_probe_chunk_* 2>/dev/null
         rm -f "${tmp_dir}"/spider_chunk_* 2>/dev/null
         rm -f "${tmp_dir}"/webapp_urls_*.tmp 2>/dev/null
-        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Temp files cleaned"
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Temp files cleaned."
     fi
 
     if [[ -n "${log_execution_file}" ]]; then
         echo "$(date +"%d/%m/%Y %H:%M") GRACEFUL SHUTDOWN - exit code: ${exit_code}" >> "${log_execution_file}"
     fi
 
+    # Printed LAST, after every shutdown step above, so the run's verdict
+    # (set by message() in functions/message.sh) reads as the final word
+    # instead of appearing before the cleanup sequence.
+    [[ -n "${_collector_final_message:-}" ]] && echo -e "${_collector_final_message}"
+
     exit "${exit_code}"
 }
 
-trap cleanup_global SIGINT SIGTERM EXIT
+# SIGINT/SIGTERM get their own trap (instead of just cleanup_global) so
+# we can print a clean "Execution terminated." line as the FIRST thing on
+# a signal-triggered shutdown — otherwise bash's own job-control notice
+# for a killed child (bare "Terminated"/"Killed", no timestamp, no ">>")
+# is what shows up there instead. Exiting with the conventional 128+signal
+# code (130 for SIGINT, 143 for SIGTERM) also makes cleanup_global's own
+# "exit code: N" line accurate for a signal-triggered shutdown, instead of
+# reporting the exit code of whatever unrelated command last ran before
+# the signal arrived.
+trap 'echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Execution terminated."; exit 130' SIGINT
+trap 'echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Execution terminated."; exit 143' SIGTERM
+trap cleanup_global EXIT
 
 # --report-stop / --report-only short-circuit every step below (target
 # validation, lock acquisition, directory creation, recon). The app-report
