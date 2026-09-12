@@ -39,9 +39,9 @@ if [[ "${rebuild_needed}" == true ]]; then
     echo ""
     echo "==> collector: structural changes detected — rebuilding Docker image..."
     if [[ -x "${REPO_ROOT}/collector-docker" ]]; then
-        "${REPO_ROOT}/collector-docker" image build-only
+        "${REPO_ROOT}/collector-docker" --image build-only
     else
-        echo "    Run: ./collector-docker image build-only"
+        echo "    Run: ./collector-docker --image build-only"
     fi
 else
     echo ""

@@ -2,10 +2,12 @@
 # collector-docker — run AND manage the collector Docker image.
 #
 # This file has two independent halves. Only ONE runs per invocation,
-# decided by whether the first argument is the literal word "image":
+# decided by whether the first argument is -i or --image (every real
+# collector flag starts with '-', so this keeps the two halves consistent
+# with each other and with the rest of the collector CLI):
 #
 #   ┌─ SECTION 1: IMAGE MANAGEMENT ──────────────────────────────────────┐
-#   │ collector-docker image <subcommand> [--no-cache|--force-build|--force] │
+#   │ collector-docker -i|--image <subcommand> [--no-cache|--force-build|--force] │
 #   │                                                                     │
 #   │   update       Pull latest changes, rebuild only if a structural   │
 #   │                 file changed (Dockerfile*, check_binaries.sh)      │
@@ -48,12 +50,12 @@
 #   is immediately available without rebuilding the Docker image. The
 #   image only needs to be rebuilt when binaries/packages change (i.e.
 #   Dockerfile or check_binaries.sh modifications) — that's what
-#   `collector-docker image update` detects automatically.
+#   `collector-docker -i update` detects automatically.
 #
 # Environment variables for overrides:
 #   COLLECTOR_IMAGE       — Docker image (default: collector:latest)
-#   DOCKERFILE            — Dockerfile to use for `image` subcommands (default: Dockerfile)
-#   BUILD_ARGS            — extra `docker build` arguments for `image` subcommands
+#   DOCKERFILE            — Dockerfile to use for `-i|--image` subcommands (default: Dockerfile)
+#   BUILD_ARGS            — extra `docker build` arguments for `-i|--image` subcommands
 #   OUTPUTS_DIR           — outputs directory (default: <root>/outputs)
 #   WORDLISTS_DIR         — wordlists directory (default: <root>/wordlists)
 #   COLLECTOR_CFG         — path to collector.cfg (default: <root>/collector.cfg)
@@ -83,7 +85,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 _image_usage() {
     cat <<EOF
-Usage: collector-docker image <subcommand> [--no-cache] [--force-build] [--force]
+Usage: collector-docker -i|--image <subcommand> [--no-cache] [--force-build] [--force]
 
 Subcommands:
   update       Pull latest changes, rebuild only if structural files changed
@@ -122,7 +124,7 @@ _image_git_pull() {
     before="$(git rev-parse HEAD)"
     git pull --ff-only origin "${current_branch}" || {
         echo "collector-docker: git pull failed (non-fast-forward?)." >&2
-        echo "  resolve manually, then re-run with 'image build-only'" >&2
+        echo "  resolve manually, then re-run with '--image build-only'" >&2
         exit 1
     }
     after="$(git rev-parse HEAD)"
@@ -150,7 +152,7 @@ _image_git_pull() {
 }
 
 # Builds the image. $1 = extra docker-build args prepended to BUILD_ARGS
-# (e.g. "--no-cache --pull" for `image create`).
+# (e.g. "--no-cache --pull" for `--image create`).
 _image_build() {
     local extra="${1:-}"
     echo ""
@@ -180,13 +182,13 @@ _image_rm() {
     # shellcheck disable=SC2086
     if ! docker rmi ${force} "${COLLECTOR_IMAGE}"; then
         echo "collector-docker: failed to remove '${COLLECTOR_IMAGE}'." >&2
-        echo "  a container is likely still using it — stop it first, or retry with 'image rm --force'." >&2
+        echo "  a container is likely still using it — stop it first, or retry with '--image rm --force'." >&2
         exit 1
     fi
     echo "==> Removed: ${COLLECTOR_IMAGE}"
 }
 
-# Dispatches `collector-docker image <subcommand> ...`. Always exits.
+# Dispatches `collector-docker -i|--image <subcommand> ...`. Always exits.
 _image_cmd() {
     local subcmd="${1:-}"
     shift || true
@@ -195,7 +197,7 @@ _image_cmd() {
         ""|-h|--help|help) _image_usage; exit 0 ;;
         update|build-only|pull|create|rm|remove) ;;
         *)
-            echo "collector-docker: unknown image subcommand '${subcmd}'" >&2
+            echo "collector-docker: unknown --image subcommand '${subcmd}'" >&2
             _image_usage >&2
             exit 1
             ;;
@@ -214,7 +216,7 @@ _image_cmd() {
             --force-build) force_build=yes ;;
             --force)       force_rm="-f" ;;
             *)
-                echo "collector-docker: unknown option '${arg}' for 'image ${subcmd}'" >&2
+                echo "collector-docker: unknown option '${arg}' for '--image ${subcmd}'" >&2
                 exit 1
                 ;;
         esac
@@ -242,7 +244,7 @@ _image_cmd() {
         pull)
             _image_git_pull
             echo ""
-            echo "Done. Run 'collector-docker image build-only' if you need to rebuild."
+            echo "Done. Run 'collector-docker --image build-only' if you need to rebuild."
             ;;
         create)
             echo "==> Full clean rebuild (ignoring git, ignoring Docker's build cache)"
@@ -258,21 +260,21 @@ _image_cmd() {
     exit 0
 }
 
-if [[ "${1:-}" == "image" ]]; then
+if [[ "${1:-}" == "-i" || "${1:-}" == "--image" ]]; then
     shift
     _image_cmd "$@"
 fi
 
 # Validate BEFORE doing any work (image checks, volume setup, docker run):
-# every real collector flag starts with '-' (see functions/menu.sh), so a
-# bare word here is never valid — it's either a typo of "image" (e.g.
-# "imagem create") or a plain mistake. Catch it now with a precise error
-# instead of falling through to checks (like "is the image built?") that
-# would report a misleading cause. An empty $1 is fine (falls through to
-# collector's own no-args usage screen).
+# every real collector flag starts with '-' (see functions/menu.sh), and
+# image management is now -i|--image too, so a bare word here is never
+# valid — it's either a typo (e.g. "imagem create") or a plain mistake.
+# Catch it now with a precise error instead of falling through to checks
+# (like "is the image built?") that would report a misleading cause. An
+# empty $1 is fine (falls through to collector's own no-args usage screen).
 if [[ -n "${1:-}" && "${1:0:1}" != "-" ]]; then
     echo "collector-docker: unknown command '$1'." >&2
-    echo "  did you mean 'image'? Subcommands: image <update|build-only|pull|create|rm|remove>" >&2
+    echo "  did you mean '-i'/'--image'? Subcommands: --image <update|build-only|pull|create|rm|remove>" >&2
     echo "  every collector flag starts with '-' — see 'collector-docker --help' (once the image is built)" >&2
     exit 1
 fi
@@ -339,7 +341,7 @@ fi
 # message + usage — no need to duplicate that logic here.
 if ! docker image inspect "${COLLECTOR_IMAGE}" >/dev/null 2>&1; then
     echo "collector-docker: image '${COLLECTOR_IMAGE}' not found locally." >&2
-    echo "  build it first: ./collector-docker image create   (or 'image build-only')" >&2
+    echo "  build it first: ./collector-docker --image create   (or '--image build-only')" >&2
     exit 1
 fi
 
