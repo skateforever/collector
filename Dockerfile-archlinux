@@ -98,7 +98,13 @@ RUN chmod +x collector collector-docker && chmod +x functions/*.sh && chmod +x s
 # to /opt/collector/outputs. The -o/--output CLI flag was removed; to
 # control where results land on the host, change the -v mount in
 # collector-docker / docker run -v <host_path>:/opt/collector/outputs.
-RUN sed -i 's|^output_dir=.*|output_dir="/opt/collector/outputs"|' collector.cfg
+RUN sed -i 's|^output_dir=.*|output_dir="/opt/collector/outputs"|' conf.d/operation.conf
+
+# apis-recon.conf / apis-emails.conf are gitignored and excluded via
+# .dockerignore, so only the *.conf.example templates (blank keys) ever
+# land in the image — collector's loader falls back to them automatically.
+# Real keys are supplied at runtime by bind-mounting conf.d/ from the host
+# (see collector-docker / docker-compose.yml).
 
 # Alert provider configs are in support/templates/alerts/ and are baked
 # into the image. No pre-creation needed — they're part of the COPY . .
@@ -108,8 +114,8 @@ RUN sed -i 's|^output_dir=.*|output_dir="/opt/collector/outputs"|' collector.cfg
 EXPOSE 8000
 
 # Volumes: outputs persists recon results across runs; wordlists holds the
-# dirsearch/gobuster wordlists mounted from the host; cfg allows overriding
-# collector.cfg (API keys, notify config, etc.) at runtime without rebuilding.
+# dirsearch/gobuster wordlists mounted from the host; conf.d/ allows
+# overriding operation/functions/API-key config at runtime without rebuilding.
 VOLUME ["/opt/collector/outputs", "/opt/collector/wordlists"]
 
 # collector is the only entry point — parameters are passed directly:

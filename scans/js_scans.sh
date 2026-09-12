@@ -5,8 +5,8 @@
 #                                                           #
 # Both functions consume files downloaded by the crawler    #
 # (crawler_js), grep them against a pattern set from        #
-# collector.cfg, and emit tagged findings in the standard   #
-# format:                                                   #
+# conf.d/operation.conf, and emit tagged findings in the    #
+# standard format:                                          #
 #                                                           #
 #     <label|category>:<file>:<line>:<match>                #
 #                                                           #

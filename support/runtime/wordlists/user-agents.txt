@@ -13,7 +13,7 @@
 #     weighted toward what real human traffic actually looks like.
 #
 # To customise: edit this file, or point collector_user_agents in
-# collector.cfg at a different path.
+# conf.d/operation.conf at a different path.
 
 # ============================================================
 # Chrome — Windows desktop

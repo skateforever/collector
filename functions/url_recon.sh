@@ -37,7 +37,7 @@ url_recon(){
     # Reachability check via dig (report C-09): the previous regex was broken —
     # '^^' double caret made the IPv4 branch unreachable, and the fragment
     # pattern matched incomplete addresses like '1.2.3'. Use the shared
-    # IPv4_regex/IPv6_regex from collector.cfg and consider the target
+    # IPv4_regex/IPv6_regex from conf.d/functions.conf and consider the target
     # reachable if either record resolves.
     local url_ipv4 url_ipv6 file
     url_ipv4="$(dig_safe A    "${url_domain}" | grep -Eo "${IPv4_regex}" | head -1)"

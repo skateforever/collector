@@ -13,15 +13,48 @@ collector_path=$(dirname "$0")
 banner
 reset_vars
 
-if [ -s "${collector_path}/collector.cfg" ]; then
-    source "${collector_path}/collector.cfg"
-else
-    banner
-    echo -e "Please ${red}make sure${reset} you have the ${yellow}collector.cfg${reset} file."
-    echo -e "${yellow}You need this to set the tools parameters${reset}!"
-    echo -e "You will set aquatone, gobuster, dirsearch threads and others.\n"
-    exit 1
-fi
+# Configuration lives in conf.d/, split by concern:
+#   operation.conf      — runtime plumbing (colors, paths, DB, app-report)
+#   functions.conf      — per-tool parameters (timeouts, threads, CLI options)
+#   apis-recon.conf     — subdomain-discovery API keys (real, gitignored)
+#   apis-emails.conf    — email-recon API keys (real, gitignored)
+# operation.conf/functions.conf are required — collector can't run without
+# them. apis-recon.conf/apis-emails.conf carry live credentials and are
+# gitignored, so a fresh checkout only has the *.conf.example templates
+# (blank keys); collector falls back to those so recon still runs without
+# any OSINT API configured, just without their enrichment.
+#
+# operation.conf must load first: it defines ${red}/${yellow}/${reset},
+# used by every error message below (including for the other 3 files).
+for _cfg_area in operation functions; do
+    _cfg_file="${collector_path}/conf.d/${_cfg_area}.conf"
+    if [ -s "${_cfg_file}" ]; then
+        source "${_cfg_file}"
+    else
+        banner
+        echo -e "Please ${red}make sure${reset} you have the ${yellow}${_cfg_file}${reset} file."
+        echo -e "${yellow}You need this to set the tools parameters${reset}!"
+        echo -e "You will set aquatone, gobuster, dirsearch threads and others.\n"
+        exit 1
+    fi
+done
+
+for _cfg_area in apis-recon apis-emails; do
+    _cfg_file="${collector_path}/conf.d/${_cfg_area}.conf"
+    _cfg_example="${_cfg_file}.example"
+    if [ -s "${_cfg_file}" ]; then
+        source "${_cfg_file}"
+    elif [ -s "${_cfg_example}" ]; then
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${_cfg_file} not found — using blank defaults from ${_cfg_example}."
+        echo -e "    Copy it to ${_cfg_file} and fill in your API keys to enable those OSINT sources."
+        source "${_cfg_example}"
+    else
+        banner
+        echo -e "Please ${red}make sure${reset} you have the ${yellow}${_cfg_file}${reset} (or ${_cfg_file}.example) file."
+        exit 1
+    fi
+done
+unset _cfg_area _cfg_file _cfg_example
 
 # Checking if the essencial functions there are
 for file in check_binaries.sh usage.sh message.sh menu.sh check_structure.sh \

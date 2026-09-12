@@ -15,7 +15,7 @@ When you run `collector-docker`, the wrapper script detects:
 ```bash
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-if [[ -f "${SCRIPT_DIR}/collector.cfg" ]]; then
+if [[ -d "${SCRIPT_DIR}/conf.d" ]]; then
     DEFAULT_ROOT="${SCRIPT_DIR}"  # ← Using repo checkout directly
 else
     DEFAULT_ROOT="/opt/collector"  # ← Using installed layout
@@ -34,6 +34,7 @@ fi
 For **every execution**, these volumes are mounted READ-ONLY from the host:
 
 ```bash
+-v "${CONF_D_DIR}:/opt/collector/conf.d:ro"
 -v "${DEFAULT_ROOT}/collector:/opt/collector/collector:ro"
 -v "${DEFAULT_ROOT}/functions:/opt/collector/functions:ro"
 -v "${DEFAULT_ROOT}/scans:/opt/collector/scans:ro"
@@ -56,7 +57,7 @@ HOST                                      CONTAINER
 ├── sources/                           → sources/ (live from host)
 ├── support/runtime/                   → support/runtime/ (live from host)
 ├── support/templates/alerts-notify/          → support/templates/alerts-notify/ (live from host)
-├── collector.cfg                      → collector.cfg (live from host)
+├── conf.d/                            → conf.d/ (live from host)
 ├── outputs/ (rw)                      → outputs/ (writable for results)
 └── wordlists/ (rw)                    → wordlists/ (writable for data)
 ```
@@ -89,7 +90,7 @@ $ # Edit with webhook URLs
 $ vim slack-provider.yaml
 
 # Update config
-$ sed -i 's/discord-provider/slack-provider/' collector.cfg
+$ sed -i 's/discord-provider/slack-provider/' conf.d/functions.conf
 
 # Still Same Container Image!
 $ collector-docker -d example.com --recon
@@ -154,7 +155,7 @@ $ OUTPUTS_DIR=/data/outputs \
 - ✅ `scans/*.sh` — Changes available immediately next execution
 - ✅ `sources/*.sh` — Changes available immediately next execution
 - ✅ `collector` — Main script, live from host
-- ✅ `collector.cfg` — Read at startup, changes affect next execution
+- ✅ `conf.d/*.conf` — Read at startup, changes affect next execution
 - ✅ `support/templates/alerts-notify/*` — Live from host
 - ✅ `support/runtime/*` — Live from host
 
@@ -207,7 +208,7 @@ sudo install -m 0755 collector-docker /usr/local/bin/collector-docker
 
 # 2. Setup directories
 sudo mkdir -p /opt/collector/{outputs,wordlists}
-sudo cp collector.cfg /opt/collector/collector.cfg
+sudo cp -r conf.d /opt/collector/conf.d
 
 # 3. Update code from git
 cd /opt/collector && git pull
@@ -277,7 +278,7 @@ cd /opt/collector && git pull
 | Component | Source | Frequency | Rebuild Required |
 |-----------|--------|-----------|------------------|
 | Code (functions/, scans/, etc) | Host volumes | Every execution | ❌ No |
-| Configuration (collector.cfg) | Host volumes | Every execution | ❌ No |
+| Configuration (conf.d/) | Host volumes | Every execution | ❌ No |
 | Binaries (Go tools) | Image layer | At container startup | ✅ Yes (Dockerfile change) |
 | System packages | Image layer | At container startup | ✅ Yes (Dockerfile change) |
 | Alert templates | Host volumes | Every execution | ❌ No |

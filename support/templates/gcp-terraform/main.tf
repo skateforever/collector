@@ -18,12 +18,13 @@
 #   * Dashboard Flask (porta 8000) tambem so via IAP TCP forwarding:
 #       gcloud compute start-iap-tunnel collector 8000 \
 #           --local-host-port=localhost:8000 --zone <zone>
-#     ou ative `cloudflare_tunnel="yes"` em collector.cfg para uma URL
+#     ou ative `cloudflare_tunnel="yes"` em conf.d/operation.conf para uma URL
 #     ephemera *.trycloudflare.com.
 #
-# collector.cfg e notify-provider.yaml (que carregam chaves/API keys) sao
-# injetados via metadata da instancia (sensitive = true), nao via disco
-# do Terraform e nao aparecem em texto-claro no plan/state textual.
+# conf.d/apis-recon.conf, conf.d/apis-emails.conf e notify-provider.yaml
+# (que carregam chaves/API keys) sao injetados via metadata da instancia
+# (sensitive = true), nao via disco do Terraform e nao aparecem em
+# texto-claro no plan/state textual.
 #
 # Pre-requisitos (no host onde voce roda terraform):
 #   * conta GCP com billing ativo
@@ -42,13 +43,14 @@
 #   terraform init
 #   terraform apply
 #
-# Para passar o collector.cfg do repo (com suas API keys de Shodan, Hunter,
-# IntelX, etc.) e o notify-provider.yaml (webhooks Discord/Slack/Telegram):
+# Para passar suas API keys (Shodan, Hunter, IntelX, etc.) e o
+# notify-provider.yaml (webhooks Discord/Slack/Telegram):
 #
-#   project_id          = "meu-projeto-gcp"
-#   target_domain       = "example.com"
-#   collector_cfg_path  = "../../../collector.cfg"
-#   notify_config_path  = "../../../notify-provider.yaml"
+#   project_id            = "meu-projeto-gcp"
+#   target_domain         = "example.com"
+#   apis_recon_conf_path  = "../../../conf.d/apis-recon.conf"
+#   apis_emails_conf_path = "../../../conf.d/apis-emails.conf"
+#   notify_config_path    = "../../../notify-provider.yaml"
 #
 # AVISO: collector gera trafego ofensivo (subdominio brute, nuclei, dirbust).
 # Use SOMENTE contra alvos com autorizacao explicita. O endereco externo da
@@ -153,8 +155,14 @@ variable "on_calendar" {
   default     = "*-*-* 03:00:00"
 }
 
-variable "collector_cfg_path" {
-  description = "Caminho LOCAL (no host onde voce roda terraform) do collector.cfg a ser embarcado na VM via metadata. Vazio = usar o collector.cfg que vem do proprio repo (sem API keys)."
+variable "apis_recon_conf_path" {
+  description = "Caminho LOCAL (no host onde voce roda terraform) do conf.d/apis-recon.conf a ser embarcado na VM via metadata. Vazio = usar o conf.d/apis-recon.conf.example que vem do proprio repo (sem API keys)."
+  type        = string
+  default     = ""
+}
+
+variable "apis_emails_conf_path" {
+  description = "Caminho LOCAL do conf.d/apis-emails.conf a ser embarcado na VM via metadata. Vazio = usar o conf.d/apis-emails.conf.example que vem do proprio repo (sem API keys)."
   type        = string
   default     = ""
 }
@@ -318,11 +326,13 @@ resource "google_compute_disk" "outputs" {
 # Roda apos o primeiro boot. Idempotente: pode ser reexecutado.
 
 locals {
-  has_collector_cfg = var.collector_cfg_path != ""
-  has_notify_cfg    = var.notify_config_path != ""
+  has_apis_recon_conf  = var.apis_recon_conf_path != ""
+  has_apis_emails_conf = var.apis_emails_conf_path != ""
+  has_notify_cfg       = var.notify_config_path != ""
 
-  collector_cfg_b64 = local.has_collector_cfg ? filebase64(var.collector_cfg_path) : ""
-  notify_cfg_b64    = local.has_notify_cfg ? filebase64(var.notify_config_path) : ""
+  apis_recon_conf_b64  = local.has_apis_recon_conf ? filebase64(var.apis_recon_conf_path) : ""
+  apis_emails_conf_b64 = local.has_apis_emails_conf ? filebase64(var.apis_emails_conf_path) : ""
+  notify_cfg_b64       = local.has_notify_cfg ? filebase64(var.notify_config_path) : ""
 
   startup_script = <<-EOT
     #!/usr/bin/env bash
@@ -394,14 +404,25 @@ locals {
 
     mkdir -p /opt/collector/wordlists
 
-    # ---- 4. collector.cfg (opcional, via metadata) ------------------------
+    # ---- 4. conf.d/apis-recon.conf + apis-emails.conf (opcional, via metadata)
+    # operation.conf e functions.conf ja vem do git clone (sem segredo).
+    # apis-recon.conf/apis-emails.conf sao gitignored; sem metadata, o
+    # collector cai de volta nos *.conf.example (chaves em branco).
     META="http://metadata.google.internal/computeMetadata/v1/instance/attributes"
-    if curl -sf -H "Metadata-Flavor: Google" "$META/collector-cfg-b64" -o /tmp/collector-cfg.b64; then
-      base64 -d /tmp/collector-cfg.b64 > /opt/collector/collector.cfg
-      chmod 0640 /opt/collector/collector.cfg
-      chown root:docker /opt/collector/collector.cfg
-      rm -f /tmp/collector-cfg.b64
-      echo "[collector-startup] collector.cfg sobrescrito via metadata"
+    mkdir -p /opt/collector/conf.d
+    if curl -sf -H "Metadata-Flavor: Google" "$META/apis-recon-conf-b64" -o /tmp/apis-recon.b64; then
+      base64 -d /tmp/apis-recon.b64 > /opt/collector/conf.d/apis-recon.conf
+      chmod 0640 /opt/collector/conf.d/apis-recon.conf
+      chown root:docker /opt/collector/conf.d/apis-recon.conf
+      rm -f /tmp/apis-recon.b64
+      echo "[collector-startup] conf.d/apis-recon.conf sobrescrito via metadata"
+    fi
+    if curl -sf -H "Metadata-Flavor: Google" "$META/apis-emails-conf-b64" -o /tmp/apis-emails.b64; then
+      base64 -d /tmp/apis-emails.b64 > /opt/collector/conf.d/apis-emails.conf
+      chmod 0640 /opt/collector/conf.d/apis-emails.conf
+      chown root:docker /opt/collector/conf.d/apis-emails.conf
+      rm -f /tmp/apis-emails.b64
+      echo "[collector-startup] conf.d/apis-emails.conf sobrescrito via metadata"
     fi
 
     # ---- 5. notify-provider.yaml (opcional, via metadata) -----------------
@@ -445,7 +466,7 @@ locals {
         --name collector-%i \\
         -v /opt/collector/outputs:/opt/collector/outputs \\
         -v /opt/collector/wordlists:/opt/collector/wordlists \\
-        -v /opt/collector/collector.cfg:/opt/collector/collector.cfg:ro \\
+        -v /opt/collector/conf.d:/opt/collector/conf.d:ro \\
         $NOTIFY_MOUNT \\
         collector:latest \\
         -d %i --recon --webapp-discovery
@@ -558,12 +579,14 @@ resource "google_compute_instance" "collector" {
       enable-oslogin         = "TRUE"
       startup-script         = local.startup_script
     },
-    local.has_collector_cfg ? { collector-cfg-b64 = local.collector_cfg_b64 } : {},
+    local.has_apis_recon_conf ? { apis-recon-conf-b64 = local.apis_recon_conf_b64 } : {},
+    local.has_apis_emails_conf ? { apis-emails-conf-b64 = local.apis_emails_conf_b64 } : {},
     local.has_notify_cfg ? { notify-config-b64 = local.notify_cfg_b64 } : {},
   )
 
   # Conteudo de metadata e considerado sensivel quando carrega
-  # collector.cfg/notify-provider.yaml (API keys, webhooks).
+  # conf.d/apis-recon.conf, conf.d/apis-emails.conf ou notify-provider.yaml
+  # (API keys, webhooks).
   metadata_startup_script = null
 
   allow_stopping_for_update = true

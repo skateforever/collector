@@ -7,8 +7,8 @@
 # ${report_dir}/llm-prompt.txt so the operator can paste    #
 # (or upload) a single self-contained file to an LLM for    #
 # triage/analysis. Sensitive fields (API keys configured    #
-# in collector.cfg) are redacted via redact_secrets, which  #
-# lives in utils.sh.                                        #
+# in conf.d/apis-*.conf) are redacted via redact_secrets,   #
+# which lives in utils.sh.                                  #
 #                                                           #
 # Exposes:                                                  #
 #   * llm_emit_artifact   (per-file section writer)         #

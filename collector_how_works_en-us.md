@@ -35,7 +35,13 @@ collector/
 ├── collector                           main Bash script (container entrypoint)
 ├── collector-docker                    host wrapper: injects -v / -p and calls docker run,
 │                                        plus `-i|--image` subcommands (update/pull/build-only/create/rm)
-├── collector.cfg                       config: timeouts, threads, port lists, API keys
+├── conf.d/                             config, split by concern:
+│   ├── operation.conf                  runtime plumbing (colors, paths, DB, app-report)
+│   ├── functions.conf                  per-tool parameters (timeouts, threads, port lists)
+│   ├── apis-recon.conf.example         subdomain-discovery API keys (template, tracked)
+│   ├── apis-recon.conf                 same, with real keys (gitignored)
+│   ├── apis-emails.conf.example        email-recon API keys (template, tracked)
+│   └── apis-emails.conf                same, with real keys (gitignored)
 │
 ├── functions/                          Bash modules loaded by collector
 │   ├── utils.sh                        banner, reset_vars, redact_secrets
@@ -113,7 +119,7 @@ collector/
 
 The container entrypoint is the `collector` script. The flow is, in short:
 
-1. **Bootstrap.** `collector` loads `functions/utils.sh` (banner, helpers, global-variable reset) and then `source`s `collector.cfg` to inherit timeouts, threads, short/long port lists and API keys.
+1. **Bootstrap.** `collector` loads `functions/utils.sh` (banner, helpers, global-variable reset) and then `source`s `conf.d/operation.conf` and `conf.d/functions.conf` (required) followed by `conf.d/apis-recon.conf` and `conf.d/apis-emails.conf` — falling back to their `.example` templates if the real, gitignored files don't exist — to inherit timeouts, threads, short/long port lists and API keys.
 2. **Module loading.** Every essential file under `functions/` (`menu.sh`, `usage.sh`, `check_*`, `domains_*`, `url_recon.sh`, `webapp_*`, `emails_recon.sh`, `git.sh`, `diff.sh`, `files.sh`, `infra.sh`, plus the app-report/dashboard modules `cloudflare_tunnel.sh`, `app_report.sh`, `db_usage.sh`, `llm_prompt.sh`) and `scans/` (`acunetix.sh`, `nmap.sh`, `nuclei.sh`, `shodan.sh`, `js_scans.sh`) is sourced in sequence.
 3. **Validation.** `check_container` confirms execution is happening inside Docker (the script aborts otherwise); `check_binaries` validates the presence of the required tools in PATH.
 4. **CLI parsing.** `menu "$@"` processes the flags (`-d`, `-dl`, `-u`, `-r`, `-wd`, `-we`, `-ws`, `-wc`, `-vc`, `-dr`, etc.). `validate_domain` applies a strict regex to each target. With no arguments, `usage` is shown.
@@ -129,7 +135,7 @@ The container entrypoint is the `collector` script. The flow is, in short:
    5. `infra_data` — collects ASN, IP blocks, IPv4/IPv6 (internal vs. external), attempts a zone transfer;
    6. `nmap_scan` + `shodan_scan` — port scan on the external IP set;
    7. `webapp_alive` — `httpx` against `domains_alive.txt` across the port list (short with `-wsd` or long with `-wld`);
-   8. `vhost_check` + `vhost_probe` **(only when `-vc|--vhost-check` is passed)** — discover vhosts served by external IPs whose names do not resolve in DNS, classify STRONG/WEAK, write `etc_hosts_file.txt` and inject it into the container's `/etc/hosts` so every downstream tool resolves them transparently. When `vhost_use_ffuf=yes` in `collector.cfg`, `vhost_probe` delegates to `ffuf` for significantly faster wordlist-based discovery;
+   8. `vhost_check` + `vhost_probe` **(only when `-vc|--vhost-check` is passed)** — discover vhosts served by external IPs whose names do not resolve in DNS, classify STRONG/WEAK, write `etc_hosts_file.txt` and inject it into the container's `/etc/hosts` so every downstream tool resolves them transparently. When `vhost_use_ffuf=yes` in `conf.d/functions.conf`, `vhost_probe` delegates to `ffuf` for significantly faster wordlist-based discovery;
    9. `build_consolidated_urls` — produces `webapp_consolidated.txt` (every live HTTP(S) URL, DNS + STRONG vhosts);
    10. `webapp_tech` — captures response headers for fingerprinting (in `report/webapp/tech/`);
    11. `emails_recon` — Hunter.io + IntelX (phonebook target=2) + Lampyre + Snov.io + page/JS crawl of the consolidated list;
@@ -238,7 +244,7 @@ collector-docker -d example.com --recon --webapp-discovery --webapp-short-detect
 
 This executes every pre-flight check (CLI parsing, domain validation, directory creation, lock acquisition) and prints a summary of resolved parameters. It exits 0 on success without generating any traffic.
 
-The examples below use the `collector-docker` wrapper, which automatically injects the volumes (`outputs`, `wordlists`, `collector.cfg`) and `-p 127.0.0.1:8000:8000`. The same commands work directly with `docker run --rm -v … collector:latest <flags>` or `docker compose run --rm collector <flags>`.
+The examples below use the `collector-docker` wrapper, which automatically injects the volumes (`outputs`, `wordlists`, `conf.d/`) and `-p 127.0.0.1:8000:8000`. The same commands work directly with `docker run --rm -v … collector:latest <flags>` or `docker compose run --rm collector <flags>`.
 
 ### 5.2. Basic reconnaissance commands
 
@@ -250,7 +256,7 @@ collector-docker -d example.com --recon
 
 What you get: `domains_found.txt`, `domains_alive.txt`, `domains_without_resolution.txt`, `infra_*.txt`, `scan/nmap/nmap_scan.txt`, `scan/shodan/shodan_scan.txt`, `email_recon.txt`. A good first step to map the perimeter without generating noisy HTTP traffic.
 
-Recon + web application discovery using the short port list (defined in `collector.cfg` as `web_port_short_detection`):
+Recon + web application discovery using the short port list (defined in `conf.d/functions.conf` as `web_port_short_detection`):
 
 ```bash
 collector-docker -d example.com --recon --webapp-discovery --webapp-short-detection
@@ -342,9 +348,9 @@ collector-docker --report-stop        # stop from another shell
 
 When the host port in `APP_PORT` (default `127.0.0.1:8000:8000`) is already bound — for instance because a previous recon left a background dashboard running, or a sibling container is publishing to it — `collector-docker` silently drops the `-p` flag from `docker run` rather than aborting with "port already allocated". The recon still completes, and the running dashboard already renders the new run's data because `outputs/` is shared.
 
-### 5.6. Vhost-specific configuration (collector.cfg)
+### 5.6. Vhost-specific configuration (conf.d/functions.conf)
 
-Vhost discovery has its own tuning section in `collector.cfg`. These variables only matter when `-vc|--vhost-check` is used:
+Vhost discovery has its own tuning section in `conf.d/functions.conf`. These variables only matter when `-vc|--vhost-check` is used:
 
 ```bash
 # vhost - performance tuning
@@ -367,6 +373,6 @@ Key behaviors controlled by these variables:
 
 ## 6. Further details
 
-For the full reference of every flag, the wrapper's environment variables (`COLLECTOR_IMAGE`, `OUTPUTS_DIR`, `WORDLISTS_DIR`, `COLLECTOR_CFG`, `APP_PORT`, `NOTIFY_CONFIG`), the `collector.cfg` parameters (timeouts, threads, port lists, API keys, Cloudflare quick-tunnel options), the cron/systemd templates, the `projectdiscovery/notify` integration, the SQLite schema and ready-made queries, **see the `README.md` in the collector repository**.
+For the full reference of every flag, the wrapper's environment variables (`COLLECTOR_IMAGE`, `OUTPUTS_DIR`, `WORDLISTS_DIR`, `CONF_D_DIR`, `APP_PORT`, `NOTIFY_CONFIG`), the `conf.d/*.conf` parameters (timeouts, threads, port lists, API keys, Cloudflare quick-tunnel options), the cron/systemd templates, the `projectdiscovery/notify` integration, the SQLite schema and ready-made queries, **see the `README.md` in the collector repository**.
 
 > **Warning:** collector generates a significant amount of traffic. Use only against targets you have explicit authorization to test.

@@ -73,7 +73,7 @@ services:
       - ./slack-provider.yaml:/opt/collector/support/templates/alerts/slack-provider.yaml
 ```
 
-### Step 5: Update collector.cfg
+### Step 5: Update conf.d/functions.conf
 
 If you have custom references to notify paths:
 
@@ -132,7 +132,7 @@ Check if your docker-compose or collector-docker command still references old pa
 ```bash
 # Search for old references
 grep -r "notify-provider" docker-compose.yml
-grep "notify_config" collector.cfg
+grep "notify_config" conf.d/functions.conf
 ```
 
 Update to use new paths:

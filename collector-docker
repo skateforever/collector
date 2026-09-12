@@ -34,7 +34,7 @@
 #   └────────────────────────────────────────────────────────────────────┘
 #
 # Default path resolution (hybrid, SECTION 2 only):
-#   1. If the script is running from a repo checkout (i.e. collector.cfg
+#   1. If the script is running from a repo checkout (i.e. conf.d/
 #      lives next to the script itself), the defaults point at that
 #      checkout — you can run it straight after 'git clone' with no sudo
 #      and no need to copy anything into /opt/.
@@ -58,9 +58,13 @@
 #   BUILD_ARGS            — extra `docker build` arguments for `-i|--image` subcommands
 #   OUTPUTS_DIR           — outputs directory (default: <root>/outputs)
 #   WORDLISTS_DIR         — wordlists directory (default: <root>/wordlists)
-#   COLLECTOR_CFG         — path to collector.cfg (default: <root>/collector.cfg)
+#   CONF_D_DIR            — path to the conf.d/ directory (default: <root>/conf.d),
+#                           mounted whole so operation.conf, functions.conf,
+#                           and whichever of apis-recon.conf/apis-emails.conf
+#                           you've created from their *.conf.example templates
+#                           are all visible inside the container in one mount.
 #   ALERT_PROVIDER_TYPE   — alert provider type: discord, slack, teams, telegram, signal
-#                           (default: discord; read from collector.cfg if available)
+#                           (default: discord; read from conf.d/functions.conf if available)
 #   ALERT_PROVIDER_FILE   — path to alert provider config file
 #                           (default: <root>/{type}-provider.yaml — optional;
 #                           if missing, uses template baked into image)
@@ -68,13 +72,13 @@
 #
 # Configuration precedence (alert provider type):
 #   1. ALERT_PROVIDER_TYPE environment variable (if set)
-#   2. collector.cfg notify_config value (if available)
+#   2. conf.d/functions.conf notify_config value (if available)
 #   3. Default: discord
 #
 # Installation:
 #   sudo install -m 0755 collector-docker /usr/local/bin/collector-docker
 #   sudo mkdir -p /opt/collector/{outputs,wordlists}
-#   sudo cp collector.cfg /opt/collector/collector.cfg
+#   sudo cp -r conf.d /opt/collector/conf.d
 
 # Real directory of this script (resolves symlinks and relative paths).
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -283,9 +287,9 @@ fi
 # SECTION 2 — CONTAINER RUN  (original collector-docker behavior, unchanged)
 # ==============================================================================
 
-# Pick the default root: repo checkout if collector.cfg sits next to the
+# Pick the default root: repo checkout if conf.d/ sits next to the
 # script, otherwise /opt/collector (installed layout).
-if [[ -f "${SCRIPT_DIR}/collector.cfg" ]]; then
+if [[ -d "${SCRIPT_DIR}/conf.d" ]]; then
     DEFAULT_ROOT="${SCRIPT_DIR}"
 else
     DEFAULT_ROOT="/opt/collector"
@@ -294,18 +298,19 @@ fi
 COLLECTOR_IMAGE="${COLLECTOR_IMAGE:-collector:latest}"
 OUTPUTS_DIR="${OUTPUTS_DIR:-${DEFAULT_ROOT}/outputs}"
 WORDLISTS_DIR="${WORDLISTS_DIR:-${DEFAULT_ROOT}/wordlists}"
-COLLECTOR_CFG="${COLLECTOR_CFG:-${DEFAULT_ROOT}/collector.cfg}"
+CONF_D_DIR="${CONF_D_DIR:-${DEFAULT_ROOT}/conf.d}"
 APP_PORT="${APP_PORT:-127.0.0.1:8000:8000}"
 
 # Determine alert provider type
-# Priority: env var > collector.cfg > default
+# Priority: env var > conf.d/functions.conf > default
 get_alert_provider_type() {
+    local functions_conf="${CONF_D_DIR}/functions.conf"
     if [[ -n "${ALERT_PROVIDER_TYPE}" ]]; then
         echo "${ALERT_PROVIDER_TYPE}"
-    elif [[ -f "${COLLECTOR_CFG}" ]]; then
-        # Extract provider type from notify_config path in collector.cfg
+    elif [[ -f "${functions_conf}" ]]; then
+        # Extract provider type from notify_config path in functions.conf
         # e.g., /opt/collector/support/templates/alerts-notify/discord-provider.yaml → discord
-        grep "^notify_config=" "${COLLECTOR_CFG}" | \
+        grep "^notify_config=" "${functions_conf}" | \
             sed -E 's|.*alerts/([a-z]+)-provider\.ya?ml.*|\1|' | \
             head -1
     fi
@@ -321,15 +326,23 @@ ALERT_PROVIDER_FILE="${ALERT_PROVIDER_FILE:-${DEFAULT_ROOT}/${ALERT_PROVIDER_TYP
 # the outputs produced inside the container).
 mkdir -p "${OUTPUTS_DIR}" "${WORDLISTS_DIR}" 2>/dev/null || true
 
-# Sanity check: if COLLECTOR_CFG does not exist (or is a directory), abort
-# with a clear message — otherwise Docker would create an empty directory
-# on the host and try to mount it on top of the /opt/collector/collector.cfg
-# file inside the container, failing with "not a directory".
-if [[ ! -f "${COLLECTOR_CFG}" ]]; then
-    echo "collector-docker: COLLECTOR_CFG not found: ${COLLECTOR_CFG}" >&2
-    echo "  copy collector.cfg to that path, or set COLLECTOR_CFG=<path> in the environment." >&2
+# Sanity check: if CONF_D_DIR (or its two required files) doesn't exist,
+# abort with a clear message — otherwise Docker would create an empty
+# directory on the host and try to mount it over /opt/collector/conf.d
+# inside the container, and collector's own required-file check inside
+# the container would then report a much less useful error.
+if [[ ! -d "${CONF_D_DIR}" ]]; then
+    echo "collector-docker: CONF_D_DIR not found: ${CONF_D_DIR}" >&2
+    echo "  copy conf.d/ to that path, or set CONF_D_DIR=<path> in the environment." >&2
     exit 1
 fi
+for _required_conf in operation functions; do
+    if [[ ! -s "${CONF_D_DIR}/${_required_conf}.conf" ]]; then
+        echo "collector-docker: ${CONF_D_DIR}/${_required_conf}.conf not found." >&2
+        exit 1
+    fi
+done
+unset _required_conf
 
 # Sanity check: fail fast and clearly if the image isn't built yet, instead
 # of letting `docker run` try (and fail) to pull "collector" from Docker
@@ -458,7 +471,7 @@ exec docker run --rm "${name_args[@]}" \
     -e "TERM=${TERM:-dumb}" \
     -v "${OUTPUTS_DIR}:/opt/collector/outputs" \
     -v "${WORDLISTS_DIR}:/opt/collector/wordlists" \
-    -v "${COLLECTOR_CFG}:/opt/collector/collector.cfg:ro" \
+    -v "${CONF_D_DIR}:/opt/collector/conf.d:ro" \
     "${script_mount_args[@]}" \
     "${alert_mount_args[@]}" \
     "${port_args[@]}" \

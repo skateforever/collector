@@ -14,7 +14,7 @@ shodan_scan(){
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing shodan scan on target's IPs... "
         local shodan_scans
         shodan_scans=$(shodan info | grep "Scan.*:" | awk '{print $4}')
-        # collector.cfg defines `shodan_just_scan_main_domain`; the previous
+        # conf.d/apis-recon.conf defines `shodan_just_scan_main_domain`; the previous
         # check on `shodan_scan_main_domain` was always false, so this branch
         # never executed (report B-09).
         if [ "${shodan_just_scan_main_domain}" == "yes" ] && [ "${shodan_scans}" -gt 1 ]; then

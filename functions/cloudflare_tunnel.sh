@@ -2,11 +2,11 @@
 #############################################################
 #                                                           #
 # Cloudflare quick-tunnel for the app-report dashboard.     #
-# Opt-in via cloudflare_tunnel="yes" in collector.cfg; only #
-# meaningful when app-report is up (background mode). The   #
-# tunnel gives the local gunicorn an ephemeral              #
-# https://*.trycloudflare.com URL so the dashboard is       #
-# reachable without exposing the VPS IP/port directly.      #
+# Opt-in via cloudflare_tunnel="yes" in conf.d/operation.conf, #
+# only meaningful when app-report is up (background mode).  #
+# The tunnel gives the local gunicorn an ephemeral           #
+# https://*.trycloudflare.com URL so the dashboard is        #
+# reachable without exposing the VPS IP/port directly.       #
 #                                                           #
 # Exposes:                                                  #
 #   * start_cloudflare_tunnel                               #

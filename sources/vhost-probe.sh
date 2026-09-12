@@ -37,7 +37,7 @@ vhost_port_alive(){
 
 # Fast vhost probe using ffuf's native vhost mode.
 # Replaces the bash curl loop with a single ffuf invocation per (IP, port).
-# Requires: ffuf in PATH, vhost_use_ffuf=yes in collector.cfg.
+# Requires: ffuf in PATH, vhost_use_ffuf=yes in conf.d/functions.conf.
 vhost_probe_ffuf(){
     local ffuf_ip_file="$1"
     local ffuf_threads_vp="${vhostffuf_threads_vp:-50}"
@@ -129,7 +129,7 @@ vhost_probe(){
     fi
 
     # Word list lives at ${collector_vhost_probe_words} (configured in
-    # collector.cfg, default: support/runtime/wordlists/vhost-probe-names.txt).
+    # conf.d/operation.conf, default: support/runtime/wordlists/vhost-probe-names.txt).
     # One name per line; blank lines and lines starting with '#' are ignored
     # so the file can carry section comments.
     local vhost_probe_words=()

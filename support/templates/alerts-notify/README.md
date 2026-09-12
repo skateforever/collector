@@ -156,9 +156,9 @@ Each provider supports 5 severity levels:
 
 5. Fill in `signal_account` and `signal_recipient` in `signal-provider.yml`
 
-## Integration with collector.cfg
+## Integration with conf.d/functions.conf
 
-Update `collector.cfg` to use alert providers:
+Update `conf.d/functions.conf` to use alert providers:
 
 ```bash
 # Enable alerts
@@ -181,9 +181,9 @@ collector-docker \
   -d example.com --recon --webapp-discovery
 ```
 
-## Integration with collector.cfg
+## Integration with conf.d/functions.conf
 
-The default path in `collector.cfg` is:
+The default path in `conf.d/functions.conf` is:
 
 ```bash
 notify_config="/opt/collector/support/templates/alerts/discord-provider.yaml"

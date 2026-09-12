@@ -19,7 +19,7 @@ Run a full recon + webapp discovery:
 docker run --rm \
   -v /opt/collector/outputs:/opt/collector/outputs \
   -v /opt/collector/wordlists:/opt/collector/wordlists \
-  -v /opt/collector/collector.cfg:/opt/collector/collector.cfg:ro \
+  -v /opt/collector/conf.d:/opt/collector/conf.d:ro \
   collector:latest -d example.com --recon --webapp-discovery --webapp-short-detection
 
 # docker compose (from repo root)
@@ -45,7 +45,7 @@ By default the compose file uses repo-relative paths, so a fresh clone works wit
 |---|---|
 | `./outputs` (auto-created on first run) | `/opt/collector/outputs` |
 | `./wordlists` (auto-created on first run) | `/opt/collector/wordlists` |
-| `./collector.cfg` (already in the repo) | `/opt/collector/collector.cfg` (read-only) |
+| `./conf.d` (already in the repo) | `/opt/collector/conf.d` (read-only) |
 
 To redirect any of these to a different host location, drop a `.env` file in the repo root (Docker Compose loads it automatically). Example:
 
@@ -53,28 +53,28 @@ To redirect any of these to a different host location, drop a `.env` file in the
 # .env at the repo root
 OUTPUTS_DIR=/data/recon/outputs
 WORDLISTS_DIR=/data/wordlists
-COLLECTOR_CFG=/etc/collector/collector.cfg
+CONF_D_DIR=/etc/collector/conf.d
 ```
 
 `.env` is git-ignored so your local layout never leaks to the repo.
 
 > **Note:** `docker compose up` is **not** the right verb here. `collector` exits with the usage screen when called without arguments, which Compose would interpret as a service failure. Always use `docker compose run --rm collector <flags>`.
 
-**`collector-docker`** — thin wrapper around `docker run` that injects volumes and the default port mapping automatically. **All scripts and configuration are mounted as read-only volumes from the host** (`collector`, `functions/`, `scans/`, `sources/`, `support/runtime/`, `support/templates/alerts-notify/`, `collector.cfg`), meaning code changes are instantly available without rebuilding the Docker image. The image only needs rebuilding when binaries or system packages change (Dockerfile or `check_binaries.sh` modifications).
+**`collector-docker`** — thin wrapper around `docker run` that injects volumes and the default port mapping automatically. **All scripts and configuration are mounted as read-only volumes from the host** (`collector`, `functions/`, `scans/`, `sources/`, `support/runtime/`, `support/templates/alerts-notify/`, `conf.d/`), meaning code changes are instantly available without rebuilding the Docker image. The image only needs rebuilding when binaries or system packages change (Dockerfile or `check_binaries.sh` modifications).
 
 See [Docker Volume Strategy](support/docker/VOLUME_STRATEGY.md) for detailed documentation on how volumes are mounted and replicated from host to container.
 
 The wrapper resolves its defaults with a hybrid strategy:
 
-- Running from a repo checkout (i.e. `collector.cfg` sits next to the script), defaults point at that checkout — `git clone` and run without any sudo or filesystem prep.
-- Installed to `/usr/local/bin/` (no `collector.cfg` next to the script), defaults fall back to `/opt/collector/`, the layout produced by `sudo install ...`.
+- Running from a repo checkout (i.e. `conf.d/` sits next to the script), defaults point at that checkout — `git clone` and run without any sudo or filesystem prep.
+- Installed to `/usr/local/bin/` (no `conf.d/` next to the script), defaults fall back to `/opt/collector/`, the layout produced by `sudo install ...`.
 
 Install it once and use it like a native command:
 
 ```bash
 sudo install -m 0755 /opt/collector/collector-docker /usr/local/bin/collector-docker
 sudo mkdir -p /opt/collector/{outputs,wordlists}
-sudo cp /opt/collector/collector.cfg /opt/collector/collector.cfg
+sudo cp -r /opt/collector/conf.d /opt/collector/conf.d
 ```
 
 Override defaults via environment variables (`<root>` is the checkout directory or `/opt/collector`, per the rule above):
@@ -84,7 +84,7 @@ Override defaults via environment variables (`<root>` is the checkout directory 
 | `COLLECTOR_IMAGE` | `collector:latest` |
 | `OUTPUTS_DIR` | `<root>/outputs` (mounted to `/opt/collector/outputs`) |
 | `WORDLISTS_DIR` | `<root>/wordlists` (mounted to `/opt/collector/wordlists`) |
-| `COLLECTOR_CFG` | `<root>/collector.cfg` (mounted to `/opt/collector/collector.cfg`) |
+| `CONF_D_DIR` | `<root>/conf.d` (mounted to `/opt/collector/conf.d`) |
 | `ALERT_PROVIDER_TYPE` | `discord` (discord, slack, teams, telegram, signal) |
 | `ALERT_PROVIDER_FILE` | `<root>/{type}-provider.yaml` (optional; if missing, uses template from image) |
 | `APP_PORT` | `127.0.0.1:8000:8000` |
@@ -140,8 +140,8 @@ The hook calls `collector-docker --image build-only` internally.
 |------|-------------|
 | `-wd \| --webapp-discovery` | Probes live hosts for active HTTP(S) services and builds `webapp_consolidated.txt`. Vhost discovery is **not** included unless `-vc` is also passed. |
 | `-vc \| --vhost-check` | Runs `vhost_check` and `vhost_probe` against live IPs to discover virtual hosts (STRONG/WEAK classification). Requires `-wd`. Without this flag, vhost checks are skipped entirely. |
-| `-wsd \| --webapp-short-detection` | Uses the short port list from `collector.cfg` (`web_port_short_detection`). Use with `-wd`. |
-| `-wld \| --webapp-long-detection` | Uses the long port list from `collector.cfg` (`web_port_long_detection`). Use with `-wd`. |
+| `-wsd \| --webapp-short-detection` | Uses the short port list from `conf.d/functions.conf` (`web_port_short_detection`). Use with `-wd`. |
+| `-wld \| --webapp-long-detection` | Uses the long port list from `conf.d/functions.conf` (`web_port_long_detection`). Use with `-wd`. |
 
 ### Webapp enumeration (requires existing `webapp_consolidated.txt` or combined with `--webapp-discovery`)
 
@@ -197,7 +197,7 @@ Full recon + webapp discovery (short port list, no vhost):
 docker run --rm \
   -v /opt/collector/outputs:/opt/collector/outputs \
   -v /opt/collector/wordlists:/opt/collector/wordlists \
-  -v /opt/collector/collector.cfg:/opt/collector/collector.cfg:ro \
+  -v /opt/collector/conf.d:/opt/collector/conf.d:ro \
   collector:latest \
   -d example.com --recon --webapp-discovery --webapp-short-detection
 
@@ -219,7 +219,7 @@ Full recon + webapp discovery + enum + scan in one shot (with vhost):
 docker run --rm \
   -v /opt/collector/outputs:/opt/collector/outputs \
   -v /opt/collector/wordlists:/opt/collector/wordlists \
-  -v /opt/collector/collector.cfg:/opt/collector/collector.cfg:ro \
+  -v /opt/collector/conf.d:/opt/collector/conf.d:ro \
   collector:latest \
   -d example.com --recon --webapp-discovery --webapp-short-detection --vhost-check \
   --webapp-enum --webapp-wordlists /opt/collector/wordlists/common.txt --webapp-scan
@@ -238,7 +238,7 @@ Standalone webapp enum on a previously recon'd target:
 docker run --rm \
   -v /opt/collector/outputs:/opt/collector/outputs \
   -v /opt/collector/wordlists:/opt/collector/wordlists \
-  -v /opt/collector/collector.cfg:/opt/collector/collector.cfg:ro \
+  -v /opt/collector/conf.d:/opt/collector/conf.d:ro \
   collector:latest \
   -d example.com --webapp-enum --webapp-wordlists /opt/collector/wordlists/common.txt
 
@@ -254,7 +254,7 @@ Standalone webapp scan on a previously recon'd target:
 docker run --rm \
   -v /opt/collector/outputs:/opt/collector/outputs \
   -v /opt/collector/wordlists:/opt/collector/wordlists \
-  -v /opt/collector/collector.cfg:/opt/collector/collector.cfg:ro \
+  -v /opt/collector/conf.d:/opt/collector/conf.d:ro \
   collector:latest \
   -d example.com --webapp-scan
 
@@ -269,7 +269,7 @@ Standalone JS crawler:
 docker run --rm \
   -v /opt/collector/outputs:/opt/collector/outputs \
   -v /opt/collector/wordlists:/opt/collector/wordlists \
-  -v /opt/collector/collector.cfg:/opt/collector/collector.cfg:ro \
+  -v /opt/collector/conf.d:/opt/collector/conf.d:ro \
   collector:latest \
   -d example.com --webapp-crawler
 
@@ -284,7 +284,7 @@ List of targets:
 docker run --rm \
   -v /opt/collector/outputs:/opt/collector/outputs \
   -v /opt/collector/wordlists:/opt/collector/wordlists \
-  -v /opt/collector/collector.cfg:/opt/collector/collector.cfg:ro \
+  -v /opt/collector/conf.d:/opt/collector/conf.d:ro \
   collector:latest \
   -dl /opt/collector/outputs/targets.list --recon --webapp-discovery --webapp-short-detection
 
@@ -300,7 +300,7 @@ Single URL (no subdomain/infra discovery):
 docker run --rm \
   -v /opt/collector/outputs:/opt/collector/outputs \
   -v /opt/collector/wordlists:/opt/collector/wordlists \
-  -v /opt/collector/collector.cfg:/opt/collector/collector.cfg:ro \
+  -v /opt/collector/conf.d:/opt/collector/conf.d:ro \
   collector:latest \
   -u https://opt/collector.example.com --webapp-wordlists /opt/collector/wordlists/common.txt
 
@@ -332,7 +332,7 @@ Drop-in scheduling files are in `support/templates/`:
   Templates are baked into the Docker image at `/opt/collector/support/templates/alerts-notify/`. To use a custom provider:
   1. Copy the template: `cp support/templates/alerts-notify/{provider}-provider.yml ./{provider}-provider.yaml`
   2. Fill in webhook URLs or credentials
-  3. Configure in `collector.cfg`: `notify_config="/opt/collector/support/templates/alerts-notify/{provider}-provider.yaml"`
+  3. Configure in `conf.d/functions.conf`: `notify_config="/opt/collector/support/templates/alerts-notify/{provider}-provider.yaml"`
   4. Run: `collector-docker -d example.com --recon`
   
   Or override via environment: `ALERT_PROVIDER_TYPE=slack ALERT_PROVIDER_FILE=./slack-provider.yaml collector-docker ...`
@@ -368,7 +368,7 @@ Both use `collector-docker` (or `docker run --rm` directly) — each run fires a
 - Per-run dated folder (`recon_YYYYMMDD`) with logs, tmp, and structured report tree
 - Subdomain discovery via passive sources + active DNS bruteforce
 - Infrastructure enrichment: AS / IPv4 / IPv6 / netblocks / nmap / Shodan
-- vhost discovery (opt-in via `-vc`): parallel curl + httpx probing, STRONG vs. WEAK confidence classification, automatic `/etc/hosts` injection inside the container so all tools resolve vhosts transparently. Optional `ffuf`-backed mode for orders-of-magnitude faster probing (set `vhost_use_ffuf=yes` in `collector.cfg`)
+- vhost discovery (opt-in via `-vc`): parallel curl + httpx probing, STRONG vs. WEAK confidence classification, automatic `/etc/hosts` injection inside the container so all tools resolve vhosts transparently. Optional `ffuf`-backed mode for orders-of-magnitude faster probing (set `vhost_use_ffuf=yes` in `conf.d/functions.conf`)
 - `-dr|--dry-run` pre-flight validation mode — confirm config and parameters before a long run
 - Per-artifact diff vs. previous run — only deltas pushed to notify channel
 - Email harvesting from APIs + page/JS crawl filtered to the target domain
@@ -376,7 +376,7 @@ Both use `collector-docker` (or `docker run --rm` directly) — each run fires a
 - Single LLM prompt bundle per run: `llm-prompt.txt` — all artifacts included, ready to paste into any LLM for follow-up analysis
 - SQLite ingestion: each run upserted into `collector-results-db` (idempotent, WAL, FK-protected)
 - Flask + HTMX read-only web UI at `http://127.0.0.1:8000` auto-started after each run
-- Cloudflare quick-tunnel (opt-in via `cloudflare_tunnel="yes"` in `collector.cfg`) for remote dashboard access
+- Cloudflare quick-tunnel (opt-in via `cloudflare_tunnel="yes"` in `conf.d/operation.conf`) for remote dashboard access
 - Per-target flock so concurrent runs for the same domain abort instead of corrupting state
 
 ## Output layout
@@ -450,7 +450,7 @@ Flask + HTMX read-only dashboard auto-started at `http://127.0.0.1:8000` after e
 docker run --rm \
   -v /opt/collector/outputs:/opt/collector/outputs \
   -v /opt/collector/wordlists:/opt/collector/wordlists \
-  -v /opt/collector/collector.cfg:/opt/collector/collector.cfg:ro \
+  -v /opt/collector/conf.d:/opt/collector/conf.d:ro \
   -p 127.0.0.1:8000:8000 \
   collector:latest \
   -d example.com --recon --webapp-discovery --webapp-short-detection
@@ -469,7 +469,7 @@ collector-docker --report-stop         # stop from another shell
 
 `--report-only` names its container `collector-report` (override with `REPORT_CONTAINER_NAME=<name>`) and refuses to start when one is already running. It requires `collector-results-db` to exist in the `outputs/` directory — otherwise it aborts with a clear message rather than serving an empty dashboard.
 
-Or set `cloudflare_tunnel="yes"` in `collector.cfg` for an ephemeral `https://*.trycloudflare.com` URL (only meaningful when the dashboard runs in the background, i.e. at end-of-recon; `--report-only` doesn't publish a tunnel).
+Or set `cloudflare_tunnel="yes"` in `conf.d/operation.conf` for an ephemeral `https://*.trycloudflare.com` URL (only meaningful when the dashboard runs in the background, i.e. at end-of-recon; `--report-only` doesn't publish a tunnel).
 
 ## Screenshots
 

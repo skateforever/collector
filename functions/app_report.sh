@@ -72,7 +72,7 @@ run_app_report(){
         # Background path used to silently return; foreground path now
         # tells the operator why nothing happened — either way, we bail.
         if [[ "${mode}" == "foreground" ]]; then
-            echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${tag}: app_report_enabled=no in collector.cfg, refusing to start."
+            echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${tag}: app_report_enabled=no in conf.d/operation.conf, refusing to start."
             return 1
         fi
         return 0
@@ -150,7 +150,7 @@ run_app_report(){
         if ss -ltn 2>/dev/null | awk '{print $4}' | grep -qE "[:.]${port}$"; then
             echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${tag}: port ${port} is already bound by another process."
             if [[ "${mode}" == "foreground" ]]; then
-                echo -e "  free the port or set ${yellow}app_report_port${reset} in collector.cfg to a different value."
+                echo -e "  free the port or set ${yellow}app_report_port${reset} in conf.d/operation.conf to a different value."
                 return 1
             fi
             return 0
@@ -218,7 +218,7 @@ run_app_report(){
 
     # Optional Cloudflare quick-tunnel — gives the gunicorn we just started
     # an ephemeral https://*.trycloudflare.com URL so the dashboard is
-    # reachable without exposing the VPS IP/port. Opt-in via collector.cfg.
+    # reachable without exposing the VPS IP/port. Opt-in via conf.d/operation.conf.
     # Only meaningful for the background path (foreground is one-shot).
     if [[ "${cloudflare_tunnel:-no}" == "yes" ]]; then
         start_cloudflare_tunnel "${port}"

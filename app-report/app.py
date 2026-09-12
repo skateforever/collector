@@ -7,7 +7,7 @@ expected audience (operator + a couple of viewers).
 
 Configuration is taken from environment variables populated by
 start_app_report() in functions/utils.sh, which itself sources
-collector.cfg. Keeping the contract that simple means there's no second
+conf.d/*.conf. Keeping the contract that simple means there's no second
 config file to maintain.
 
 Two read sources are stitched together:

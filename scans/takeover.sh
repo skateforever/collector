@@ -28,7 +28,7 @@
 
 # Known providers. The `takeover_fingerprints` array is populated at
 # runtime from the external file configured in
-# collector.cfg via ${collector_takeover_fingerprints} (default:
+# conf.d/operation.conf via ${collector_takeover_fingerprints} (default:
 # support/runtime/wordlists/takeover-fingerprints.txt).
 #
 # Each line in the file follows the format:
@@ -309,7 +309,7 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     [[ -z "${notify_recon_channel}" ]] && notify_recon_channel="recon"
     [[ -z "${notify_critical_channel}" ]] && notify_critical_channel="critical"
     [[ -z "${notify_high_channel}" ]] && notify_high_channel="high"
-    # Resolve the fingerprints file relative to the script when not set by collector.cfg.
+    # Resolve the fingerprints file relative to the script when not set by conf.d/operation.conf.
     if [[ -z "${collector_takeover_fingerprints}" ]]; then
         script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
         collector_takeover_fingerprints="${script_dir}/../support/runtime/wordlists/takeover-fingerprints.txt"

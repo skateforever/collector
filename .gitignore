@@ -25,8 +25,16 @@ collector_simulation_report*.md
 /wordlists/
 
 # Local override for compose: lets the user point OUTPUTS_DIR / WORDLISTS_DIR
-# / COLLECTOR_CFG elsewhere without modifying the YAML.
+# / CONF_D_DIR elsewhere without modifying the YAML.
 .env
+
+# Real API key files — carry live credentials (Shodan, SecurityTrails,
+# VirusTotal, Censys, Hunter.io, etc.) filled in by the operator. Never
+# land in version control. conf.d/*.conf.example (blank keys) are the
+# tracked templates; collector.cfg has no equivalent secret since it's
+# now split into conf.d/{operation,functions}.conf (no secrets there).
+/conf.d/apis-recon.conf
+/conf.d/apis-emails.conf
 
 # Local notify provider config — carries Discord/Slack/Telegram webhook URLs
 # bound to the operator's accounts. Must never land in version control.

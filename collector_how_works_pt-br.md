@@ -35,7 +35,13 @@ collector/
 ├── collector                           script Bash principal (entrypoint do container)
 ├── collector-docker                    wrapper de host: injeta -v e -p e chama docker run,
 │                                        além dos subcomandos `-i|--image` (update/pull/build-only/create/rm)
-├── collector.cfg                       configuração: timeouts, threads, listas de portas, APIs
+├── conf.d/                             configuração, dividida por assunto:
+│   ├── operation.conf                  funcionamento interno (cores, paths, DB, app-report)
+│   ├── functions.conf                  parâmetros por ferramenta (timeouts, threads, portas)
+│   ├── apis-recon.conf.example         chaves de API de recon de subdomínio (template, versionado)
+│   ├── apis-recon.conf                 idem, com chaves reais (gitignored)
+│   ├── apis-emails.conf.example        chaves de API de recon de e-mail (template, versionado)
+│   └── apis-emails.conf                idem, com chaves reais (gitignored)
 │
 ├── functions/                          módulos Bash carregados pelo collector
 │   ├── utils.sh                        banner, reset_vars, redact_secrets
@@ -113,7 +119,7 @@ collector/
 
 O entrypoint do container é o script `collector`. Resumidamente o fluxo é:
 
-1. **Bootstrap.** `collector` carrega `functions/utils.sh` (banner, helpers, reset de variáveis globais) e depois faz `source collector.cfg` para herdar timeouts, threads, listas de portas curta/longa e chaves de API.
+1. **Bootstrap.** `collector` carrega `functions/utils.sh` (banner, helpers, reset de variáveis globais) e depois faz `source` de `conf.d/operation.conf` e `conf.d/functions.conf` (obrigatórios), seguido de `conf.d/apis-recon.conf` e `conf.d/apis-emails.conf` — caindo para seus templates `.example` se os arquivos reais (gitignored) não existirem — pra herdar timeouts, threads, listas de portas curta/longa e chaves de API.
 2. **Carga de módulos.** Em sequência são feitos `source` em todos os arquivos de `functions/` essenciais (`menu.sh`, `usage.sh`, `check_*`, `domains_*`, `url_recon.sh`, `webapp_*`, `emails_recon.sh`, `git.sh`, `diff.sh`, `files.sh`, `infra.sh`, além dos módulos do dashboard `cloudflare_tunnel.sh`, `app_report.sh`, `db_usage.sh`, `llm_prompt.sh`) e em `scans/` (`acunetix.sh`, `nmap.sh`, `nuclei.sh`, `shodan.sh`, `js_scans.sh`).
 3. **Validações.** `check_container` confirma que está rodando dentro do Docker (o script aborta fora dele); `check_binaries` valida a presença das ferramentas no PATH.
 4. **Parse de CLI.** `menu "$@"` processa as flags (`-d`, `-dl`, `-u`, `-r`, `-wd`, `-we`, `-ws`, `-wc`, `-vc`, `-dr`, etc.). `validate_domain` aplica regex estrita a cada alvo. Sem argumentos, `usage` é exibido.
@@ -129,7 +135,7 @@ O entrypoint do container é o script `collector`. Resumidamente o fluxo é:
    5. `infra_data` — coleta ASN, blocos de IP, IPv4/IPv6 (internos vs. externos), tenta `zone transfer`;
    6. `nmap_scan` + `shodan_scan` — varredura de portas no conjunto de IPs externos;
    7. `webapp_alive` — `httpx` contra `domains_alive.txt` na lista de portas (curta com `-wsd` ou longa com `-wld`);
-   8. `vhost_check` + `vhost_probe` **(somente quando `-vc|--vhost-check` é passado)** — descobre vhosts servidos pelos IPs externos cujo nome não resolve em DNS, classifica em STRONG/WEAK, escreve `etc_hosts_file.txt` e adiciona ao `/etc/hosts` do container para que as demais ferramentas resolvam transparentemente. Quando `vhost_use_ffuf=yes` no `collector.cfg`, `vhost_probe` delega ao `ffuf` para descoberta muito mais rápida via wordlist;
+   8. `vhost_check` + `vhost_probe` **(somente quando `-vc|--vhost-check` é passado)** — descobre vhosts servidos pelos IPs externos cujo nome não resolve em DNS, classifica em STRONG/WEAK, escreve `etc_hosts_file.txt` e adiciona ao `/etc/hosts` do container para que as demais ferramentas resolvam transparentemente. Quando `vhost_use_ffuf=yes` no `conf.d/functions.conf`, `vhost_probe` delega ao `ffuf` para descoberta muito mais rápida via wordlist;
    9. `build_consolidated_urls` — produz `webapp_consolidated.txt` (todas as URLs HTTP(S) vivas, DNS + vhosts STRONG);
    10. `webapp_tech` — captura cabeçalhos de resposta para fingerprinting (em `report/webapp/tech/`);
    11. `emails_recon` — Hunter.io + IntelX (phonebook target=2) + Lampyre + Snov.io + crawl de páginas/JS do consolidado;
@@ -238,7 +244,7 @@ collector-docker -d example.com --recon --webapp-discovery --webapp-short-detect
 
 Isso executa todas as validações pré-voo (parse de CLI, validação de domínio, criação de diretórios, aquisição de lock) e imprime um resumo dos parâmetros resolvidos. Termina com exit 0 sem gerar tráfego.
 
-Os exemplos abaixo usam o wrapper `collector-docker`, que injeta automaticamente os volumes (`outputs`, `wordlists`, `collector.cfg`) e o `-p 127.0.0.1:8000:8000`. Os mesmos comandos funcionam diretamente com `docker run --rm -v … collector:latest <flags>` ou `docker compose run --rm collector <flags>`.
+Os exemplos abaixo usam o wrapper `collector-docker`, que injeta automaticamente os volumes (`outputs`, `wordlists`, `conf.d/`) e o `-p 127.0.0.1:8000:8000`. Os mesmos comandos funcionam diretamente com `docker run --rm -v … collector:latest <flags>` ou `docker compose run --rm collector <flags>`.
 
 ### 5.3. Comandos básicos de reconhecimento
 
@@ -250,7 +256,7 @@ collector-docker -d example.com --recon
 
 O que entrega: `domains_found.txt`, `domains_alive.txt`, `domains_without_resolution.txt`, `infra_*.txt`, `scan/nmap/nmap_scan.txt`, `scan/shodan/shodan_scan.txt`, `email_recon.txt`. Bom como primeiro passo para mapear o perímetro sem gerar tráfego HTTP barulhento.
 
-Recon + descoberta de aplicações web na lista curta de portas (definida em `collector.cfg` como `web_port_short_detection`):
+Recon + descoberta de aplicações web na lista curta de portas (definida em `conf.d/functions.conf` como `web_port_short_detection`):
 
 ```bash
 collector-docker -d example.com --recon --webapp-discovery --webapp-short-detection
@@ -342,9 +348,9 @@ collector-docker --report-stop        # encerra a partir de outro shell
 
 Quando a porta host de `APP_PORT` (default `127.0.0.1:8000:8000`) já está ocupada — por exemplo porque um recon anterior deixou um dashboard em background rodando, ou outro container publica ali —, o `collector-docker` silenciosamente omite o `-p` do `docker run` em vez de abortar com "port already allocated". O recon continua e o dashboard já em execução renderiza os dados do novo run porque `outputs/` é compartilhado.
 
-### 5.7. Configuração específica de vhost (collector.cfg)
+### 5.7. Configuração específica de vhost (conf.d/functions.conf)
 
-A descoberta de vhosts tem sua própria seção de tuning no `collector.cfg`. Estas variáveis só importam quando `-vc|--vhost-check` é utilizado:
+A descoberta de vhosts tem sua própria seção de tuning no `conf.d/functions.conf`. Estas variáveis só importam quando `-vc|--vhost-check` é utilizado:
 
 ```bash
 # vhost - performance tuning
@@ -367,6 +373,6 @@ Comportamentos chave controlados por essas variáveis:
 
 ## 6. Mais detalhes
 
-Para a referência completa de todas as flags, variáveis de ambiente do wrapper (`COLLECTOR_IMAGE`, `OUTPUTS_DIR`, `WORDLISTS_DIR`, `COLLECTOR_CFG`, `APP_PORT`, `NOTIFY_CONFIG`), parâmetros do `collector.cfg` (timeouts, threads, listas de portas, chaves de API, opções do Cloudflare quick-tunnel), templates de cron/systemd, integração com o `projectdiscovery/notify`, schema do banco SQLite e consultas prontas, **consulte o `README.md` do repositório do collector**.
+Para a referência completa de todas as flags, variáveis de ambiente do wrapper (`COLLECTOR_IMAGE`, `OUTPUTS_DIR`, `WORDLISTS_DIR`, `CONF_D_DIR`, `APP_PORT`, `NOTIFY_CONFIG`), parâmetros do `conf.d/*.conf` (timeouts, threads, listas de portas, chaves de API, opções do Cloudflare quick-tunnel), templates de cron/systemd, integração com o `projectdiscovery/notify`, schema do banco SQLite e consultas prontas, **consulte o `README.md` do repositório do collector**.
 
 > **Aviso:** o collector gera um volume significativo de tráfego. Use apenas contra alvos para os quais você tenha autorização explícita.
