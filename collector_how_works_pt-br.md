@@ -33,8 +33,8 @@ collector/
 ├── TODO.md                             roadmap interno
 │
 ├── collector                           script Bash principal (entrypoint do container)
-├── collector-docker                    wrapper de host: injeta -v e -p e chama docker run
-├── collector-update                    script de atualização: git pull + rebuild condicional
+├── collector-docker                    wrapper de host: injeta -v e -p e chama docker run,
+│                                        além dos subcomandos `image` (update/pull/build-only/create)
 ├── collector.cfg                       configuração: timeouts, threads, listas de portas, APIs
 │
 ├── functions/                          módulos Bash carregados pelo collector
@@ -205,22 +205,25 @@ Todos os artefatos finais vivem em `outputs/<domain>/recon_YYYYMMDD/`:
 
 ### 5.0. Mantendo o collector atualizado
 
-O script `collector-update` automatiza o pull de mudanças e rebuild da imagem Docker **apenas quando necessário**:
+`collector-docker image <subcomando>` automatiza o pull de mudanças e rebuild da imagem Docker **apenas quando necessário**:
 
 ```bash
-./collector-update              # git pull + rebuild condicional
-./collector-update --pull-only  # apenas git pull, sem rebuild
-./collector-update --build-only # apenas rebuild, sem pull
-./collector-update --force-build # força rebuild mesmo sem mudanças estruturais
+./collector-docker image update              # git pull + rebuild condicional
+./collector-docker image pull                # apenas git pull, sem rebuild
+./collector-docker image build-only          # apenas rebuild, sem pull
+./collector-docker image update --force-build # força rebuild mesmo sem mudanças estruturais
+./collector-docker image create              # rebuild limpo do zero: --no-cache --pull, ignora o git
+./collector-docker image rm                  # remove a imagem local (docker rmi)
+./collector-docker image rm --force          # força remoção mesmo com container parado referenciando a imagem
 ```
 
-O script inspeciona os arquivos modificados e só dispara rebuild da imagem quando **arquivos estruturais** mudam (Dockerfiles, `functions/check_binaries.sh`). Mudanças apenas em scripts são servidas instantaneamente via montagem de volumes no `collector-docker`, então não precisam de rebuild.
+Os subcomandos `update`/`pull` inspecionam os arquivos modificados e só disparam rebuild da imagem quando **arquivos estruturais** mudam (Dockerfiles, `functions/check_binaries.sh`). Mudanças apenas em scripts são servidas instantaneamente via montagem de volumes no `collector-docker`, então não precisam de rebuild. Já o `create` sempre reconstrói do zero, ignorando tanto o git quanto o cache de build do Docker. `rm` (alias `remove`) só remove a imagem local.
 
 Opcional: instale o hook git `post-merge` para auto-rebuild após cada `git pull`:
 
 ```bash
 git config core.hooksPath support/templates/githooks
-# Agora git pull dispara rebuild automaticamente quando arquivos estruturais mudam
+# Agora git pull dispara rebuild automaticamente quando arquivos estruturais mudam (via collector-docker image build-only)
 ```
 
 **Nota importante:** O `collector-docker` monta os scripts (`collector`, `functions/`, `scans/`, `sources/`, `support/runtime/`) como volumes read-only do host. Isso significa que alterações de código ficam disponíveis instantaneamente sem rebuild da imagem Docker. A imagem só precisa ser reconstruída quando binários ou pacotes do sistema mudam.

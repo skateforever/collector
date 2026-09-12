@@ -42,7 +42,13 @@ RUN go install github.com/projectdiscovery/tlsx/cmd/tlsx@latest && \
     go install github.com/evilsocket/dnssearch@master && \
     go install github.com/003random/getJS@latest && \
     go install github.com/PentestPad/subzy@latest && \
-    go install github.com/haccer/subjack@latest
+    # subjack's go.mod is "github.com/haccer/subjack" (no /v2, /v3 suffix)
+    # even though the repo has tags v2.x/v3.x — Go's major-version-suffix
+    # rule makes those tags unresolvable ("invalid version: module contains
+    # a go.mod file, so module path must match major version"), which is
+    # what breaks the build if subjack is pinned to a release tag. Pinned
+    # here to the commit behind the v3.0.0 tag instead, which builds fine.
+    go install github.com/haccer/subjack@b53899ce6230767beb1c4a9f879c6ebba23a98fa
 
 # subjack ships its fingerprints externally; bundle the upstream JSON so
 # the takeover scan can pass it via `subjack -c`. Path is referenced by
@@ -78,7 +84,7 @@ RUN wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/c
 
 # 7. Configuração Final
 COPY . .
-RUN chmod +x collector && chmod +x functions/*.sh && chmod +x scans/*.sh && chmod +x sources/*.sh
+RUN chmod +x collector collector-docker && chmod +x functions/*.sh && chmod +x scans/*.sh && chmod +x sources/*.sh
 
 # Pin output_dir to the mounted volume path so every run writes results
 # to /opt/collector/outputs. The -o/--output CLI flag was removed; to

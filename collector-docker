@@ -1,12 +1,37 @@
 #!/bin/bash
-# collector-docker — wrapper that injects the standard volumes and port
+# collector-docker — run AND manage the collector Docker image.
 #
-# Usage is identical to running collector directly:
-#   collector-docker -d example.com --recon --webapp-discovery --webapp-short-detection
-#   collector-docker -dl /opt/collector/outputs/targets.list --recon --webapp-discovery
-#   collector-docker --help
+# This file has two independent halves. Only ONE runs per invocation,
+# decided by whether the first argument is the literal word "image":
 #
-# Default path resolution (hybrid):
+#   ┌─ SECTION 1: IMAGE MANAGEMENT ──────────────────────────────────────┐
+#   │ collector-docker image <subcommand> [--no-cache|--force-build|--force] │
+#   │                                                                     │
+#   │   update       Pull latest changes, rebuild only if a structural   │
+#   │                 file changed (Dockerfile*, check_binaries.sh)      │
+#   │   build-only   Skip git pull, rebuild the image (uses Docker's     │
+#   │                 build cache)                                       │
+#   │   pull         Pull latest changes without rebuilding              │
+#   │   create       Full clean rebuild from scratch: --no-cache --pull, │
+#   │                 ignores git entirely                               │
+#   │   rm|remove    Remove the local image (docker rmi)                 │
+#   │                                                                     │
+#   │ update/build-only/pull/create must be run from inside the repo     │
+#   │ checkout (need .git and the Dockerfile as build context); rm/remove│
+#   │ only need Docker. Unaffected by where collector-docker itself is   │
+#   │ installed for SECTION 2 below.                                     │
+#   └─────────────────────────────────────────────────────────────────────┘
+#
+#   ┌─ SECTION 2: CONTAINER RUN (default) ──────────────────────────────┐
+#   │ collector-docker -d example.com --recon --webapp-discovery ...   │
+#   │ collector-docker -dl /opt/collector/outputs/targets.list --recon │
+#   │ collector-docker --help                                          │
+#   │                                                                    │
+#   │ Wrapper that injects the standard volumes/port and forwards every │
+#   │ argument straight to the collector CLI inside the container.      │
+#   └────────────────────────────────────────────────────────────────────┘
+#
+# Default path resolution (hybrid, SECTION 2 only):
 #   1. If the script is running from a repo checkout (i.e. collector.cfg
 #      lives next to the script itself), the defaults point at that
 #      checkout — you can run it straight after 'git clone' with no sudo
@@ -17,15 +42,18 @@
 #   Any variable below can be overridden explicitly in the environment
 #   to point at a different path.
 #
-# Volume mounts strategy:
+# Volume mounts strategy (SECTION 2 only):
 #   Scripts (collector, functions/, scans/, sources/, support/runtime/)
 #   are mounted read-only from the host repo. This means any code change
 #   is immediately available without rebuilding the Docker image. The
 #   image only needs to be rebuilt when binaries/packages change (i.e.
-#   Dockerfile or check_binaries.sh modifications).
+#   Dockerfile or check_binaries.sh modifications) — that's what
+#   `collector-docker image update` detects automatically.
 #
 # Environment variables for overrides:
 #   COLLECTOR_IMAGE       — Docker image (default: collector:latest)
+#   DOCKERFILE            — Dockerfile to use for `image` subcommands (default: Dockerfile)
+#   BUILD_ARGS            — extra `docker build` arguments for `image` subcommands
 #   OUTPUTS_DIR           — outputs directory (default: <root>/outputs)
 #   WORDLISTS_DIR         — wordlists directory (default: <root>/wordlists)
 #   COLLECTOR_CFG         — path to collector.cfg (default: <root>/collector.cfg)
@@ -48,6 +76,196 @@
 
 # Real directory of this script (resolves symlinks and relative paths).
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# ==============================================================================
+# SECTION 1 — IMAGE MANAGEMENT  (was the standalone collector-update script)
+# ==============================================================================
+
+_image_usage() {
+    cat <<EOF
+Usage: collector-docker image <subcommand> [--no-cache] [--force-build] [--force]
+
+Subcommands:
+  update       Pull latest changes, rebuild only if structural files changed
+  build-only   Skip git pull, rebuild the image (uses Docker's build cache)
+  pull         Pull latest changes without rebuilding
+  create       Full clean rebuild from scratch (--no-cache --pull), ignoring git
+  rm|remove    Remove the local image (docker rmi)
+
+Options:
+  --no-cache     Pass --no-cache to docker build (implied by 'create')
+  --force-build  Rebuild even if no structural changes were detected (update only)
+  --force        Force removal even if a stopped container still references it (rm/remove only)
+
+The image is only rebuilt when structural files change (Dockerfiles, binary
+dependencies). Script changes are picked up automatically via host volume
+mounts (see SECTION 2 / 'collector-docker -d ...').
+
+Environment:
+  COLLECTOR_IMAGE=${COLLECTOR_IMAGE:-collector:latest}
+  DOCKERFILE=${DOCKERFILE:-Dockerfile}
+EOF
+}
+
+# Files that require a Docker image rebuild (binary/package changes).
+# Script-only changes are served via volume mounts and don't need a rebuild.
+_IMAGE_STRUCTURAL_PATTERNS="Dockerfile|functions/check_binaries.sh"
+
+# Pulls the repo and sets IMAGE_PULL_UPDATED / IMAGE_PULL_STRUCTURAL (0/1).
+_image_git_pull() {
+    echo "==> Pulling latest changes..."
+    local current_branch before after
+    current_branch="$(git rev-parse --abbrev-ref HEAD)" || {
+        echo "collector-docker: not a git checkout (run from the repo you cloned)." >&2
+        exit 1
+    }
+    before="$(git rev-parse HEAD)"
+    git pull --ff-only origin "${current_branch}" || {
+        echo "collector-docker: git pull failed (non-fast-forward?)." >&2
+        echo "  resolve manually, then re-run with 'image build-only'" >&2
+        exit 1
+    }
+    after="$(git rev-parse HEAD)"
+    IMAGE_PULL_UPDATED=0
+    IMAGE_PULL_STRUCTURAL=0
+    if [[ "${before}" == "${after}" ]]; then
+        echo "    Already up to date (${after:0:7})."
+        return 0
+    fi
+    IMAGE_PULL_UPDATED=1
+    echo "    Updated: ${before:0:7} -> ${after:0:7}"
+    git --no-pager log --oneline "${before}..${after}"
+    local structural_changed
+    structural_changed="$(git diff --name-only "${before}" "${after}" | grep -E "${_IMAGE_STRUCTURAL_PATTERNS}" || true)"
+    if [[ -n "${structural_changed}" ]]; then
+        IMAGE_PULL_STRUCTURAL=1
+        echo ""
+        echo "    Structural changes detected (image rebuild needed):"
+        echo "${structural_changed}" | sed 's/^/      /'
+    else
+        echo ""
+        echo "    Only script changes detected — no image rebuild needed."
+        echo "    Scripts are mounted from host via collector-docker."
+    fi
+}
+
+# Builds the image. $1 = extra docker-build args prepended to BUILD_ARGS
+# (e.g. "--no-cache --pull" for `image create`).
+_image_build() {
+    local extra="${1:-}"
+    echo ""
+    echo "==> Building Docker image: ${COLLECTOR_IMAGE}"
+    echo "    Dockerfile: ${DOCKERFILE}"
+    # shellcheck disable=SC2086
+    if ! docker build ${extra} ${BUILD_ARGS} -f "${DOCKERFILE}" -t "${COLLECTOR_IMAGE}" .; then
+        echo "collector-docker: build failed." >&2
+        exit 1
+    fi
+    echo ""
+    echo "==> Build complete: ${COLLECTOR_IMAGE}"
+    docker images --format "    {{.Repository}}:{{.Tag}}  {{.Size}}  {{.CreatedAt}}" \
+        | grep "${COLLECTOR_IMAGE%%:*}" | head -3
+}
+
+# Removes the local image. $1 = "-f" to force (image used by a stopped
+# container, or has multiple tags).
+_image_rm() {
+    local force="${1:-}"
+    echo ""
+    echo "==> Removing Docker image: ${COLLECTOR_IMAGE}"
+    if ! docker image inspect "${COLLECTOR_IMAGE}" >/dev/null 2>&1; then
+        echo "collector-docker: image '${COLLECTOR_IMAGE}' not found — nothing to remove."
+        return 0
+    fi
+    # shellcheck disable=SC2086
+    if ! docker rmi ${force} "${COLLECTOR_IMAGE}"; then
+        echo "collector-docker: failed to remove '${COLLECTOR_IMAGE}'." >&2
+        echo "  a container is likely still using it — stop it first, or retry with 'image rm --force'." >&2
+        exit 1
+    fi
+    echo "==> Removed: ${COLLECTOR_IMAGE}"
+}
+
+# Dispatches `collector-docker image <subcommand> ...`. Always exits.
+_image_cmd() {
+    local subcmd="${1:-}"
+    shift || true
+
+    case "${subcmd}" in
+        ""|-h|--help|help) _image_usage; exit 0 ;;
+        update|build-only|pull|create|rm|remove) ;;
+        *)
+            echo "collector-docker: unknown image subcommand '${subcmd}'" >&2
+            _image_usage >&2
+            exit 1
+            ;;
+    esac
+
+    COLLECTOR_IMAGE="${COLLECTOR_IMAGE:-collector:latest}"
+    DOCKERFILE="${DOCKERFILE:-Dockerfile}"
+    BUILD_ARGS="${BUILD_ARGS:-}"
+    local force_build=no
+    local force_rm=""
+
+    local arg
+    for arg in "$@"; do
+        case "${arg}" in
+            --no-cache)    BUILD_ARGS="--no-cache ${BUILD_ARGS}" ;;
+            --force-build) force_build=yes ;;
+            --force)       force_rm="-f" ;;
+            *)
+                echo "collector-docker: unknown option '${arg}' for 'image ${subcmd}'" >&2
+                exit 1
+                ;;
+        esac
+    done
+
+    # rm/remove don't need a git checkout or build context — skip straight
+    # to Docker. Everything else needs SCRIPT_DIR as the build/pull root.
+    if [[ "${subcmd}" != "rm" && "${subcmd}" != "remove" ]]; then
+        cd "${SCRIPT_DIR}" || exit 1
+    fi
+
+    case "${subcmd}" in
+        update)
+            _image_git_pull
+            if [[ "${IMAGE_PULL_STRUCTURAL}" == "1" || "${force_build}" == "yes" ]]; then
+                _image_build
+            else
+                echo ""
+                echo "Done. No image rebuild needed — scripts are served from host volumes."
+            fi
+            ;;
+        build-only)
+            _image_build
+            ;;
+        pull)
+            _image_git_pull
+            echo ""
+            echo "Done. Run 'collector-docker image build-only' if you need to rebuild."
+            ;;
+        create)
+            echo "==> Full clean rebuild (ignoring git, ignoring Docker's build cache)"
+            _image_build "--no-cache --pull"
+            ;;
+        rm|remove)
+            _image_rm "${force_rm}"
+            ;;
+    esac
+
+    echo ""
+    echo "Done."
+    exit 0
+}
+
+if [[ "${1:-}" == "image" ]]; then
+    shift
+    _image_cmd "$@"
+fi
+
+# ==============================================================================
+# SECTION 2 — CONTAINER RUN  (original collector-docker behavior, unchanged)
+# ==============================================================================
 
 # Pick the default root: repo checkout if collector.cfg sits next to the
 # script, otherwise /opt/collector (installed layout).

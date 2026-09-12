@@ -33,8 +33,8 @@ collector/
 ├── TODO.md                             internal roadmap
 │
 ├── collector                           main Bash script (container entrypoint)
-├── collector-docker                    host wrapper: injects -v / -p and calls docker run
-├── collector-update                    update script: git pull + conditional rebuild
+├── collector-docker                    host wrapper: injects -v / -p and calls docker run,
+│                                        plus `image` subcommands (update/pull/build-only/create)
 ├── collector.cfg                       config: timeouts, threads, port lists, API keys
 │
 ├── functions/                          Bash modules loaded by collector
@@ -205,22 +205,25 @@ Every final artifact lives under `outputs/<domain>/recon_YYYYMMDD/`:
 
 ### 5.0. Keeping collector up to date
 
-The `collector-update` script automates pulling changes and rebuilding the Docker image **only when necessary**:
+`collector-docker image <subcommand>` automates pulling changes and rebuilding the Docker image **only when necessary**:
 
 ```bash
-./collector-update              # git pull + conditional rebuild
-./collector-update --pull-only  # git pull without building
-./collector-update --build-only # rebuild without pulling
-./collector-update --force-build # rebuild even if no structural changes
+./collector-docker image update              # git pull + conditional rebuild
+./collector-docker image pull                # git pull without building
+./collector-docker image build-only          # rebuild without pulling
+./collector-docker image update --force-build # rebuild even if no structural changes
+./collector-docker image create              # full clean rebuild: --no-cache --pull, ignores git
+./collector-docker image rm                  # remove the local image (docker rmi)
+./collector-docker image rm --force          # force removal even if a stopped container references it
 ```
 
-The script inspects changed files and only triggers an image rebuild when **structural files** change (Dockerfiles, `functions/check_binaries.sh`). Script-only changes are served instantly via volume mounts in `collector-docker`, so no rebuild is needed.
+The `update`/`pull` subcommands inspect changed files and only trigger an image rebuild when **structural files** change (Dockerfiles, `functions/check_binaries.sh`). Script-only changes are served instantly via volume mounts in `collector-docker`, so no rebuild is needed. `create` always rebuilds from scratch, ignoring both git and Docker's build cache. `rm` (alias `remove`) just deletes the local image.
 
 Optional: install the `post-merge` git hook to auto-rebuild after every `git pull`:
 
 ```bash
 git config core.hooksPath support/templates/githooks
-# Now git pull automatically triggers rebuild when structural files change
+# Now git pull automatically triggers rebuild when structural files change (via collector-docker image build-only)
 ```
 
 **Important note:** `collector-docker` mounts scripts (`collector`, `functions/`, `scans/`, `sources/`, `support/runtime/`) as read-only volumes from the host. This means code changes are instantly available without rebuilding the Docker image. The image only needs rebuilding when binaries or system packages change.

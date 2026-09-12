@@ -11,9 +11,9 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Resolve repo root (hook lives in .git/hooks/ or support/templates/githooks/)
-if [[ -f "${SCRIPT_DIR}/../../collector-update" ]]; then
+if [[ -f "${SCRIPT_DIR}/../../collector-docker" ]]; then
     REPO_ROOT="${SCRIPT_DIR}/../.."
-elif [[ -f "${SCRIPT_DIR}/collector-update" ]]; then
+elif [[ -f "${SCRIPT_DIR}/collector-docker" ]]; then
     REPO_ROOT="${SCRIPT_DIR}"
 else
     REPO_ROOT="$(git rev-parse --show-toplevel)"
@@ -38,10 +38,10 @@ done <<< "${changed_files}"
 if [[ "${rebuild_needed}" == true ]]; then
     echo ""
     echo "==> collector: structural changes detected — rebuilding Docker image..."
-    if [[ -x "${REPO_ROOT}/collector-update" ]]; then
-        "${REPO_ROOT}/collector-update" --build-only
+    if [[ -x "${REPO_ROOT}/collector-docker" ]]; then
+        "${REPO_ROOT}/collector-docker" image build-only
     else
-        echo "    Run: ./collector-update --build-only"
+        echo "    Run: ./collector-docker image build-only"
     fi
 else
     echo ""
