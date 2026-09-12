@@ -745,8 +745,23 @@ build_consolidated_urls(){
     fi
     sort -u "${tmp_dir}/webapp_consolidated.tmp" > "${tmp_dir}/webapp_consolidated_sorted.tmp"
     : > "${tmp_dir}/webapp_consolidated_validated.tmp"
-    # Paralelizar com xargs (16 workers) para getent resolution
-    cat "${tmp_dir}/webapp_consolidated_sorted.tmp" | xargs -P 16 -I {} bash -c '
+    # Paralelizar com xargs (16 workers) para getent resolution.
+    # NUL-delimited (xargs -0): a malformed line (e.g. tool error text that
+    # ended up mixed into the URL list, containing a stray quote) can't be
+    # misread as an unterminated quoted word. In the default whitespace-
+    # delimited mode, xargs parses quotes itself and aborts the WHOLE batch
+    # on "unmatched single quote", silently dropping every URL instead of
+    # just the bad line. Lines that aren't even http(s) URLs are filtered
+    # out up front and logged, instead of being handed to getent at all.
+    local url_line
+    while IFS= read -r url_line; do
+        if [[ "${url_line}" =~ ^https?:// ]]; then
+            printf '%s\0' "${url_line}"
+        else
+            echo "consolidated [skipped]: ${url_line} (not a URL)" >> "${log_execution_file}"
+        fi
+    done < "${tmp_dir}/webapp_consolidated_sorted.tmp" \
+        | xargs -0 -P 16 -I {} bash -c '
         url="$1"
         host=$(echo "${url}" | sed -E "s|^https?://([^/:]+).*|\1|")
         if getent hosts "${host}" > /dev/null 2>&1; then

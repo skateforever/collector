@@ -75,6 +75,16 @@ RUN python -m pip install --no-cache-dir --upgrade pip setuptools wheel && \
         flask \
         gunicorn
 
+# dirsearch pulls in the Python httpx/httpx-ntlm packages (step above),
+# which install their own console-script stub at /usr/local/bin/httpx —
+# the same path GOBIN uses for the real ProjectDiscovery httpx binary
+# installed in step 3, so pip's install silently shadows it. `go install`
+# itself refuses to just overwrite a non-Go-object file at that path
+# ("build output ... already exists and is not an object file"), so the
+# stub has to be removed explicitly before reinstalling the real binary.
+RUN rm -f /usr/local/bin/httpx && \
+    go install github.com/projectdiscovery/httpx/cmd/httpx@latest
+
 RUN wget -q https://raw.githubusercontent.com/christophetd/censys-subdomain-finder/master/censys-subdomain-finder.py -O /usr/local/bin/censys-subdomain-finder.py && \
     chmod +x /usr/local/bin/censys-subdomain-finder.py
 
