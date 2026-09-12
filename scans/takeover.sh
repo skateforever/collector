@@ -198,13 +198,11 @@ takeover_scan(){
     # 3) subjack
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Running subjack... "
     if command -v subjack > /dev/null 2>&1; then
-        # Use the upstream fingerprints.json bundled by the Dockerfiles at
-        # /opt/collector/fingerprints.json. Fall back to subjack defaults
-        # if the file isn't present (running outside the container).
-        local subjack_fpr_arg=()
-        [[ -s "/opt/collector/fingerprints.json" ]] && subjack_fpr_arg=(-c /opt/collector/fingerprints.json)
-        echo "subjack -w ${input_file} -t 30 -timeout 30 -ssl ${subjack_fpr_arg[*]} -o ${subjack_out} -v" >> "${log_execution_file}"
-        subjack -w "${input_file}" -t 30 -timeout 30 -ssl "${subjack_fpr_arg[@]}" \
+        # subjack's fingerprints.json is embedded into the binary at build
+        # time (go:embed, since the subjack/subjack v3.0.0 restructuring) —
+        # there is no more runtime "-c <path>" flag to override it.
+        echo "subjack -w ${input_file} -t 30 -timeout 30 -ssl -o ${subjack_out} -v" >> "${log_execution_file}"
+        subjack -w "${input_file}" -t 30 -timeout 30 -ssl \
             -o "${subjack_out}" -v >> "${log_execution_file}" 2>&1 || true
         echo "Done!"
     else
