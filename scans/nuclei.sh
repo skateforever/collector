@@ -33,8 +33,8 @@ nuclei_scan(){
                     unset user_agent
                     user_agent="$(get_user_agent)"
                     if [ -n "${use_proxy}" ] && [ "${use_proxy}" == "yes" ]; then
-                        echo "echo ${url} | nuclei ${nuclei_options[*]} -H \"User-Agent: ${user_agent}\" -proxy-url \"http://${proxy_ip}\"" >> "${log_execution_file}"
-                        echo "${url}" | nuclei "${nuclei_options[@]}" -H "User-Agent: ${user_agent}" -proxy-url "http://${proxy_ip}" >> "${nuclei_scan_file}" 2>> "${log_execution_file}" &
+                        echo "echo ${url} | nuclei ${nuclei_options[*]} -H \"User-Agent: ${user_agent}\" -proxy \"http://${proxy_ip}\"" >> "${log_execution_file}"
+                        echo "${url}" | nuclei "${nuclei_options[@]}" -H "User-Agent: ${user_agent}" -proxy "http://${proxy_ip}" >> "${nuclei_scan_file}" 2>> "${log_execution_file}" &
                     else
                         echo "echo ${url} | nuclei ${nuclei_options[*]} -H \"User-Agent: ${user_agent}\"" >> "${log_execution_file}"
                         echo "${url}" | nuclei "${nuclei_options[@]}" -H "User-Agent: ${user_agent}" >> "${nuclei_scan_file}" 2>> "${log_execution_file}" &
