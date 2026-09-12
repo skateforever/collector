@@ -263,6 +263,20 @@ if [[ "${1:-}" == "image" ]]; then
     _image_cmd "$@"
 fi
 
+# Validate BEFORE doing any work (image checks, volume setup, docker run):
+# every real collector flag starts with '-' (see functions/menu.sh), so a
+# bare word here is never valid — it's either a typo of "image" (e.g.
+# "imagem create") or a plain mistake. Catch it now with a precise error
+# instead of falling through to checks (like "is the image built?") that
+# would report a misleading cause. An empty $1 is fine (falls through to
+# collector's own no-args usage screen).
+if [[ -n "${1:-}" && "${1:0:1}" != "-" ]]; then
+    echo "collector-docker: unknown command '$1'." >&2
+    echo "  did you mean 'image'? Subcommands: image <update|build-only|pull|create|rm|remove>" >&2
+    echo "  every collector flag starts with '-' — see 'collector-docker --help' (once the image is built)" >&2
+    exit 1
+fi
+
 # ==============================================================================
 # SECTION 2 — CONTAINER RUN  (original collector-docker behavior, unchanged)
 # ==============================================================================
