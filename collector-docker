@@ -315,6 +315,20 @@ if [[ ! -f "${COLLECTOR_CFG}" ]]; then
     exit 1
 fi
 
+# Sanity check: fail fast and clearly if the image isn't built yet, instead
+# of letting `docker run` try (and fail) to pull "collector" from Docker
+# Hub — a confusing "pull access denied" error that has nothing to do with
+# the actual problem. This also covers the case of a typo'd/invalid first
+# argument (e.g. "imagem create" instead of "image create"): once the
+# image exists, collector's own CLI (functions/menu.sh) already validates
+# every argument and reports unknown ones with a clear "invalid parameter"
+# message + usage — no need to duplicate that logic here.
+if ! docker image inspect "${COLLECTOR_IMAGE}" >/dev/null 2>&1; then
+    echo "collector-docker: image '${COLLECTOR_IMAGE}' not found locally." >&2
+    echo "  build it first: ./collector-docker image create   (or 'image build-only')" >&2
+    exit 1
+fi
+
 # Detect report flags in "$@" so we can:
 #   --report-only  → name the container 'collector-report' and refuse if
 #                    another one is already running (Docker's --name
