@@ -14,7 +14,7 @@
 # Parameter dependency tree:                                #
 #                                                           #
 #   -wd|--webapp-discovery                                  #
-#       ├─ requires: -wld OR -wsd (port detection mode)     #
+#       ├─ requires: -wld, -wsd OR -wcp (port detection mode)#
 #       ├─ requires: -r|--recon (for domains_alive.txt)     #
 #       └─ enables:                                         #
 #           ├─ -wc|--webapp-crawler                         #
@@ -28,6 +28,7 @@
 #                                                           #
 #   -wld|--webapp-long-detection                            #
 #   -wsd|--webapp-short-detection                           #
+#   -wcp|--webapp-common-ports                              #
 #       └─ requires: -wd|--webapp-discovery                 #
 #                                                           #
 #############################################################
@@ -137,7 +138,7 @@ check_parameter_dependency(){
         # Web Application Crawler Check
         if [[ "${webapp_crawler_check}" == "yes" && ( ! -s "${report_dir}/webapp_consolidated.txt" && "${webapp_discovery_check}" != "yes" ) ]] ; then
             echo -e "The -wc|--webapp-crawler option requires -wd|--webapp-discovery to discover web applications first."
-            echo -e "Run with -wd|--webapp-discovery (and -wsd or -wld) to generate webapp_consolidated.txt, then run crawler.\n"
+            echo -e "Run with -wd|--webapp-discovery (and -wsd, -wld, or -wcp) to generate webapp_consolidated.txt, then run crawler.\n"
             usage
         fi
 
@@ -150,12 +151,12 @@ check_parameter_dependency(){
 
         if [[ "${webapp_discovery_check}" == "yes" && ${#webapp_port_detect[@]} -eq 0 ]]; then
             echo -e "The -wd|--webapp-discovery option requires a port detection mode."
-            echo -e "Add -wld|--webapp-long-detection or -wsd|--webapp-short-detection to specify which ports to probe.\n"
+            echo -e "Add -wld|--webapp-long-detection, -wsd|--webapp-short-detection, or -wcp|--webapp-common-ports to specify which ports to probe.\n"
             usage
         fi
 
         if [[ "${webapp_discovery_check}" != "yes" && ${#webapp_port_detect[@]} -gt 0 ]]; then
-            echo -e "The -wld|--webapp-long-detection and -wsd|--webapp-short-detection options require -wd|--webapp-discovery."
+            echo -e "The -wld|--webapp-long-detection, -wsd|--webapp-short-detection, and -wcp|--webapp-common-ports options require -wd|--webapp-discovery."
             echo -e "Add -wd|--webapp-discovery to enable web application discovery with the specified port detection mode.\n"
             usage
         fi
@@ -163,7 +164,7 @@ check_parameter_dependency(){
         # Web Application Enumeration Check
         if [[ "${webapp_enum_check}" == "yes" && ( ! -s "${report_dir}/webapp_consolidated.txt" && "${webapp_discovery_check}" != "yes" ) ]] ; then
             echo -e "The -we|--webapp-enum option requires -wd|--webapp-discovery to discover web applications first."
-            echo -e "Run with -wd|--webapp-discovery (and -wsd or -wld) to generate webapp_consolidated.txt, then run enumeration.\n"
+            echo -e "Run with -wd|--webapp-discovery (and -wsd, -wld, or -wcp) to generate webapp_consolidated.txt, then run enumeration.\n"
             usage
         fi
 
@@ -176,7 +177,7 @@ check_parameter_dependency(){
         # Web Application Scan Check
         if [[ "${webapp_scan_check}" == "yes" && ( ! -s "${report_dir}/webapp_consolidated.txt" && "${webapp_discovery_check}" != "yes" ) ]] ; then
             echo -e "The -ws|--webapp-scan option requires -wd|--webapp-discovery to discover web applications first."
-            echo -e "Run with -wd|--webapp-discovery (and -wsd or -wld) to generate webapp_consolidated.txt, then run scan.\n"
+            echo -e "Run with -wd|--webapp-discovery (and -wsd, -wld, or -wcp) to generate webapp_consolidated.txt, then run scan.\n"
             usage
         fi
     fi

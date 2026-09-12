@@ -134,7 +134,7 @@ O entrypoint do container é o script `collector`. Resumidamente o fluxo é:
    4. `organizing_subdomains` — separa em `domains_alive.txt` (resolvem DNS) vs. `domains_without_resolution.txt` (candidatos a vhost), gera `domains_aliases.txt`, `domains_thirdpart.txt`, `domains_excluded.txt`;
    5. `infra_data` — coleta ASN, blocos de IP, IPv4/IPv6 (internos vs. externos), tenta `zone transfer`;
    6. `nmap_scan` + `shodan_scan` — varredura de portas no conjunto de IPs externos;
-   7. `webapp_alive` — `httpx` contra `domains_alive.txt` na lista de portas (curta com `-wsd` ou longa com `-wld`);
+   7. `webapp_alive` — `httpx` contra `domains_alive.txt` na lista de portas (`webapp_http_ports` com `-wsd`; a união completa `webapp_http_ports`+`webapp_tls_ports`+`webapp_multiple_ports` com `-wld`; ou só `webapp_http_ports`+`webapp_tls_ports` com `-wcp`);
    8. `vhost_check` + `vhost_probe` **(somente quando `-vc|--vhost-check` é passado)** — descobre vhosts servidos pelos IPs externos cujo nome não resolve em DNS, classifica em STRONG/WEAK, escreve `etc_hosts_file.txt` e adiciona ao `/etc/hosts` do container para que as demais ferramentas resolvam transparentemente. Quando `vhost_use_ffuf=yes` no `conf.d/functions.conf`, `vhost_probe` delega ao `ffuf` para descoberta muito mais rápida via wordlist;
    9. `build_consolidated_urls` — produz `webapp_consolidated.txt` (todas as URLs HTTP(S) vivas, DNS + vhosts STRONG);
    10. `webapp_tech` — captura cabeçalhos de resposta para fingerprinting (em `report/webapp/tech/`);
@@ -256,7 +256,7 @@ collector-docker -d example.com --recon
 
 O que entrega: `domains_found.txt`, `domains_alive.txt`, `domains_without_resolution.txt`, `infra_*.txt`, `scan/nmap/nmap_scan.txt`, `scan/shodan/shodan_scan.txt`, `email_recon.txt`. Bom como primeiro passo para mapear o perímetro sem gerar tráfego HTTP barulhento.
 
-Recon + descoberta de aplicações web na lista curta de portas (definida em `conf.d/functions.conf` como `web_port_short_detection`):
+Recon + descoberta de aplicações web na lista de portas HTTP fixas (definida em `conf.d/functions.conf` como `webapp_http_ports`):
 
 ```bash
 collector-docker -d example.com --recon --webapp-discovery --webapp-short-detection

@@ -141,8 +141,9 @@ The hook calls `collector-docker --image build-only` internally.
 |------|-------------|
 | `-wd \| --webapp-discovery` | Probes live hosts for active HTTP(S) services and builds `webapp_consolidated.txt`. Vhost discovery is **not** included unless `-vc` is also passed. |
 | `-vc \| --vhost-check` | Runs `vhost_check` and `vhost_probe` against live IPs to discover virtual hosts (STRONG/WEAK classification). Requires `-wd`. Without this flag, vhost checks are skipped entirely. |
-| `-wsd \| --webapp-short-detection` | Uses the short port list from `conf.d/functions.conf` (`web_port_short_detection`). Use with `-wd`. |
-| `-wld \| --webapp-long-detection` | Uses the long port list from `conf.d/functions.conf` (`web_port_long_detection`). Use with `-wd`. |
+| `-wsd \| --webapp-short-detection` | Probes `webapp_http_ports` (`conf.d/functions.conf`) — ports whose protocol is fixed as plain HTTP by convention (80, 8080, ...). Use with `-wd`. |
+| `-wld \| --webapp-long-detection` | Probes the full port list: `webapp_http_ports` + `webapp_tls_ports` + `webapp_multiple_ports` (`conf.d/functions.conf`) — the comprehensive, slower option. Use with `-wd`. |
+| `-wcp \| --webapp-common-ports` | Probes the union of `webapp_http_ports` and `webapp_tls_ports` — the ports whose protocol is fixed by convention, HTTP or TLS. Use with `-wd`. |
 
 ### Webapp enumeration (requires existing `webapp_consolidated.txt` or combined with `--webapp-discovery`)
 

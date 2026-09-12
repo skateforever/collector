@@ -39,7 +39,7 @@ check_argument(){
     options+=(-d --domain -dl --domain-list -ed --exclude-domains -el --exclude-domain-list -h --help)
     options+=(-l --limit-urls -p --proxy -r --recon -ro --report-only -rs --report-stop -s --subdomain-brute -u --url)
     options+=(-vc --vhost-check -wc --webapp-crawler -wd --webapp-discovery -we --webapp-enum -ws --webapp-scan)
-    options+=(-wld --webapp-long-detection -wsd --webapp-short-detection -ww --webapp-wordlists -dr --dry-run)
+    options+=(-wcp --webapp-common-ports -wld --webapp-long-detection -wsd --webapp-short-detection -ww --webapp-wordlists -dr --dry-run)
     local argument=$2
     local option
     if [[ -z "${argument}" ]]; then
@@ -195,12 +195,16 @@ menu(){
                 webapp_scan_check="yes"
                 shift
                 ;;
+            -wcp|--webapp-common-ports)
+                webapp_port_detect=("${webapp_http_ports[@]}" "${webapp_tls_ports[@]}")
+                shift
+                ;;
             -wld|--webapp-long-detection)
-                webapp_port_detect=("${webapp_port_long_detection[@]}")
+                webapp_port_detect=("${webapp_http_ports[@]}" "${webapp_tls_ports[@]}" "${webapp_multiple_ports[@]}")
                 shift
                 ;;
             -wsd|--webapp-short-detection)
-                webapp_port_detect=("${webapp_port_short_detection[@]}")
+                webapp_port_detect=("${webapp_http_ports[@]}")
                 shift
                 ;;
             -ww|--webapp-wordlists)
