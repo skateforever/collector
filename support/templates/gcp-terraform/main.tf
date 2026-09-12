@@ -439,8 +439,11 @@ locals {
     fi
 
     # ---- 6. Build da imagem -----------------------------------------------
+    # --progress=plain: a saida vai pro log via tee (linha 1), a UI
+    # interativa nao renderiza bem em arquivo — plain grava cada etapa
+    # conforme comeca, essencial pra diagnosticar um build que trava.
     cd /opt/collector
-    docker build -t collector:latest .
+    docker build --progress=plain -t collector:latest .
 
     # ---- 7. systemd units --------------------------------------------------
     # collector@.service + collector@.timer extraidos do template multi-block

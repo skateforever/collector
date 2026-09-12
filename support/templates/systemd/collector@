@@ -11,7 +11,7 @@
 # alongside the script in the repo. To install on a Linux host with systemd:
 #
 #   1. Build the image once (or pull from your registry):
-#        docker build -t collector:latest /opt/collector
+#        docker build --progress=plain -t collector:latest /opt/collector
 #
 #   2. Copy each block below into its own file under /etc/systemd/system/:
 #        /etc/systemd/system/collector@.service

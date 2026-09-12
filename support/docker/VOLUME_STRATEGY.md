@@ -108,8 +108,9 @@ $ collector-docker -d example.com --recon
 $ vim Dockerfile-debian
 # Add: go install github.com/new-tool/tool@latest
 
-# MUST rebuild image
-$ docker build -f Dockerfile-debian -t collector:latest .
+# MUST rebuild image (--progress=plain shows each step as it starts,
+# so a stuck build is diagnosable instead of just an idle spinner)
+$ docker build --progress=plain -f Dockerfile-debian -t collector:latest .
 
 # Now run - will use updated binaries
 $ collector-docker -d example.com --recon

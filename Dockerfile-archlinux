@@ -1,4 +1,4 @@
-# docker build -f ./Dockerfile-archlinux -t collector:latest .
+# docker build --progress=plain -f ./Dockerfile-archlinux -t collector:latest .
 FROM archlinux:latest
 
 # Configurações de Ambiente

@@ -7,7 +7,7 @@
 # with each other and with the rest of the collector CLI):
 #
 #   ┌─ SECTION 1: IMAGE MANAGEMENT ──────────────────────────────────────┐
-#   │ collector-docker -i|--image <subcommand> [--no-cache|--force-build|--force] │
+#   │ collector-docker -i|--image <subcommand> [--no-cache|--progress=X|--force-build|--force] │
 #   │                                                                     │
 #   │   update       Pull latest changes, rebuild only if a structural   │
 #   │                 file changed (Dockerfile*, check_binaries.sh)      │
@@ -56,6 +56,9 @@
 #   COLLECTOR_IMAGE       — Docker image (default: collector:latest)
 #   DOCKERFILE            — Dockerfile to use for `-i|--image` subcommands (default: Dockerfile)
 #   BUILD_ARGS            — extra `docker build` arguments for `-i|--image` subcommands
+#   BUILD_PROGRESS        — docker build --progress mode (default: plain — verbose,
+#                           shows every step as it starts; use "auto" for the
+#                           interactive TTY UI back)
 #   OUTPUTS_DIR           — outputs directory (default: <root>/outputs)
 #   WORDLISTS_DIR         — wordlists directory (default: <root>/wordlists)
 #   CONF_D_DIR            — path to the conf.d/ directory (default: <root>/conf.d),
@@ -99,9 +102,10 @@ Subcommands:
   rm|remove    Remove the local image (docker rmi)
 
 Options:
-  --no-cache     Pass --no-cache to docker build (implied by 'create')
-  --force-build  Rebuild even if no structural changes were detected (update only)
-  --force        Force removal even if a stopped container still references it (rm/remove only)
+  --no-cache        Pass --no-cache to docker build (implied by 'create')
+  --progress=<mode> Docker build progress output: plain (default), auto, tty
+  --force-build     Rebuild even if no structural changes were detected (update only)
+  --force           Force removal even if a stopped container still references it (rm/remove only)
 
 The image is only rebuilt when structural files change (Dockerfiles, binary
 dependencies). Script changes are picked up automatically via host volume
@@ -110,6 +114,7 @@ mounts (see SECTION 2 / 'collector-docker -d ...').
 Environment:
   COLLECTOR_IMAGE=${COLLECTOR_IMAGE:-collector:latest}
   DOCKERFILE=${DOCKERFILE:-Dockerfile}
+  BUILD_PROGRESS=${BUILD_PROGRESS:-plain}
 EOF
 }
 
@@ -162,8 +167,13 @@ _image_build() {
     echo ""
     echo "==> Building Docker image: ${COLLECTOR_IMAGE}"
     echo "    Dockerfile: ${DOCKERFILE}"
+    # --progress=plain by default: the fancy TTY progress UI shows zero
+    # useful detail when a step hangs (no way to tell which RUN it's stuck
+    # on). Plain output logs every step as it starts, so a stuck build is
+    # diagnosable instead of just a spinner. Override with BUILD_PROGRESS=auto
+    # if you want the interactive UI back.
     # shellcheck disable=SC2086
-    if ! docker build ${extra} ${BUILD_ARGS} -f "${DOCKERFILE}" -t "${COLLECTOR_IMAGE}" .; then
+    if ! docker build --progress="${BUILD_PROGRESS}" ${extra} ${BUILD_ARGS} -f "${DOCKERFILE}" -t "${COLLECTOR_IMAGE}" .; then
         echo "collector-docker: build failed." >&2
         exit 1
     fi
@@ -210,6 +220,7 @@ _image_cmd() {
     COLLECTOR_IMAGE="${COLLECTOR_IMAGE:-collector:latest}"
     DOCKERFILE="${DOCKERFILE:-Dockerfile}"
     BUILD_ARGS="${BUILD_ARGS:-}"
+    BUILD_PROGRESS="${BUILD_PROGRESS:-plain}"
     local force_build=no
     local force_rm=""
 
@@ -217,6 +228,7 @@ _image_cmd() {
     for arg in "$@"; do
         case "${arg}" in
             --no-cache)    BUILD_ARGS="--no-cache ${BUILD_ARGS}" ;;
+            --progress=*)  BUILD_PROGRESS="${arg#--progress=}" ;;
             --force-build) force_build=yes ;;
             --force)       force_rm="-f" ;;
             *)

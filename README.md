@@ -7,8 +7,9 @@ collector is a Bash script that automates reconnaissance and information gatheri
 Build the image once (or use `collector-docker --image` for automated builds):
 
 ```bash
-docker build -t collector:latest .
-# or with collector-docker's image management subcommand
+docker build --progress=plain -t collector:latest .
+# or with collector-docker's image management subcommand (defaults to
+# --progress=plain already, see BUILD_PROGRESS in the reference below)
 ./collector-docker --image build-only
 ```
 

@@ -37,6 +37,9 @@ services:
 #   docker compose run --rm collector --help
 #
 # First-time bootstrap:
-#   docker compose build         # builds collector:latest from Dockerfile
+#   docker compose --progress=plain build   # builds collector:latest from Dockerfile
+#   # --progress is a top-level `docker compose` flag (goes before the
+#   # subcommand). plain logs every step as it starts instead of an
+#   # interactive spinner — makes a stuck build diagnosable.
 #   # ./outputs and ./wordlists are created automatically on first run.
 #   # Drop your wordlists into ./wordlists before passing -ww/--webapp-wordlists.
