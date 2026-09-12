@@ -42,10 +42,10 @@ webapp_enum(){
                                 dirsearch -t "${dirsearch_threads}" -e "${webapp_file_extensions}" --random-agent --no-color --quiet-mode \
                                     -w "${list}" --proxy "${proxy_ip}" --timeout=20 \
                                     -u "${url}" >> "${webapp_enum_dir}/${file_dirsearch}" 2>> "${log_execution_file}" &
-                                echo "gobuster dir --quiet --no-color --no-error -z -k -e --timeout 20s --delay 300ms \
+                                echo "gobuster dir --quiet --no-color --no-error --no-progress -k -e --timeout 20s --delay 300ms \
                                     --proxy http://${proxy_ip} -t ${gobuster_threads} -u ${url} -w ${list} \
                                     -x ${webapp_file_extensions} >> ${webapp_enum_dir}/${file_gobuster}" >> "${log_execution_file}"
-                                gobuster dir --quiet --no-color --no-error -z -k -e --timeout 20s --delay 300ms \
+                                gobuster dir --quiet --no-color --no-error --no-progress -k -e --timeout 20s --delay 300ms \
                                     --proxy "http://${proxy_ip}" -t "${gobuster_threads}" \
                                     -u "${url}" -w "${list}" -x "${webapp_file_extensions}" \
                                     >> "${webapp_enum_dir}/${file_gobuster}" 2>> "${log_execution_file}" &
@@ -60,10 +60,10 @@ webapp_enum(){
                                     --no-color --quiet-mode -w \"${list}\" -u \"${url}\"" >> "${log_execution_file}"
                                 dirsearch -t "${dirsearch_threads}" -e "${webapp_file_extensions}" --random-agent --no-color --quiet-mode \
                                     -w "${list}" -u "${url}" >> "${webapp_enum_dir}/${file_dirsearch}" 2>> "${log_execution_file}" &
-                                echo "gobuster dir --quiet --no-color --no-error -z -k -e --timeout 20s --delay 300ms \
+                                echo "gobuster dir --quiet --no-color --no-error --no-progress -k -e --timeout 20s --delay 300ms \
                                     -t ${gobuster_threads} -u ${url} -w ${list} -x ${webapp_file_extensions} \
                                     >> ${webapp_enum_dir}/${file_gobuster}" >> "${log_execution_file}"
-                                gobuster dir --quiet --no-color --no-error -z -k -e --timeout 20s --delay 300ms \
+                                gobuster dir --quiet --no-color --no-error --no-progress -k -e --timeout 20s --delay 300ms \
                                     -t "${gobuster_threads}" -u "${url}" -w "${list}" -x "${webapp_file_extensions}" \
                                     >> "${webapp_enum_dir}/${file_gobuster}" 2>> "${log_execution_file}" &
                                 echo "ffuf ${ffuf_options[@]} -t ${ffuf_threads} -timeout 20 -H \"User-Agent: $(get_user_agent)\" \
