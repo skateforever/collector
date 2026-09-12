@@ -147,8 +147,11 @@ crawler_params(){
         echo "echo ${url} | waybackurls >> ${file}" >> "${log_execution_file}"
         echo "${url}" | waybackurls >> "${file}" 2>> "${log_execution_file}"
 
-        echo "echo ${url} | katana -silent -nc -timeout ${katana_timeout} -c ${katana_threads} -p ${katana_threads} -f qurl -d 10 >> ${file}" >> "${log_execution_file}"
-        echo "${url}" | katana -silent -nc -timeout "${katana_timeout}" -c "${katana_threads}" -p "${katana_threads}" -f qurl -d 10 2>> "${log_execution_file}" \
+        # -f/-field is deprecated upstream in favor of -output-template;
+        # "{{qurl}}" reproduces the exact same field extraction (including
+        # the implicit "only emit when non-empty" filtering that -f qurl had).
+        echo "echo ${url} | katana -silent -nc -timeout ${katana_timeout} -c ${katana_threads} -p ${katana_threads} -output-template {{qurl}} -d 10 >> ${file}" >> "${log_execution_file}"
+        echo "${url}" | katana -silent -nc -timeout "${katana_timeout}" -c "${katana_threads}" -p "${katana_threads}" -output-template "{{qurl}}" -d 10 2>> "${log_execution_file}" \
             | grep -E "^http" >> "${file}"
 
         # Final dedupe in place.
