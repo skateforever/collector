@@ -162,6 +162,41 @@ domains_recon(){
             organizing_subdomains "${report_dir}/domains_found.txt"
         fi
         infra_data
+
+        # ASN/PTR sweep — moved here (instead of the early domains_sources.sh
+        # loop) so it sweeps the ASN/netblock behind every infra IP infra_data
+        # just aggregated into infra_ipv4.txt, not only the root domain's own
+        # IP. joining_subdomains() already ran earlier and won't see these
+        # output files, so new hits get merged into domains_found.txt and
+        # re-resolved here directly — same pattern spider_src uses below.
+        if [[ -s "${report_dir}/infra_ipv4.txt" ]]; then
+            source "${collector_path}/sources/asn-sweep.sh"
+            asn_sweep "${report_dir}/infra_ipv4.txt"
+            source "${collector_path}/sources/ptr-sweep.sh"
+            ptr_sweep "${report_dir}/infra_ipv4.txt"
+            cat "${tmp_dir}/asn_sweep_output.txt" "${tmp_dir}/ptr_sweep_output.txt" 2>/dev/null \
+                | grep -Ei "(\.${domain}$|^${domain}$)" | sort -u > "${tmp_dir}/asn_ptr_sweep_new.tmp"
+            if [[ -s "${tmp_dir}/asn_ptr_sweep_new.tmp" ]]; then
+                cat "${tmp_dir}/asn_ptr_sweep_new.tmp" >> "${report_dir}/domains_found.txt"
+                sort -u -o "${report_dir}/domains_found.txt" "${report_dir}/domains_found.txt"
+                local num_workers=20 pids=()
+                split -n l/${num_workers} "${tmp_dir}/asn_ptr_sweep_new.tmp" "${tmp_dir}/asn_ptr_sweep_chunk_"
+                for ((i=0; i<num_workers; i++)); do
+                    dns_parallel_worker "$i" "${tmp_dir}/asn_ptr_sweep_chunk_${i}" \
+                        "${domain}" "${report_dir}" "${IPv4_regex}" \
+                        "${webapp_port_detect[@]}" "${webapp_tls_ports[@]}" &
+                    pids+=($!)
+                done
+                for pid in "${pids[@]}"; do
+                    wait "$pid" 2>/dev/null
+                done
+                merge_parallel_dns_results "${report_dir}" "domains_external_ipv4"
+                merge_parallel_dns_results "${report_dir}" "domains_alive"
+                merge_parallel_dns_results "${report_dir}" "infra_ipv4"
+            fi
+            rm -f "${tmp_dir}/asn_ptr_sweep_new.tmp" "${tmp_dir}"/asn_ptr_sweep_chunk_* 2>/dev/null
+        fi
+
         nmap_scan
         shodan_scan
         if [[ "${webapp_discovery_check}" == "yes" ]]; then

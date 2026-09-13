@@ -134,21 +134,22 @@ O entrypoint do container é o script `collector`. Resumidamente o fluxo é:
    3. `diff_domains` — gera `domains_diff.txt` (delta em relação ao último run);
    4. `organizing_subdomains` — separa em `domains_alive.txt` (resolvem DNS) vs. `domains_without_resolution.txt` (candidatos a vhost), gera `domains_aliases.txt`, `domains_thirdpart.txt`, `domains_excluded.txt`;
    5. `infra_data` — coleta ASN, blocos de IP, IPv4/IPv6 (internos vs. externos), tenta `zone transfer`;
-   6. `nmap_scan` + `shodan_scan` — varredura de portas no conjunto de IPs externos;
-   7. `webapp_alive` — `httpx` contra `domains_alive.txt` na lista de portas (`webapp_http_ports` com `-wsd`; a união completa `webapp_http_ports`+`webapp_tls_ports`+`webapp_multiple_ports` com `-wld`; ou só `webapp_http_ports`+`webapp_tls_ports` com `-wcp`);
-   8. `vhost_check` + `vhost_probe` **(somente quando `-vc|--vhost-check` é passado)** — descobre vhosts servidos pelos IPs externos cujo nome não resolve em DNS, classifica em STRONG/WEAK, escreve `etc_hosts_file.txt` e adiciona ao `/etc/hosts` do container para que as demais ferramentas resolvam transparentemente. Quando `vhost_use_ffuf=yes` no `conf.d/functions.conf`, `vhost_probe` delega ao `ffuf` para descoberta muito mais rápida via wordlist;
-   9. `build_consolidated_urls` — produz `webapp_consolidated.txt` (todas as URLs HTTP(S) vivas, DNS + vhosts STRONG);
-   10. `webapp_tech` — captura cabeçalhos de resposta para fingerprinting (em `report/webapp/tech/`);
-   11. `emails_recon` — Hunter.io + IntelX (phonebook target=2) + Lampyre + Snov.io + crawl de páginas/JS do consolidado;
-   12. `crawler_js` + `crawler_params` — katana + waybackurls extraem JS, parâmetros e expandem `sitemap.xml` recursivamente; classifica parâmetros por sink e busca segredos hardcoded;
-   13. `nuclei_scan` — scan de vulnerabilidades contra o consolidado;
-   14. `webapp_enum` — gobuster + dirsearch contra o consolidado, `robots.txt`, `sitemap.xml`; `aquatone_screenshot` em cada lote; `git_rebuild` (git-dumper) se diretórios `.git/` forem encontrados;
-   15. `diff_artifacts` — gera `*_diff.txt` para cada artefato relevante;
-   16. `build_llm_prompt` — concatena todos os artefatos em `llm-prompt.txt` com cabeçalho de instruções;
-   17. `record_history` — anexa uma linha ao `<domain>_history.csv` (CSV de tendência);
-   18. `db_usage` — upsert idempotente da run no `collector-results` (SQLite, WAL, FKs);
-   19. `start_app_report` — inicia (ou reaproveita) o gunicorn na porta 8000; opcionalmente sobe um tunnel Cloudflare se `cloudflare_tunnel="yes"`;
-   20. `message "${domain}" finished` — envia notificação final via `notify` (Slack/Discord/Telegram/etc., conforme `provider-config.yaml`).
+   6. `asn_sweep` + `ptr_sweep` — varrem o ASN/netblock e o `/24` reverso (PTR) de **todo** IP de infraestrutura em `infra_ipv4.txt` (não só o IP do domínio raiz, como antes); dedup por ASN/bloco e cap de segurança (`asn_max_targets`/`ptr_max_blocks`) evitam explodir o tempo de execução. Como `joining_subdomains` já rodou (passo 2), os hits novos são mesclados direto em `domains_found.txt` e re-resolvidos aqui mesmo, no mesmo padrão do `spider_src`;
+   7. `nmap_scan` + `shodan_scan` — varredura de portas no conjunto de IPs externos;
+   8. `webapp_alive` — `httpx` contra `domains_alive.txt` na lista de portas (`webapp_http_ports` com `-wsd`; a união completa `webapp_http_ports`+`webapp_tls_ports`+`webapp_multiple_ports` com `-wld`; ou só `webapp_http_ports`+`webapp_tls_ports` com `-wcp`);
+   9. `vhost_check` + `vhost_probe` **(somente quando `-vc|--vhost-check` é passado)** — descobre vhosts servidos pelos IPs externos cujo nome não resolve em DNS, classifica em STRONG/WEAK, escreve `etc_hosts_file.txt` e adiciona ao `/etc/hosts` do container para que as demais ferramentas resolvam transparentemente. Quando `vhost_use_ffuf=yes` no `conf.d/functions.conf`, `vhost_probe` delega ao `ffuf` para descoberta muito mais rápida via wordlist;
+   10. `build_consolidated_urls` — produz `webapp_consolidated.txt` (todas as URLs HTTP(S) vivas, DNS + vhosts STRONG);
+   11. `webapp_tech` — captura cabeçalhos de resposta para fingerprinting (em `report/webapp/tech/`);
+   12. `emails_recon` — Hunter.io + IntelX (phonebook target=2) + Lampyre + Snov.io + crawl de páginas/JS do consolidado;
+   13. `crawler_js` + `crawler_params` — katana + waybackurls extraem JS, parâmetros e expandem `sitemap.xml` recursivamente; classifica parâmetros por sink e busca segredos hardcoded;
+   14. `nuclei_scan` — scan de vulnerabilidades contra o consolidado;
+   15. `webapp_enum` — gobuster + dirsearch contra o consolidado, `robots.txt`, `sitemap.xml`; `aquatone_screenshot` em cada lote; `git_rebuild` (git-dumper) se diretórios `.git/` forem encontrados;
+   16. `diff_artifacts` — gera `*_diff.txt` para cada artefato relevante;
+   17. `build_llm_prompt` — concatena todos os artefatos em `llm-prompt.txt` com cabeçalho de instruções;
+   18. `record_history` — anexa uma linha ao `<domain>_history.csv` (CSV de tendência);
+   19. `db_usage` — upsert idempotente da run no `collector-results` (SQLite, WAL, FKs);
+   20. `start_app_report` — inicia (ou reaproveita) o gunicorn na porta 8000; opcionalmente sobe um tunnel Cloudflare se `cloudflare_tunnel="yes"`;
+   21. `message "${domain}" finished` — envia notificação final via `notify` (Slack/Discord/Telegram/etc., conforme `provider-config.yaml`).
 
 Para `-u <url>`, o pipeline é reduzido a webapp_enum + robots + sitemap + crawler + nuclei + aquatone — sem recon de subdomínios, infraestrutura ou nmap.
 

@@ -396,12 +396,6 @@ joining_subdomains(){
                 | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
-        if [ -s "${tmp_dir}/ptr_sweep_output.txt" ]; then
-            echo "Parsing ptr_sweep" >> "${log_execution_file}"
-            grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/ptr_sweep_output.txt" \
-                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
-        fi
-
         if [ -s "${tmp_dir}/dns_mining_output.txt" ]; then
             echo "Parsing dns_mining" >> "${log_execution_file}"
             grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/dns_mining_output.txt" \
@@ -431,12 +425,6 @@ joining_subdomains(){
             awk '/IN[[:space:]]+A[[:space:]]/{print $1}' "${tmp_dir}/ns_brute_output.txt" \
                 | sed 's/\.$//' | tr '[:upper:]' '[:lower:]' \
                 | grep -Ei "(\.${domain}$|^${domain}$)" \
-                | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
-        fi
-
-        if [ -s "${tmp_dir}/asn_sweep_output.txt" ]; then
-            echo "Parsing asn_sweep" >> "${log_execution_file}"
-            grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/asn_sweep_output.txt" \
                 | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
