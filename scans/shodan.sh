@@ -24,7 +24,7 @@ shodan_scan(){
                 echo "shodan scan submit ${IP} >> ${shodan_dir}/shodan_scan_${IP}.txt" >> "${log_execution_file}"
                 "shodan" scan submit "${IP}" >> "${shodan_dir}/shodan_scan_${IP}.txt" 2>> "${log_execution_file}" &
             done < "${report_dir}/infra_ipv4.txt"
-            wait
+            wait 2>/dev/null
             cat "${shodan_dir}"/shodan_scan_*.txt > "${shodan_dir}/shodan_scan.txt" 2>/dev/null
             rm -f "${shodan_dir}"/shodan_scan_*.txt
         fi

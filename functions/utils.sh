@@ -148,22 +148,34 @@ escape_domain_re(){
     printf '%s' "${1//./\\.}"
 }
 
+# count_lines — safe `wc -l` for files that may not exist yet (e.g. a scan
+# type that wasn't enabled this run). A plain `wc -l < "$file" 2>/dev/null`
+# doesn't actually suppress a missing file: redirections apply left to
+# right, so the failing `<` open error prints to the terminal BEFORE
+# `2>/dev/null` takes effect. Checking existence first avoids that failing
+# redirect altogether.
+count_lines(){
+    [[ -s "$1" ]] && wc -l < "$1" || echo 0
+}
+
 run_summary(){
     local summary_target="${1:-${domain}}"
-    echo ""
+    local n_found n_alive n_ips n_webapps n_findings
+    n_found="$(count_lines "${report_dir}/domains_found.txt")"
+    n_alive="$(count_lines "${report_dir}/domains_alive.txt")"
+    n_ips="$(count_lines "${report_dir}/infra_ipv4.txt")"
+    n_webapps="$(count_lines "${report_dir}/webapp_consolidated.txt")"
+    n_findings="$(count_lines "${nuclei_scan_file}")"
+
     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Run Summary:"
-    echo -e "  Subdomains found:  $(wc -l < "${report_dir}/domains_found.txt" 2>/dev/null || echo 0)"
-    echo -e "  Subdomains alive:  $(wc -l < "${report_dir}/domains_alive.txt" 2>/dev/null || echo 0)"
-    echo -e "  Unique IPs:        $(wc -l < "${report_dir}/infra_ipv4.txt" 2>/dev/null || echo 0)"
-    echo -e "  Web apps:          $(wc -l < "${report_dir}/webapp_consolidated.txt" 2>/dev/null || echo 0)"
-    echo -e "  Nuclei findings:   $(wc -l < "${nuclei_scan_file}" 2>/dev/null || echo 0)"
+    echo -e "  Subdomains found:  ${n_found}"
+    echo -e "  Subdomains alive:  ${n_alive}"
+    echo -e "  Unique IPs:        ${n_ips}"
+    echo -e "  Web apps:          ${n_webapps}"
+    echo -e "  Nuclei findings:   ${n_findings}"
     echo -e "  Duration:          $((SECONDS / 60))m $((SECONDS % 60))s"
     printf "Run complete: %s | %s subdomains | %s alive | %s webapps | %s findings | %dm%ds" \
-        "${summary_target}" \
-        "$(wc -l < "${report_dir}/domains_found.txt" 2>/dev/null || echo 0)" \
-        "$(wc -l < "${report_dir}/domains_alive.txt" 2>/dev/null || echo 0)" \
-        "$(wc -l < "${report_dir}/webapp_consolidated.txt" 2>/dev/null || echo 0)" \
-        "$(wc -l < "${nuclei_scan_file}" 2>/dev/null || echo 0)" \
+        "${summary_target}" "${n_found}" "${n_alive}" "${n_webapps}" "${n_findings}" \
         "$((SECONDS / 60))" "$((SECONDS % 60))" \
         | notify "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
 }

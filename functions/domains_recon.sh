@@ -222,7 +222,7 @@ domains_recon(){
                     done
 
                     for pid in "${pids[@]}"; do
-                        wait "$pid"
+                        wait "$pid" 2>/dev/null
                     done
 
                     merge_parallel_dns_results "${report_dir}" "domains_external_ipv4"
@@ -268,7 +268,7 @@ domains_recon(){
                         done
 
                         for pid in "${pids[@]}"; do
-                            wait "$pid"
+                            wait "$pid" 2>/dev/null
                         done
 
                         merge_parallel_dns_results "${report_dir}" "domains_external_ipv4"

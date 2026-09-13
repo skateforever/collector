@@ -593,9 +593,9 @@ organizing_subdomains(){
                     > "${resolve_dir}/host_${ridx}.tmp" 2>/dev/null
             ) &
             ((ridx += 1))
-            [[ $((ridx % 16)) -eq 0 ]] && wait
+            [[ $((ridx % 16)) -eq 0 ]] && wait 2>/dev/null
         done < "${subdomains_file}"
-        wait
+        wait 2>/dev/null
         cat "${resolve_dir}"/dig_*.tmp > "${tmp_dir}/resolution_dig.tmp" 2>/dev/null
         cat "${resolve_dir}"/host_*.tmp > "${tmp_dir}/resolution_host.tmp" 2>/dev/null
         rm -rf "${resolve_dir}"

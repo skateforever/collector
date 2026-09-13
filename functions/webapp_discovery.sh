@@ -71,11 +71,11 @@ webapp_alive(){
                 ) &
                 ((batch += 1))
                 if [[ "${batch}" -ge 20 ]]; then
-                    wait
+                    wait 2>/dev/null
                     batch=0
                 fi
             done
-            wait
+            wait 2>/dev/null
         done < "${report_dir}/domains_alive.txt"
 
         # Merge seguro: todos os workers terminaram, agora consolidar

@@ -97,29 +97,25 @@ check_binaries
 cleanup_global(){
     local exit_code=$?
 
-    echo ""
-    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Graceful shutdown initiated (exit code: ${exit_code})."
-
-    if [[ -n "${log_execution_file}" && -f "${log_execution_file}" ]]; then
-        sync "${log_execution_file}" 2>/dev/null
-        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Logs flushed."
-    fi
+    # Housekeeping below is intentionally silent on stdout — narrating every
+    # single step ("Logs flushed.", "Subprocesses terminated.", ...) on
+    # every single run was pure noise. Only the run's own verdict
+    # (_collector_final_message, printed last) and the log file need to
+    # reflect that a shutdown happened.
+    [[ -n "${log_execution_file}" && -f "${log_execution_file}" ]] && sync "${log_execution_file}" 2>/dev/null
 
     pkill -P $$ 2>/dev/null
     wait 2>/dev/null
-    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Subprocesses terminated."
 
     if [[ -n "${collector_lock_fd}" ]]; then
         flock -u "${collector_lock_fd}" 2>/dev/null
         exec {collector_lock_fd}>&-
-        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Lock released."
     fi
 
     if [[ -n "${tmp_dir}" && -d "${tmp_dir}" ]]; then
         rm -f "${tmp_dir}"/vhost_probe_chunk_* 2>/dev/null
         rm -f "${tmp_dir}"/spider_chunk_* 2>/dev/null
         rm -f "${tmp_dir}"/webapp_urls_*.tmp 2>/dev/null
-        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Temp files cleaned."
     fi
 
     if [[ -n "${log_execution_file}" ]]; then

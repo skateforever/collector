@@ -56,7 +56,11 @@ db_usage(){
     # Bootstrap the DB the first time we see this host.
     if [[ ! -s "${db}" ]]; then
         fresh=1
-        if ! sqlite3 "${db}" < "${schema}" 2>> "${log_execution_file}"; then
+        # >/dev/null: the schema's PRAGMA statements (journal_mode, etc.)
+        # return their new value as a query result — sqlite3 prints that
+        # to stdout when run non-interactively, which would otherwise leak
+        # a bare "wal" line into the terminal.
+        if ! sqlite3 "${db}" < "${schema}" > /dev/null 2>> "${log_execution_file}"; then
             echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} db_usage: failed to create ${db} from schema."
             return 1
         fi
@@ -64,7 +68,7 @@ db_usage(){
     else
         # Apply schema as IF-NOT-EXISTS — covers upgrades that add columns,
         # indexes or views without touching existing data.
-        sqlite3 "${db}" < "${schema}" 2>> "${log_execution_file}"
+        sqlite3 "${db}" < "${schema}" > /dev/null 2>> "${log_execution_file}"
     fi
 
     # Pull this run's row out of the CSV. The latest row in the file is

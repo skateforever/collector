@@ -92,7 +92,7 @@ infra_data(){
                     fi
                 done &
             fi
-            wait
+            wait 2>/dev/null
         fi
 
         [[ -s "${tmp_dir}/infra_blocks.tmp" ]] && \
