@@ -18,7 +18,7 @@ collector_simulation_report*.md
 *.deleted
 
 # Repo-relative bind-mount targets created by `docker compose run`
-# (see docker-compose.yml volumes). Outputs are per-run recon artifacts;
+# (see docker-compose.yaml volumes). Outputs are per-run recon artifacts;
 # wordlists is where the user drops their own lists for -ww/-s; app-report-db
 # is the host side of the app-report results DB volume. None of these
 # should land in version control.

@@ -1,5 +1,5 @@
 # Real API key files must never be baked into an image layer — they're
-# meant to be bind-mounted at runtime (see collector-docker / docker-compose.yml).
+# meant to be bind-mounted at runtime (see collector-docker / docker-compose.yaml).
 # .gitignore keeps them out of git, but COPY inside the Dockerfile reads
 # straight off the build-context filesystem regardless of git, so they
 # need to be excluded here too.

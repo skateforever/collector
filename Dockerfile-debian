@@ -149,7 +149,7 @@ RUN sed -i 's|^output_dir=.*|output_dir="/opt/collector/outputs"|' conf.d/operat
 # .dockerignore, so only the *.conf.example templates (blank keys) ever
 # land in the image — collector's loader falls back to them automatically.
 # Real keys are supplied at runtime by bind-mounting conf.d/ from the host
-# (see collector-docker / docker-compose.yml).
+# (see collector-docker / docker-compose.yaml).
 
 # Alert provider configs are in support/templates/alerts/ and are baked
 # into the image. No pre-creation needed — they're part of the COPY . .

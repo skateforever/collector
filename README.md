@@ -38,7 +38,7 @@ There are three equivalent ways to run collector — all produce the same result
 
 **`docker run`** — explicit, no setup required beyond building the image. You must pass `-v` and optionally `-p` on every invocation.
 
-**`docker compose`** — volumes and port mapping are pre-configured in `docker-compose.yml`. Run from the repo root. Useful when overriding build args or pinning the image.
+**`docker compose`** — volumes and port mapping are pre-configured in `docker-compose.yaml`. Run from the repo root. Useful when overriding build args or pinning the image.
 
 By default the compose file uses repo-relative paths, so a fresh clone works without `sudo` and without pre-creating directories:
 
@@ -449,7 +449,7 @@ sqlite3 /opt/collector/app-report/db/collector-results \
 
 ## Web UI
 
-Flask + HTMX read-only dashboard auto-started at `http://127.0.0.1:8000` after each run. The port mapping is included by default in `docker-compose.yml` and `collector-docker`. With plain `docker run` add `-p 127.0.0.1:8000:8000` explicitly:
+Flask + HTMX read-only dashboard auto-started at `http://127.0.0.1:8000` after each run. The port mapping is included by default in `docker-compose.yaml` and `collector-docker`. With plain `docker run` add `-p 127.0.0.1:8000:8000` explicitly:
 
 ```bash
 docker run --rm \

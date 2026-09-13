@@ -28,7 +28,7 @@ collector/
 ├── Dockerfile                          symlink → Dockerfile-debian (imagem padrão)
 ├── Dockerfile-debian                   imagem oficial (python:3.12-slim + Go + Chromium)
 ├── Dockerfile-archlinux                imagem alternativa baseada em Arch
-├── docker-compose.yml                  serviço pronto: volumes e -p já configurados
+├── docker-compose.yaml                  serviço pronto: volumes e -p já configurados
 ├── README.md                           documentação completa
 ├── TODO.md                             roadmap interno
 │

@@ -56,7 +56,7 @@ The format is identical, so you can copy-paste the webhook URLs directly.
 
 #### Old Setup
 ```yaml
-# docker-compose.yml
+# docker-compose.yaml
 services:
   collector:
     volumes:
@@ -65,7 +65,7 @@ services:
 
 #### New Setup
 ```yaml
-# docker-compose.yml
+# docker-compose.yaml
 services:
   collector:
     volumes:
@@ -131,7 +131,7 @@ Check if your docker-compose or collector-docker command still references old pa
 
 ```bash
 # Search for old references
-grep -r "notify-provider" docker-compose.yml
+grep -r "notify-provider" docker-compose.yaml
 grep "notify_config" conf.d/functions.conf
 ```
 
