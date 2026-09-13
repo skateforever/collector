@@ -1,17 +1,17 @@
 """
-collector app-report — Flask + HTMX UI over collector-results-db.
+collector app-report — Flask + HTMX UI over collector-results.
 
 Read-only by design: the recon flow is the only writer (via db_usage),
 this app just renders. Single-process gunicorn worker is enough for the
 expected audience (operator + a couple of viewers).
 
 Configuration is taken from environment variables populated by
-start_app_report() in functions/utils.sh, which itself sources
+start_app_report() in functions/app_report.sh, which itself sources
 conf.d/*.conf. Keeping the contract that simple means there's no second
 config file to maintain.
 
 Two read sources are stitched together:
-  1. collector-results-db (SQLite, via mode=ro URI) — counts and trends.
+  1. collector-results (SQLite, via mode=ro URI) — counts and trends.
   2. report_dir/*.txt files written by the recon flow — drill-down
      content (the actual subdomains, URLs, findings, etc). The DB stores
      report_dir paths but not their contents; we open them lazily, with
@@ -28,7 +28,7 @@ from pathlib import Path
 
 from flask import Flask, abort, g, render_template, request
 
-DB_PATH = Path(os.environ.get("COLLECTOR_DB", "collector-results-db")).resolve()
+DB_PATH = Path(os.environ.get("COLLECTOR_DB", "collector-results")).resolve()
 OUTPUT_DIR = Path(os.environ.get("COLLECTOR_OUTPUT_DIR", ".")).resolve()
 
 app = Flask(__name__)

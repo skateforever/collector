@@ -152,9 +152,10 @@ diff_artifacts(){
 # Append one observability row per execution to the per-domain history CSV.
 # Always called, regardless of whether there was a diff this run.
 #
-# The file is named ${domain}_history.csv and lives at the per-target root
-# (${output_dir}/${domain}/). It is the canonical input for loading collector
-# results into any database: each row is one run, fully self-describing
+# The file is named ${domain}_history.csv and lives inside this run's
+# report/ dir (${output_dir}/${domain}/recon_${date_recon}/report/). It is
+# the canonical input for loading collector results into any database:
+# each row is one run, fully self-describing
 # (target, run id/date, counts, deltas, paths to the underlying artifacts,
 # bundle pointer, status). Loaders can COPY/INSERT it directly with the
 # domain column as the foreign key.
@@ -189,7 +190,7 @@ diff_artifacts(){
 #   llm_prompt_path      absolute path to llm-prompt.txt (empty if not built)
 #   status               finished|partial
 record_history(){
-    local hist="${output_dir}/${domain}/${domain}_history.csv"
+    local hist="${report_dir}/${domain}_history.csv"
     local target="${domain:-${url_domain}}"
     local run_id finished_at mode
     local subs subs_alive subs_added ips ips_added urls urls_added

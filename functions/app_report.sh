@@ -82,7 +82,7 @@ run_app_report(){
     [[ "${app_dir}" != /* ]] && app_dir="${collector_path:-.}/${app_dir}"
     local host="${app_report_host:-127.0.0.1}"
     local port="${app_report_port:-8000}"
-    local db="${collector_db:-${output_dir}/${collector_db_name:-collector-results-db}}"
+    local db="${collector_db:-${collector_path}/${app_report_dir:-app-report}/db/${collector_db_name:-collector-results}}"
     local pidfile logfile
     if [[ "${mode}" == "foreground" ]]; then
         pidfile="$(app_report_foreground_pidfile)"
@@ -99,7 +99,7 @@ run_app_report(){
     # DB preflight was missing in the old background path; adding it here
     # so both modes fail cleanly instead of letting Flask return 503 later.
     if [[ ! -f "${db}" ]]; then
-        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${tag}: collector-results-db not found at ${db}."
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${tag}: ${collector_db_name:-collector-results} not found at ${db}."
         if [[ "${mode}" == "foreground" ]]; then
             echo -e "  no scan has completed on this outputs dir, so there is nothing to render."
             return 1

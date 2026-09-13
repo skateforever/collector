@@ -4,8 +4,8 @@
 -- Designed for low-resource VPSes (1 vCPU / 2 GB RAM): no daemon, WAL
 -- journaling so readers don't block the per-run writer, JSON1 + FTS5
 -- already shipped with libsqlite3 if a future detail-level loader needs
--- them. The DB file is canonical: backup is `cp collector-results-db ...`
--- or `sqlite3 collector-results-db ".backup '...'"`.
+-- them. The DB file is canonical: backup is `cp collector-results ...`
+-- or `sqlite3 collector-results ".backup '...'"`.
 
 PRAGMA journal_mode = WAL;
 PRAGMA synchronous  = NORMAL;

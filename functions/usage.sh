@@ -21,7 +21,7 @@ usage(){
     echo -e "\t-r  |--recon                  - Will execute a recon until you find out what domains are web application: ${red}used only with${reset} ${yellow}-d|--domain${reset}"
     echo -e "\t\t\t\t        The webapp_enum function will be ignored, and the recon execution will be finished."
     echo -e "\t-ro |--report-only            - Opens the read-only app-report dashboard against the existing outputs directory and exits when stopped."
-    echo -e "\t\t\t\t        Skips recon entirely — use to re-open the results of a previous scan. Requires ${yellow}collector-results-db${reset} inside ${yellow}output_dir${reset}."
+    echo -e "\t\t\t\t        Skips recon entirely — use to re-open the results of a previous scan. Requires ${yellow}collector-results${reset} inside ${yellow}app-report/db${reset}."
     echo -e "\t\t\t\t        No target flag needed. Ctrl-C, ${yellow}--report-stop${reset}, or ${yellow}docker stop${reset} on the host stops the dashboard and exits."
     echo -e "\t-rs |--report-stop            - Stops a dashboard previously started with ${yellow}-ro|--report-only${reset}."
     echo -e "\t\t\t\t        Sends SIGTERM to the recorded gunicorn pid, waits up to 5s, then SIGKILLs if needed. No-op if nothing is running."

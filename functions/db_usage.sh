@@ -3,11 +3,12 @@
 #                                                           #
 # SQLite ingestion of per-run history rows.                 #
 #                                                           #
-# The recon flow appends a row to ${target}_history.csv at  #
-# the end of each run; db_usage takes that row and mirrors  #
-# it into ${output_dir}/collector-results-db so the         #
-# app-report dashboard has a single, queryable source of    #
-# truth across targets.                                     #
+# The recon flow appends a row to ${target}_history.csv     #
+# (inside this run's report/ dir) at the end of each run;   #
+# db_usage takes that row and mirrors it into               #
+# app-report/db/collector-results so the app-report         #
+# dashboard has a single, queryable source of truth         #
+# across targets.                                           #
 #                                                           #
 # Exposes:                                                  #
 #   * db_usage                                              #
@@ -15,10 +16,11 @@
 #############################################################
 
 # Ingest the current run's row from ${domain}_history.csv into a local
-# SQLite database. The DB lives at ${output_dir}/collector-results-db so
-# every target on this host writes to a single canonical store; ingestion
-# is idempotent on (domain, run_id) — re-running collector for the same
-# run_id replaces the row if any column changed, otherwise it's a no-op.
+# SQLite database. The DB lives at app-report/db/collector-results (see
+# collector_db in conf.d/operation.conf) so every target on this host
+# writes to a single canonical store; ingestion is idempotent on
+# (domain, run_id) — re-running collector for the same run_id replaces
+# the row if any column changed, otherwise it's a no-op.
 #
 # Designed for low-resource VPSes: SQLite means no daemon, WAL keeps
 # readers free while the per-run writer runs, and the schema lives in
@@ -28,8 +30,8 @@
 # Called by the orchestrators right after build_llm_prompt.
 db_usage(){
     local target="${domain:-${url_domain}}"
-    local hist="${output_dir}/${target}/${target}_history.csv"
-    local db="${collector_db:-${output_dir}/${collector_db_name:-collector-results-db}}"
+    local hist="${report_dir}/${target}_history.csv"
+    local db="${collector_db:-${collector_path}/${app_report_dir:-app-report}/db/${collector_db_name:-collector-results}}"
     local schema="${collector_db_schema}"
     local fresh=0
 
