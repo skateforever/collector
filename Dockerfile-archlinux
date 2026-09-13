@@ -104,7 +104,14 @@ RUN pacman -Syu --noconfirm && pacman -S --noconfirm \
 COPY --from=builder /usr/local/bin/ /usr/local/bin/
 
 # 3. Ferramentas Python
-RUN python -m pip install --no-cache-dir --upgrade pip setuptools wheel && \
+# setuptools pinned below 81: the shodan CLI (shodan/__main__.py) still does
+# `import pkg_resources`, which setuptools stopped bundling as of 81 —
+# `pip install --upgrade setuptools` pulls whatever's latest and breaks the
+# shodan CLI entirely (ModuleNotFoundError, including inside `shodan init`,
+# so the API key never even gets persisted). 80.10.2 is the last release
+# that still ships pkg_resources.
+RUN python -m pip install --no-cache-dir --upgrade pip wheel && \
+    python -m pip install --no-cache-dir "setuptools==80.10.2" && \
     python -m pip install --no-cache-dir \
         dirsearch \
         git-dumper \
