@@ -121,6 +121,18 @@ RUN python -m pip install --no-cache-dir --upgrade pip wheel && \
         flask \
         gunicorn
 
+# sublist3r's DNSdumpster engine crashes with an unhandled IndexError when
+# dnsdumpster.com's page doesn't have the expected CSRF token (site
+# changes, blocking, etc.) — confirmed via repeated runs: it fires on every
+# invocation against a real target and the exception escapes the
+# multiprocessing worker as a raw traceback in collector's log. Every other
+# engine in the same file already guards this exact findall()[0] pattern
+# (see e.g. extract_domains a few lines below) — get_csrftoken just missed
+# it. `or ['']` mirrors that existing defensive style.
+RUN sublist3r_path="$(python -c 'import sublist3r; print(sublist3r.__file__)')" && \
+    sed -i "s/token = csrf_regex\.findall(resp)\[0\]/token = (csrf_regex.findall(resp) or [''])[0]/" \
+        "${sublist3r_path}"
+
 # dirsearch pulls in the Python httpx/httpx-ntlm packages (step above),
 # which install their own console-script stub at /usr/local/bin/httpx,
 # overwriting the real ProjectDiscovery Go binary brought in by step 2.
