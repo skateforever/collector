@@ -1,24 +1,23 @@
 # docker build --progress=plain -f ./Dockerfile-archlinux -t collector:latest .
-FROM archlinux:latest
 
-# Configurações de Ambiente
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PIP_BREAK_SYSTEM_PACKAGES=1 \
-    GOROOT=/usr/local/go \
+# ---- Estágio 1/2: builder — compila as ferramentas Go e o massdns ----
+# Toolchain de build (base-devel, headers) e o cache de módulos/build do
+# Go (que sozinho passava de 6GB numa imagem single-stage) ficam presos
+# neste estágio e nunca chegam na imagem final — só os binários já
+# compilados atravessam, via COPY --from=builder no estágio 2.
+FROM archlinux:latest AS builder
+
+ENV GOROOT=/usr/local/go \
     GOPATH=/go \
     PATH="/usr/local/go/bin:/go/bin:${PATH}" \
     GOBIN=/usr/local/bin
 
 WORKDIR /opt/collector
 
-# 1. Dependências do Sistema
+# 1. Dependências de build
 RUN pacman -Syu --noconfirm && pacman -S --noconfirm \
-    gcc git curl wget unzip make base-devel procps-ng \
+    git wget unzip make base-devel \
     libpcap openssl libffi \
-    jq bind-tools whois html2text chromium nmap sqlite libxml2 \
-    nano vim iputils \
-    python python-pip \
     && pacman -Scc --noconfirm
 
 # 2. Instalação do Go
@@ -64,7 +63,47 @@ RUN go install github.com/projectdiscovery/tlsx/cmd/tlsx@latest && \
 # and is embedded into the binary at build time via go:embed. Nothing to
 # download or pass at runtime anymore (see scans/takeover.sh).
 
-# 4. Ferramentas Python
+# 4. Aquatone, MassDNS e Cloudflared (binários prontos, sem runtime deps
+# além de libc — confirmado via ldd: todos os binários Go acima, e estes
+# três, são estáticos ou só linkam libc.so.6/linux-vdso.so.1).
+RUN wget -q https://github.com/michenriksen/aquatone/releases/download/v1.7.0/aquatone_linux_amd64_1.7.0.zip -O /tmp/aquatone.zip && \
+    unzip /tmp/aquatone.zip -d /usr/local/bin && \
+    rm /tmp/aquatone.zip
+
+RUN git clone --depth 1 https://github.com/blechschmidt/massdns.git /tmp/massdns && \
+    cd /tmp/massdns && make && mv bin/massdns /usr/local/bin/ && rm -rf /tmp/massdns
+
+RUN wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O /usr/local/bin/cloudflared && \
+    chmod +x /usr/local/bin/cloudflared
+
+RUN wget -q https://raw.githubusercontent.com/christophetd/censys-subdomain-finder/master/censys-subdomain-finder.py -O /usr/local/bin/censys-subdomain-finder.py && \
+    chmod +x /usr/local/bin/censys-subdomain-finder.py
+
+# ---- Estágio 2/2: runtime — só os binários prontos + deps de execução ----
+FROM archlinux:latest
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_BREAK_SYSTEM_PACKAGES=1
+
+WORKDIR /opt/collector
+
+# 1. Dependências de execução — lista derivada de functions/check_binaries.sh
+# e do uso direto (curl/dig/host/jq/nmap/whois/html2text/chromium/sqlite3/
+# xmllint/git/ping/pkill) em functions/, scans/ e sources/. Nenhuma delas é
+# necessária para compilar as ferramentas Go — isso ficou só no builder.
+RUN pacman -Syu --noconfirm && pacman -S --noconfirm \
+    git curl procps-ng openssl libffi diffutils \
+    jq bind-tools whois html2text chromium nmap sqlite libxml2 \
+    nano vim iputils \
+    python python-pip \
+    && pacman -Scc --noconfirm
+
+# 2. Binários compilados no estágio builder (Go tools, aquatone, massdns,
+# cloudflared, censys-subdomain-finder.py)
+COPY --from=builder /usr/local/bin/ /usr/local/bin/
+
+# 3. Ferramentas Python
 RUN python -m pip install --no-cache-dir --upgrade pip setuptools wheel && \
     python -m pip install --no-cache-dir \
         dirsearch \
@@ -76,31 +115,13 @@ RUN python -m pip install --no-cache-dir --upgrade pip setuptools wheel && \
         gunicorn
 
 # dirsearch pulls in the Python httpx/httpx-ntlm packages (step above),
-# which install their own console-script stub at /usr/local/bin/httpx —
-# the same path GOBIN uses for the real ProjectDiscovery httpx binary
-# installed in step 3, so pip's install silently shadows it. `go install`
-# itself refuses to just overwrite a non-Go-object file at that path
-# ("build output ... already exists and is not an object file"), so the
-# stub has to be removed explicitly before reinstalling the real binary.
-RUN rm -f /usr/local/bin/httpx && \
-    go install github.com/projectdiscovery/httpx/cmd/httpx@latest
+# which install their own console-script stub at /usr/local/bin/httpx,
+# overwriting the real ProjectDiscovery Go binary brought in by step 2.
+# Re-copy it from the builder stage (already compiled there — no Go
+# toolchain in this stage) so it's the final writer to that path.
+COPY --from=builder /usr/local/bin/httpx /usr/local/bin/httpx
 
-RUN wget -q https://raw.githubusercontent.com/christophetd/censys-subdomain-finder/master/censys-subdomain-finder.py -O /usr/local/bin/censys-subdomain-finder.py && \
-    chmod +x /usr/local/bin/censys-subdomain-finder.py
-
-# 5. Aquatone e MassDNS
-RUN wget -q https://github.com/michenriksen/aquatone/releases/download/v1.7.0/aquatone_linux_amd64_1.7.0.zip -O /tmp/aquatone.zip && \
-    unzip /tmp/aquatone.zip -d /usr/local/bin && \
-    rm /tmp/aquatone.zip
-
-RUN git clone --depth 1 https://github.com/blechschmidt/massdns.git /tmp/massdns && \
-    cd /tmp/massdns && make && mv bin/massdns /usr/local/bin/ && rm -rf /tmp/massdns
-
-# 6. Cloudflared
-RUN wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O /usr/local/bin/cloudflared && \
-    chmod +x /usr/local/bin/cloudflared
-
-# 7. Configuração Final
+# 4. Configuração Final
 COPY . .
 RUN chmod +x collector collector-docker && chmod +x functions/*.sh && chmod +x scans/*.sh && chmod +x sources/*.sh
 

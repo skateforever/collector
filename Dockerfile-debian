@@ -1,11 +1,13 @@
 # docker build --progress=plain -f ./Dockerfile-debian -t collector:latest .
-FROM python:3.12-slim
 
-# Configurações de Ambiente
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    DEBIAN_FRONTEND=noninteractive \
-    TERM=xterm-256color \
+# ---- Estágio 1/2: builder — compila as ferramentas Go e o massdns ----
+# Toolchain de build (gcc, make, headers -dev) e o cache de módulos/build do
+# Go (que sozinho passava de 6GB numa imagem single-stage) ficam presos
+# neste estágio e nunca chegam na imagem final — só os binários já
+# compilados atravessam, via COPY --from=builder no estágio 2.
+FROM python:3.12-slim AS builder
+
+ENV DEBIAN_FRONTEND=noninteractive \
     GOROOT=/usr/local/go \
     GOPATH=/go \
     PATH="/usr/local/go/bin:/go/bin:${PATH}" \
@@ -13,12 +15,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /opt/collector
 
-# 1. Dependências do Sistema
+# 1. Dependências de build
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc git curl wget unzip xz-utils make build-essential procps \
+    gcc git wget unzip xz-utils make build-essential \
     libpcap-dev libssl-dev libffi-dev libcurl4-openssl-dev \
-    jq dnsutils whois html2text chromium nmap sqlite3 libxml2-utils \
-    nano vim iputils-ping \
     && rm -rf /var/lib/apt/lists/*
 
 # 2. Instalação do Go
@@ -64,25 +64,9 @@ RUN go install github.com/projectdiscovery/tlsx/cmd/tlsx@latest && \
 # and is embedded into the binary at build time via go:embed. Nothing to
 # download or pass at runtime anymore (see scans/takeover.sh).
 
-# 4. Ferramentas Python
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
-    pip install --no-cache-dir dirsearch git-dumper requests shodan sublist3r \
-                                flask gunicorn
-
-# dirsearch pulls in the Python httpx/httpx-ntlm packages (step above),
-# which install their own console-script stub at /usr/local/bin/httpx —
-# the same path GOBIN uses for the real ProjectDiscovery httpx binary
-# installed in step 3, so pip's install silently shadows it. `go install`
-# itself refuses to just overwrite a non-Go-object file at that path
-# ("build output ... already exists and is not an object file"), so the
-# stub has to be removed explicitly before reinstalling the real binary.
-RUN rm -f /usr/local/bin/httpx && \
-    go install github.com/projectdiscovery/httpx/cmd/httpx@latest
-
-RUN wget -q https://raw.githubusercontent.com/christophetd/censys-subdomain-finder/master/censys-subdomain-finder.py -O /usr/local/bin/censys-subdomain-finder.py && \
-    chmod +x /usr/local/bin/censys-subdomain-finder.py
-
-# 5. Aquatone e MassDNS
+# 4. Aquatone, MassDNS e Cloudflared (binários prontos, sem runtime deps
+# além de libc — confirmado via ldd: todos os binários Go acima, e estes
+# três, são estáticos ou só linkam libc.so.6/linux-vdso.so.1).
 RUN wget -q https://github.com/michenriksen/aquatone/releases/download/v1.7.0/aquatone_linux_amd64_1.7.0.zip -O /tmp/aquatone.zip && \
     unzip /tmp/aquatone.zip -d /usr/local/bin && \
     rm /tmp/aquatone.zip
@@ -90,14 +74,49 @@ RUN wget -q https://github.com/michenriksen/aquatone/releases/download/v1.7.0/aq
 RUN git clone --depth 1 https://github.com/blechschmidt/massdns.git /tmp/massdns && \
     cd /tmp/massdns && make && mv bin/massdns /usr/local/bin/ && rm -rf /tmp/massdns
 
-# 6. Cloudflared (used by start_app_report when cloudflare_tunnel="yes" in
-# conf.d/operation.conf). Quick-tunnel mode generates an ephemeral
-# https://*.trycloudflare.com URL pointing at the local app-report port,
-# so the dashboard can be reached without exposing the VPS IP/port.
 RUN wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O /usr/local/bin/cloudflared && \
     chmod +x /usr/local/bin/cloudflared
 
-# 7. Configuração Final
+RUN wget -q https://raw.githubusercontent.com/christophetd/censys-subdomain-finder/master/censys-subdomain-finder.py -O /usr/local/bin/censys-subdomain-finder.py && \
+    chmod +x /usr/local/bin/censys-subdomain-finder.py
+
+# ---- Estágio 2/2: runtime — só os binários prontos + deps de execução ----
+FROM python:3.12-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    DEBIAN_FRONTEND=noninteractive \
+    TERM=xterm-256color
+
+WORKDIR /opt/collector
+
+# 1. Dependências de execução — lista derivada de functions/check_binaries.sh
+# e do uso direto (curl/dig/host/jq/nmap/whois/html2text/chromium/sqlite3/
+# xmllint/git/ping/pkill) em functions/, scans/ e sources/. Nenhuma delas é
+# necessária para compilar as ferramentas Go — isso ficou só no builder.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git curl procps \
+    jq dnsutils whois html2text chromium nmap sqlite3 libxml2-utils \
+    nano vim iputils-ping \
+    && rm -rf /var/lib/apt/lists/*
+
+# 2. Binários compilados no estágio builder (Go tools, aquatone, massdns,
+# cloudflared, censys-subdomain-finder.py)
+COPY --from=builder /usr/local/bin/ /usr/local/bin/
+
+# 3. Ferramentas Python
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    pip install --no-cache-dir dirsearch git-dumper requests shodan sublist3r \
+                                flask gunicorn
+
+# dirsearch pulls in the Python httpx/httpx-ntlm packages (step above),
+# which install their own console-script stub at /usr/local/bin/httpx,
+# overwriting the real ProjectDiscovery Go binary brought in by step 2.
+# Re-copy it from the builder stage (already compiled there — no Go
+# toolchain in this stage) so it's the final writer to that path.
+COPY --from=builder /usr/local/bin/httpx /usr/local/bin/httpx
+
+# 4. Configuração Final
 COPY . .
 RUN chmod +x collector collector-docker && chmod +x functions/*.sh && chmod +x scans/*.sh && chmod +x sources/*.sh
 
