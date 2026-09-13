@@ -146,13 +146,10 @@ create_directory_structure(){
     # self-describing and reproducible from the artifact alone (the same
     # ${collector_command_line} also lands in the flock lockfile via
     # collector_acquire_lock; this just makes it visible in the run log).
-    # redact_secrets() is applied defensively: today no CLI flag carries
-    # a configured API key, but if a future flag does, this prevents it
-    # from leaking into the log header.
     {
         echo "# ============================================================"
         echo "# Run started at $(date +'%Y-%m-%d %H:%M:%S %z')"
-        echo "# Command: $(redact_secrets "${collector_command_line}")"
+        echo "# Command: ${collector_command_line}"
         echo "# Working dir: ${PWD}"
         echo "# Recon dir: ${recon_dir}"
         echo "# ============================================================"

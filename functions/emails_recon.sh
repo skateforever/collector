@@ -41,7 +41,7 @@ emails_recon(){
     # Hunter.io
     if [[ -n "${hunterio_api}" ]] && [[ -n "${hunterio_api_url}" ]]; then
         user_agent="$(get_user_agent)"
-        echo "$(redact_secrets "curl ${curl_options[@]} -H \"User-agent: ${user_agent}\" \"${hunterio_api_url}?domain=${domain}&api_key=${hunterio_api}\"")" >> "${log_execution_file}"
+        echo "curl ${curl_options[@]} -H \"User-agent: ${user_agent}\" \"${hunterio_api_url}?domain=${domain}&api_key=${hunterio_api}\"" >> "${log_execution_file}"
         curl "${curl_options[@]}" -H "User-agent: ${user_agent}" "${hunterio_api_url}?domain=${domain}&api_key=${hunterio_api}" 2>> "${log_execution_file}" \
             | jq -r '.data.emails[]?.value // empty' 2>> "${log_execution_file}" >> "${emails_tmp}"
     fi
@@ -49,7 +49,7 @@ emails_recon(){
     # Lampyre
     if [[ -n "${lampyre_api_key}" ]] && [[ -n "${lampyre_api_url}" ]]; then
         user_agent="$(get_user_agent)"
-        echo "$(redact_secrets "curl ${curl_options[@]} -H \"User-agent: ${user_agent}\" -H \"lt-token: ${lampyre_api_key}\" -H \"Content-Type: application/json\" --data '{\"request_type\":\"domain_emails\",\"domain\":\"${domain}\"}' \"${lampyre_api_url}\"")" >> "${log_execution_file}"
+        echo "curl ${curl_options[@]} -H \"User-agent: ${user_agent}\" -H \"lt-token: ${lampyre_api_key}\" -H \"Content-Type: application/json\" --data '{\"request_type\":\"domain_emails\",\"domain\":\"${domain}\"}' \"${lampyre_api_url}\"" >> "${log_execution_file}"
         curl "${curl_options[@]}" -H "User-agent: ${user_agent}" -H "lt-token: ${lampyre_api_key}" -H "Content-Type: application/json" --data "{\"request_type\":\"domain_emails\",\"domain\":\"${domain}\"}" "${lampyre_api_url}" 2>> "${log_execution_file}" \
             | grep -EhoI "${webapp_email_regex}" 2>/dev/null >> "${emails_tmp}"
     fi
@@ -57,7 +57,7 @@ emails_recon(){
     # Snov.io
     if [[ -n "${snov_api_token}" ]] && [[ -n "${snov_api_url}" ]]; then
         user_agent="$(get_user_agent)"
-        echo "$(redact_secrets "curl ${curl_options[@]} -H \"User-agent: ${user_agent}\" -H \"Authorization: Bearer ${snov_api_token}\" \"${snov_api_url}?domain=${domain}&type=all&limit=100\"")" >> "${log_execution_file}"
+        echo "curl ${curl_options[@]} -H \"User-agent: ${user_agent}\" -H \"Authorization: Bearer ${snov_api_token}\" \"${snov_api_url}?domain=${domain}&type=all&limit=100\"" >> "${log_execution_file}"
         curl "${curl_options[@]}" -H "User-agent: ${user_agent}" -H "Authorization: Bearer ${snov_api_token}" "${snov_api_url}?domain=${domain}&type=all&limit=100" 2>> "${log_execution_file}" \
             | jq -r '.emails[]?.email // .data.emails[]?.email // empty' 2>> "${log_execution_file}" >> "${emails_tmp}"
     fi
@@ -74,7 +74,7 @@ emails_recon(){
     if [[ -n "${intelx_api_key}" ]] && [[ -n "${intelx_api_url}" ]]; then
         local intelx_search_id intelx_search_body
         user_agent="$(get_user_agent)"
-        echo "$(redact_secrets "curl ${curl_options[@]} -H \"User-agent: ${user_agent}\" -H \"Content-Type: application/json\" -X POST \"${intelx_api_url}/phonebook/search?k=${intelx_api_key}\" -d '{\"term\":\"${domain}\",\"buckets\":[],\"lookuplevel\":0,\"maxresults\":${intelx_emails_max_results:-10000},\"timeout\":0,\"datefrom\":\"\",\"dateto\":\"\",\"sort\":4,\"media\":0,\"terminate\":[],\"target\":2}'")" >> "${log_execution_file}"
+        echo "curl ${curl_options[@]} -H \"User-agent: ${user_agent}\" -H \"Content-Type: application/json\" -X POST \"${intelx_api_url}/phonebook/search?k=${intelx_api_key}\" -d '{\"term\":\"${domain}\",\"buckets\":[],\"lookuplevel\":0,\"maxresults\":${intelx_emails_max_results:-10000},\"timeout\":0,\"datefrom\":\"\",\"dateto\":\"\",\"sort\":4,\"media\":0,\"terminate\":[],\"target\":2}'" >> "${log_execution_file}"
         intelx_search_body="$(curl "${curl_options[@]}" \
             -H "User-agent: ${user_agent}" \
             -H "Content-Type: application/json" \
@@ -87,7 +87,7 @@ emails_recon(){
             # available via status=1 but a fixed sleep matches the pattern
             # already used by sources/intelx.sh and keeps the code simple.
             sleep 3
-            echo "$(redact_secrets "curl ${curl_options_slow[@]} -H \"User-agent: ${user_agent}\" \"${intelx_api_url}/phonebook/result?k=${intelx_api_key}&id=${intelx_search_id}&limit=${intelx_emails_max_results:-10000}&offset=0\"")" >> "${log_execution_file}"
+            echo "curl ${curl_options_slow[@]} -H \"User-agent: ${user_agent}\" \"${intelx_api_url}/phonebook/result?k=${intelx_api_key}&id=${intelx_search_id}&limit=${intelx_emails_max_results:-10000}&offset=0\"" >> "${log_execution_file}"
             # Slow profile because /phonebook/result can stream a lot of rows
             # for popular domains; default profile would time out at 60s.
             curl "${curl_options_slow[@]}" \

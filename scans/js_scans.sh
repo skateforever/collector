@@ -13,10 +13,6 @@
 # Findings are notified via the notify pipeline. The scans  #
 # never mutate the JS files themselves.                     #
 #                                                           #
-# Depends on redact_secrets from functions/utils.sh so an   #
-# operator's own configured API keys never appear back in   #
-# the generated reports.                                    #
-#                                                           #
 # Exposes:                                                  #
 #   * scan_js_secrets   (API keys / tokens / credentials)   #
 #   * scan_js_params    (parameter names + injection sinks) #
@@ -63,9 +59,6 @@ scan_js_secrets(){
         hits="$(grep -rEHnIoi --include='*.js' "${regex}" "${scan_dir}" 2>/dev/null)"
         [[ -z "${hits}" ]] && continue
         while IFS= read -r line; do
-            # Strip our own configured API keys from the output so the report
-            # never echoes back the operator's own credentials.
-            line="$(redact_secrets "${line}")"
             printf '%s:%s\n' "${label}" "${line}" >> "${out_file}"
             total=$((total+1))
         done <<< "${hits}"
@@ -129,7 +122,6 @@ scan_js_params(){
         hits="$(grep -rEHnIoi --include='*.js' "${regex}" "${scan_dir}" 2>/dev/null)"
         [[ -z "${hits}" ]] && continue
         while IFS= read -r line; do
-            line="$(redact_secrets "${line}")"
             printf '%s:%s\n' "${label}" "${line}" >> "${out_file}"
             total=$((total+1))
         done <<< "${hits}"

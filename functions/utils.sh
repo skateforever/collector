@@ -6,7 +6,6 @@
 #                                                           #
 #   * banner                                                #
 #   * reset_vars                                            #
-#   * redact_secrets                                        #
 #                                                           #
 #############################################################
 
@@ -56,25 +55,6 @@ reset_vars(){
     unset dry_run_check
     unset vhost_check_check
     unset args_count
-}
-
-# Replace any occurrence of the configured API keys with a redacted marker.
-# Use before writing curl command lines or response bodies to log files,
-# so that sharing the log for debugging doesn't leak credentials.
-redact_secrets(){
-    local line="$1"
-    local var val
-    for var in builtwith_api_key censys_api_id censys_api_secret \
-                dnsdumpster_api_key hunterio_api lampyre_api_key \
-                riskiq_api_key riskiq_api_secret securitytrails_api_key \
-                shodan_apikey snov_api_token virustotal_api_key \
-                whoisxmlapi_api_key; do
-        val="${!var}"
-        if [[ -n "${val}" ]]; then
-            line="${line//${val}/***REDACTED***}"
-        fi
-    done
-    printf '%s' "${line}"
 }
 
 # scan_js_secrets and scan_js_params moved to scans/js_scans.sh.

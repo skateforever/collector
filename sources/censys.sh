@@ -25,7 +25,7 @@ censys-src(){
         else
             censys_params="q=parsed.names%3A+%25.${domain}&fields=parsed.names&per_page=100"
         fi
-        echo -e "\n$(redact_secrets "curl ${curl_options[@]} -u ${censys_api_id}:${censys_api_secret} \"https://search.censys.io/api/v2/certificates/search?${censys_params}\"")" >> "${log_execution_file}"
+        echo -e "\ncurl ${curl_options[@]} -u ${censys_api_id}:${censys_api_secret} \"https://search.censys.io/api/v2/certificates/search?${censys_params}\"" >> "${log_execution_file}"
         censys_result="$(curl "${curl_options[@]}" \
             -u "${censys_api_id}:${censys_api_secret}" \
             "https://search.censys.io/api/v2/certificates/search?${censys_params}" 2>> "${log_execution_file}")"

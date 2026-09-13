@@ -6,9 +6,7 @@
 # Concatenates every artifact produced by a recon run into  #
 # ${report_dir}/llm-prompt.txt so the operator can paste    #
 # (or upload) a single self-contained file to an LLM for    #
-# triage/analysis. Sensitive fields (API keys configured    #
-# in conf.d/apis-*.conf) are redacted via redact_secrets,   #
-# which lives in utils.sh.                                  #
+# triage/analysis.                                          #
 #                                                           #
 # Exposes:                                                  #
 #   * llm_emit_artifact   (per-file section writer)         #
@@ -23,9 +21,8 @@ llm_emit_artifact(){
     local out_file="$1" base="$2" rel="$3"
     local f="${base}/${rel}"
     [[ ! -s "${f}" ]] && return 0
-    local line
     echo "===== BEGIN ${rel} =====" >> "${out_file}"
-    while IFS= read -r line; do redact_secrets "${line}"; echo; done < "${f}" >> "${out_file}"
+    cat "${f}" >> "${out_file}"
     echo "===== END ${rel} =====" >> "${out_file}"
     echo >> "${out_file}"
 }
