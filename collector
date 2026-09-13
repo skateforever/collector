@@ -104,8 +104,46 @@ cleanup_global(){
     # reflect that a shutdown happened.
     [[ -n "${log_execution_file}" && -f "${log_execution_file}" ]] && sync "${log_execution_file}" 2>/dev/null
 
-    pkill -P $$ 2>/dev/null
+    # start_app_report leaves a gunicorn/python3 dashboard running after
+    # this run finishes — that's the point (browse results the moment the
+    # run ends). Inside Docker, collector is the container's PID 1, so the
+    # instant start_app_report's subshell exits, the dashboard's orphaned
+    # process gets reparented right back to $$ — a blind `pkill -P $$`
+    # here then kills the dashboard we just started, seconds after it was
+    # confirmed alive (reproduced: gunicorn's own log shows "Handling
+    # signal: term" moments after "Starting gunicorn", every run). Skip
+    # its pid explicitly.
+    local _app_report_pidfile="${app_report_pidfile:-${output_dir}/${app_report_pidfile_name:-.app-report.pid}}"
+    local _app_report_live_pid=""
+    [[ -s "${_app_report_pidfile}" ]] && _app_report_live_pid="$(cat "${_app_report_pidfile}" 2>/dev/null)"
+    local _child
+    local -a _signaled=()
+    for _child in $(pgrep -P $$ 2>/dev/null); do
+        [[ -n "${_app_report_live_pid}" && "${_child}" == "${_app_report_live_pid}" ]] && continue
+        kill -TERM "${_child}" 2>/dev/null
+        _signaled+=("${_child}")
+    done
     wait 2>/dev/null
+
+    # A signaled process that does its own graceful shutdown (as gunicorn
+    # did here — "Handling signal: term" then "Worker exiting" a moment
+    # later, confirmed in outputs/.app-report.log) can still be alive when
+    # the `wait` above returns. Its eventual death then gets reaped by
+    # bash's own SIGCHLD bookkeeping at some later point that this
+    # redirect no longer covers, leaking a bare "Terminated" straight to
+    # the console instead of the log. Poll briefly so every signaled pid
+    # is confirmed dead — and reaped under a redirect — before moving on.
+    local _settle=0 _still_alive
+    while [[ "${_settle}" -lt 5 ]]; do
+        _still_alive=0
+        for _child in "${_signaled[@]}"; do
+            kill -0 "${_child}" 2>/dev/null && _still_alive=1
+        done
+        [[ "${_still_alive}" -eq 0 ]] && break
+        sleep 1
+        wait 2>/dev/null
+        ((_settle += 1))
+    done
 
     if [[ -n "${collector_lock_fd}" ]]; then
         flock -u "${collector_lock_fd}" 2>/dev/null
