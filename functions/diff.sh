@@ -218,9 +218,19 @@ record_history(){
         mode="unknown"
     fi
 
-    count_lines(){ [[ -s "$1" ]] && wc -l < "$1" | awk '{print $1}' || echo 0; }
-    count_match(){ [[ -s "$1" ]] && grep -c "$2" "$1" 2>/dev/null || echo 0; }
-    count_body(){ [[ -s "$1" ]] && grep -cv -E '^(#|$)' "$1" 2>/dev/null || echo 0; }
+    # `grep -c` exits 1 when it counts zero matches — that's not an error,
+    # it's grep's normal "nothing selected" convention, but chaining it as
+    # `cmd && ... || echo 0` treats that exit code as failure and runs the
+    # `echo 0` fallback TOO, so a legitimate zero-count still prints grep's
+    # own "0" *and* the fallback's "0" — two lines instead of one. That
+    # silently split several CSV rows across multiple lines whenever a
+    # severity/pattern had zero matches (report: nuclei_scan.result with
+    # any all-zero severity broke the history CSV's column count outright).
+    # Capturing into a variable first and echoing it unconditionally, once,
+    # outside the &&/|| chain, guarantees exactly one line either way.
+    count_lines(){ local n; [[ -s "$1" ]] && n="$(wc -l < "$1" | awk '{print $1}')" || n=0; echo "${n:-0}"; }
+    count_match(){ local n; [[ -s "$1" ]] && n="$(grep -c "$2" "$1" 2>/dev/null)" || n=0; echo "${n:-0}"; }
+    count_body(){ local n; [[ -s "$1" ]] && n="$(grep -cv -E '^(#|$)' "$1" 2>/dev/null)" || n=0; echo "${n:-0}"; }
 
     subs="$(count_lines        "${report_dir}/domains_found.txt")"
     subs_alive="$(count_lines  "${report_dir}/domains_alive.txt")"
