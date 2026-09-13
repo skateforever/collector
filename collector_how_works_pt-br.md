@@ -374,6 +374,6 @@ Comportamentos chave controlados por essas variáveis:
 
 ## 6. Mais detalhes
 
-Para a referência completa de todas as flags, variáveis de ambiente do wrapper (`COLLECTOR_IMAGE`, `OUTPUTS_DIR`, `WORDLISTS_DIR`, `CONF_D_DIR`, `APP_PORT`, `NOTIFY_CONFIG`), parâmetros do `conf.d/*.conf` (timeouts, threads, listas de portas, chaves de API, opções do Cloudflare quick-tunnel), templates de cron/systemd, integração com o `projectdiscovery/notify`, schema do banco SQLite e consultas prontas, **consulte o `README.md` do repositório do collector**.
+Para a referência completa de todas as flags, variáveis de ambiente do wrapper (`COLLECTOR_IMAGE`, `OUTPUTS_DIR`, `WORDLISTS_DIR`, `APP_REPORT_DB_DIR`, `CONF_D_DIR`, `APP_PORT`, `NOTIFY_CONFIG`), parâmetros do `conf.d/*.conf` (timeouts, threads, listas de portas, chaves de API, opções do Cloudflare quick-tunnel), templates de cron/systemd, integração com o `projectdiscovery/notify`, schema do banco SQLite e consultas prontas, **consulte o `README.md` do repositório do collector**.
 
 > **Aviso:** o collector gera um volume significativo de tráfego. Use apenas contra alvos para os quais você tenha autorização explícita.

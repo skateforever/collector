@@ -374,6 +374,6 @@ Key behaviors controlled by these variables:
 
 ## 6. Further details
 
-For the full reference of every flag, the wrapper's environment variables (`COLLECTOR_IMAGE`, `OUTPUTS_DIR`, `WORDLISTS_DIR`, `CONF_D_DIR`, `APP_PORT`, `NOTIFY_CONFIG`), the `conf.d/*.conf` parameters (timeouts, threads, port lists, API keys, Cloudflare quick-tunnel options), the cron/systemd templates, the `projectdiscovery/notify` integration, the SQLite schema and ready-made queries, **see the `README.md` in the collector repository**.
+For the full reference of every flag, the wrapper's environment variables (`COLLECTOR_IMAGE`, `OUTPUTS_DIR`, `WORDLISTS_DIR`, `APP_REPORT_DB_DIR`, `CONF_D_DIR`, `APP_PORT`, `NOTIFY_CONFIG`), the `conf.d/*.conf` parameters (timeouts, threads, port lists, API keys, Cloudflare quick-tunnel options), the cron/systemd templates, the `projectdiscovery/notify` integration, the SQLite schema and ready-made queries, **see the `README.md` in the collector repository**.
 
 > **Warning:** collector generates a significant amount of traffic. Use only against targets you have explicit authorization to test.
