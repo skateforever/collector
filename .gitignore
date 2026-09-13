@@ -19,13 +19,25 @@ collector_simulation_report*.md
 
 # Repo-relative bind-mount targets created by `docker compose run`
 # (see docker-compose.yml volumes). Outputs are per-run recon artifacts;
-# wordlists is where the user drops their own lists for -ww/-s. Neither
+# wordlists is where the user drops their own lists for -ww/-s; app-report-db
+# is the host side of the app-report results DB volume. None of these
 # should land in version control.
 /outputs/
 /wordlists/
+/app-report-db/
+
+# The SQLite results DB (collector_db in conf.d/operation.conf) itself —
+# it can contain data from every target ever scanned on this host. Lives
+# on the app-report-db volume above in normal operation, but gitignore its
+# contents in-repo too in case collector ever runs without that mount (e.g.
+# bare host execution) and writes straight into the tracked app-report/ tree.
+# app-report/db/.gitkeep stays tracked so the directory itself is static —
+# always present after a checkout, never created by code at runtime.
+app-report/db/*
+!app-report/db/.gitkeep
 
 # Local override for compose: lets the user point OUTPUTS_DIR / WORDLISTS_DIR
-# / CONF_D_DIR elsewhere without modifying the YAML.
+# / APP_REPORT_DB_DIR / CONF_D_DIR elsewhere without modifying the YAML.
 .env
 
 # Real API key files — carry live credentials (Shodan, SecurityTrails,

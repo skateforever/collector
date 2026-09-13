@@ -140,9 +140,12 @@ RUN sed -i 's|^output_dir=.*|output_dir="/opt/collector/outputs"|' conf.d/operat
 EXPOSE 8000
 
 # Volumes: outputs persists recon results across runs; wordlists holds the
-# dirsearch/gobuster wordlists mounted from the host; conf.d/ allows
-# overriding operation/functions/API-key config at runtime without rebuilding.
-VOLUME ["/opt/collector/outputs", "/opt/collector/wordlists"]
+# dirsearch/gobuster wordlists mounted from the host; app-report/db holds
+# the SQLite results DB (collector_db in conf.d/operation.conf) on its own
+# volume so it survives `docker run --rm` independently of outputs/; conf.d/
+# allows overriding operation/functions/API-key config at runtime without
+# rebuilding.
+VOLUME ["/opt/collector/outputs", "/opt/collector/wordlists", "/opt/collector/app-report/db"]
 
 # collector is the only entry point — parameters are passed directly:
 #   docker run --rm -v $(pwd)/outputs:/opt/collector/outputs collector-image \

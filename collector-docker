@@ -61,6 +61,11 @@
 #                           interactive TTY UI back)
 #   OUTPUTS_DIR           — outputs directory (default: <root>/outputs)
 #   WORDLISTS_DIR         — wordlists directory (default: <root>/wordlists)
+#   APP_REPORT_DB_DIR     — app-report results DB directory (default: <root>/app-report-db) —
+#                           persists app-report/db/collector-results across
+#                           `docker run --rm` invocations; separate from OUTPUTS_DIR
+#                           since the DB isn't per-run recon output (see collector_db
+#                           in conf.d/operation.conf).
 #   CONF_D_DIR            — path to the conf.d/ directory (default: <root>/conf.d),
 #                           mounted whole so operation.conf, functions.conf,
 #                           and whichever of apis-recon.conf/apis-emails.conf
@@ -310,6 +315,7 @@ fi
 COLLECTOR_IMAGE="${COLLECTOR_IMAGE:-collector:latest}"
 OUTPUTS_DIR="${OUTPUTS_DIR:-${DEFAULT_ROOT}/outputs}"
 WORDLISTS_DIR="${WORDLISTS_DIR:-${DEFAULT_ROOT}/wordlists}"
+APP_REPORT_DB_DIR="${APP_REPORT_DB_DIR:-${DEFAULT_ROOT}/app-report-db}"
 CONF_D_DIR="${CONF_D_DIR:-${DEFAULT_ROOT}/conf.d}"
 APP_PORT="${APP_PORT:-127.0.0.1:8000:8000}"
 
@@ -336,7 +342,7 @@ ALERT_PROVIDER_FILE="${ALERT_PROVIDER_FILE:-${DEFAULT_ROOT}/${ALERT_PROVIDER_TYP
 # Pre-create the host directories that Docker would otherwise auto-create
 # as root when mounting them as volumes (which then breaks ownership of
 # the outputs produced inside the container).
-mkdir -p "${OUTPUTS_DIR}" "${WORDLISTS_DIR}" 2>/dev/null || true
+mkdir -p "${OUTPUTS_DIR}" "${WORDLISTS_DIR}" "${APP_REPORT_DB_DIR}" 2>/dev/null || true
 
 # Sanity check: if CONF_D_DIR (or its two required files) doesn't exist,
 # abort with a clear message — otherwise Docker would create an empty
@@ -483,6 +489,7 @@ exec docker run --rm "${name_args[@]}" \
     -e "TERM=${TERM:-dumb}" \
     -v "${OUTPUTS_DIR}:/opt/collector/outputs" \
     -v "${WORDLISTS_DIR}:/opt/collector/wordlists" \
+    -v "${APP_REPORT_DB_DIR}:/opt/collector/app-report/db" \
     -v "${CONF_D_DIR}:/opt/collector/conf.d:ro" \
     "${script_mount_args[@]}" \
     "${alert_mount_args[@]}" \
