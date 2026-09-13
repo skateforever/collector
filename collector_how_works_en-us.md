@@ -91,7 +91,7 @@ collector/
 │   │   │                               takeover-fingerprints.txt
 │   │   ├── patterns/                   regexes for secrets and sensitive parameter names
 │   │   ├── prompts/                    header for llm-prompt.txt
-│   │   └── schema/                     SQL schema for collector-results-db
+│   │   └── schema/                     SQL schema for collector-results
 │   ├── docker/                         Docker configuration and volume strategy
 │   │   ├── docker.env.template         template for environment variables (Docker Compose)
 │   │   └── VOLUME_STRATEGY.md          detailed documentation on volumes (code replication)
@@ -108,7 +108,8 @@ collector/
 │           └── MIGRATION.md            migration guide from legacy notify system
 │
 ├── app-report/                         read-only dashboard (Flask + HTMX + gunicorn)
-│   ├── app.py                          routes, reads collector-results-db
+│   ├── app.py                          routes, reads collector-results
+│   ├── db/                             volume (APP_REPORT_DB_DIR) — collector-results (SQLite)
 │   ├── requirements.txt
 │   └── templates/                      index, target, runs, findings, diff, artifact, raw
 │
@@ -145,7 +146,7 @@ The container entrypoint is the `collector` script. The flow is, in short:
    15. `diff_artifacts` — generates `*_diff.txt` for each relevant artifact;
    16. `build_llm_prompt` — concatenates every artifact into `llm-prompt.txt` with an instruction header;
    17. `record_history` — appends a row to `<domain>_history.csv` (trend log);
-   18. `db_usage` — idempotent upsert of the run into `collector-results-db` (SQLite, WAL, FKs);
+   18. `db_usage` — idempotent upsert of the run into `collector-results` (SQLite, WAL, FKs);
    19. `start_app_report` — starts (or reuses) gunicorn on port 8000; optionally brings up a Cloudflare tunnel if `cloudflare_tunnel="yes"`;
    20. `message "${domain}" finished` — sends a final notification via `notify` (Slack/Discord/Telegram/etc., per `provider-config.yaml`).
 
@@ -204,8 +205,8 @@ Every final artifact lives under `outputs/<domain>/recon_YYYYMMDD/`:
 
 ### Synthesis and persistence
 `report/llm-prompt.txt` — single bundle with every artifact above plus an instruction header; ready to paste into any LLM for follow-up analysis.
-`<domain>_history.csv` (one level above, at `outputs/<domain>/`) — one row per run, feeds the trend view in the dashboard.
-`outputs/collector-results-db` — SQLite with `targets(domain PK)` + `recon_runs(domain, run_id, ...)` + `latest_run` view. Idempotent: re-running the same `run_id` only writes when the payload changes.
+`<domain>_history.csv` (inside this `report/`) — one row per run, feeds the trend view in the dashboard.
+`app-report/db/collector-results` (its own volume, `APP_REPORT_DB_DIR`) — SQLite with `targets(domain PK)` + `recon_runs(domain, run_id, ...)` + `latest_run` view. Idempotent: re-running the same `run_id` only writes when the payload changes.
 
 ## 5. How to run collector
 
@@ -333,18 +334,18 @@ collector-docker -d example.com \
   --webapp-scan
 ```
 
-What you get: **every** artifact described in section 4, including `llm-prompt.txt`, an updated `<domain>_history.csv`, ingestion into `collector-results-db` and the dashboard running on `http://127.0.0.1:8000`. This is typically the command wired into cron/systemd (weekly) — the per-artifact diff ensures only changes hit the notification channel.
+What you get: **every** artifact described in section 4, including `llm-prompt.txt`, an updated `<domain>_history.csv`, ingestion into `collector-results` and the dashboard running on `http://127.0.0.1:8000`. This is typically the command wired into cron/systemd (weekly) — the per-artifact diff ensures only changes hit the notification channel.
 
 ### 5.5. Reopening the dashboard without a new recon
 
-At the end of every recon, `start_app_report` puts the Flask/gunicorn dashboard in the background so the operator has an interface ready to browse the results. Once that container exits (or the process is killed), the dashboard goes with it — but the data is preserved in the shared `outputs/` volume. To read it again without triggering another scan, use `--report-only`:
+At the end of every recon, `start_app_report` puts the Flask/gunicorn dashboard in the background so the operator has an interface ready to browse the results. Once that container exits (or the process is killed), the dashboard goes with it — but the data is preserved: the artifacts in `outputs/` and the SQLite file in `app-report/db/` (its own volume, `APP_REPORT_DB_DIR`). To read it again without triggering another scan, use `--report-only`:
 
 ```bash
 collector-docker --report-only        # foreground gunicorn on 127.0.0.1:8000, Ctrl-C stops
 collector-docker --report-stop        # stop from another shell
 ```
 
-`--report-only` requires a `collector-results-db` inside `outputs/` (it aborts with a clear message otherwise), refuses to start when another instance is already running (via pidfile + host-port probe), and is a strict read-only path — the Flask app opens the SQLite database with `mode=ro`. The wrapper names that container `collector-report` (override via `REPORT_CONTAINER_NAME=<name>` in the environment), which is what `--report-stop` targets on the host.
+`--report-only` requires a `collector-results` inside `app-report/db/` (it aborts with a clear message otherwise), refuses to start when another instance is already running (via pidfile + host-port probe), and is a strict read-only path — the Flask app opens the SQLite database with `mode=ro`. The wrapper names that container `collector-report` (override via `REPORT_CONTAINER_NAME=<name>` in the environment), which is what `--report-stop` targets on the host.
 
 When the host port in `APP_PORT` (default `127.0.0.1:8000:8000`) is already bound — for instance because a previous recon left a background dashboard running, or a sibling container is publishing to it — `collector-docker` silently drops the `-p` flag from `docker run` rather than aborting with "port already allocated". The recon still completes, and the running dashboard already renders the new run's data because `outputs/` is shared.
 

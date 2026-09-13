@@ -46,6 +46,7 @@ By default the compose file uses repo-relative paths, so a fresh clone works wit
 |---|---|
 | `./outputs` (auto-created on first run) | `/opt/collector/outputs` |
 | `./wordlists` (auto-created on first run) | `/opt/collector/wordlists` |
+| `./app-report-db` (auto-created on first run) | `/opt/collector/app-report/db` |
 | `./conf.d` (already in the repo) | `/opt/collector/conf.d` (read-only) |
 
 To redirect any of these to a different host location, drop a `.env` file in the repo root (Docker Compose loads it automatically). Example:
@@ -54,6 +55,7 @@ To redirect any of these to a different host location, drop a `.env` file in the
 # .env at the repo root
 OUTPUTS_DIR=/data/recon/outputs
 WORDLISTS_DIR=/data/wordlists
+APP_REPORT_DB_DIR=/data/app-report-db
 CONF_D_DIR=/etc/collector/conf.d
 ```
 
@@ -74,7 +76,7 @@ Install it once and use it like a native command:
 
 ```bash
 sudo install -m 0755 /opt/collector/collector-docker /usr/local/bin/collector-docker
-sudo mkdir -p /opt/collector/{outputs,wordlists}
+sudo mkdir -p /opt/collector/{outputs,wordlists,app-report-db}
 sudo cp -r /opt/collector/conf.d /opt/collector/conf.d
 ```
 
@@ -85,6 +87,7 @@ Override defaults via environment variables (`<root>` is the checkout directory 
 | `COLLECTOR_IMAGE` | `collector:latest` |
 | `OUTPUTS_DIR` | `<root>/outputs` (mounted to `/opt/collector/outputs`) |
 | `WORDLISTS_DIR` | `<root>/wordlists` (mounted to `/opt/collector/wordlists`) |
+| `APP_REPORT_DB_DIR` | `<root>/app-report-db` (mounted to `/opt/collector/app-report/db`) |
 | `CONF_D_DIR` | `<root>/conf.d` (mounted to `/opt/collector/conf.d`) |
 | `ALERT_PROVIDER_TYPE` | `discord` (discord, slack, teams, telegram, signal) |
 | `ALERT_PROVIDER_FILE` | `<root>/{type}-provider.yaml` (optional; if missing, uses template from image) |
@@ -186,7 +189,7 @@ The app-report dashboard is started automatically at the end of each recon (in t
 
 | Flag | Description |
 |------|-------------|
-| `-ro \| --report-only` | Open the read-only app-report dashboard against the existing `outputs/` directory and stay in the foreground. Skips recon entirely; requires a `collector-results-db` from a previous run. Ctrl-C or `--report-stop` (from another shell) stops it. |
+| `-ro \| --report-only` | Open the read-only app-report dashboard against the existing `outputs/` directory and stay in the foreground. Skips recon entirely; requires `collector-results` (in `app-report/db/`) from a previous run. Ctrl-C or `--report-stop` (from another shell) stops it. |
 | `-rs \| --report-stop` | Stop a dashboard previously started with `--report-only`. Sends SIGTERM, waits 5 s, then SIGKILLs if needed. Via `collector-docker` it does the equivalent `docker stop collector-report` on the host. |
 
 > **On stopping recon runs:** collector runs in a one-shot container, so the right way to abort an in-flight recon is `docker stop <container>` on the host. To wipe artifacts, `rm -rf` the target's directory under `outputs/`. Per-target `flock` already prevents concurrent runs against the same domain.
@@ -376,7 +379,7 @@ Both use `collector-docker` (or `docker run --rm` directly) — each run fires a
 - Email harvesting from APIs + page/JS crawl filtered to the target domain
 - JS scraping and parameter mining with sink classification (SQLi/XSS/SSRF/XXE/CMD/...)
 - Single LLM prompt bundle per run: `llm-prompt.txt` — all artifacts included, ready to paste into any LLM for follow-up analysis
-- SQLite ingestion: each run upserted into `collector-results-db` (idempotent, WAL, FK-protected)
+- SQLite ingestion: each run upserted into `collector-results` (idempotent, WAL, FK-protected)
 - Flask + HTMX read-only web UI at `http://127.0.0.1:8000` auto-started after each run
 - Cloudflare quick-tunnel (opt-in via `cloudflare_tunnel="yes"` in `conf.d/operation.conf`) for remote dashboard access
 - Per-target flock so concurrent runs for the same domain abort instead of corrupting state
@@ -385,11 +388,11 @@ Both use `collector-docker` (or `docker run --rm` directly) — each run fires a
 
 ```
 <domain>/
-├── <domain>_history.csv                          per-run trend log
 └── recon_YYYYMMDD/
     ├── log/recon_YYYYMMDD.log
     ├── tmp/                                       intermediate files
     └── report/
+        ├── <domain>_history.csv                   per-run trend log
         ├── domains_found.txt                      all discovered subdomains
         ├── domains_diff.txt                       delta vs. previous run
         ├── domains_alive.txt                      subdomains that resolve
@@ -433,14 +436,14 @@ Both use `collector-docker` (or `docker run --rm` directly) — each run fires a
 
 ## Results database (SQLite)
 
-After every run, `db_usage()` upserts the latest row into `${output_dir}/collector-results-db`. Schema: `targets(domain PK)` + `recon_runs(domain, run_id, ...)` with composite PK, `latest_run` view. Ingestion is idempotent — re-importing the same `run_id` only writes on payload change.
+After every run, `db_usage()` upserts the latest row into `app-report/db/collector-results` (path resolved from `collector_db` in `conf.d/operation.conf`; lives on its own volume — `APP_REPORT_DB_DIR` — independent of `outputs/`, since it isn't per-run recon output). Schema: `targets(domain PK)` + `recon_runs(domain, run_id, ...)` with composite PK, `latest_run` view. Ingestion is idempotent — re-importing the same `run_id` only writes on payload change.
 
 ```bash
 # Access from outside the container
-sqlite3 /opt/collector/outputs/collector-results-db \
+sqlite3 /opt/collector/app-report/db/collector-results \
   "SELECT domain, run_date, findings_critical, findings_high, js_secrets FROM latest_run ORDER BY findings_critical DESC;"
 
-sqlite3 /opt/collector/outputs/collector-results-db \
+sqlite3 /opt/collector/app-report/db/collector-results \
   "SELECT run_date, subdomains, webapp_consolidated, findings_critical FROM recon_runs WHERE domain='example.com' ORDER BY run_date DESC LIMIT 10;"
 ```
 
@@ -469,7 +472,7 @@ collector-docker --report-only         # foreground, Ctrl-C to stop
 collector-docker --report-stop         # stop from another shell
 ```
 
-`--report-only` names its container `collector-report` (override with `REPORT_CONTAINER_NAME=<name>`) and refuses to start when one is already running. It requires `collector-results-db` to exist in the `outputs/` directory — otherwise it aborts with a clear message rather than serving an empty dashboard.
+`--report-only` names its container `collector-report` (override with `REPORT_CONTAINER_NAME=<name>`) and refuses to start when one is already running. It requires `collector-results` to exist in the `app-report/db/` directory — otherwise it aborts with a clear message rather than serving an empty dashboard.
 
 Or set `cloudflare_tunnel="yes"` in `conf.d/operation.conf` for an ephemeral `https://*.trycloudflare.com` URL (only meaningful when the dashboard runs in the background, i.e. at end-of-recon; `--report-only` doesn't publish a tunnel).
 

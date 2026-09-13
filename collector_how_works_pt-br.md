@@ -91,7 +91,7 @@ collector/
 │   │   │                               takeover-fingerprints.txt
 │   │   ├── patterns/                   regex de secrets e nomes de parâmetros sensíveis
 │   │   ├── prompts/                    cabeçalho do llm-prompt.txt
-│   │   └── schema/                     schema SQL do collector-results-db
+│   │   └── schema/                     schema SQL do collector-results
 │   ├── docker/                         configuração Docker e volume strategy
 │   │   ├── docker.env.template         template de variáveis de ambiente (Docker Compose)
 │   │   └── VOLUME_STRATEGY.md          documentação detalhada sobre volumes (code replication)
@@ -108,7 +108,8 @@ collector/
 │           └── MIGRATION.md            guia de migração do sistema antigo
 │
 ├── app-report/                         dashboard read-only (Flask + HTMX + gunicorn)
-│   ├── app.py                          rotas, leitura do collector-results-db
+│   ├── app.py                          rotas, leitura do collector-results
+│   ├── db/                             volume (APP_REPORT_DB_DIR) — collector-results (SQLite)
 │   ├── requirements.txt
 │   └── templates/                      index, target, runs, findings, diff, artifact, raw
 │
@@ -145,7 +146,7 @@ O entrypoint do container é o script `collector`. Resumidamente o fluxo é:
    15. `diff_artifacts` — gera `*_diff.txt` para cada artefato relevante;
    16. `build_llm_prompt` — concatena todos os artefatos em `llm-prompt.txt` com cabeçalho de instruções;
    17. `record_history` — anexa uma linha ao `<domain>_history.csv` (CSV de tendência);
-   18. `db_usage` — upsert idempotente da run no `collector-results-db` (SQLite, WAL, FKs);
+   18. `db_usage` — upsert idempotente da run no `collector-results` (SQLite, WAL, FKs);
    19. `start_app_report` — inicia (ou reaproveita) o gunicorn na porta 8000; opcionalmente sobe um tunnel Cloudflare se `cloudflare_tunnel="yes"`;
    20. `message "${domain}" finished` — envia notificação final via `notify` (Slack/Discord/Telegram/etc., conforme `provider-config.yaml`).
 
@@ -204,8 +205,8 @@ Todos os artefatos finais vivem em `outputs/<domain>/recon_YYYYMMDD/`:
 
 ### Síntese e persistência
 `report/llm-prompt.txt` — bundle único com todos os artefatos acima e cabeçalho de instruções; pronto para colar em qualquer LLM e seguir com análise.
-`<domain>_history.csv` (um nível acima, em `outputs/<domain>/`) — uma linha por run, alimenta tendência no dashboard.
-`outputs/collector-results-db` — SQLite com `targets(domain PK)` + `recon_runs(domain, run_id, ...)` + view `latest_run`. Idempotente: re-rodar o mesmo `run_id` só grava se o payload mudou.
+`<domain>_history.csv` (dentro deste `report/`) — uma linha por run, alimenta tendência no dashboard.
+`app-report/db/collector-results` (volume próprio, `APP_REPORT_DB_DIR`) — SQLite com `targets(domain PK)` + `recon_runs(domain, run_id, ...)` + view `latest_run`. Idempotente: re-rodar o mesmo `run_id` só grava se o payload mudou.
 
 ## 5. Comandos para executar o collector
 
@@ -333,18 +334,18 @@ collector-docker -d example.com \
   --webapp-scan
 ```
 
-O que entrega: **todos** os artefatos descritos na seção 4, incluindo `llm-prompt.txt`, `<domain>_history.csv` atualizado, ingestão no `collector-results-db` e dashboard subindo em `http://127.0.0.1:8000`. Tipicamente é o comando agendado em cron/systemd (semanal) — o diff por artefato garante que apenas as mudanças vão para o canal de notificação.
+O que entrega: **todos** os artefatos descritos na seção 4, incluindo `llm-prompt.txt`, `<domain>_history.csv` atualizado, ingestão no `collector-results` e dashboard subindo em `http://127.0.0.1:8000`. Tipicamente é o comando agendado em cron/systemd (semanal) — o diff por artefato garante que apenas as mudanças vão para o canal de notificação.
 
 ### 5.6. Reabrir o dashboard sem rodar um novo recon
 
-Ao final de cada recon, `start_app_report` sobe o dashboard Flask/gunicorn em background para que o operador tenha uma interface pronta para navegar nos resultados. Quando aquele container termina (ou o processo é derrubado), o dashboard vai junto — mas os dados continuam preservados no volume compartilhado `outputs/`. Para consultá-los de novo sem disparar outro scan, use `--report-only`:
+Ao final de cada recon, `start_app_report` sobe o dashboard Flask/gunicorn em background para que o operador tenha uma interface pronta para navegar nos resultados. Quando aquele container termina (ou o processo é derrubado), o dashboard vai junto — mas os dados continuam preservados: os artefatos em `outputs/` e o SQLite em `app-report/db/` (volume próprio, `APP_REPORT_DB_DIR`). Para consultá-los de novo sem disparar outro scan, use `--report-only`:
 
 ```bash
 collector-docker --report-only        # gunicorn em foreground em 127.0.0.1:8000, Ctrl-C encerra
 collector-docker --report-stop        # encerra a partir de outro shell
 ```
 
-`--report-only` exige um `collector-results-db` dentro de `outputs/` (aborta com mensagem clara caso contrário), recusa iniciar quando outra instância já estiver rodando (via pidfile + sondagem de porta no host) e é estritamente read-only — o Flask abre o SQLite com `mode=ro`. O wrapper nomeia esse container como `collector-report` (sobrescreva via `REPORT_CONTAINER_NAME=<nome>` no ambiente), que é o alvo de `--report-stop` no host.
+`--report-only` exige um `collector-results` dentro de `app-report/db/` (aborta com mensagem clara caso contrário), recusa iniciar quando outra instância já estiver rodando (via pidfile + sondagem de porta no host) e é estritamente read-only — o Flask abre o SQLite com `mode=ro`. O wrapper nomeia esse container como `collector-report` (sobrescreva via `REPORT_CONTAINER_NAME=<nome>` no ambiente), que é o alvo de `--report-stop` no host.
 
 Quando a porta host de `APP_PORT` (default `127.0.0.1:8000:8000`) já está ocupada — por exemplo porque um recon anterior deixou um dashboard em background rodando, ou outro container publica ali —, o `collector-docker` silenciosamente omite o `-p` do `docker run` em vez de abortar com "port already allocated". O recon continua e o dashboard já em execução renderiza os dados do novo run porque `outputs/` é compartilhado.
 

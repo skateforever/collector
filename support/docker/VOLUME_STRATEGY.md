@@ -59,7 +59,8 @@ HOST                                      CONTAINER
 ├── support/templates/alerts-notify/          → support/templates/alerts-notify/ (live from host)
 ├── conf.d/                            → conf.d/ (live from host)
 ├── outputs/ (rw)                      → outputs/ (writable for results)
-└── wordlists/ (rw)                    → wordlists/ (writable for data)
+├── wordlists/ (rw)                    → wordlists/ (writable for data)
+└── app-report-db/ (rw)                → app-report/db/ (writable, SQLite results DB)
 ```
 
 ## Practical Impact
@@ -144,8 +145,9 @@ $ /usr/local/bin/collector-docker -d example.com --recon
 # Custom root directory
 $ OUTPUTS_DIR=/data/outputs \
   WORDLISTS_DIR=/data/wordlists \
+  APP_REPORT_DB_DIR=/data/app-report-db \
   collector-docker -d example.com --recon
-# Uses: /data/outputs and /data/wordlists
+# Uses: /data/outputs, /data/wordlists and /data/app-report-db
 ```
 
 ## File Synchronization During Execution
@@ -208,7 +210,7 @@ git commit -m "fix: ..."
 sudo install -m 0755 collector-docker /usr/local/bin/collector-docker
 
 # 2. Setup directories
-sudo mkdir -p /opt/collector/{outputs,wordlists}
+sudo mkdir -p /opt/collector/{outputs,wordlists,app-report-db}
 sudo cp -r conf.d /opt/collector/conf.d
 
 # 3. Update code from git
@@ -284,5 +286,6 @@ cd /opt/collector && git pull
 | System packages | Image layer | At container startup | ✅ Yes (Dockerfile change) |
 | Alert templates | Host volumes | Every execution | ❌ No |
 | Results (outputs/) | Host volumes | Persistent | — |
+| Results DB (app-report/db/) | Host volumes | Persistent | — |
 
 **TL;DR:** Code changes are immediate; only Dockerfile changes require rebuild.
