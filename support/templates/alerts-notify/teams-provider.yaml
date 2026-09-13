@@ -12,7 +12,7 @@
 # 5. Give webhook a name (e.g., "Collector Alerts")
 # 6. Optionally upload an image for the webhook
 # 7. Copy the webhook URL
-# 8. Copy this file: cp support/templates/alerts/teams-provider.yml ./teams-provider.yaml
+# 8. Copy this file: cp support/templates/alerts/teams-provider.yaml ./teams-provider.yaml
 # 9. Fill in the teams_webhook_url values
 # 10. Bind-mount into container: -v ./teams-provider.yaml:/opt/collector/support/templates/alerts/teams-provider.yaml
 #

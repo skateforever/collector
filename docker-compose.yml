@@ -26,7 +26,7 @@ services:
     # The ALERT_PROVIDER mount is optional — if you want to use a custom alert
     # provider config from outside the repo, bind-mount it onto the default path
     # inside the container. If not mounted, collector uses the templates at
-    # /opt/collector/support/templates/alerts-notify/{discord,slack,teams,telegram,signal}-provider.yml.
+    # /opt/collector/support/templates/alerts-notify/{discord,slack,teams,telegram,signal}-provider.yaml.
     volumes:
       - ${OUTPUTS_DIR:-./outputs}:/opt/collector/outputs
       - ${WORDLISTS_DIR:-./wordlists}:/opt/collector/wordlists

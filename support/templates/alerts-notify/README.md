@@ -15,11 +15,11 @@ Centralized alert templates for sending reconnaissance findings to multiple mess
 ```
 support/templates/alerts/
 ├── README.md                    # This file
-├── discord-provider.yml         # Discord webhook config
-├── slack-provider.yml           # Slack webhook config
-├── teams-provider.yml           # Microsoft Teams webhook config
-├── telegram-provider.yml        # Telegram bot config
-├── signal-provider.yml          # Signal CLI config
+├── discord-provider.yaml         # Discord webhook config
+├── slack-provider.yaml           # Slack webhook config
+├── teams-provider.yaml           # Microsoft Teams webhook config
+├── telegram-provider.yaml        # Telegram bot config
+├── signal-provider.yaml          # Signal CLI config
 └── MIGRATION.md                 # Migration guide from notify/
 ```
 
@@ -31,19 +31,19 @@ Copy the template(s) you need:
 
 ```bash
 # Discord
-cp support/templates/alerts/discord-provider.yml ./discord-provider.yaml
+cp support/templates/alerts/discord-provider.yaml ./discord-provider.yaml
 
 # Slack
-cp support/templates/alerts/slack-provider.yml ./slack-provider.yaml
+cp support/templates/alerts/slack-provider.yaml ./slack-provider.yaml
 
 # Teams
-cp support/templates/alerts/teams-provider.yml ./teams-provider.yaml
+cp support/templates/alerts/teams-provider.yaml ./teams-provider.yaml
 
 # Telegram
-cp support/templates/alerts/telegram-provider.yml ./telegram-provider.yaml
+cp support/templates/alerts/telegram-provider.yaml ./telegram-provider.yaml
 
 # Signal
-cp support/templates/alerts/signal-provider.yml ./signal-provider.yaml
+cp support/templates/alerts/signal-provider.yaml ./signal-provider.yaml
 ```
 
 ### 2. Fill in Webhook URLs / Credentials
@@ -92,7 +92,7 @@ Each provider supports 5 severity levels:
    - Right-click → Edit Channel
    - Integrations → Webhooks → New Webhook
    - Copy the webhook URL
-4. Fill in `discord_webhook_url` in `discord-provider.yml`
+4. Fill in `discord_webhook_url` in `discord-provider.yaml`
 
 ### Slack
 
@@ -103,7 +103,7 @@ Each provider supports 5 severity levels:
    - Click "Add New Webhook to Workspace"
    - Select channel → Authorize
    - Copy the webhook URL
-5. Fill in `slack_webhook_url` in `slack-provider.yml`
+5. Fill in `slack_webhook_url` in `slack-provider.yaml`
 
 ### Microsoft Teams
 
@@ -113,7 +113,7 @@ Each provider supports 5 severity levels:
 4. Search "Incoming Webhook" → Configure
 5. Name: "Collector Alerts"
 6. Copy the webhook URL
-7. Fill in `teams_webhook_url` in `teams-provider.yml`
+7. Fill in `teams_webhook_url` in `teams-provider.yaml`
 
 ### Telegram
 
@@ -127,7 +127,7 @@ Each provider supports 5 severity levels:
    ```bash
    curl https://api.telegram.org/bot<BOT_TOKEN>/getUpdates
    ```
-8. Fill in `telegram_bot_token` and `telegram_chat_id` in `telegram-provider.yml`
+8. Fill in `telegram_bot_token` and `telegram_chat_id` in `telegram-provider.yaml`
 
 ### Signal
 
@@ -154,7 +154,7 @@ Each provider supports 5 severity levels:
    signal-cli -u +1234567890 daemon
    ```
 
-5. Fill in `signal_account` and `signal_recipient` in `signal-provider.yml`
+5. Fill in `signal_account` and `signal_recipient` in `signal-provider.yaml`
 
 ## Integration with conf.d/functions.conf
 
@@ -273,7 +273,7 @@ See `MIGRATION.md` for step-by-step guide.
 
 To add a new provider:
 
-1. Create `<provider>-provider.yml` in this directory
+1. Create `<provider>-provider.yaml` in this directory
 2. Document setup instructions in the YAML comments
 3. Update README.md with provider info
 4. Test with actual messages

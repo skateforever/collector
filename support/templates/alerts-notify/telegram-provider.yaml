@@ -19,7 +19,7 @@
 #    - Find your chat ID in the response (negative number for groups)
 #
 # 3. Setup this config:
-#    - Copy this file: cp support/templates/alerts/telegram-provider.yml ./telegram-provider.yaml
+#    - Copy this file: cp support/templates/alerts/telegram-provider.yaml ./telegram-provider.yaml
 #    - Fill in telegram_bot_token and telegram_chat_id values
 #    - Bind-mount into container: -v ./telegram-provider.yaml:/opt/collector/support/templates/alerts/telegram-provider.yaml
 #

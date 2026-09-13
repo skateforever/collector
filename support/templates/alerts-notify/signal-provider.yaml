@@ -21,7 +21,7 @@
 #    - Format: group_id (for groups) or +1234567890 (for contacts)
 #
 # 4. Setup this config:
-#    - Copy this file: cp support/templates/alerts/signal-provider.yml ./signal-provider.yaml
+#    - Copy this file: cp support/templates/alerts/signal-provider.yaml ./signal-provider.yaml
 #    - Fill in signal_account and signal_recipient values
 #    - Bind-mount into container: -v ./signal-provider.yaml:/opt/collector/support/templates/alerts/signal-provider.yaml
 #

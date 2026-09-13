@@ -99,11 +99,11 @@ collector/
 │       ├── cron/collector              cron diário/semanal
 │       ├── systemd/collector@          systemd timer template
 │       └── alerts-notify/              templates de provedor de alertas (Discord, Slack, Teams, Telegram, Signal)
-│           ├── discord-provider.yml
-│           ├── slack-provider.yml
-│           ├── teams-provider.yml
-│           ├── telegram-provider.yml
-│           ├── signal-provider.yml
+│           ├── discord-provider.yaml
+│           ├── slack-provider.yaml
+│           ├── teams-provider.yaml
+│           ├── telegram-provider.yaml
+│           ├── signal-provider.yaml
 │           ├── README.md               guia de setup para cada provedor
 │           └── MIGRATION.md            guia de migração do sistema antigo
 │

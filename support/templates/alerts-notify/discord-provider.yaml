@@ -7,7 +7,7 @@
 # Setup Instructions:
 # 1. Create a Discord server and text channels (e.g., #recon, #critical, #high)
 # 2. Create webhooks for each channel (Server Settings → Integrations → Webhooks)
-# 3. Copy this file: cp support/templates/alerts/discord-provider.yml ./discord-provider.yaml
+# 3. Copy this file: cp support/templates/alerts/discord-provider.yaml ./discord-provider.yaml
 # 4. Fill in the discord_webhook_url values
 # 5. Bind-mount into container: -v ./discord-provider.yaml:/opt/collector/support/templates/alerts/discord-provider.yaml
 #

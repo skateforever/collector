@@ -15,11 +15,11 @@ support/templates/notify/
 support/templates/alerts/
 ├── README.md                  # Main documentation
 ├── MIGRATION.md              # This file
-├── discord-provider.yml      # Discord (replaces old notify/)
-├── slack-provider.yml        # Slack (NEW)
-├── teams-provider.yml        # Microsoft Teams (NEW)
-├── telegram-provider.yml     # Telegram (NEW)
-└── signal-provider.yml       # Signal (NEW)
+├── discord-provider.yaml      # Discord (replaces old notify/)
+├── slack-provider.yaml        # Slack (NEW)
+├── teams-provider.yaml        # Microsoft Teams (NEW)
+├── telegram-provider.yaml     # Telegram (NEW)
+└── signal-provider.yaml       # Signal (NEW)
 ```
 
 ## Migration Steps
@@ -35,7 +35,7 @@ cp support/templates/notify/provider-config.yml ./notify-provider-backup.yaml
 The new Discord template is compatible with the old one:
 
 ```bash
-cp support/templates/alerts/discord-provider.yml ./discord-provider.yaml
+cp support/templates/alerts/discord-provider.yaml ./discord-provider.yaml
 ```
 
 ### Step 3: Transfer Your Webhooks

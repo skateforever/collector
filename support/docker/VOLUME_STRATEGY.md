@@ -86,7 +86,7 @@ $ collector-docker -d example.com --recon
 
 ```bash
 # On Host - Add new provider
-$ cp support/templates/alerts-notify/slack-provider.yml ./slack-provider.yaml
+$ cp support/templates/alerts-notify/slack-provider.yaml ./slack-provider.yaml
 $ # Edit with webhook URLs
 $ vim slack-provider.yaml
 

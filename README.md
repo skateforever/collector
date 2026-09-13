@@ -328,14 +328,14 @@ Drop-in scheduling files are in `support/templates/`:
 - `support/templates/cron/collector` — daily light recon + weekly heavy run via cron (`/etc/cron.d/collector`)
 - `support/templates/systemd/collector@` — same cadence as systemd template units (`collector@<domain>.timer`)
 - `support/templates/alerts-notify/` — multi-provider alert configuration templates for [notify](https://github.com/projectdiscovery/notify):
-  - **Discord** — `discord-provider.yml`
-  - **Slack** — `slack-provider.yml`
-  - **Microsoft Teams** — `teams-provider.yml`
-  - **Telegram** — `telegram-provider.yml`
-  - **Signal** — `signal-provider.yml`
+  - **Discord** — `discord-provider.yaml`
+  - **Slack** — `slack-provider.yaml`
+  - **Microsoft Teams** — `teams-provider.yaml`
+  - **Telegram** — `telegram-provider.yaml`
+  - **Signal** — `signal-provider.yaml`
   
   Templates are baked into the Docker image at `/opt/collector/support/templates/alerts-notify/`. To use a custom provider:
-  1. Copy the template: `cp support/templates/alerts-notify/{provider}-provider.yml ./{provider}-provider.yaml`
+  1. Copy the template: `cp support/templates/alerts-notify/{provider}-provider.yaml ./{provider}-provider.yaml`
   2. Fill in webhook URLs or credentials
   3. Configure in `conf.d/functions.conf`: `notify_config="/opt/collector/support/templates/alerts-notify/{provider}-provider.yaml"`
   4. Run: `collector-docker -d example.com --recon`
