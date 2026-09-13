@@ -249,7 +249,14 @@ joining_subdomains(){
 
         if [ -s "${tmp_dir}/bing_output.txt" ]; then
             echo "Parsing bing" >> "${log_execution_file}"
-            grep -Eo 'hover-url="https?://[^"]+"|<cite[^>]*>[^<]+</cite>|href="https?://(?!(?:www\.)?bing\.com)[^"]+"' "${tmp_dir}/bing_output.txt" \
+            # The third alternative used to exclude bing.com's own links via
+            # a (?!...) negative lookahead — PCRE syntax, not supported by
+            # POSIX ERE (grep -E). GNU grep doesn't error on it, it just warns
+            # ("? at start of expression") and the whole pattern silently
+            # matches nothing, so this source extracted zero domains on every
+            # run. Dropped the lookahead — bing.com links get filtered out
+            # anyway by the "\.${domain}$" suffix match below.
+            grep -Eo 'hover-url="https?://[^"]+"|<cite[^>]*>[^<]+</cite>|href="https?://[^"]+"' "${tmp_dir}/bing_output.txt" \
                 | grep -Eo 'https?://[^/" >]+' \
                 | sed -e 's_https*://__' -e 's_/.*__' -e 's_:.*__' -e 's/^www\.//' \
                 | grep -E "\.${domain}$" \
