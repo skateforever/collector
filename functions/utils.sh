@@ -148,12 +148,12 @@ run_summary(){
     n_findings="$(count_lines "${nuclei_scan_file}")"
 
     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Run Summary:"
-    echo -e "echo -e "\t\t      * Subdomains found:  ${n_found}"
-    echo -e "echo -e "\t\t      * Subdomains alive:  ${n_alive}"
-    echo -e "echo -e "\t\t      * Unique IPs:        ${n_ips}"
-    echo -e "echo -e "\t\t      * Web apps:          ${n_webapps}"
-    echo -e "echo -e "\t\t      * Nuclei findings:   ${n_findings}"
-    echo -e "echo -e "\t\t      * Duration:          $((SECONDS / 60))m $((SECONDS % 60))s"
+    echo -e "\t\t      * Subdomains found:  ${n_found}"
+    echo -e "\t\t      * Subdomains alive:  ${n_alive}"
+    echo -e "\t\t      * Unique IPs:        ${n_ips}"
+    echo -e "\t\t      * Web apps:          ${n_webapps}"
+    echo -e "\t\t      * Nuclei findings:   ${n_findings}"
+    echo -e "\t\t      * Duration:          $((SECONDS / 60))m $((SECONDS % 60))s"
     printf "Run complete: %s | %s subdomains | %s alive | %s webapps | %s findings | %dm%ds" \
         "${summary_target}" "${n_found}" "${n_alive}" "${n_webapps}" "${n_findings}" \
         "$((SECONDS / 60))" "$((SECONDS % 60))" \
