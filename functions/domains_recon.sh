@@ -108,9 +108,9 @@ domains_recon(){
           build_llm_prompt
           record_history
           db_usage
-          start_app_report
           run_summary "${domain}"
           message "${domain}" finished
+          start_app_report
           exit 0
     fi
 
@@ -130,9 +130,9 @@ domains_recon(){
           build_llm_prompt
           record_history
           db_usage
-          start_app_report
           run_summary "${domain}"
           message "${domain}" finished
+          start_app_report
           exit 0
     fi
 
@@ -147,9 +147,9 @@ domains_recon(){
           build_llm_prompt
           record_history
           db_usage
-          start_app_report
           run_summary "${domain}"
           message "${domain}" finished
+          start_app_report
           exit 0
     fi
 
@@ -322,7 +322,7 @@ domains_recon(){
             #acunetix_scan "${domain}" "${report_dir}/webapp_consolidated.txt"
         fi
         [[ "${recon_check}" == "yes" && "${webapp_enum_check}" != "yes" ]] && \
-            { diff_artifacts; build_llm_prompt; record_history; db_usage; start_app_report; run_summary "${domain}"; message "${domain}" finished; exit 0; }
+            { diff_artifacts; build_llm_prompt; record_history; db_usage; run_summary "${domain}"; message "${domain}" finished; start_app_report; exit 0; }
     fi
 
     if [[ "${webapp_enum_check}" == "yes" ]]; then
@@ -363,7 +363,7 @@ domains_recon(){
     build_llm_prompt
     record_history
     db_usage
-    start_app_report
     run_summary "${domain}"
-    message "${domain}" finished) 2>> "${log_execution_file}" | tee -a "${log_execution_file}"
+    message "${domain}" finished
+    start_app_report) 2>> "${log_execution_file}" | tee -a "${log_execution_file}"
 }

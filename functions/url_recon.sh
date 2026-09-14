@@ -82,7 +82,7 @@ url_recon(){
 
     build_llm_prompt
     db_usage
-    start_app_report
     message "${url_domain}" finished
+    start_app_report
     rm "${recon_dir}/url_test.txt" > /dev/null 2>&1) 2>> "${log_execution_file}" | tee -a "${log_execution_file}"
 }

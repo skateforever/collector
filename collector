@@ -172,6 +172,18 @@ cleanup_global(){
         [[ -n "${log_execution_file}" ]] && echo -e "${_collector_final_message}" >> "${log_execution_file}"
     fi
 
+    # Inside Docker, collector is the container's PID 1 — the instant it
+    # exits, the kernel SIGKILLs every other process left in that PID
+    # namespace (including start_app_report's dashboard), unconditionally,
+    # regardless of anything the settle loop above already reaped. That
+    # teardown can still print a bare "Terminated"/"Killed" to this
+    # process's own stderr as it happens. Nothing after this point is a
+    # message anyone should see (_collector_final_message above was the
+    # last intentional one), so silence this process's stderr for its
+    # remaining lifetime rather than trying to guard each individual
+    # command that might otherwise report it.
+    exec 2>/dev/null
+
     exit "${exit_code}"
 }
 
