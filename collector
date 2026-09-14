@@ -97,6 +97,22 @@ check_binaries
 cleanup_global(){
     local exit_code=$?
 
+    # Every command below that can touch another process (kill, wait, the
+    # settle loop) already redirects its OWN stderr — but that only
+    # covers each command's synchronous output. bash can still report a
+    # signal-killed child's death asynchronously, as this function is
+    # still running, on this process's stderr directly rather than through
+    # any single command's redirect (reproduced: "Terminated" was showing
+    # up between this function's own echo lines, not after them, meaning
+    # it was leaking during the kill/settle loop below, not after it —
+    # putting the redirect at the END of the function, after that loop,
+    # never covered it). Redirecting this process's whole stderr up front
+    # covers the entire function, not just its last few lines. Nothing
+    # here prints anything intentional to stderr (every echo below is
+    # stdout, or an explicit >> to log_execution_file), so this has no
+    # other effect.
+    exec 2>/dev/null
+
     # Housekeeping below is intentionally silent on stdout — narrating every
     # single step ("Logs flushed.", "Subprocesses terminated.", ...) on
     # every single run was pure noise. Only the run's own verdict
@@ -189,15 +205,9 @@ cleanup_global(){
     # Inside Docker, collector is the container's PID 1 — the instant it
     # exits, the kernel SIGKILLs every other process left in that PID
     # namespace (including start_app_report's dashboard), unconditionally,
-    # regardless of anything the settle loop above already reaped. That
-    # teardown can still print a bare "Terminated"/"Killed" to this
-    # process's own stderr as it happens. Nothing after this point is a
-    # message anyone should see (_collector_final_message above was the
-    # last intentional one), so silence this process's stderr for its
-    # remaining lifetime rather than trying to guard each individual
-    # command that might otherwise report it.
-    exec 2>/dev/null
-
+    # regardless of anything the settle loop above already reaped. stderr
+    # is already redirected (see the top of this function), so that
+    # teardown's own "Terminated"/"Killed" has nowhere to leak to.
     exit "${exit_code}"
 }
 
