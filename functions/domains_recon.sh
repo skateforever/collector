@@ -140,7 +140,7 @@ domains_recon(){
     if [[ "${webapp_scan_check}" == "yes" ]] && [[ -s "${report_dir}/webapp_consolidated.txt" ]] && \
         [[ "${recon_check}" == "no" || -z "${recon_check}" ]]; then
           echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Initializing the web application scan..."
-	  echo -e "\t\t    ${red}Warning:${reset} It can take a long time to execute the scan functions!
+	  echo -e "\t\t    ${red}Warning:${reset} It can take a long time to execute the scan functions!"
           nuclei_scan "${domain}" "${report_dir}/webapp_consolidated.txt"
           #acunetix_scan "${domain}" "${report_dir}/webapp_consolidated.txt"
           diff_artifacts
@@ -317,7 +317,7 @@ domains_recon(){
         fi
         if [[ "${webapp_scan_check}" == "yes" && "${webapp_enum_check}" != "yes" ]]; then
 	    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Initializing the web application scan..."
-	    echo -e "\t\t    ${red}Warning:${reset} It can take a long time to execute the scan functions!
+	    echo -e "\t\t    ${red}Warning:${reset} It can take a long time to execute the scan functions!"
             nuclei_scan "${domain}" "${report_dir}/webapp_consolidated.txt"
             #acunetix_scan "${domain}" "${report_dir}/webapp_consolidated.txt"
         fi
@@ -351,7 +351,7 @@ domains_recon(){
                 fi
                 if [[ "${webapp_scan_check}" == "yes" ]]; then
 		    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Initializing the web application scan..."
-		    echo -e "\t\t    ${red}Warning:${reset} It can take a long time to execute the scan functions!
+		    echo -e "\t\t    ${red}Warning:${reset} It can take a long time to execute the scan functions!"
                     nuclei_scan "${domain}" "${current_urls_file}"
                     #acunetix_scan "${domain}" "${current_urls_file}"
                 fi
