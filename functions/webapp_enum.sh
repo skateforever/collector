@@ -150,7 +150,7 @@ webapp_tech(){
     local target="$1"
     local urls_file="$2"
     local url name file_tech_by_headers
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing web application technology enumeration..."
+    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing web application technology enumeration... "
     if [ -s "${urls_file}" ]; then
         if [ -d "${report_dir}" ] && [ -d "${webapp_tech_dir}" ] ; then
             # Explicit proxy arg arrays (the previous alias-based approach
