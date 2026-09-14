@@ -85,4 +85,8 @@ url_recon(){
     message "${url_domain}" finished
     start_app_report
     rm "${recon_dir}/url_test.txt" > /dev/null 2>&1) 2>> "${log_execution_file}" | tee -a "${log_execution_file}"
+    # See the matching comment in domains_recon.sh: the subshell above is a
+    # forked child, so its exit status only reaches the caller via
+    # PIPESTATUS[0] captured here, not via tee's own (~always 0) status.
+    return "${PIPESTATUS[0]}"
 }

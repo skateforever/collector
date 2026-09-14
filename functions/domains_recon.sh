@@ -366,4 +366,12 @@ domains_recon(){
     run_summary "${domain}"
     message "${domain}" finished
     start_app_report) 2>> "${log_execution_file}" | tee -a "${log_execution_file}"
+    # The subshell above is a forked child — its own `exit 0`/`exit 1`
+    # calls (early-return branches throughout this function) only ever
+    # ended IT, not domains_recon() itself, so the caller in `collector`
+    # was always getting whatever `tee`'s own exit status was (~always 0)
+    # instead of what actually happened. PIPESTATUS[0] is the subshell's
+    # real exit code, captured right after the pipe completes, in the
+    # same function — the one place it's still reliably available.
+    return "${PIPESTATUS[0]}"
 }

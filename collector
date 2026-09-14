@@ -160,13 +160,27 @@ cleanup_global(){
         echo "$(date +"%d/%m/%Y %H:%M") GRACEFUL SHUTDOWN - exit code: ${exit_code}" >> "${log_execution_file}"
     fi
 
+    # message() usually runs inside domains_recon()/url_recon()'s own
+    # subshell (their body is wrapped in one so cleanup_on_exit/tee scope
+    # correctly there) — a subshell is a forked child, so the
+    # _collector_final_message assignment it made never reaches this
+    # process's own variables. message() also drops the same text into a
+    # $$-scoped file for exactly this case ($$ stays the same across that
+    # subshell boundary), so recover it from there when the variable
+    # itself is empty.
+    if [[ -z "${_collector_final_message:-}" && -n "${output_dir:-}" ]]; then
+        local _final_message_file="${output_dir}/.final_message.$$"
+        [[ -s "${_final_message_file}" ]] && _collector_final_message="$(cat "${_final_message_file}" 2>/dev/null)"
+        rm -f "${_final_message_file}" 2>/dev/null
+    fi
+
     # Printed LAST, after every shutdown step above, so the run's verdict
-    # (set by message() in functions/message.sh) reads as the final word
-    # instead of appearing before the cleanup sequence. cleanup_global runs
-    # as the top-level script's own EXIT trap, outside the `| tee -a
-    # "${log_execution_file}"` pipe that wraps domains_recon()/url_recon()'s
-    # body — so unlike every other progress line, this one needs an
-    # explicit append or it never reaches the log at all.
+    # reads as the final word instead of appearing before the cleanup
+    # sequence. cleanup_global runs as the top-level script's own EXIT
+    # trap, outside the `| tee -a "${log_execution_file}"` pipe that wraps
+    # domains_recon()/url_recon()'s body — so unlike every other progress
+    # line, this one needs an explicit append or it never reaches the log
+    # at all.
     if [[ -n "${_collector_final_message:-}" ]]; then
         echo -e "${_collector_final_message}"
         [[ -n "${log_execution_file}" ]] && echo -e "${_collector_final_message}" >> "${log_execution_file}"
@@ -254,7 +268,7 @@ if [[ "${domain_check}" == "yes" && -n "${domain}" ]]; then
     create_directory_structure
     check_parameter_dependency
     domains_recon
-    exit 0
+    exit $?
 fi
 
 if  [[ "${domainlist_check}" == "yes" && -s "${domain_list}" ]]; then
@@ -340,5 +354,5 @@ if [[ "${url_check}" == "yes" && -n "${url_verify}" ]]; then
     create_directory_structure
     check_parameter_dependency
     url_recon
-    exit 0
+    exit $?
 fi
