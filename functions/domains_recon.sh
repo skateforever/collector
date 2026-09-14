@@ -59,13 +59,59 @@ merge_parallel_dns_results(){
 domains_recon(){
     (# Show the directory structure
     cleanup_on_exit(){
+        # $$ inside a subshell is still the TOP-LEVEL collector process's
+        # pid — bash never gives a subshell a new one, that's $BASHPID —
+        # so `pkill -P $$` here was targeting every direct child of
+        # collector itself, not of this subshell. That includes this
+        # subshell's own pipe sibling: domains_recon()'s body is
+        # `(...) | tee -a "${log_execution_file}"`, and since domains_recon
+        # is called directly (no extra subshell wrapping it in collector),
+        # both the subshell AND that tee are direct children of collector
+        # — so this was killing the very tee process piping this
+        # subshell's own output to the log, right as this trap fires on
+        # exit. That's the concrete, reproduced source of the bare
+        # "Terminated" showing up mid-run: tee dying via SIGTERM, in the
+        # exact spot every report of it pointed to.
+        #
+        # $BASHPID is this subshell's own, real pid — pkill -P against it
+        # only reaches processes this subshell itself actually spawned
+        # (vhost_probe/spider background workers), which is what this was
+        # always meant to clean up.
+        exec 2>/dev/null
+
         rm -f "${tmp_dir}"/vhost_pair_*.tmp 2>/dev/null
         rm -f "${tmp_dir}"/vhost_probe_worker_*.tmp 2>/dev/null
         rm -f "${tmp_dir}"/vhost_probe_chunk_* 2>/dev/null
         rm -f "${tmp_dir}"/spider_chunk_* 2>/dev/null
         rm -rf "${tmp_dir}"/resolve_* 2>/dev/null
         rm -f "${tmp_dir}"/alive_sorted.tmp 2>/dev/null
-        pkill -P $$ 2>/dev/null
+
+        local _eod_child
+        local -a _eod_signaled=()
+        for _eod_child in $(pgrep -P "${BASHPID}" 2>/dev/null); do
+            kill -TERM "${_eod_child}" 2>/dev/null
+            _eod_signaled+=("${_eod_child}")
+        done
+        wait 2>/dev/null
+
+        # Same reasoning as cleanup_global's own settle loop: a signaled
+        # worker doing its own graceful shutdown can still be alive when
+        # the `wait` above returns, and its eventual death then gets
+        # reaped by bash's own bookkeeping at some later point outside any
+        # redirect here — confirm each one is actually dead before this
+        # trap (and the subshell it belongs to) finishes.
+        local _eod_settle=0 _eod_still_alive
+        while [[ "${_eod_settle}" -lt 5 ]]; do
+            _eod_still_alive=0
+            for _eod_child in "${_eod_signaled[@]}"; do
+                kill -0 "${_eod_child}" 2>/dev/null && _eod_still_alive=1
+            done
+            [[ "${_eod_still_alive}" -eq 0 ]] && break
+            sleep 1
+            wait 2>/dev/null
+            ((_eod_settle += 1))
+        done
+
         sed -i '/# collector-vhosts-start/,/# collector-vhosts-end/d' /etc/hosts 2>/dev/null
         cleanup_etc_hosts 2>/dev/null
     }
