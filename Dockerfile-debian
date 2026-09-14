@@ -98,6 +98,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git curl procps \
     jq dnsutils whois html2text chromium nmap sqlite3 libxml2-utils \
     nano vim iputils-ping \
+    tzdata \
     && rm -rf /var/lib/apt/lists/*
 
 # 2. Binários compilados no estágio builder (Go tools, aquatone, massdns,

@@ -96,6 +96,7 @@ RUN pacman -Syu --noconfirm && pacman -S --noconfirm \
     git curl procps-ng openssl libffi diffutils \
     jq bind-tools whois html2text chromium nmap sqlite libxml2 \
     nano vim iputils \
+    tzdata \
     python python-pip \
     && pacman -Scc --noconfirm
 

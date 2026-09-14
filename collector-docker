@@ -77,6 +77,10 @@
 #                           (default: <root>/{type}-provider.yaml — optional;
 #                           if missing, uses template baked into image)
 #   APP_PORT              — dashboard port mapping (default: 127.0.0.1:8000:8000)
+#   TZ                    — timezone for every timestamp collector logs/prints
+#                           (default: auto-detected from the host's
+#                           /etc/localtime; falls back to the image's own
+#                           default — UTC — if that detection fails)
 #
 # Configuration precedence (alert provider type):
 #   1. ALERT_PROVIDER_TYPE environment variable (if set)
@@ -319,6 +323,17 @@ APP_REPORT_DB_DIR="${APP_REPORT_DB_DIR:-${DEFAULT_ROOT}/app-report-db}"
 CONF_D_DIR="${CONF_D_DIR:-${DEFAULT_ROOT}/conf.d}"
 APP_PORT="${APP_PORT:-127.0.0.1:8000:8000}"
 
+# Without this, every timestamp collector logs/prints (log_execution_file
+# lines, the history CSV, the dashboard) is in the container's default
+# clock — UTC, unless the image sets otherwise — instead of the host's
+# actual local time. /etc/localtime's symlink target encodes the zone name
+# after "zoneinfo/" on both Linux (/usr/share/zoneinfo/<zone>) and macOS
+# (/var/db/timezone/zoneinfo/<zone>), so this works on either without
+# hardcoding a path style. Silently falls back to the container's own
+# default (UTC) if detection fails or the image lacks tzdata — same as
+# before this existed, not a new failure mode.
+TZ="${TZ:-$(readlink /etc/localtime 2>/dev/null | sed -n 's#.*/zoneinfo/##p')}"
+
 # Determine alert provider type
 # Priority: env var > conf.d/functions.conf > default
 get_alert_provider_type() {
@@ -491,8 +506,12 @@ if [[ -d "${DEFAULT_ROOT}/functions" ]]; then
         script_mount_args+=(-v "${DEFAULT_ROOT}/support:/opt/collector/support:ro")
 fi
 
+tz_args=()
+[[ -n "${TZ}" ]] && tz_args=(-e "TZ=${TZ}")
+
 exec docker run --rm "${name_args[@]}" \
     -e "TERM=${TERM:-dumb}" \
+    "${tz_args[@]}" \
     -v "${OUTPUTS_DIR}:/opt/collector/outputs" \
     -v "${WORDLISTS_DIR}:/opt/collector/wordlists" \
     -v "${APP_REPORT_DB_DIR}:/opt/collector/app-report/db" \
