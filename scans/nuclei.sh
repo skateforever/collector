@@ -14,9 +14,9 @@ nuclei_scan(){
     local urls_file="$2"
     local url
     local url
-    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Initializing the web application scan with nuclei and this might take a certain time!"
-    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing nuclei web application vulnerability scan..."
+    echo -en "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing nuclei scan... "
     if [ "$#" != 2 ] || [ ! -s "${urls_file}" ]; then
+        echo "Fail!"
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Please, especify just 1 file to get URL from."
         echo -e "Please, especify just 1 file to get URL from." | notify "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
         message "${target}" failed
@@ -24,8 +24,6 @@ nuclei_scan(){
     else
         if [ -s "${urls_file}" ]; then
             if [ -d "${report_dir}" ] && [ -d "${nuclei_dir}" ]; then
-                echo -e "${red}Warning:${reset} It can take a long time to execute the this scan function!"
-                echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing nuclei scan... "
                 nuclei -no-color -silent -update > /dev/null 2>&1
                 nuclei -no-color -silent -update-templates > /dev/null 2>&1
                 local -a nucleinpids=()
@@ -72,12 +70,14 @@ nuclei_scan(){
                 grep -Ehr "\[high\]" "${nuclei_scan_file}" | notify "${notify_options[@]}" -id "${notify_high_channel}" > /dev/null 2>&1
                 echo "Done!"
             else
+		echo "Fail!"
                 echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Make sure the directories structure was created. Stopping the script!"
                 echo -e "Make sure the directories structure was created. Stopping the script!" | notify "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
                 message "${target}" failed
                 exit 1
             fi
         else
+	    echo "Fail!"
             echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Make sure the ${urls_file} exist and isn't empty."
             echo -e "Make sure the ${urls_file} exist and isn't empty." | notify "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
             message "${target}" failed

@@ -770,5 +770,6 @@ build_consolidated_urls(){
     mv "${report_dir}/webapp_urls.txt" "${tmp_dir}/webapp_urls.old" 2>/dev/null
     mv "${report_dir}/vhost_urls.txt"  "${tmp_dir}/vhost_urls.old"  2>/dev/null
     [[ ! -s "${report_dir}/webapp_consolidated.txt" ]] && { echo "Fail! (no resolvable hosts)"; return 0; }
-    echo "Done! ($(wc -l < "${report_dir}/webapp_consolidated.txt") URLs)"
+    echo "Done!"
+    #($(wc -l < "${report_dir}/webapp_consolidated.txt") URLs)
 }
