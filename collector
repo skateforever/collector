@@ -162,8 +162,15 @@ cleanup_global(){
 
     # Printed LAST, after every shutdown step above, so the run's verdict
     # (set by message() in functions/message.sh) reads as the final word
-    # instead of appearing before the cleanup sequence.
-    [[ -n "${_collector_final_message:-}" ]] && echo -e "${_collector_final_message}"
+    # instead of appearing before the cleanup sequence. cleanup_global runs
+    # as the top-level script's own EXIT trap, outside the `| tee -a
+    # "${log_execution_file}"` pipe that wraps domains_recon()/url_recon()'s
+    # body — so unlike every other progress line, this one needs an
+    # explicit append or it never reaches the log at all.
+    if [[ -n "${_collector_final_message:-}" ]]; then
+        echo -e "${_collector_final_message}"
+        [[ -n "${log_execution_file}" ]] && echo -e "${_collector_final_message}" >> "${log_execution_file}"
+    fi
 
     exit "${exit_code}"
 }
