@@ -81,7 +81,7 @@ webapp_enum(){
                         done < "${urls_file}"
                     else
                         echo -e "\t\t    ${red}Error:${reset} ${list} does not exist or is empty!"
-                        echo -e "Error: ${list} does not exist or is empty!" | notify "${notify_options[@]}" -id "${notify_files_channel}"
+                        echo -e "Error: ${list} does not exist or is empty!" | notify "${notify_options[@]}" -id "${notify_files_channel}" > /dev/null 2>&1
                         continue
                     fi
                 done

@@ -68,8 +68,8 @@ nuclei_scan(){
                 echo "Done!"
                 # Notifying the finds
                 echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Sending nuclei scan notification... "
-                grep -Ehr "\[critical\]" "${nuclei_scan_file}" | notify "${notify_options[@]}" -id "${notify_critical_channel}"
-                grep -Ehr "\[high\]" "${nuclei_scan_file}" | notify "${notify_options[@]}" -id "${notify_high_channel}"
+                grep -Ehr "\[critical\]" "${nuclei_scan_file}" | notify "${notify_options[@]}" -id "${notify_critical_channel}" > /dev/null 2>&1
+                grep -Ehr "\[high\]" "${nuclei_scan_file}" | notify "${notify_options[@]}" -id "${notify_high_channel}" > /dev/null 2>&1
                 echo "Done!"
             else
                 echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Make sure the directories structure was created. Stopping the script!"
