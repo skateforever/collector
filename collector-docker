@@ -479,10 +479,16 @@ if [[ -d "${DEFAULT_ROOT}/functions" ]]; then
         -v "${DEFAULT_ROOT}/scans:/opt/collector/scans:ro"
         -v "${DEFAULT_ROOT}/sources:/opt/collector/sources:ro"
     )
-    [[ -d "${DEFAULT_ROOT}/support/runtime" ]] && \
-        script_mount_args+=(-v "${DEFAULT_ROOT}/support/runtime:/opt/collector/support/runtime:ro")
-    [[ -d "${DEFAULT_ROOT}/support/templates/alerts" ]] && \
-        script_mount_args+=(-v "${DEFAULT_ROOT}/support/templates/alerts:/opt/collector/support/templates/alerts:ro")
+    # One directory-level mount for all of support/ (runtime/ schema+prompts+
+    # wordlists, templates/alerts-notify/ provider configs, etc.) instead of
+    # naming each subdirectory individually — less to keep in sync, and a
+    # directory mount doesn't have the single-file bind-mount's stale-inode
+    # problem (see the `collector` mount above: a script rewritten via
+    # write-new+rename after the container started keeps serving the old
+    # inode for that container's lifetime; a directory mount just resolves
+    # the path fresh each time, so this doesn't apply to it).
+    [[ -d "${DEFAULT_ROOT}/support" ]] && \
+        script_mount_args+=(-v "${DEFAULT_ROOT}/support:/opt/collector/support:ro")
 fi
 
 exec docker run --rm "${name_args[@]}" \
