@@ -4,3 +4,54 @@ collector.orig
 
 # Ignore some old and third scripts
 ./functions/externo/
+app-report/__pycache__/
+
+# Ignore workspace directory
+./workspace/
+
+# Local code-review simulation reports — kept out of the repo;
+# they are working artifacts of each audit round.
+collector_simulation_report*.md
+
+# Tombstone files left behind by virtiofs when unlink is blocked
+# (workaround: rename to *.deleted instead of rm). Safe to ignore.
+*.deleted
+
+# Repo-relative bind-mount targets created by `docker compose run`
+# (see docker-compose.yaml volumes). Outputs are per-run recon artifacts;
+# wordlists is where the user drops their own lists for -ww/-s; app-report-db
+# is the host side of the app-report results DB volume. None of these
+# should land in version control.
+/outputs/
+/wordlists/
+/app-report-db/
+
+# The SQLite results DB (collector_db in conf.d/operation.conf) itself —
+# it can contain data from every target ever scanned on this host. Lives
+# on the app-report-db volume above in normal operation, but gitignore its
+# contents in-repo too in case collector ever runs without that mount (e.g.
+# bare host execution) and writes straight into the tracked app-report/ tree.
+# app-report/db/.gitkeep stays tracked so the directory itself is static —
+# always present after a checkout, never created by code at runtime.
+app-report/db/*
+!app-report/db/.gitkeep
+
+# Local override for compose: lets the user point OUTPUTS_DIR / WORDLISTS_DIR
+# / APP_REPORT_DB_DIR / CONF_D_DIR elsewhere without modifying the YAML.
+.env
+
+# Real API key files — carry live credentials (Shodan, SecurityTrails,
+# VirusTotal, Censys, Hunter.io, etc.) filled in by the operator. Never
+# land in version control. conf.d/*.conf.example (blank keys) are the
+# tracked templates; collector.cfg has no equivalent secret since it's
+# now split into conf.d/{operation,functions}.conf (no secrets there).
+/conf.d/apis-recon.conf
+/conf.d/apis-emails.conf
+
+# Local notify provider config — carries Discord/Slack/Telegram webhook URLs
+# bound to the operator's accounts. Must never land in version control.
+# The runnable template lives at support/templates/notify/provider-config.yml;
+# copy it to ./notify-provider.yaml at the repo root, fill in the webhooks,
+# and docker compose will bind-mount it via the NOTIFY_CONFIG variable.
+/notify-provider.yaml
+/notify-provider.yml

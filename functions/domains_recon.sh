@@ -9,8 +9,114 @@
 #                                                           #
 ############################################################# 
 
+dns_parallel_worker(){
+    local worker_id="$1"
+    local chunk_file="$2"
+    local domain="$3"
+    local report_dir="$4"
+    local IPv4_regex="$5"
+    local webapp_port_detect=("${@:6:$((${#@}-7))}")
+    local webapp_tls_ports=("${@:((${#@}-1))}")
+
+    while IFS= read -r host; do
+        [[ -z "${host}" ]] && continue
+
+        if ! grep -qEi "(\.${domain}$|^${domain}$)" <<< "${host}"; then
+            continue
+        fi
+
+        local ip
+        ip="$(dig_safe A "${host}" | grep -Eo "${IPv4_regex}" | head -1)"
+
+        if [[ -n "${ip}" ]]; then
+            echo "${host}"$'\t'"${ip}" >> "${report_dir}/domains_external_ipv4_${worker_id}.tmp"
+            echo "${host}" >> "${report_dir}/domains_alive_${worker_id}.tmp"
+            echo "${ip}" >> "${report_dir}/infra_ipv4_${worker_id}.tmp"
+
+            for port in "${webapp_port_detect[@]}"; do
+                local proto="http"
+                [[ "${port}" =~ ^($(echo "${webapp_tls_ports[@]}" | tr ' ' '|'))$ ]] && proto="https"
+                if [[ "${proto}" == "http" && "${port}" == "80" ]] || \
+                   [[ "${proto}" == "https" && "${port}" == "443" ]]; then
+                    echo "${proto}://${host}"
+                else
+                    echo "${proto}://${host}:${port}"
+                fi
+            done >> "${report_dir}/vhost_urls_${worker_id}.tmp"
+        fi
+    done < "${chunk_file}"
+}
+
+merge_parallel_dns_results(){
+    local report_dir="$1"
+    local file_prefix="$2"
+
+    cat "${report_dir}/${file_prefix}"_*.tmp 2>/dev/null >> "${report_dir}/${file_prefix}.txt"
+    rm -f "${report_dir}/${file_prefix}"_*.tmp 2>/dev/null
+    sort -u -o "${report_dir}/${file_prefix}.txt" "${report_dir}/${file_prefix}.txt"
+}
+
 domains_recon(){
     (# Show the directory structure
+    cleanup_on_exit(){
+        # $$ inside a subshell is still the TOP-LEVEL collector process's
+        # pid — bash never gives a subshell a new one, that's $BASHPID —
+        # so `pkill -P $$` here was targeting every direct child of
+        # collector itself, not of this subshell. That includes this
+        # subshell's own pipe sibling: domains_recon()'s body is
+        # `(...) | tee -a "${log_execution_file}"`, and since domains_recon
+        # is called directly (no extra subshell wrapping it in collector),
+        # both the subshell AND that tee are direct children of collector
+        # — so this was killing the very tee process piping this
+        # subshell's own output to the log, right as this trap fires on
+        # exit. That's the concrete, reproduced source of the bare
+        # "Terminated" showing up mid-run: tee dying via SIGTERM, in the
+        # exact spot every report of it pointed to.
+        #
+        # $BASHPID is this subshell's own, real pid — pkill -P against it
+        # only reaches processes this subshell itself actually spawned
+        # (vhost_probe/spider background workers), which is what this was
+        # always meant to clean up.
+        exec 2>/dev/null
+
+        rm -f "${tmp_dir}"/vhost_pair_*.tmp 2>/dev/null
+        rm -f "${tmp_dir}"/vhost_probe_worker_*.tmp 2>/dev/null
+        rm -f "${tmp_dir}"/vhost_probe_chunk_* 2>/dev/null
+        rm -f "${tmp_dir}"/spider_chunk_* 2>/dev/null
+        rm -rf "${tmp_dir}"/resolve_* 2>/dev/null
+        rm -f "${tmp_dir}"/alive_sorted.tmp 2>/dev/null
+
+        local _eod_child
+        local -a _eod_signaled=()
+        for _eod_child in $(pgrep -P "${BASHPID}" 2>/dev/null); do
+            kill -TERM "${_eod_child}" 2>/dev/null
+            _eod_signaled+=("${_eod_child}")
+        done
+        wait 2>/dev/null
+
+        # Same reasoning as cleanup_global's own settle loop: a signaled
+        # worker doing its own graceful shutdown can still be alive when
+        # the `wait` above returns, and its eventual death then gets
+        # reaped by bash's own bookkeeping at some later point outside any
+        # redirect here — confirm each one is actually dead before this
+        # trap (and the subshell it belongs to) finishes.
+        local _eod_settle=0 _eod_still_alive
+        while [[ "${_eod_settle}" -lt 5 ]]; do
+            _eod_still_alive=0
+            for _eod_child in "${_eod_signaled[@]}"; do
+                kill -0 "${_eod_child}" 2>/dev/null && _eod_still_alive=1
+            done
+            [[ "${_eod_still_alive}" -eq 0 ]] && break
+            sleep 1
+            wait 2>/dev/null
+            ((_eod_settle += 1))
+        done
+
+        sed -i '/# collector-vhosts-start/,/# collector-vhosts-end/d' /etc/hosts 2>/dev/null
+        cleanup_etc_hosts 2>/dev/null
+    }
+    trap cleanup_on_exit EXIT
+
     echo "The directory structure you will have to work with, is..."
     echo " "
     echo "${output_dir}/${domain}"
@@ -36,33 +142,61 @@ domains_recon(){
     message "${domain}" start
 
     # Only web app discovery
-    if [[ "${webapp_discovery_check}" == "yes" ]] && \
-        [[ -s "${report_dir}/domains_alive.txt" ]] && \
-        [[ ! -s "${report_dir}/webapp_urls.txt" ]]; then
-        webapp_alive "${domain}" "${report_dir}/domains_alive.txt"
-        webapp_tech "${domain}" "${report_dir}/webapp_urls.txt"
-        message "${domain}" finished
-        exit 0
+    if [[ "${webapp_discovery_check}" == "yes" ]] && [[ -s "${report_dir}/domains_alive.txt" ]] && \
+        [[ "${recon_check}" != "yes" ]]; then
+          webapp_alive "${domain}" "${report_dir}/domains_alive.txt"
+          build_consolidated_urls
+          webapp_tech "${domain}" "${report_dir}/webapp_consolidated.txt"
+          emails_recon
+          diff_artifacts
+          # build_llm_prompt MUST run before record_history: the latter
+          # decides status=finished only when llm-prompt.txt exists on disk.
+          build_llm_prompt
+          record_history
+          db_usage
+          run_summary "${domain}"
+          message "${domain}" finished
+          start_app_report
+          exit 0
     fi
 
     # Only web app crawler
-    if [[ "${webapp_crawler_check}" == "yes" ]] && \
-        [[ -s "${report_dir}/webapp_urls.txt" ]] && \
+    if [[ "${webapp_crawler_check}" == "yes" ]] && [[ -s "${report_dir}/webapp_consolidated.txt" ]] && \
         [[ "${recon_check}" == "no" || -z "${recon_check}" ]]; then
-        crawler_js "${domain}" "${report_dir}/webapp_urls.txt"
-        #crawler_params "${domain}" "${report_dir}/webapp_urls.txt"
-        message "${domain}" finished
-        exit 0
+          crawler_js "${domain}" "${report_dir}/webapp_consolidated.txt"
+          crawler_params "${domain}" "${report_dir}/webapp_consolidated.txt"
+          source "${collector_path}/sources/spider.sh"
+          spider_src "${report_dir}/webapp_consolidated.txt"
+          if [[ -s "${tmp_dir}/spider_output.txt" ]]; then
+              grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/spider_output.txt" \
+                  | sort -u >> "${report_dir}/domains_found.txt"
+              sort -u -o "${report_dir}/domains_found.txt" "${report_dir}/domains_found.txt"
+          fi
+          diff_artifacts
+          build_llm_prompt
+          record_history
+          db_usage
+          run_summary "${domain}"
+          message "${domain}" finished
+          start_app_report
+          exit 0
     fi
 
     # Only web app scan
-    if [[ "${webapp_scan_check}" == "yes" ]] && \
-        [[ -s "${report_dir}/webapp_urls.txt" ]] && \
+    if [[ "${webapp_scan_check}" == "yes" ]] && [[ -s "${report_dir}/webapp_consolidated.txt" ]] && \
         [[ "${recon_check}" == "no" || -z "${recon_check}" ]]; then
-        nuclei_scan "${domain}" "${report_dir}/webapp_urls.txt"
-        #acunetix_scan "${domain}" "${report_dir}/webapp_urls.txt"
-        message "${domain}" finished
-        exit 0
+          echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Initializing the web application scan..."
+	  echo -e "\t\t    ${red}Warning:${reset} It can take a long time to execute the scan functions!"
+          nuclei_scan "${domain}" "${report_dir}/webapp_consolidated.txt"
+          #acunetix_scan "${domain}" "${report_dir}/webapp_consolidated.txt"
+          diff_artifacts
+          build_llm_prompt
+          record_history
+          db_usage
+          run_summary "${domain}"
+          message "${domain}" finished
+          start_app_report
+          exit 0
     fi
 
     # Only recon discovery (domain and subdomains)
@@ -76,45 +210,214 @@ domains_recon(){
             organizing_subdomains "${report_dir}/domains_found.txt"
         fi
         infra_data
+
+        # ASN/PTR sweep — moved here (instead of the early domains_sources.sh
+        # loop) so it sweeps the ASN/netblock behind every infra IP infra_data
+        # just aggregated into infra_ipv4.txt, not only the root domain's own
+        # IP. joining_subdomains() already ran earlier and won't see these
+        # output files, so new hits get merged into domains_found.txt and
+        # re-resolved here directly — same pattern spider_src uses below.
+        if [[ -s "${report_dir}/infra_ipv4.txt" ]]; then
+            source "${collector_path}/sources/asn-sweep.sh"
+            asn_sweep "${report_dir}/infra_ipv4.txt"
+            source "${collector_path}/sources/ptr-sweep.sh"
+            ptr_sweep "${report_dir}/infra_ipv4.txt"
+            cat "${tmp_dir}/asn_sweep_output.txt" "${tmp_dir}/ptr_sweep_output.txt" 2>/dev/null \
+                | grep -Ei "(\.${domain}$|^${domain}$)" | sort -u > "${tmp_dir}/asn_ptr_sweep_new.tmp"
+            if [[ -s "${tmp_dir}/asn_ptr_sweep_new.tmp" ]]; then
+                cat "${tmp_dir}/asn_ptr_sweep_new.tmp" >> "${report_dir}/domains_found.txt"
+                sort -u -o "${report_dir}/domains_found.txt" "${report_dir}/domains_found.txt"
+                local num_workers=20 pids=()
+                split -n l/${num_workers} "${tmp_dir}/asn_ptr_sweep_new.tmp" "${tmp_dir}/asn_ptr_sweep_chunk_"
+                for ((i=0; i<num_workers; i++)); do
+                    dns_parallel_worker "$i" "${tmp_dir}/asn_ptr_sweep_chunk_${i}" \
+                        "${domain}" "${report_dir}" "${IPv4_regex}" \
+                        "${webapp_port_detect[@]}" "${webapp_tls_ports[@]}" &
+                    pids+=($!)
+                done
+                for pid in "${pids[@]}"; do
+                    wait "$pid" 2>/dev/null
+                done
+                merge_parallel_dns_results "${report_dir}" "domains_external_ipv4"
+                merge_parallel_dns_results "${report_dir}" "domains_alive"
+                merge_parallel_dns_results "${report_dir}" "infra_ipv4"
+            fi
+            rm -f "${tmp_dir}/asn_ptr_sweep_new.tmp" "${tmp_dir}"/asn_ptr_sweep_chunk_* 2>/dev/null
+        fi
+
         nmap_scan
         shodan_scan
         if [[ "${webapp_discovery_check}" == "yes" ]]; then
             webapp_alive "${domain}" "${report_dir}/domains_alive.txt"
-            webapp_tech "${domain}" "${report_dir}/webapp_urls.txt"
-            vhost_check "${domain}" "${report_dir}/webapp_urls.txt" \
-                "${report_dir}/domains_without_resolution.txt" "${report_dir}/infra_ipv4.txt"
+            if [[ "${vhost_check_check}" == "yes" ]]; then
+            source "${collector_path}/sources/vhost-check.sh"
+            [[ -s "${report_dir}/domains_without_resolution.txt" ]] && [[ -s "${report_dir}/infra_ipv4.txt" ]] && \
+                vhost_check "${report_dir}/domains_without_resolution.txt" "${report_dir}/infra_ipv4.txt"
+            # Merge vhost_check STRONG findings into domains_found.txt / domains_alive.txt.
+            # The IP is already known (from infra_ipv4.txt), so pull it from etc_hosts_file.txt
+            # (format: "ip\tvhost") rather than doing a fresh DNS lookup.
+            if [[ -s "${tmp_dir}/vhost_subdomains_strong.tmp" ]]; then
+                awk '{print $1}' "${tmp_dir}/vhost_subdomains_strong.tmp" \
+                    | grep -Ei "(\.${domain}$|^${domain}$)" | sort -u >> "${report_dir}/domains_found.txt"
+                sort -u -o "${report_dir}/domains_found.txt" "${report_dir}/domains_found.txt"
+
+                # Read ONLY strong vhosts (correct source) and lookup IP in etc_hosts_file.txt
+                while IFS= read -r vc_host; do
+                    # Validate that it belongs to target domain (defense in depth)
+                    if ! grep -qEi "(\.${domain}$|^${domain}$)" <<< "${vc_host}"; then
+                        continue
+                    fi
+
+                    # Lookup IP in etc_hosts_file.txt
+                    local vc_ip
+                    vc_ip="$(grep -F "${vc_host}" "${report_dir}/etc_hosts_file.txt" | awk '{print $1}' | head -1)"
+
+                    if [[ -n "${vc_ip}" ]]; then
+                        echo "${vc_host}"$'\t'"${vc_ip}" >> "${report_dir}/domains_external_ipv4.txt"
+                        echo "${vc_host}" >> "${report_dir}/domains_alive.txt"
+                    fi
+                done < "${tmp_dir}/vhost_subdomains_strong.tmp"
+
+                sort -u -o "${report_dir}/domains_external_ipv4.txt" "${report_dir}/domains_external_ipv4.txt"
+                sort -u -o "${report_dir}/domains_alive.txt" "${report_dir}/domains_alive.txt"
+            fi
+            source "${collector_path}/sources/vhost-probe.sh"
+            [[ -s "${report_dir}/infra_ipv4.txt" ]] && \
+                vhost_probe "${report_dir}/infra_ipv4.txt"
+            # Merge vhost_probe findings into domains_found.txt and resolve new entries
+            if [[ -s "${tmp_dir}/vhost_probe_output.txt" ]]; then
+                grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/vhost_probe_output.txt" \
+                    | sort -u >> "${report_dir}/domains_found.txt"
+                sort -u -o "${report_dir}/domains_found.txt" "${report_dir}/domains_found.txt"
+                # Resolve new vhost_probe entries in parallel (10x speedup)
+                grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/vhost_probe_output.txt" \
+                    | sort -u > "${tmp_dir}/vhost_probe_new.tmp"
+                if [[ -s "${tmp_dir}/vhost_probe_new.tmp" ]]; then
+                    local num_workers=20 pids=()
+
+                    split -n l/${num_workers} "${tmp_dir}/vhost_probe_new.tmp" "${tmp_dir}/vhost_probe_chunk_"
+
+                    for ((i=0; i<num_workers; i++)); do
+                        dns_parallel_worker "$i" "${tmp_dir}/vhost_probe_chunk_${i}" \
+                            "${domain}" "${report_dir}" "${IPv4_regex}" \
+                            "${webapp_port_detect[@]}" "${webapp_tls_ports[@]}" &
+                        pids+=($!)
+                    done
+
+                    for pid in "${pids[@]}"; do
+                        wait "$pid" 2>/dev/null
+                    done
+
+                    merge_parallel_dns_results "${report_dir}" "domains_external_ipv4"
+                    merge_parallel_dns_results "${report_dir}" "domains_alive"
+                    merge_parallel_dns_results "${report_dir}" "infra_ipv4"
+                    merge_parallel_dns_results "${report_dir}" "vhost_urls"
+                fi
+            fi
+            fi  # end vhost_check_check
+            # Build the consolidated URL list once — after both vhost_check and
+            # vhost_probe have finished writing to vhost_urls.txt. The call that
+            # was previously inside vhost_check() was removed so that probe hits
+            # are included here in a single pass (F-05 fix).
+            build_consolidated_urls
+            webapp_tech "${domain}" "${report_dir}/webapp_consolidated.txt"
         fi
+        emails_recon
         if [[ "${webapp_crawler_check}" == "yes" && "${webapp_enum_check}" != "yes" ]]; then
-            crawler_js "${domain}" "${report_dir}/webapp_urls.txt"
-            #crawler_params "${domain}" "${report_dir}/webapp_urls.txt"
+            if [[ "${webapp_discovery_check}" != "yes" ]]; then
+                echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Warning: webapp_crawler_check requires webapp_discovery_check to build the URL list. Skipping crawler."
+            else
+                crawler_js "${domain}" "${report_dir}/webapp_consolidated.txt"
+                crawler_params "${domain}" "${report_dir}/webapp_consolidated.txt"
+                source "${collector_path}/sources/spider.sh"
+                spider_src "${report_dir}/webapp_consolidated.txt"
+                # Merge spider findings into domains_found.txt and resolve new entries
+                if [[ -s "${tmp_dir}/spider_output.txt" ]]; then
+                    grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/spider_output.txt" \
+                        | sort -u >> "${report_dir}/domains_found.txt"
+                    sort -u -o "${report_dir}/domains_found.txt" "${report_dir}/domains_found.txt"
+                    grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/spider_output.txt" \
+                        | sort -u > "${tmp_dir}/spider_new.tmp"
+                    if [[ -s "${tmp_dir}/spider_new.tmp" ]]; then
+                        local num_workers=20 pids=()
+
+                        split -n l/${num_workers} "${tmp_dir}/spider_new.tmp" "${tmp_dir}/spider_chunk_"
+
+                        for ((i=0; i<num_workers; i++)); do
+                            dns_parallel_worker "$i" "${tmp_dir}/spider_chunk_${i}" \
+                                "${domain}" "${report_dir}" "${IPv4_regex}" \
+                                "${webapp_port_detect[@]}" "${webapp_tls_ports[@]}" &
+                            pids+=($!)
+                        done
+
+                        for pid in "${pids[@]}"; do
+                            wait "$pid" 2>/dev/null
+                        done
+
+                        merge_parallel_dns_results "${report_dir}" "domains_external_ipv4"
+                        merge_parallel_dns_results "${report_dir}" "domains_alive"
+                        merge_parallel_dns_results "${report_dir}" "infra_ipv4"
+                    fi
+                fi
+            fi
         fi
         if [[ "${webapp_scan_check}" == "yes" && "${webapp_enum_check}" != "yes" ]]; then
-            nuclei_scan "${domain}" "${report_dir}/webapp_urls.txt"
-            #acunetix_scan "${domain}" "${report_dir}/webapp_urls.txt"
+	    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Initializing the web application scan..."
+	    echo -e "\t\t    ${red}Warning:${reset} It can take a long time to execute the scan functions!"
+            nuclei_scan "${domain}" "${report_dir}/webapp_consolidated.txt"
+            #acunetix_scan "${domain}" "${report_dir}/webapp_consolidated.txt"
         fi
         [[ "${recon_check}" == "yes" && "${webapp_enum_check}" != "yes" ]] && \
-            { message "${domain}" finished; exit 0; }
+            { diff_artifacts; build_llm_prompt; record_history; db_usage; run_summary "${domain}"; message "${domain}" finished; start_app_report; exit 0; }
     fi
 
     if [[ "${webapp_enum_check}" == "yes" ]]; then
-        webapp_enum "${domain}" "${report_dir}/webapp_urls.txt"
+        webapp_enum "${domain}" "${report_dir}/webapp_consolidated.txt"
         robots_txt
         [[ -s "${report_dir}/robots_urls.txt" ]] && webapp_enum "${domain}" "${report_dir}/robots_urls.txt"
+        # sitemap_xml runs AFTER robots_txt so it can pick up any
+        # "Sitemap: <url>" hints captured in the robots bodies. The output
+        # file ${report_dir}/sitemap_urls.txt is then treated exactly like
+        # robots_urls.txt by the downstream loop.
+        sitemap_xml "${report_dir}/webapp_consolidated.txt"
+        [[ -s "${report_dir}/sitemap_urls.txt" ]] && webapp_enum "${domain}" "${report_dir}/sitemap_urls.txt"
 
-        for urls_file in "${report_dir}/webapp_urls.txt" "${report_dir}/robots_urls.txt"; do
-            if [[ -s "${url_file}" ]]; then
-                aquatone_screenshot "${domain}" "${url_file}"
+        # Use a loop variable name that doesn't collide with the global
+        # `urls_file` used (and unset) inside aquatone_screenshot /
+        # nuclei_scan / webapp_tech / webapp_enum. Otherwise, after the
+        # first callee runs, `${urls_file}` is empty for the remaining
+        # callees in the same iteration (report B-05).
+        local current_urls_file
+        for current_urls_file in "${report_dir}/webapp_consolidated.txt" "${report_dir}/robots_urls.txt" "${report_dir}/sitemap_urls.txt"; do
+            if [[ -s "${current_urls_file}" ]]; then
+                aquatone_screenshot "${domain}" "${current_urls_file}"
                 if [[ "${webapp_crawler_check}" == "yes" ]]; then
-                    crawler_js "${domain}" "${url_file}"
-                    #crawler_js "${domain}" "${url_file}"
+                    crawler_js "${domain}" "${current_urls_file}"
+                    crawler_params "${domain}" "${current_urls_file}"
                 fi
                 if [[ "${webapp_scan_check}" == "yes" ]]; then
-                    nuclei_scan "${domain}" "${url_file}"
-                    #acunetix_scan "${domain}" "${url_file}"
+		    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Initializing the web application scan..."
+		    echo -e "\t\t    ${red}Warning:${reset} It can take a long time to execute the scan functions!"
+                    nuclei_scan "${domain}" "${current_urls_file}"
+                    #acunetix_scan "${domain}" "${current_urls_file}"
                 fi
             fi
         done
         git_rebuild
     fi
-    message "${domain}" finished) 2>> "${log_execution_file}" | tee -a "${log_execution_file}"
+    diff_artifacts
+    build_llm_prompt
+    record_history
+    db_usage
+    run_summary "${domain}"
+    message "${domain}" finished
+    start_app_report) 2>> "${log_execution_file}" | tee -a "${log_execution_file}"
+    # The subshell above is a forked child — its own `exit 0`/`exit 1`
+    # calls (early-return branches throughout this function) only ever
+    # ended IT, not domains_recon() itself, so the caller in `collector`
+    # was always getting whatever `tee`'s own exit status was (~always 0)
+    # instead of what actually happened. PIPESTATUS[0] is the subshell's
+    # real exit code, captured right after the pipe completes, in the
+    # same function — the one place it's still reliably available.
+    return "${PIPESTATUS[0]}"
 }

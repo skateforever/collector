@@ -1,0 +1,51 @@
+services:
+  collector:
+    image: collector:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # Bind-mount paths are relative to the repo so 'docker compose run'
+    # works on a fresh clone with no sudo and no pre-created directories.
+    # The host-side ./outputs, ./wordlists and ./app-report-db directories
+    # are created automatically by Docker on first run; ./conf.d already exists in the
+    # repo (operation.conf/functions.conf tracked; apis-recon.conf and
+    # apis-emails.conf are gitignored — copy their *.conf.example templates
+    # if you want to fill in real API keys, collector runs fine without them).
+    #
+    # To redirect any of these to a different host path, override via .env:
+    #   OUTPUTS_DIR=/data/recon/outputs
+    #   WORDLISTS_DIR=/data/wordlists
+    #   APP_REPORT_DB_DIR=/data/app-report-db
+    #   CONF_D_DIR=/opt/collector/conf.d
+    #   ALERT_PROVIDER=/opt/collector/support/templates/alerts-notify/discord-provider.yaml
+    #
+    # APP_REPORT_DB_DIR persists app-report/db/collector-results (the SQLite
+    # results DB, see collector_db in conf.d/operation.conf) on its own
+    # volume, independent of outputs/ — it isn't per-run recon output.
+    #
+    # The ALERT_PROVIDER mount is optional — if you want to use a custom alert
+    # provider config from outside the repo, bind-mount it onto the default path
+    # inside the container. If not mounted, collector uses the templates at
+    # /opt/collector/support/templates/alerts-notify/{discord,slack,teams,telegram,signal}-provider.yaml.
+    volumes:
+      - ${OUTPUTS_DIR:-./outputs}:/opt/collector/outputs
+      - ${WORDLISTS_DIR:-./wordlists}:/opt/collector/wordlists
+      - ${APP_REPORT_DB_DIR:-./app-report-db}:/opt/collector/app-report/db
+      - ${CONF_D_DIR:-./conf.d}:/opt/collector/conf.d:ro
+    ports:
+      - "127.0.0.1:8000:8000"
+
+# Usage:
+#   # collector exits with usage() when called without args, so 'up' is
+#   # NOT the right verb here — use 'run --rm' and pass collector flags:
+#   docker compose run --rm collector -d example.com --recon --webapp-discovery --webapp-short-detection
+#   docker compose run --rm collector -dl /opt/collector/outputs/targets.list --recon --webapp-discovery --webapp-short-detection
+#   docker compose run --rm collector --help
+#
+# First-time bootstrap:
+#   docker compose --progress=plain build   # builds collector:latest from Dockerfile
+#   # --progress is a top-level `docker compose` flag (goes before the
+#   # subcommand). plain logs every step as it starts instead of an
+#   # interactive spinner — makes a stuck build diagnosable.
+#   # ./outputs, ./wordlists and ./app-report-db are created automatically on first run.
+#   # Drop your wordlists into ./wordlists before passing -ww/--webapp-wordlists.

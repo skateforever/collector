@@ -10,12 +10,38 @@
 #                                                           #
 #############################################################
 
+# Validates a domain/hostname string before it is interpolated into URLs
+# and filesystem paths. Allows: letters, digits, hyphen, underscore, dot.
+# Rejects path separators, shell metacharacters, whitespace, schemes, etc.
+# Returns 0 on valid, 1 on invalid (and prints to stderr).
+validate_domain(){
+    local candidate="$1"
+    if [[ -z "${candidate}" ]]; then
+        echo -e "Empty domain is not allowed." >&2
+        return 1
+    fi
+    if [[ ${#candidate} -gt 253 ]]; then
+        echo -e "Domain is too long (>253 chars): ${candidate}" >&2
+        return 1
+    fi
+    if ! [[ "${candidate}" =~ ^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)*$ ]]; then
+        echo -e "Invalid domain format: ${yellow}${candidate}${reset}" >&2
+        return 1
+    fi
+    return 0
+}
+
 check_argument(){
-    options+=(-d --domain -dl --domain-list -ed --exclude-domains -el --exclude-domain-list -h --help -k -kill)
-    options+=(-kr --kill-remove -l --limit-urls -o --output -p --proxy -r --recon -s --subdomain-brute -u --url)
-    options+=(-wc --webapp-crawler -wd --webapp-discovery -we --webapp-enum -ws --webapp-scan)
-    options+=(-wld --webapp-long-detection -wsd --webapp-short-detection -ww --webapp-wordlists)
-    argument=$2
+    # local arrays — rebuild from scratch on each call (was accumulating across
+    # successive invocations because it was global, but the logic never relied
+    # on the accumulation).
+    local options=()
+    options+=(-d --domain -dl --domain-list -ed --exclude-domains -el --exclude-domain-list -h --help)
+    options+=(-l --limit-urls -p --proxy -r --recon -ro --report-only -rs --report-stop -s --subdomain-brute -u --url)
+    options+=(-vc --vhost-check -wc --webapp-crawler -wd --webapp-discovery -we --webapp-enum -ws --webapp-scan)
+    options+=(-wcp --webapp-common-ports -wld --webapp-long-detection -wsd --webapp-short-detection -ww --webapp-wordlists -dr --dry-run)
+    local argument=$2
+    local option
     if [[ -z "${argument}" ]]; then
         echo -e "The argument of ${yellow}\"$1\"${reset} it can not be ${red}\"empty\"${reset} or you forgot to inform it, please, ${yellow}specify a valid one${reset}.\n"
         usage
@@ -30,26 +56,25 @@ check_argument(){
 }
 
 menu(){
-    args="$@"
-    args_count="$#"
+    local args=("$@")
+    args_count="$#"   # GLOBAL — lido por check_parameter_dependency() em check_execution.sh
     while [ $# -ne 0 ]; do
         case $1 in
             -d|--domain)
                 check_argument "$1" "$2"
+                if ! validate_domain "$2"; then
+                    usage
+                fi
                 domain="$2"
-                unset domain_check
                 domain_check="yes"
-                unset directory_structure
-                directory_structure="domain"
+                [[ -n "${domain}" && "${domain_check}" == "yes" ]] && directory_structure="domain"
                 shift 2
                 ;;
             -dl|--domain-list)
                 check_argument "$1" "$2"
                 if [ -s "$2" ]; then
                     domain_list=$2
-                    unset domainlist_check
                     domainlist_check="yes"
-                    unset directory_structure
                     directory_structure="domain"
                     shift 2
                 else
@@ -59,11 +84,8 @@ menu(){
                 ;;
             -ed|--exclude-domains)
                 check_argument "$1" "$2"
-                set -f
-                IFS=","
-                excluded_domains+=($2)
-                unset IFS
-                unset excludedomain_check
+                IFS="," read -ra ed_parts <<< "$2"
+                excluded_domains+=("${ed_parts[@]}")
                 excludedomain_check="yes"
                 shift 2
                 ;;
@@ -71,7 +93,6 @@ menu(){
                 check_argument "$1" "$2"
                 if [ -s "$2" ]; then
                     excludedomain_list="$2"
-                    unset excludedomainlist_check
                     excludedomainlist_check="yes"
                 else
                     echo -e "Please provide a valid file with domains to exclude them.\n"
@@ -82,31 +103,10 @@ menu(){
             -h|--help)
                 usage
                 ;;
-            -k|--kill)
-                check_argument "$1" "$2"
-                if [ -z "$2" ]; then
-                    echo "You need to specify a domain to kill the execution!"
-                    exit 1
-                else
-                    unset kill_check
-                    kill_check="yes"
-                fi
-                ;;
-            -kr|--kill-remove)
-                check_argument "$1" "$2"
-                if [ -z "$2" ]; then
-                    echo "You need to specify a domain to kill the execution!"
-                    exit 1
-                else
-                    unset killremove_check
-                    killremove_check="yes"
-                fi
-                ;;        
             -l|--limit-urls)
                 check_argument "$1" "$2"
-                if [[ -n "$2" && "$2" == ?(-)+([0-9]) ]]; then
+                if [[ -n "$2" && "$2" =~ ^-?[0-9]+$ ]]; then
                     limit_urls="$2"
-                    unset limiturls_check
                     limiturls_check="yes"
                     shift 2
                 else
@@ -114,114 +114,132 @@ menu(){
                     usage
                 fi
                 ;;
-            -o|--output)
-                check_argument "$1" "$2"
-                unset output_dir
-                output_dir="$2"
-                shift 2
-                ;;
             -p|--proxy)
                 check_argument "$1" "$2"
-                unset use_proxy
                 use_proxy="yes"
                 proxy_ip="$(echo "$2" | sed -E 's/^\s*.*:\/\///g')"
                 shift 2
                 ;;
             -r|--recon)
-                unset recon_check
                 recon_check="yes"
+                shift
+                ;;
+            -vc|--vhost-check)
+                vhost_check_check="yes"
+                shift
+                ;;
+            -ro|--report-only)
+                # Opens the read-only app-report dashboard against the existing
+                # outputs/ directory without triggering recon. Handled early
+                # in collector (right after menu) so target/lock/validation
+                # blocks are skipped entirely.
+                report_only_check="yes"
+                shift
+                ;;
+            -rs|--report-stop)
+                # Stops a report dashboard previously started with
+                # --report-only (foreground gunicorn, pidfile-tracked).
+                # Also handled early in collector; no target needed.
+                report_stop_check="yes"
                 shift
                 ;;
             -s|--subdomain-brute)
                 check_argument "$1" "$2"
-                unset IFS
-                set -f
-                IFS=","
-                for dw in $2; do
+                IFS="," read -ra sb_parts <<< "$2"
+                local dw
+                for dw in "${sb_parts[@]}"; do
                     if [[ -s "${dw}" ]]; then
-                        dns_wordlists+=("$2")
+                        # Append the split element (a single path), not the
+                        # raw comma-joined $2. Previous code (`+=("$2")`)
+                        # stored the literal "/a.txt,/b.txt" as one array
+                        # element (report B-07).
+                        dns_wordlists+=("${dw}")
                     else
-                        echo -e "${dw} is not a valid file, please enter a valid one.\n"
+                        # Same host-vs-container pitfall as --webapp-wordlists:
+                        # the -s test runs inside the container, so a plain
+                        # host path (~/foo.txt) or an unmounted path looks
+                        # missing here even though it exists on the host.
+                        echo -e "${yellow}${dw}${reset} is not a valid file ${red}inside the container${reset}."
+                        echo -e "  hint: the path you passed is resolved inside the container, not on the host."
+                        echo -e "  Place the wordlist under ${yellow}\${WORDLISTS_DIR}${reset} on the host"
+                        echo -e "  (default: ${yellow}<root>/wordlists${reset}, mounted at ${yellow}/opt/collector/wordlists${reset}),"
+                        echo -e "  then pass: ${yellow}--subdomain-brute /opt/collector/wordlists/${dw##*/}${reset}"
+                        echo -e "  Or set ${yellow}WORDLISTS_DIR=<dir-that-contains-your-file>${reset} when running collector-docker.\n"
                         usage
                     fi
                 done
-                unset IFS
-                unset subdomainbrute_check
                 subdomainbrute_check="yes"
                 shift 2
                 ;;
             -u|--url)
                 check_argument "$1" "$2"
-                unset url_check
+                url_verify="$2"
                 url_check="yes"
-                unset directory_structure
-                directory_structure="url"
-                unset url_verify
-                url_verify=$2
-                unset url_domain
-                url_domain=$(echo "${url_verify}" | sed -e 's/http.*\/\///' | awk -F'/' '{print $1}' | xargs -I {} basename {})
+                [[ -n "${url_verify}" && "${url_check}" == "yes" ]] && directory_structure="url"
+                url_domain=$(echo "${url_verify}" | sed -E 's|^https?://||' | awk -F'[/:#?]' '{print $1}')
                 shift 2
                 ;;
             -wc|--webapp-crawler)
-                unset webapp_crawler_check
                 webapp_crawler_check="yes"
                 shift
                 ;;
             -wd|--webapp-discovery)
-                unset webapp_discovery_check
                 webapp_discovery_check="yes"
                 shift
                 ;;
             -we|--webapp-enum)
-                unset webapp_enum_check
                 webapp_enum_check=yes
                 shift
                 ;;
             -ws|--webapp-scan)
-                unset webapp_scan_check
                 webapp_scan_check="yes"
                 shift
                 ;;
+            -wcp|--webapp-common-ports)
+                webapp_port_detect=("${webapp_http_ports[@]}" "${webapp_tls_ports[@]}")
+                shift
+                ;;
             -wld|--webapp-long-detection)
-                unset webapp_port_detect
-                if [ "${#webapp_port_detect[@]}" -eq 0 ]; then
-                    webapp_port_detect=("${webapp_port_long_detection[@]}")
-                else
-                    diff_array=$(diff <(printf "%s\n" "${webapp_port_detect[@]}") <(printf "%s\n" "${webapp_port_long_detection[@]}"))
-                    if [[ ! "${#webapp_port_detect[@]}" -ne 0 ]] && [[ -n ${diff_array} ]]; then
-                        echo -e "You need to specify just sort or long web port detection, not both!\n"
-                        usage
-                    fi
-                fi
+                webapp_port_detect=("${webapp_http_ports[@]}" "${webapp_tls_ports[@]}" "${webapp_multiple_ports[@]}")
                 shift
                 ;;
             -wsd|--webapp-short-detection)
-                unset webapp_port_detect
-                if [ "${#webapp_port_detect[@]}" -eq 0 ]; then
-                    webapp_port_detect=("${webapp_port_short_detection[@]}")
-                else
-                    diff_array=$(diff <(printf "%s\n" "${webapp_port_detect[@]}") <(printf "%s\n" "${webapp_port_short_detection[@]}"))
-                    if [[ "${#webapp_port_detect[@]}" -ne 0 ]] && [[ -n ${diff_array} ]]; then
-                        echo -e "You need to specify just sort or long web port detection, not both!\n"
-                        usage
-                    fi
-                fi
+                webapp_port_detect=("${webapp_http_ports[@]}")
                 shift
                 ;;
             -ww|--webapp-wordlists)
                 check_argument "$1" "$2"
-                set -f
-                IFS=","
-                for ww in $2; do
+                IFS="," read -ra ww_parts <<< "$2"
+                local ww
+                for ww in "${ww_parts[@]}"; do
                     if [[ -s "${ww}" ]]; then
-                        webapp_wordlists+=("$2")
+                        # Append the split element (single path), not $2
+                        # (same bug as -s/--subdomain-brute — report B-07).
+                        webapp_wordlists+=("${ww}")
                     else
-                        echo -e "${ww} is not a valid file, please enter a valid one.\n"
+                        # The path is resolved INSIDE the container. When
+                        # the operator passes a host path (e.g. ~/my.txt)
+                        # or a plain filename without staging the file
+                        # under the wordlists mount, the -s test fails
+                        # here even though the file exists on the host.
+                        # The old error ('is not a valid file, please
+                        # enter a valid one') gave no hint about that
+                        # host-vs-container distinction — the new message
+                        # spells it out and shows how to fix it.
+                        echo -e "${yellow}${ww}${reset} is not a valid file ${red}inside the container${reset}."
+                        echo -e "  hint: the path you passed is resolved inside the container, not on the host."
+                        echo -e "  Place the wordlist under ${yellow}\${WORDLISTS_DIR}${reset} on the host"
+                        echo -e "  (default: ${yellow}<root>/wordlists${reset}, mounted at ${yellow}/opt/collector/wordlists${reset}),"
+                        echo -e "  then pass: ${yellow}--webapp-wordlists /opt/collector/wordlists/${ww##*/}${reset}"
+                        echo -e "  Or set ${yellow}WORDLISTS_DIR=<dir-that-contains-your-file>${reset} when running collector-docker.\n"
                         usage
                     fi
                 done
-                unset IFS
                 shift 2
+                ;;
+            -dr|--dry-run)
+                dry_run_check="yes"
+                shift
                 ;;
             *)
                 echo -e "You are specifying the parameter ${yellow}$1${reset}, which is invalid.\n"

@@ -9,70 +9,360 @@
 collector_command_line="$0 $*"
 collector_path=$(dirname "$0")
 
-[[ -s "${collector_path}/functions/banner.sh" ]] && source "${collector_path}/functions/banner.sh"
+[[ -s "${collector_path}/functions/utils.sh" ]] && source "${collector_path}/functions/utils.sh"
 banner
+reset_vars
 
-if [ -s "${collector_path}/collector.cfg" ]; then
-    source "${collector_path}/collector.cfg"
-else
-    banner
-    echo -e "Please ${red}make sure${reset} you have the ${yellow}collector.cfg${reset} file."
-    echo -e "${yellow}You need this to set the tools parameters${reset}!"
-    echo -e "You will set aquatone, gobuster, dirsearch threads and others.\n"
-    exit 1
-fi
+# Configuration lives in conf.d/, split by concern:
+#   operation.conf      — runtime plumbing (colors, paths, DB, app-report)
+#   functions.conf      — per-tool parameters (timeouts, threads, CLI options)
+#   apis-recon.conf     — subdomain-discovery API keys (real, gitignored)
+#   apis-emails.conf    — email-recon API keys (real, gitignored)
+# operation.conf/functions.conf are required — collector can't run without
+# them. apis-recon.conf/apis-emails.conf carry live credentials and are
+# gitignored, so a fresh checkout only has the *.conf.example templates
+# (blank keys); collector falls back to those so recon still runs without
+# any OSINT API configured, just without their enrichment.
+#
+# operation.conf must load first: it defines ${red}/${yellow}/${reset},
+# used by every error message below (including for the other 3 files).
+for _cfg_area in operation functions; do
+    _cfg_file="${collector_path}/conf.d/${_cfg_area}.conf"
+    if [ -s "${_cfg_file}" ]; then
+        source "${_cfg_file}"
+    else
+        banner
+        echo -e "Please ${red}make sure${reset} you have the ${yellow}${_cfg_file}${reset} file."
+        echo -e "${yellow}You need this to set the tools parameters${reset}!"
+        echo -e "You will set aquatone, gobuster, dirsearch threads and others.\n"
+        exit 1
+    fi
+done
+
+for _cfg_area in apis-recon apis-emails; do
+    _cfg_file="${collector_path}/conf.d/${_cfg_area}.conf"
+    _cfg_example="${_cfg_file}.example"
+    if [ -s "${_cfg_file}" ]; then
+        source "${_cfg_file}"
+    elif [ -s "${_cfg_example}" ]; then
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${_cfg_file} not found — using blank defaults from ${_cfg_example}."
+        echo -e "    Copy it to ${_cfg_file} and fill in your API keys to enable those OSINT sources."
+        source "${_cfg_example}"
+    else
+        banner
+        echo -e "Please ${red}make sure${reset} you have the ${yellow}${_cfg_file}${reset} (or ${_cfg_file}.example) file."
+        exit 1
+    fi
+done
+unset _cfg_area _cfg_file _cfg_example
 
 # Checking if the essencial functions there are
-for file in kill_collector.sh check_binaries.sh usage.sh message.sh menu.sh check_structure.sh \
+for file in check_binaries.sh usage.sh message.sh menu.sh check_structure.sh \
     check_execution.sh domains_sources.sh files.sh diff.sh infra.sh webapp_crawler.sh \
-    webapp_discovery.sh webapp_scan.sh webapp_enum.sh git.sh domains_recon.sh url_recon.sh; do
+    webapp_discovery.sh webapp_enum.sh git.sh emails_recon.sh \
+    cloudflare_tunnel.sh app_report.sh db_usage.sh llm_prompt.sh \
+    domains_recon.sh url_recon.sh; do
     function="${collector_path}/functions/${file}"
     if [ -s "${function}" ]; then
         source "${function}"
     else
         echo -e "Please ${red}make sure${reset} you have the ${yellow}\"${function}\"${reset} file."
         echo -e "${yellow}You need this file to execute collector${reset}!"
-        echo -e "The collector execution ${red}failed${reset} at ${yellow}$(date +"%Y%m%d %H:%M")${reset} due missing essentials files!" 
+        echo -e "The collector execution ${red}failed${reset} at ${yellow}$(date +"%Y%m%d %H:%M")${reset} due missing essentials files!"
         exit 1
     fi
 done
 
+# Source the scanners (network + web) — these are called by
+# domains_recon / url_recon, which were already sourced above, so the
+# function definitions must land in the shell before either runs.
+for scan in acunetix.sh nmap.sh nuclei.sh shodan.sh js_scans.sh; do
+    scan_file="${collector_path}/scans/${scan}"
+    if [ -s "${scan_file}" ]; then
+        source "${scan_file}"
+    else
+        echo -e "Please ${red}make sure${reset} you have the ${yellow}\"${scan_file}\"${reset} file."
+        echo -e "${yellow}You need this file to execute collector${reset}!"
+        echo -e "The collector execution ${red}failed${reset} at ${yellow}$(date +"%Y%m%d %H:%M")${reset} due missing scanner files!"
+        exit 1
+    fi
+done
+unset scan scan_file
+
+check_container
 check_binaries
 
 [[ $# -eq 0 ]] && { echo -e "You're using the collector without parameters.\n" ; usage ; } || menu "$@"
 
+cleanup_global(){
+    local exit_code=$?
+
+    # Every command below that can touch another process (kill, wait, the
+    # settle loop) already redirects its OWN stderr — but that only
+    # covers each command's synchronous output. bash can still report a
+    # signal-killed child's death asynchronously, as this function is
+    # still running, on this process's stderr directly rather than through
+    # any single command's redirect (reproduced: "Terminated" was showing
+    # up between this function's own echo lines, not after them, meaning
+    # it was leaking during the kill/settle loop below, not after it —
+    # putting the redirect at the END of the function, after that loop,
+    # never covered it). Redirecting this process's whole stderr up front
+    # covers the entire function, not just its last few lines. Nothing
+    # here prints anything intentional to stderr (every echo below is
+    # stdout, or an explicit >> to log_execution_file), so this has no
+    # other effect.
+    exec 2>/dev/null
+
+    # Housekeeping below is intentionally silent on stdout — narrating every
+    # single step ("Logs flushed.", "Subprocesses terminated.", ...) on
+    # every single run was pure noise. Only the run's own verdict
+    # (_collector_final_message, printed last) and the log file need to
+    # reflect that a shutdown happened.
+    [[ -n "${log_execution_file}" && -f "${log_execution_file}" ]] && sync "${log_execution_file}" 2>/dev/null
+
+    # start_app_report leaves a gunicorn/python3 dashboard running after
+    # this run finishes — that's the point (browse results the moment the
+    # run ends). Inside Docker, collector is the container's PID 1, so the
+    # instant start_app_report's subshell exits, the dashboard's orphaned
+    # process gets reparented right back to $$ — a blind `pkill -P $$`
+    # here then kills the dashboard we just started, seconds after it was
+    # confirmed alive (reproduced: gunicorn's own log shows "Handling
+    # signal: term" moments after "Starting gunicorn", every run). Skip
+    # its pid explicitly.
+    local _app_report_pidfile="${app_report_pidfile:-${output_dir}/${app_report_pidfile_name:-.app-report.pid}}"
+    local _app_report_live_pid=""
+    [[ -s "${_app_report_pidfile}" ]] && _app_report_live_pid="$(cat "${_app_report_pidfile}" 2>/dev/null)"
+    local _child
+    local -a _signaled=()
+    for _child in $(pgrep -P $$ 2>/dev/null); do
+        [[ -n "${_app_report_live_pid}" && "${_child}" == "${_app_report_live_pid}" ]] && continue
+        kill -TERM "${_child}" 2>/dev/null
+        _signaled+=("${_child}")
+    done
+    wait 2>/dev/null
+
+    # A signaled process that does its own graceful shutdown (as gunicorn
+    # did here — "Handling signal: term" then "Worker exiting" a moment
+    # later, confirmed in outputs/.app-report.log) can still be alive when
+    # the `wait` above returns. Its eventual death then gets reaped by
+    # bash's own SIGCHLD bookkeeping at some later point that this
+    # redirect no longer covers, leaking a bare "Terminated" straight to
+    # the console instead of the log. Poll briefly so every signaled pid
+    # is confirmed dead — and reaped under a redirect — before moving on.
+    local _settle=0 _still_alive
+    while [[ "${_settle}" -lt 5 ]]; do
+        _still_alive=0
+        for _child in "${_signaled[@]}"; do
+            kill -0 "${_child}" 2>/dev/null && _still_alive=1
+        done
+        [[ "${_still_alive}" -eq 0 ]] && break
+        sleep 1
+        wait 2>/dev/null
+        ((_settle += 1))
+    done
+
+    if [[ -n "${collector_lock_fd}" ]]; then
+        flock -u "${collector_lock_fd}" 2>/dev/null
+        exec {collector_lock_fd}>&-
+    fi
+
+    if [[ -n "${tmp_dir}" && -d "${tmp_dir}" ]]; then
+        rm -f "${tmp_dir}"/vhost_probe_chunk_* 2>/dev/null
+        rm -f "${tmp_dir}"/spider_chunk_* 2>/dev/null
+        rm -f "${tmp_dir}"/webapp_urls_*.tmp 2>/dev/null
+    fi
+
+    if [[ -n "${log_execution_file}" ]]; then
+        echo "$(date +"%d/%m/%Y %H:%M") GRACEFUL SHUTDOWN - exit code: ${exit_code}" >> "${log_execution_file}"
+    fi
+
+    # message() usually runs inside domains_recon()/url_recon()'s own
+    # subshell (their body is wrapped in one so cleanup_on_exit/tee scope
+    # correctly there) — a subshell is a forked child, so the
+    # _collector_final_message assignment it made never reaches this
+    # process's own variables. message() also drops the same text into a
+    # $$-scoped file for exactly this case ($$ stays the same across that
+    # subshell boundary), so recover it from there when the variable
+    # itself is empty.
+    if [[ -z "${_collector_final_message:-}" && -n "${output_dir:-}" ]]; then
+        local _final_message_file="${output_dir}/.final_message.$$"
+        [[ -s "${_final_message_file}" ]] && _collector_final_message="$(cat "${_final_message_file}" 2>/dev/null)"
+        rm -f "${_final_message_file}" 2>/dev/null
+    fi
+
+    # Printed LAST, after every shutdown step above, so the run's verdict
+    # reads as the final word instead of appearing before the cleanup
+    # sequence. cleanup_global runs as the top-level script's own EXIT
+    # trap, outside the `| tee -a "${log_execution_file}"` pipe that wraps
+    # domains_recon()/url_recon()'s body — so unlike every other progress
+    # line, this one needs an explicit append or it never reaches the log
+    # at all.
+    if [[ -n "${_collector_final_message:-}" ]]; then
+        echo -e "${_collector_final_message}"
+        [[ -n "${log_execution_file}" ]] && echo -e "${_collector_final_message}" >> "${log_execution_file}"
+    fi
+
+    # Inside Docker, collector is the container's PID 1 — the instant it
+    # exits, the kernel SIGKILLs every other process left in that PID
+    # namespace (including start_app_report's dashboard), unconditionally,
+    # regardless of anything the settle loop above already reaped. stderr
+    # is already redirected (see the top of this function), so that
+    # teardown's own "Terminated"/"Killed" has nowhere to leak to.
+    exit "${exit_code}"
+}
+
+# SIGINT/SIGTERM get their own trap (instead of just cleanup_global) so
+# we can print a clean "Execution terminated." line as the FIRST thing on
+# a signal-triggered shutdown — otherwise bash's own job-control notice
+# for a killed child (bare "Terminated"/"Killed", no timestamp, no ">>")
+# is what shows up there instead. Exiting with the conventional 128+signal
+# code (130 for SIGINT, 143 for SIGTERM) also makes cleanup_global's own
+# "exit code: N" line accurate for a signal-triggered shutdown, instead of
+# reporting the exit code of whatever unrelated command last ran before
+# the signal arrived.
+trap 'echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Execution terminated."; exit 130' SIGINT
+trap 'echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Execution terminated."; exit 143' SIGTERM
+trap cleanup_global EXIT
+
+# --report-stop / --report-only short-circuit every step below (target
+# validation, lock acquisition, directory creation, recon). The app-report
+# Flask app is strictly read-only over the existing outputs/, so there's
+# nothing to validate here beyond what start_app_report_foreground already
+# checks (DB present, app-report dir present). exec inside that function
+# replaces this shell with gunicorn — Ctrl-C then reaches gunicorn directly.
+#
+# --report-stop is checked FIRST so `collector --report-only --report-stop`
+# means "stop, don't start" instead of racing on the pidfile.
+if [[ "${report_stop_check}" == "yes" ]]; then
+    stop_app_report_foreground
+    exit $?
+fi
+
+if [[ "${report_only_check}" == "yes" ]]; then
+    start_app_report_foreground
+    exit $?
+fi
+
 check_execution
 check_parameter_conflicts
-check_parameter_dependency
 check_directory_permission
 
-if [[ "${kill_check}" == "yes" ]]; then
-    kill_collector "${domain}"
-fi
+# Note: -k/--kill and -kr/--kill-remove were removed. The collector runs
+# inside a one-shot Docker container, so the right way to stop a run is
+# `docker stop <container>` on the host. To wipe artifacts, `rm -rf` the
+# mounted volume from the host. The flock-based lock in
+# collector_acquire_lock() already prevents concurrent runs on the same
+# target, so the kill flow had no real use case (report C-01/C-07/C-08).
 
-if [[ "${killremove_check}" == "yes" ]]; then
-    kill_collector "${domain}"
-fi
-
+# check_parameter_dependency() inspects ${report_dir}/*.txt to decide
+# whether reuse-mode operations have the artifacts they need. It must run
+# AFTER create_directory_structure() so report_dir is defined. Previously
+# it ran before, with report_dir empty, which made every reuse-without-r
+# invocation trigger usage() (report C-02).
 if [[ "${domain_check}" == "yes" && -n "${domain}" ]]; then
+    if [[ "${dry_run_check}" == "yes" ]]; then
+        echo -e "${yellow}Pre-flight checks passed:${reset}"
+        echo -e "  Target:       ${domain}"
+        echo -e "  IPv4 regex:   ${IPv4_regex:-(UNDEFINED!)}"
+        echo -e "  nmap timeout: $(printf '%s ' "${nmap_options[@]}" | grep -oE '\-\-host-timeout [^ ]+' | awk '{print $2}')"
+        echo -e "  Wordlists:    ${#webapp_wordlists[@]}"
+        echo -e "  DNS wordlists: ${#dns_wordlists[@]}"
+        echo -e "  Port detect:  ${#webapp_port_detect[@]} ports"
+        echo -e "  Proxy:        ${use_proxy:-no} ${proxy_ip:-}"
+        echo -e "  Shodan:       ${shodan_use:-no}"
+        [[ -z "${IPv4_regex}" ]] && echo -e "  ${red}CRITICAL: IPv4_regex undefined!${reset}"
+        exit 0
+    fi
+    collector_acquire_lock "${domain}"
     check_is_known_target "${domain}"
     create_directory_structure
+    check_parameter_dependency
     domains_recon
-    exit 0
+    exit $?
 fi
 
 if  [[ "${domainlist_check}" == "yes" && -s "${domain_list}" ]]; then
+    if [[ "${dry_run_check}" == "yes" ]]; then
+        echo -e "${yellow}Pre-flight checks passed:${reset}"
+        echo -e "  Target:       ${domain_list} (domain list)"
+        echo -e "  Domains:      $(grep -cvE '^[[:space:]]*(#|$)' "${domain_list}") entries"
+        echo -e "  Port detect:  ${#webapp_port_detect[@]} ports"
+        echo -e "  Wordlists:    ${#webapp_wordlists[@]}"
+        echo -e "  DNS wordlists: ${#dns_wordlists[@]}"
+        echo -e "  Proxy:        ${use_proxy:-no} ${proxy_ip:-}"
+        echo -e "  Shodan:       ${shodan_use:-no}"
+        exit 0
+    fi
     unset domain
+    local total_domains=0 successful_runs=0 failed_runs=0 skipped_runs=0
+
     while read -r domain; do
-        check_is_known_target "${domain}"
-        create_directory_structure
-        domains_recon
+        ((total_domains += 1))
+
+        # Skip blank lines and comments, and reject malformed entries instead
+        # of letting them flow into URLs and filesystem paths.
+        [[ -z "${domain}" || "${domain}" =~ ^[[:space:]]*# ]] && { ((skipped_runs += 1)); continue; }
+        domain="${domain//[[:space:]]/}"
+
+        if ! validate_domain "${domain}"; then
+            echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Skipping invalid domain from ${domain_list}: ${domain}"
+            ((skipped_runs += 1))
+            continue
+        fi
+
+        echo -e "${yellow}[Processing ${total_domains}]${reset} ${domain}..."
+
+        # In list mode the lock is acquired/released per-target via a
+        # subshell so flock's FD goes out of scope when the target finishes.
+        (
+            set -e  # Exit on any error
+            collector_acquire_lock "${domain}"
+            check_is_known_target "${domain}"
+            create_directory_structure
+            check_parameter_dependency
+            domains_recon
+        )
+        local exit_code=$?
+
+        if [[ "${exit_code}" -eq 0 ]]; then
+            ((successful_runs += 1))
+            echo -e "${green}[${successful_runs}/${total_domains} ✓]${reset} ${domain} completed successfully"
+        else
+            ((failed_runs += 1))
+            echo -e "${red}[${failed_runs}/${total_domains} ✗]${reset} ${domain} failed with exit code ${exit_code}"
+        fi
     done < "${domain_list}"
+
+    # Summary ao final
+    echo ""
+    echo -e "${yellow}════════════════════════════════════════════════════════════${reset}"
+    echo -e "${yellow}Domain List Summary:${reset}"
+    echo -e "  Total domains:  ${total_domains}"
+    echo -e "  Successful:     ${green}${successful_runs}${reset}"
+    echo -e "  Failed:         ${red}${failed_runs}${reset}"
+    echo -e "  Skipped:        ${yellow}${skipped_runs}${reset}"
+    echo -e "${yellow}════════════════════════════════════════════════════════════${reset}"
+
+    # Exit com código apropriado
+    if [[ "${failed_runs}" -gt 0 ]]; then
+        exit 1
+    fi
     exit 0
 fi
 
 if [[ "${url_check}" == "yes" && -n "${url_verify}" ]]; then
+    if [[ "${dry_run_check}" == "yes" ]]; then
+        echo -e "${yellow}Pre-flight checks passed:${reset}"
+        echo -e "  Target:       ${url_verify} (URL mode)"
+        echo -e "  Domain:       ${url_domain}"
+        echo -e "  Wordlists:    ${#webapp_wordlists[@]}"
+        echo -e "  Proxy:        ${use_proxy:-no} ${proxy_ip:-}"
+        exit 0
+    fi
+    collector_acquire_lock "${url_domain}"
     check_is_known_target "${url_domain}"
     create_directory_structure
+    check_parameter_dependency
     url_recon
+    exit $?
 fi

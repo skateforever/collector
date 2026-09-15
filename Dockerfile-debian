@@ -1,0 +1,173 @@
+# docker build --progress=plain -f ./Dockerfile-debian -t collector:latest .
+
+# ---- Estágio 1/2: builder — compila as ferramentas Go e o massdns ----
+# Toolchain de build (gcc, make, headers -dev) e o cache de módulos/build do
+# Go (que sozinho passava de 6GB numa imagem single-stage) ficam presos
+# neste estágio e nunca chegam na imagem final — só os binários já
+# compilados atravessam, via COPY --from=builder no estágio 2.
+FROM python:3.12-slim AS builder
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    GOROOT=/usr/local/go \
+    GOPATH=/go \
+    PATH="/usr/local/go/bin:/go/bin:${PATH}" \
+    GOBIN=/usr/local/bin
+
+WORKDIR /opt/collector
+
+# 1. Dependências de build
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc git wget unzip xz-utils make build-essential \
+    libpcap-dev libssl-dev libffi-dev libcurl4-openssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# 2. Instalação do Go
+RUN wget -q https://go.dev/dl/go1.26.2.linux-amd64.tar.gz -O /tmp/go.tar.gz && \
+    tar -C /usr/local -xzf /tmp/go.tar.gz && \
+    rm /tmp/go.tar.gz && \
+    mkdir -p /go
+
+# 3. Ferramentas Go
+RUN go install github.com/projectdiscovery/tlsx/cmd/tlsx@latest && \
+    go install github.com/projectdiscovery/notify/cmd/notify@latest && \
+    go install github.com/projectdiscovery/urlfinder/cmd/urlfinder@latest && \
+    go install github.com/tomnomnom/waybackurls@latest && \
+    go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest && \
+    go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest && \
+    go install github.com/projectdiscovery/httpx/cmd/httpx@latest && \
+    go install github.com/OJ/gobuster/v3@latest && \
+    go install github.com/ffuf/ffuf/v2@latest && \
+    CGO_ENABLED=1 go install github.com/projectdiscovery/katana/cmd/katana@latest && \
+    # Pinned to the v5.1.1 release tag instead of @main — main is an active
+    # development branch (confirmed identical to v5.1.1 today, but it's a
+    # floating target with no reproducibility guarantee). See sources/amass.sh
+    # for why amass now needs a 2-command enum+subs flow.
+    CGO_ENABLED=0 go install github.com/owasp-amass/amass/v5/cmd/amass@v5.1.1 && \
+    go install github.com/evilsocket/dnssearch@master && \
+    # getJS's go.mod is already .../getJS/v2 — installing without the /v2
+    # suffix silently resolves @latest to the old v1.0.0 (different deps,
+    # years out of date) instead of erroring, since the path is still a
+    # technically-valid (if outdated) module.
+    go install github.com/003random/getJS/v2@latest && \
+    go install github.com/PentestPad/subzy@latest && \
+    # subjack's go.mod is "github.com/haccer/subjack" (no /v2, /v3 suffix)
+    # even though the repo has tags v2.x/v3.x — Go's major-version-suffix
+    # rule makes those tags unresolvable ("invalid version: module contains
+    # a go.mod file, so module path must match major version"), which is
+    # what breaks the build if subjack is pinned to a release tag. Pinned
+    # here to the commit behind the v3.0.0 tag instead, which builds fine.
+    go install github.com/haccer/subjack@b53899ce6230767beb1c4a9f879c6ebba23a98fa
+
+# Note: subjack no longer ships fingerprints.json at the repo root, nor a
+# runtime "-c <path>" flag to load a custom one — since the subjack/subjack
+# v3.0.0 restructuring, fingerprints.json lives at subjack/fingerprints.json
+# and is embedded into the binary at build time via go:embed. Nothing to
+# download or pass at runtime anymore (see scans/takeover.sh).
+
+# 4. Aquatone, MassDNS e Cloudflared (binários prontos, sem runtime deps
+# além de libc — confirmado via ldd: todos os binários Go acima, e estes
+# três, são estáticos ou só linkam libc.so.6/linux-vdso.so.1).
+RUN wget -q https://github.com/michenriksen/aquatone/releases/download/v1.7.0/aquatone_linux_amd64_1.7.0.zip -O /tmp/aquatone.zip && \
+    unzip /tmp/aquatone.zip -d /usr/local/bin && \
+    rm /tmp/aquatone.zip
+
+RUN git clone --depth 1 https://github.com/blechschmidt/massdns.git /tmp/massdns && \
+    cd /tmp/massdns && make && mv bin/massdns /usr/local/bin/ && rm -rf /tmp/massdns
+
+RUN wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O /usr/local/bin/cloudflared && \
+    chmod +x /usr/local/bin/cloudflared
+
+RUN wget -q https://raw.githubusercontent.com/christophetd/censys-subdomain-finder/master/censys-subdomain-finder.py -O /usr/local/bin/censys-subdomain-finder.py && \
+    chmod +x /usr/local/bin/censys-subdomain-finder.py
+
+# ---- Estágio 2/2: runtime — só os binários prontos + deps de execução ----
+FROM python:3.12-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    DEBIAN_FRONTEND=noninteractive \
+    TERM=xterm-256color
+
+WORKDIR /opt/collector
+
+# 1. Dependências de execução — lista derivada de functions/check_binaries.sh
+# e do uso direto (curl/dig/host/jq/nmap/whois/html2text/chromium/sqlite3/
+# xmllint/git/ping/pkill) em functions/, scans/ e sources/. Nenhuma delas é
+# necessária para compilar as ferramentas Go — isso ficou só no builder.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git curl procps \
+    jq dnsutils whois html2text chromium nmap sqlite3 libxml2-utils \
+    nano vim iputils-ping \
+    tzdata \
+    && rm -rf /var/lib/apt/lists/*
+
+# 2. Binários compilados no estágio builder (Go tools, aquatone, massdns,
+# cloudflared, censys-subdomain-finder.py)
+COPY --from=builder /usr/local/bin/ /usr/local/bin/
+
+# 3. Ferramentas Python
+# setuptools pinned below 81: the shodan CLI (shodan/__main__.py) still does
+# `import pkg_resources`, which setuptools stopped bundling as of 81 —
+# `pip install --upgrade setuptools` pulls whatever's latest and breaks the
+# shodan CLI entirely (ModuleNotFoundError, including inside `shodan init`,
+# so the API key never even gets persisted). 80.10.2 is the last release
+# that still ships pkg_resources.
+RUN pip install --no-cache-dir --upgrade pip wheel && \
+    pip install --no-cache-dir "setuptools==80.10.2" && \
+    pip install --no-cache-dir dirsearch git-dumper requests shodan sublist3r \
+                                flask gunicorn
+
+# sublist3r's DNSdumpster engine crashes with an unhandled IndexError when
+# dnsdumpster.com's page doesn't have the expected CSRF token (site
+# changes, blocking, etc.) — confirmed via repeated runs: it fires on every
+# invocation against a real target and the exception escapes the
+# multiprocessing worker as a raw traceback in collector's log. Every other
+# engine in the same file already guards this exact findall()[0] pattern
+# (see e.g. extract_domains a few lines below) — get_csrftoken just missed
+# it. `or ['']` mirrors that existing defensive style.
+RUN sublist3r_path="$(python3 -c 'import sublist3r; print(sublist3r.__file__)')" && \
+    sed -i "s/token = csrf_regex\.findall(resp)\[0\]/token = (csrf_regex.findall(resp) or [''])[0]/" \
+        "${sublist3r_path}"
+
+# dirsearch pulls in the Python httpx/httpx-ntlm packages (step above),
+# which install their own console-script stub at /usr/local/bin/httpx,
+# overwriting the real ProjectDiscovery Go binary brought in by step 2.
+# Re-copy it from the builder stage (already compiled there — no Go
+# toolchain in this stage) so it's the final writer to that path.
+COPY --from=builder /usr/local/bin/httpx /usr/local/bin/httpx
+
+# 4. Configuração Final
+COPY . .
+RUN chmod +x collector collector-docker && chmod +x functions/*.sh && chmod +x scans/*.sh && chmod +x sources/*.sh
+
+# Pin output_dir to the mounted volume path so every run writes results
+# to /opt/collector/outputs. The -o/--output CLI flag was removed; to
+# control where results land on the host, change the -v mount in
+# collector-docker / docker run -v <host_path>:/opt/collector/outputs.
+RUN sed -i 's|^output_dir=.*|output_dir="/opt/collector/outputs"|' conf.d/operation.conf
+
+# apis-recon.conf / apis-emails.conf are gitignored and excluded via
+# .dockerignore, so only the *.conf.example templates (blank keys) ever
+# land in the image — collector's loader falls back to them automatically.
+# Real keys are supplied at runtime by bind-mounting conf.d/ from the host
+# (see collector-docker / docker-compose.yaml).
+
+# Alert provider configs are in support/templates/alerts/ and are baked
+# into the image. No pre-creation needed — they're part of the COPY . .
+# that brings in the entire repository structure at /opt/collector.
+
+# Expose the app-report (Flask/gunicorn) dashboard port.
+EXPOSE 8000
+
+# Volumes: outputs persists recon results across runs; wordlists holds the
+# dirsearch/gobuster wordlists mounted from the host; app-report/db holds
+# the SQLite results DB (collector_db in conf.d/operation.conf) on its own
+# volume so it survives `docker run --rm` independently of outputs/; conf.d/
+# allows overriding operation/functions/API-key config at runtime without
+# rebuilding.
+VOLUME ["/opt/collector/outputs", "/opt/collector/wordlists", "/opt/collector/app-report/db"]
+
+# collector is the only entry point — parameters are passed directly:
+#   docker run --rm -v $(pwd)/outputs:/opt/collector/outputs collector-image \
+#       -d soluti.com.br --recon --webapp-discovery
+ENTRYPOINT ["/opt/collector/collector"]

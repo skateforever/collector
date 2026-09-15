@@ -1,0 +1,30 @@
+# E-mails API recon
+#
+# This is a template — copy it to apis-emails.conf (gitignored) and fill in
+# your keys there. collector falls back to this file with blank keys when
+# apis-emails.conf doesn't exist, so recon still runs without it; you just
+# won't get results from these e-mail-harvesting sources.
+
+# Hunter.io — https://hunter.io/api-documentation/v2
+hunterio_api=""
+hunterio_api_url="https://api.hunter.io/v2/domain-search"
+# IntelX — https://intelx.io/integrations  (phonebook two-step search)
+# The same intelx_api_key from apis-recon.conf is reused. We pin the
+# email-targeted endpoint here so emails_recon doesn't have to duplicate the
+# URL literal. target=2 == email phonebook (target=1 is the URL phonebook
+# already used by sources/intelx.sh for subdomain enrichment).
+intelx_api_url="https://2.intelx.io"
+intelx_emails_max_results="10000"
+# Lampyre — https://lampyre.io/static/Lampyre_API_Description.pdf
+lampyre_api_key=""
+lampyre_api_url="https://api.lampyre.io/lighthouse-find"
+# Snov.io — https://snov.io/api  (static long-lived access token)
+snov_api_token=""
+snov_api_url="https://api.snov.io/v2/domain-emails-with-info"
+# How many JS files to follow per URL (cap to avoid runaway crawls).
+webapp_email_max_js_per_url=20
+# Web crawl for emails: regex used to extract addresses from HTML and JS
+# bodies fetched from ${report_dir}/webapp_consolidated.txt and their JS bundles.
+# The host-suffix filter is applied in emails_recon to keep only emails
+# whose domain matches the target (and its subdomains).
+webapp_email_regex='[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}'

@@ -1,153 +1,495 @@
 ## collector
 
-collector is a script written in Bash, it is intended to automate some tedious tasks of reconnaissance and information gathering. </br>
-This tool allows you to gather some information that should help you identify what to do next and where to look. </br>
+collector is a Bash script that automates reconnaissance and information gathering during penetration tests and bug bounty hunting. It runs **exclusively inside a Docker container**.
 
-## System Requirements
+## Quick start
 
-Recommended to run on vps with 1VCPU and 2GB ram.
+Build the image once (or use `collector-docker --image` for automated builds):
 
-## To run
+```bash
+docker build --progress=plain -t collector:latest .
+# or with collector-docker's image management subcommand (defaults to
+# --progress=plain already, see BUILD_PROGRESS in the reference below)
+./collector-docker --image build-only
+```
 
-To run you need to install some tools and get some API keys. </br>
+Run a full recon + webapp discovery:
 
-List of API/Web Sites for recon used in the collector:</br>
+```bash
+# docker run
+docker run --rm \
+  -v /opt/collector/outputs:/opt/collector/outputs \
+  -v /opt/collector/wordlists:/opt/collector/wordlists \
+  -v /opt/collector/conf.d:/opt/collector/conf.d:ro \
+  collector:latest -d example.com --recon --webapp-discovery --webapp-short-detection
 
-* alienvault
-* builitwith
-* certspotter
-* commoncrawl
-* crt.sh
-* dnsdumpster
-* hackertarget
-* rapiddns
-* securitytrails
-* shodan
-* virustotal
-* webarchive
-* whoisxmlapi
+# docker compose (from repo root)
+docker compose run --rm collector -d example.com --recon --webapp-discovery --webapp-short-detection
 
-List of tools for recon used in the collector:</br>
+# collector-docker wrapper
+collector-docker -d example.com --recon --webapp-discovery --webapp-short-detection
+```
 
-* amass
-* dnssearch
-* gobuster
-* subfinder
-* tlsx
-* wayback
+Results are written to `/opt/collector/outputs/example.com/recon_YYYYMMDD/`.
 
-List of tools for infrastructure scan used in the collector:</br>
+## Execution methods
 
-* nmap
+There are three equivalent ways to run collector — all produce the same results.
 
-List of tools for webapp discovery:</br>
+**`docker run`** — explicit, no setup required beyond building the image. You must pass `-v` and optionally `-p` on every invocation.
 
-* aquatone
-* chromium
-* httpx
+**`docker compose`** — volumes and port mapping are pre-configured in `docker-compose.yaml`. Run from the repo root. Useful when overriding build args or pinning the image.
 
-List of tools for webapp enumeration used in the collector:</br>
+By default the compose file uses repo-relative paths, so a fresh clone works without `sudo` and without pre-creating directories:
 
-* dirsearch
-* git-dumper
-* gobuster
+| Mount source (host) | Mount target (container) |
+|---|---|
+| `./outputs` (auto-created on first run) | `/opt/collector/outputs` |
+| `./wordlists` (auto-created on first run) | `/opt/collector/wordlists` |
+| `./app-report-db` (auto-created on first run) | `/opt/collector/app-report/db` |
+| `./conf.d` (already in the repo) | `/opt/collector/conf.d` (read-only) |
 
-List of tools for webapp scan used in the collector:</br>
+To redirect any of these to a different host location, drop a `.env` file in the repo root (Docker Compose loads it automatically). Example:
 
-* nuclei
+```bash
+# .env at the repo root
+OUTPUTS_DIR=/data/recon/outputs
+WORDLISTS_DIR=/data/wordlists
+APP_REPORT_DB_DIR=/data/app-report-db
+CONF_D_DIR=/etc/collector/conf.d
+```
 
-I tried my best to make the collector as simple as possible, but I also tried to ensure that the execution wasn't done haphazardly. Therefore, you'll notice that the execution is somewhat locked into a flow to obtain:
+`.env` is git-ignored so your local layout never leaks to the repo.
 
-1. Domain, subdomains, IPs, and aliases;
-2. Search for active web applications, but this depends on the first step; you need to execute the first step first;
-3. Search for files, directories, and attempt to retrieve a Git repository, but this will only work if you complete step 2.
+> **Note:** `docker compose up` is **not** the right verb here. `collector` exits with the usage screen when called without arguments, which Compose would interpret as a service failure. Always use `docker compose run --rm collector <flags>`.
 
-As you can see, I need to follow a logical sequence to obtain the expected result.</br>
+**`collector-docker`** — thin wrapper around `docker run` that injects volumes and the default port mapping automatically. **All scripts and configuration are mounted as read-only volumes from the host** (`collector`, `functions/`, `scans/`, `sources/`, `support/runtime/`, `support/templates/alerts-notify/`, `conf.d/`), meaning code changes are instantly available without rebuilding the Docker image. The image only needs rebuilding when binaries or system packages change (Dockerfile or `check_binaries.sh` modifications).
 
-## How collector works?
+See [Docker Volume Strategy](support/docker/VOLUME_STRATEGY.md) for detailed documentation on how volumes are mounted and replicated from host to container.
 
-First step: **./collector --domain abc.com --recon**</br>
-Second step: **./collector --domain abc.com --webapp-discovery --webapp-short-detection**</br>
+The wrapper resolves its defaults with a hybrid strategy:
 
-In the second step, we only need to pay attention to specifying which ports we will use to discover which web applications are active.</br>
+- Running from a repo checkout (i.e. `conf.d/` sits next to the script), defaults point at that checkout — `git clone` and run without any sudo or filesystem prep.
+- Installed to `/usr/local/bin/` (no `conf.d/` next to the script), defaults fall back to `/opt/collector/`, the layout produced by `sudo install ...`.
 
-To see which ports you want to analyze, check the **collector.cfg** file and view the options for this action; use **./collector --help**</br>
+Install it once and use it like a native command:
 
-![collector-help.png](https://raw.githubusercontent.com/skateforever/collector/main/demo/collector-help.png) </br>
+```bash
+sudo install -m 0755 /opt/collector/collector-docker /usr/local/bin/collector-docker
+sudo mkdir -p /opt/collector/{outputs,wordlists,app-report-db}
+sudo cp -r /opt/collector/conf.d /opt/collector/conf.d
+```
 
-And in the last step: **./collector --domain abc.com --webapp-enum --webapp-wordlist /path/to/wordlist**</br>
+Override defaults via environment variables (`<root>` is the checkout directory or `/opt/collector`, per the rule above):
 
-Just like in the second step, in the third step we need to specify another option, in order to perform the enumeration action, which is the wordlist.</br>
+| Variable | Default |
+|----------|---------|
+| `COLLECTOR_IMAGE` | `collector:latest` |
+| `OUTPUTS_DIR` | `<root>/outputs` (mounted to `/opt/collector/outputs`) |
+| `WORDLISTS_DIR` | `<root>/wordlists` (mounted to `/opt/collector/wordlists`) |
+| `APP_REPORT_DB_DIR` | `<root>/app-report-db` (mounted to `/opt/collector/app-report/db`) |
+| `CONF_D_DIR` | `<root>/conf.d` (mounted to `/opt/collector/conf.d`) |
+| `ALERT_PROVIDER_TYPE` | `discord` (discord, slack, teams, telegram, signal) |
+| `ALERT_PROVIDER_FILE` | `<root>/{type}-provider.yaml` (optional; if missing, uses template from image) |
+| `APP_PORT` | `127.0.0.1:8000:8000` |
+| `REPORT_CONTAINER_NAME` | `collector-report` |
 
-And we can combine all option: **./collector --domain abc.com --recon --webapp-discovery --webapp-short-detection --webapp-enum --webapp-wordlist /path/to/wordlist**</br>
+When the host port in `APP_PORT` is already bound (by a previous recon container, an ongoing `--report-only` session, or any other listener), the wrapper silently drops the `-p` flag from `docker run` instead of failing with "port already allocated" — the recon still completes; if a sibling container's dashboard is publishing that port, its view mirrors this run's results (shared `outputs/` volume).
 
-You can use the collector to enumerate only an url: **./collector --url http://abc.com --webapp-wordlist /path/to/wordlist**
+## Keeping collector up to date
 
-**Use as you need.**
+`collector-docker --image <subcommand>` automates pulling changes and rebuilding the Docker image **only when necessary**:
 
-### Main features
+```bash
+./collector-docker --image update              # git pull + conditional rebuild
+./collector-docker --image pull                # git pull without building
+./collector-docker --image build-only          # rebuild without pulling
+./collector-docker --image update --force-build # rebuild even if no structural changes
+./collector-docker --image create              # full clean rebuild: --no-cache --pull, ignores git
+./collector-docker --image rm                  # remove the local image (docker rmi)
+./collector-docker --image rm --force          # force removal even if a stopped container references it
+```
 
-- Create a dated folder with recon notes
-- Grab subdomains using:
-  - Amass, certspotter, cert.sh, subfinder and Sublist3r
-  - Dns bruteforcing using amass, gobuster and dnssearch
-- The diff\_domains function to improve the time of execution, get just what change on target infraestructure
-- Probe for live hosts over some ports like 80, 443, 8080, etc
-- The webapp\_enum funtion from collector work when you put a list of URLs from file.
-  - Perform dirsearch and gobuster for all subdomains 
-  - Scrape wayback
-- Rebuild GIT repository
+The `update`/`pull` subcommands inspect changed files and only trigger an image rebuild when **structural files** change (Dockerfiles, `functions/check_binaries.sh`). Script-only changes are served instantly via volume mounts in `collector-docker`, so no rebuild is needed. `create` always rebuilds from scratch, ignoring both git and Docker's build cache — use it if you suspect a stale/corrupt image. `rm` (alias `remove`) just deletes the local image; run `--image create` or `--image build-only` afterwards to get it back.
 
-### Screenshots
+Optional: install the `post-merge` git hook to auto-rebuild after every `git pull`:
 
-![demo\_01.png](https://raw.githubusercontent.com/skateforever/collector/main/demo/demo_01.png) </br>
-![demo\_02.png](https://raw.githubusercontent.com/skateforever/collector/main/demo/demo_02.png) </br>
+```bash
+git config core.hooksPath support/templates/githooks
+# Now git pull automatically triggers rebuild when structural files change
+```
+
+The hook calls `collector-docker --image build-only` internally.
+
+## Command reference
+
+### Target selection (required — pick one)
+
+| Flag | Description |
+|------|-------------|
+| `-d \| --domain <domain>` | Single target domain. |
+| `-dl \| --domain-list <file>` | File with one domain per line (`#` for comments). |
+| `-u \| --url <url>` | Single URL — skips infra/subdomain recon, runs webapp enum only. |
+| `-dr \| --dry-run` | Run all pre-flight validations (config, locks, structure) and print a summary without executing any recon. Useful to confirm setup before a long run. |
+
+### Recon
+
+| Flag | Description |
+|------|-------------|
+| `-r \| --recon` | Passive + active subdomain discovery, DNS, infra enrichment (AS/IPs/netblocks), nmap, Shodan. Entry point for any new target. |
+
+### Webapp discovery and vhost validation (requires `--recon` or existing `domains_alive.txt`)
+
+| Flag | Description |
+|------|-------------|
+| `-wd \| --webapp-discovery` | Probes live hosts for active HTTP(S) services and builds `webapp_consolidated.txt`. Vhost discovery is **not** included unless `-vc` is also passed. |
+| `-vc \| --vhost-check` | Runs `vhost_check` and `vhost_probe` against live IPs to discover virtual hosts (STRONG/WEAK classification). Requires `-wd`. Without this flag, vhost checks are skipped entirely. |
+| `-wsd \| --webapp-short-detection` | Probes `webapp_http_ports` (`conf.d/functions.conf`) — ports whose protocol is fixed as plain HTTP by convention (80, 8080, ...). Use with `-wd`. |
+| `-wld \| --webapp-long-detection` | Probes the full port list: `webapp_http_ports` + `webapp_tls_ports` + `webapp_multiple_ports` (`conf.d/functions.conf`) — the comprehensive, slower option. Use with `-wd`. |
+| `-wcp \| --webapp-common-ports` | Probes the union of `webapp_http_ports` and `webapp_tls_ports` — the ports whose protocol is fixed by convention, HTTP or TLS. Use with `-wd`. |
+
+### Webapp enumeration (requires existing `webapp_consolidated.txt` or combined with `--webapp-discovery`)
+
+| Flag | Description |
+|------|-------------|
+| `-we \| --webapp-enum` | Directory and file brute-force with gobuster + dirsearch, robots.txt extraction, aquatone screenshots. |
+| `-ww \| --webapp-wordlists <file[,file]>` | Extra wordlists for `-we`. |
+| `-l \| --limit-urls <n>` | Limit enumeration to the top N URLs (used with `-d`). |
+
+> **Wordlist paths are resolved inside the container.** `-ww` and `-s|--subdomain-brute` both pass paths straight through to a bash `[[ -s ... ]]` test that runs *inside* the container, so a host path like `~/my.txt` or `/home/leandro/lists/big.txt` won't work by itself. Stage the file under `${WORDLISTS_DIR}` on the host (default: `<root>/wordlists`, mounted at `/opt/collector/wordlists`) and pass the container path — e.g. `--webapp-wordlists /opt/collector/wordlists/big.txt`. Alternatively, override `WORDLISTS_DIR=<dir-that-contains-your-file>` when invoking `collector-docker` so the wrapper mounts that dir instead.
+
+### Webapp crawler
+
+| Flag | Description |
+|------|-------------|
+| `-wc \| --webapp-crawler` | Crawls JS files with katana and mines URL parameters with waybackurls. |
+
+### Webapp scan
+
+| Flag | Description |
+|------|-------------|
+| `-ws \| --webapp-scan` | Nuclei scan against `webapp_consolidated.txt`. |
+
+### Subdomain brute-force (optional, used with `--recon`)
+
+| Flag | Description |
+|------|-------------|
+| `-s \| --subdomain-brute <file[,file]>` | Additional wordlists for DNS brute-force via gobuster + dnssearch. |
+
+### Scope filtering
+
+| Flag | Description |
+|------|-------------|
+| `-ed \| --exclude-domain <d1,d2>` | Comma-separated subdomains to exclude from results. Used with `-d`. |
+| `-el \| --exclude-domain-list <file>` | File of subdomains to exclude. Used with `-d` or `-dl`. |
+
+### Dashboard control
+
+The app-report dashboard is started automatically at the end of each recon (in the background). These flags let you reopen or stop it without triggering another recon.
+
+| Flag | Description |
+|------|-------------|
+| `-ro \| --report-only` | Open the read-only app-report dashboard against the existing `outputs/` directory and stay in the foreground. Skips recon entirely; requires `collector-results` (in `app-report/db/`) from a previous run. Ctrl-C or `--report-stop` (from another shell) stops it. |
+| `-rs \| --report-stop` | Stop a dashboard previously started with `--report-only`. Sends SIGTERM, waits 5 s, then SIGKILLs if needed. Via `collector-docker` it does the equivalent `docker stop collector-report` on the host. |
+
+> **On stopping recon runs:** collector runs in a one-shot container, so the right way to abort an in-flight recon is `docker stop <container>` on the host. To wipe artifacts, `rm -rf` the target's directory under `outputs/`. Per-target `flock` already prevents concurrent runs against the same domain.
+
+## Common usage patterns
+
+Full recon + webapp discovery (short port list, no vhost):
+
+```bash
+docker run --rm \
+  -v /opt/collector/outputs:/opt/collector/outputs \
+  -v /opt/collector/wordlists:/opt/collector/wordlists \
+  -v /opt/collector/conf.d:/opt/collector/conf.d:ro \
+  collector:latest \
+  -d example.com --recon --webapp-discovery --webapp-short-detection
+
+docker compose run --rm collector \
+  -d example.com --recon --webapp-discovery --webapp-short-detection
+
+collector-docker -d example.com --recon --webapp-discovery --webapp-short-detection
+```
+
+Full recon + webapp discovery + vhost validation (short port list):
+
+```bash
+collector-docker -d example.com --recon --webapp-discovery --webapp-short-detection --vhost-check
+```
+
+Full recon + webapp discovery + enum + scan in one shot (with vhost):
+
+```bash
+docker run --rm \
+  -v /opt/collector/outputs:/opt/collector/outputs \
+  -v /opt/collector/wordlists:/opt/collector/wordlists \
+  -v /opt/collector/conf.d:/opt/collector/conf.d:ro \
+  collector:latest \
+  -d example.com --recon --webapp-discovery --webapp-short-detection --vhost-check \
+  --webapp-enum --webapp-wordlists /opt/collector/wordlists/common.txt --webapp-scan
+
+docker compose run --rm collector \
+  -d example.com --recon --webapp-discovery --webapp-short-detection --vhost-check \
+  --webapp-enum --webapp-wordlists /opt/collector/wordlists/common.txt --webapp-scan
+
+collector-docker -d example.com --recon --webapp-discovery --webapp-short-detection \
+  --webapp-enum --webapp-wordlists /opt/collector/wordlists/common.txt --webapp-scan
+```
+
+Standalone webapp enum on a previously recon'd target:
+
+```bash
+docker run --rm \
+  -v /opt/collector/outputs:/opt/collector/outputs \
+  -v /opt/collector/wordlists:/opt/collector/wordlists \
+  -v /opt/collector/conf.d:/opt/collector/conf.d:ro \
+  collector:latest \
+  -d example.com --webapp-enum --webapp-wordlists /opt/collector/wordlists/common.txt
+
+docker compose run --rm collector \
+  -d example.com --webapp-enum --webapp-wordlists /opt/collector/wordlists/common.txt
+
+collector-docker -d example.com --webapp-enum --webapp-wordlists /opt/collector/wordlists/common.txt
+```
+
+Standalone webapp scan on a previously recon'd target:
+
+```bash
+docker run --rm \
+  -v /opt/collector/outputs:/opt/collector/outputs \
+  -v /opt/collector/wordlists:/opt/collector/wordlists \
+  -v /opt/collector/conf.d:/opt/collector/conf.d:ro \
+  collector:latest \
+  -d example.com --webapp-scan
+
+docker compose run --rm collector -d example.com --webapp-scan
+
+collector-docker -d example.com --webapp-scan
+```
+
+Standalone JS crawler:
+
+```bash
+docker run --rm \
+  -v /opt/collector/outputs:/opt/collector/outputs \
+  -v /opt/collector/wordlists:/opt/collector/wordlists \
+  -v /opt/collector/conf.d:/opt/collector/conf.d:ro \
+  collector:latest \
+  -d example.com --webapp-crawler
+
+docker compose run --rm collector -d example.com --webapp-crawler
+
+collector-docker -d example.com --webapp-crawler
+```
+
+List of targets:
+
+```bash
+docker run --rm \
+  -v /opt/collector/outputs:/opt/collector/outputs \
+  -v /opt/collector/wordlists:/opt/collector/wordlists \
+  -v /opt/collector/conf.d:/opt/collector/conf.d:ro \
+  collector:latest \
+  -dl /opt/collector/outputs/targets.list --recon --webapp-discovery --webapp-short-detection
+
+docker compose run --rm collector \
+  -dl /opt/collector/outputs/targets.list --recon --webapp-discovery --webapp-short-detection
+
+collector-docker -dl /opt/collector/outputs/targets.list --recon --webapp-discovery --webapp-short-detection
+```
+
+Single URL (no subdomain/infra discovery):
+
+```bash
+docker run --rm \
+  -v /opt/collector/outputs:/opt/collector/outputs \
+  -v /opt/collector/wordlists:/opt/collector/wordlists \
+  -v /opt/collector/conf.d:/opt/collector/conf.d:ro \
+  collector:latest \
+  -u https://opt/collector.example.com --webapp-wordlists /opt/collector/wordlists/common.txt
+
+docker compose run --rm collector \
+  -u https://opt/collector.example.com --webapp-wordlists /opt/collector/wordlists/common.txt
+
+collector-docker -u https://opt/collector.example.com --webapp-wordlists /opt/collector/wordlists/common.txt
+```
+
+Pre-flight check (dry run) — validates config and parameters without running anything:
+
+```bash
+collector-docker -d example.com --recon --webapp-discovery --webapp-short-detection --dry-run
+```
+
+## Unattended execution
+
+Drop-in scheduling files are in `support/templates/`:
+
+- `support/templates/cron/collector` — daily light recon + weekly heavy run via cron (`/etc/cron.d/collector`)
+- `support/templates/systemd/collector@` — same cadence as systemd template units (`collector@<domain>.timer`)
+- `support/templates/alerts-notify/` — multi-provider alert configuration templates for [notify](https://github.com/projectdiscovery/notify):
+  - **Discord** — `discord-provider.yaml`
+  - **Slack** — `slack-provider.yaml`
+  - **Microsoft Teams** — `teams-provider.yaml`
+  - **Telegram** — `telegram-provider.yaml`
+  - **Signal** — `signal-provider.yaml`
+  
+  Templates are baked into the Docker image at `/opt/collector/support/templates/alerts-notify/`. To use a custom provider:
+  1. Copy the template: `cp support/templates/alerts-notify/{provider}-provider.yaml ./{provider}-provider.yaml`
+  2. Fill in webhook URLs or credentials
+  3. Configure in `conf.d/functions.conf`: `notify_config="/opt/collector/support/templates/alerts-notify/{provider}-provider.yaml"`
+  4. Run: `collector-docker -d example.com --recon`
+  
+  Or override via environment: `ALERT_PROVIDER_TYPE=slack ALERT_PROVIDER_FILE=./slack-provider.yaml collector-docker ...`
+  
+  See `support/templates/alerts-notify/README.md` for detailed setup guides for each provider.
+
+Both use `collector-docker` (or `docker run --rm` directly) — each run fires an ephemeral container. Results persist via the `/opt/collector/outputs` volume. Per-target `flock` prevents overlapping runs for the same domain when triggered by cron or timers.
+
+## APIs and tools used
+
+**Subdomain sources:** alienvault, builtwith, certspotter, commoncrawl, crt.sh, dnsdumpster, hackertarget, rapiddns, securitytrails, shodan, virustotal, webarchive, whoisxmlapi
+
+**Recon tools:** amass, dnssearch, gobuster, subfinder, tlsx, waybackurls
+
+**Infrastructure:** nmap, shodan
+
+**Webapp discovery:** httpx, chromium
+
+**Webapp enumeration:** dirsearch, ffuf, gobuster, git-dumper
+
+**Webapp crawler:** katana, waybackurls (sitemap.xml expansion built in)
+
+**Webapp scan:** nuclei
+
+**Screenshots:** aquatone
+
+**Email recon:** Hunter.io, IntelX (phonebook target=2), Lampyre, Snov.io (API-based) + page/JS crawl of `webapp_consolidated.txt`
+
+**Reporting:** sqlite3, Flask, gunicorn, HTMX
+
+## Main features
+
+- Per-run dated folder (`recon_YYYYMMDD`) with logs, tmp, and structured report tree
+- Subdomain discovery via passive sources + active DNS bruteforce
+- Infrastructure enrichment: AS / IPv4 / IPv6 / netblocks / nmap / Shodan
+- vhost discovery (opt-in via `-vc`): parallel curl + httpx probing, STRONG vs. WEAK confidence classification, automatic `/etc/hosts` injection inside the container so all tools resolve vhosts transparently. Optional `ffuf`-backed mode for orders-of-magnitude faster probing (set `vhost_use_ffuf=yes` in `conf.d/functions.conf`)
+- `-dr|--dry-run` pre-flight validation mode — confirm config and parameters before a long run
+- Per-artifact diff vs. previous run — only deltas pushed to notify channel
+- Email harvesting from APIs + page/JS crawl filtered to the target domain
+- JS scraping and parameter mining with sink classification (SQLi/XSS/SSRF/XXE/CMD/...)
+- Single LLM prompt bundle per run: `llm-prompt.txt` — all artifacts included, ready to paste into any LLM for follow-up analysis
+- SQLite ingestion: each run upserted into `collector-results` (idempotent, WAL, FK-protected)
+- Flask + HTMX read-only web UI at `http://127.0.0.1:8000` auto-started after each run
+- Cloudflare quick-tunnel (opt-in via `cloudflare_tunnel="yes"` in `conf.d/operation.conf`) for remote dashboard access
+- Per-target flock so concurrent runs for the same domain abort instead of corrupting state
+
+## Output layout
+
+```
+<domain>/
+└── recon_YYYYMMDD/
+    ├── log/recon_YYYYMMDD.log
+    ├── tmp/                                       intermediate files
+    └── report/
+        ├── <domain>_history.csv                   per-run trend log
+        ├── domains_found.txt                      all discovered subdomains
+        ├── domains_diff.txt                       delta vs. previous run
+        ├── domains_alive.txt                      subdomains that resolve
+        ├── domains_without_resolution.txt         candidates for vhost probing
+        ├── domains_excluded.txt
+        ├── domains_aliases.txt
+        ├── domains_thirdpart.txt
+        ├── domains_infrastructure.txt
+        ├── domains_internal_ipv4.txt
+        ├── domains_external_ipv4.txt
+        ├── domains_external_ipv6.txt
+        ├── zone_transfer.txt
+        ├── infra_as.txt
+        ├── infra_ipv4.txt / infra_ipv4_diff.txt
+        ├── infra_ipv6.txt / infra_blocks.txt
+        ├── webapp_consolidated.txt                all live HTTP(S) URLs (DNS + validated vhosts)
+        ├── webapp_consolidated_diff.txt
+        ├── etc_hosts_file.txt                     vhost→IP map (ip<TAB>hostname format)
+        ├── vhost_subdomains.txt                   STRONG vhost hits
+        ├── vhost_subdomains_weak.txt              WEAK vhost hits
+        ├── vhost_subdomains_diff.txt
+        ├── email_recon.txt / email_recon_diff.txt
+        ├── robots_urls.txt
+        ├── sitemap_urls.txt                       URLs harvested from sitemap.xml (recursive sitemapindex)
+        ├── webapp_js_secrets.txt                  hardcoded keys/tokens/JWTs in JS
+        ├── webapp_js_params.txt                   param names + DOM sinks (SQLi/XSS/SSRF/...)
+        ├── llm-prompt.txt                         LLM bundle: all artifacts
+        ├── scan/
+        │   ├── nmap/nmap_scan.txt
+        │   ├── nuclei/nuclei_scan.result
+        │   ├── nuclei/nuclei_scan_diff.txt
+        │   ├── nuclei/nuclei_web_fuzzing.result
+        │   └── shodan/shodan_scan.txt
+        └── webapp/
+            ├── aquatone/                          screenshots
+            ├── enum/                              gobuster + dirsearch output
+            ├── javascript/                        downloaded JS files
+            ├── params/                            katana + waybackurls output
+            └── tech/                              response headers / fingerprinting
+```
+
+## Results database (SQLite)
+
+After every run, `db_usage()` upserts the latest row into `app-report/db/collector-results` (path resolved from `collector_db` in `conf.d/operation.conf`; lives on its own volume — `APP_REPORT_DB_DIR` — independent of `outputs/`, since it isn't per-run recon output). Schema: `targets(domain PK)` + `recon_runs(domain, run_id, ...)` with composite PK, `latest_run` view. Ingestion is idempotent — re-importing the same `run_id` only writes on payload change.
+
+```bash
+# Access from outside the container
+sqlite3 /opt/collector/app-report/db/collector-results \
+  "SELECT domain, run_date, findings_critical, findings_high, js_secrets FROM latest_run ORDER BY findings_critical DESC;"
+
+sqlite3 /opt/collector/app-report/db/collector-results \
+  "SELECT run_date, subdomains, webapp_consolidated, findings_critical FROM recon_runs WHERE domain='example.com' ORDER BY run_date DESC LIMIT 10;"
+```
+
+## Web UI
+
+Flask + HTMX read-only dashboard auto-started at `http://127.0.0.1:8000` after each run. The port mapping is included by default in `docker-compose.yaml` and `collector-docker`. With plain `docker run` add `-p 127.0.0.1:8000:8000` explicitly:
+
+```bash
+docker run --rm \
+  -v /opt/collector/outputs:/opt/collector/outputs \
+  -v /opt/collector/wordlists:/opt/collector/wordlists \
+  -v /opt/collector/conf.d:/opt/collector/conf.d:ro \
+  -p 127.0.0.1:8000:8000 \
+  collector:latest \
+  -d example.com --recon --webapp-discovery --webapp-short-detection
+
+# docker compose and collector-docker already include -p 127.0.0.1:8000:8000
+docker compose run --rm collector -d example.com --recon --webapp-discovery --webapp-short-detection
+collector-docker -d example.com --recon --webapp-discovery --webapp-short-detection
+```
+
+Reopening the dashboard from an earlier scan (no new recon):
+
+```bash
+collector-docker --report-only         # foreground, Ctrl-C to stop
+collector-docker --report-stop         # stop from another shell
+```
+
+`--report-only` names its container `collector-report` (override with `REPORT_CONTAINER_NAME=<name>`) and refuses to start when one is already running. It requires `collector-results` to exist in the `app-report/db/` directory — otherwise it aborts with a clear message rather than serving an empty dashboard.
+
+Or set `cloudflare_tunnel="yes"` in `conf.d/operation.conf` for an ephemeral `https://*.trycloudflare.com` URL (only meaningful when the dashboard runs in the background, i.e. at end-of-recon; `--report-only` doesn't publish a tunnel).
+
+## Screenshots
+
+![demo\_01.png](https://raw.githubusercontent.com/skateforever/collector/main/demo/demo_01.png)
+![demo\_02.png](https://raw.githubusercontent.com/skateforever/collector/main/demo/demo_02.png)
 
 ## Thanks
 
-[Alfredo Casanova](https://github.com/atcasanova) with some bash code corrections. </br>
-[Caue Bici](https://github.com/caueobici) with code review and answer some questions about python programming. </br>
-[Enderson Maia](https://github.com/endersonmaia) with the help on Dockerfile and shellcheck tip. </br>
-[Henrique Galdino](https://github.com/Achilles0x0) the help with some curl options. </br>
-[Icaro Torres](https://github.com/icarot) with the ideia to diff files from a day ago to improve the execution time of the script. </br>
-[Manoel Abreu](https://github.com/manoelt) with the ideia to use the [git-dumper.py](https://github.com/arthaud/git-dumper) in rebuild\_git function. </br>
-[Rener aka gr1nch](https://github.com/renergr1nch/splitter) thanks to made the splitter, you rocks dude!! </br>
-[Ulisses Alves](https://github.com/ualvesdias) with code review and answer some questions about python programming! </br>
+[Alfredo Casanova](https://github.com/atcasanova) — bash code corrections.
+[Caue Bici](https://github.com/caueobici) — code review and Python help.
+[Enderson Maia](https://github.com/endersonmaia) — Dockerfile and shellcheck.
+[Henrique Galdino](https://github.com/Achilles0x0) — curl options.
+[Icaro Torres](https://github.com/icarot) — diff-based execution idea.
+[Manoel Abreu](https://github.com/manoelt) — git-dumper integration idea.
+[Rener aka gr1nch](https://github.com/renergr1nch/splitter) — splitter tool.
+[Ulisses Alves](https://github.com/ualvesdias) — code review and Python help.
 
-## Resources
-
-https://0xsp.com/offensive/red-teaming-toolkit-collection </br>
-https://medium.com/@ricardoiramar/subdomain-enumeration-tools-evaluation-57d4ec02d69e </br>
-https://github.com/riramar/Web-Attack-Cheat-Sheet </br>
-https://inteltechniques.com/blog/2018/03/06/updated-osint-flowcharts/ </br>
-https://github.com/sehno/Bug-bounty/blob/master/bugbounty_checklist.md </br>
-https://github.com/renergr1nch/splitter </br>
-https://bitbucket.org/splazit/docker-privoxy-alpine/src/master/ </br>
-https://github.com/essandess/adblock2privoxy </br>
-https://0xpatrik.com/subdomain-enumeration-2019/ </br>
-https://blog.securitybreached.org/2017/11/25/guide-to-basic-recon-for-bugbounty/ </br>
-https://medium.com/@shifacyclewala/the-complete-subdomain-enumeration-guide-b097796e0f3 </br>
-https://www.secjuice.com/penetration-testing-for-beginners-part-1-an-overview/ </br>
-https://www.secjuice.com/reconnaissance-for-beginners/ </br>
-https://medium.com/@Asm0d3us/weaponizing-favicon-ico-for-bugbounties-osint-and-what-not-ace3c214e139 </br>
-https://medium.com/hackernoon/10-rules-of-bug-bounty-65082473ab8c </br>
-https://https://findomain.app/findomain-advanced-automated-and-modern-recon/ </br>
-https://www.offensity.com/de/blog/just-another-recon-guide-pentesters-and-bug-bounty-hunters/ </br>
-https://medium.com/hackcura/learning-path-for-bug-bounty-6173557662a7 </br>
-https://eslam3kl.medium.com/simple-recon-methodology-920f5c5936d4 </br>
-https://github.com/nahamsec/Resources-for-Beginner-Bug-Bounty-Hunters </br>
-https://www.offensity.com/en/blog/just-another-recon-guide-pentesters-and-bug-bounty-hunters/ </br>
-https://blog.projectdiscovery.io/reconnaissance-a-deep-dive-in-active-passive-reconnaissance/ </br>
-https://0xffsec.com/handbook/information-gathering/subdomain-enumeration/#content-security-policy-csp-header </br>
-https://www.ceeyu.io/resources/blog/subdomain-enumeration-tools-and-techniques </br>
-https://securitytrails.com/blog/dns-enumeration </br>
-https://securitytrails.com/blog/whois-records-infosec-industry </br>
-https://thexssrat.medium.com/how-to-automate-your-broad-scope-recon-a4ff998dea0e </br>
-https://github.com/JoshuaMart/ScopesExtractor </br>
-https://blog.ethiack.com/blog/supercharging-bug-bounty-hunting-with-ai </br>
-https://github.com/bhavesh-pardhi/Wordlist-Hub </br>
-https://github.com/XploitPoy-777/All-In-One-DNS-Wordlist </br>
-https://github.com/vavkamil/awesome-bugbounty-tools </br>
-https://www.helviojunior.com.br/security/osint/localizando-ips-que-respondem-para-uma-url/ </br>
-
-**Warning:** The code of all scripts find here was originally created for personal use, it generates a substantial amount of traffic, please use with caution. 
+**Warning:** collector generates a substantial amount of traffic. Use only against targets you have explicit authorization to test.

@@ -1,0 +1,523 @@
+#!/bin/bash
+# collector-docker — run AND manage the collector Docker image.
+#
+# This file has two independent halves. Only ONE runs per invocation,
+# decided by whether the first argument is -i or --image (every real
+# collector flag starts with '-', so this keeps the two halves consistent
+# with each other and with the rest of the collector CLI):
+#
+#   ┌─ SECTION 1: IMAGE MANAGEMENT ──────────────────────────────────────┐
+#   │ collector-docker -i|--image <subcommand> [--no-cache|--progress=X|--force-build|--force] │
+#   │                                                                     │
+#   │   update       Pull latest changes, rebuild only if a structural   │
+#   │                 file changed (Dockerfile*, check_binaries.sh)      │
+#   │   build-only   Skip git pull, rebuild the image (uses Docker's     │
+#   │                 build cache)                                       │
+#   │   pull         Pull latest changes without rebuilding              │
+#   │   create       Full clean rebuild from scratch: --no-cache --pull, │
+#   │                 ignores git entirely                               │
+#   │   rm|remove    Remove the local image (docker rmi)                 │
+#   │                                                                     │
+#   │ update/build-only/pull/create must be run from inside the repo     │
+#   │ checkout (need .git and the Dockerfile as build context); rm/remove│
+#   │ only need Docker. Unaffected by where collector-docker itself is   │
+#   │ installed for SECTION 2 below.                                     │
+#   └─────────────────────────────────────────────────────────────────────┘
+#
+#   ┌─ SECTION 2: CONTAINER RUN (default) ──────────────────────────────┐
+#   │ collector-docker -d example.com --recon --webapp-discovery ...   │
+#   │ collector-docker -dl /opt/collector/outputs/targets.list --recon │
+#   │ collector-docker --help                                          │
+#   │                                                                    │
+#   │ Wrapper that injects the standard volumes/port and forwards every │
+#   │ argument straight to the collector CLI inside the container.      │
+#   └────────────────────────────────────────────────────────────────────┘
+#
+# Default path resolution (hybrid, SECTION 2 only):
+#   1. If the script is running from a repo checkout (i.e. conf.d/
+#      lives next to the script itself), the defaults point at that
+#      checkout — you can run it straight after 'git clone' with no sudo
+#      and no need to copy anything into /opt/.
+#   2. Otherwise (typical when the binary was installed into
+#      /usr/local/bin/), the defaults fall back to /opt/collector/, which
+#      is the layout expected when you run 'sudo install ...'.
+#   Any variable below can be overridden explicitly in the environment
+#   to point at a different path.
+#
+# Volume mounts strategy (SECTION 2 only):
+#   Scripts (collector, functions/, scans/, sources/, support/runtime/)
+#   are mounted read-only from the host repo. This means any code change
+#   is immediately available without rebuilding the Docker image. The
+#   image only needs to be rebuilt when binaries/packages change (i.e.
+#   Dockerfile or check_binaries.sh modifications) — that's what
+#   `collector-docker -i update` detects automatically.
+#
+# Environment variables for overrides:
+#   COLLECTOR_IMAGE       — Docker image (default: collector:latest)
+#   DOCKERFILE            — Dockerfile to use for `-i|--image` subcommands (default: Dockerfile)
+#   BUILD_ARGS            — extra `docker build` arguments for `-i|--image` subcommands
+#   BUILD_PROGRESS        — docker build --progress mode (default: plain — verbose,
+#                           shows every step as it starts; use "auto" for the
+#                           interactive TTY UI back)
+#   OUTPUTS_DIR           — outputs directory (default: <root>/outputs)
+#   WORDLISTS_DIR         — wordlists directory (default: <root>/wordlists)
+#   APP_REPORT_DB_DIR     — app-report results DB directory (default: <root>/app-report-db) —
+#                           persists app-report/db/collector-results across
+#                           `docker run --rm` invocations; separate from OUTPUTS_DIR
+#                           since the DB isn't per-run recon output (see collector_db
+#                           in conf.d/operation.conf).
+#   CONF_D_DIR            — path to the conf.d/ directory (default: <root>/conf.d),
+#                           mounted whole so operation.conf, functions.conf,
+#                           and whichever of apis-recon.conf/apis-emails.conf
+#                           you've created from their *.conf.example templates
+#                           are all visible inside the container in one mount.
+#   ALERT_PROVIDER_TYPE   — alert provider type: discord, slack, teams, telegram, signal
+#                           (default: discord; read from conf.d/functions.conf if available)
+#   ALERT_PROVIDER_FILE   — path to alert provider config file
+#                           (default: <root>/{type}-provider.yaml — optional;
+#                           if missing, uses template baked into image)
+#   APP_PORT              — dashboard port mapping (default: 127.0.0.1:8000:8000)
+#   TZ                    — timezone for every timestamp collector logs/prints
+#                           (default: auto-detected from the host's
+#                           /etc/localtime; falls back to the image's own
+#                           default — UTC — if that detection fails)
+#
+# Configuration precedence (alert provider type):
+#   1. ALERT_PROVIDER_TYPE environment variable (if set)
+#   2. conf.d/functions.conf notify_config value (if available)
+#   3. Default: discord
+#
+# Installation:
+#   sudo install -m 0755 collector-docker /usr/local/bin/collector-docker
+#   sudo mkdir -p /opt/collector/{outputs,wordlists}
+#   sudo cp -r conf.d /opt/collector/conf.d
+
+# Real directory of this script (resolves symlinks and relative paths).
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# ==============================================================================
+# SECTION 1 — IMAGE MANAGEMENT  (was the standalone collector-update script)
+# ==============================================================================
+
+_image_usage() {
+    cat <<EOF
+Usage: collector-docker -i|--image <subcommand> [--no-cache] [--force-build] [--force]
+
+Subcommands:
+  update       Pull latest changes, rebuild only if structural files changed
+  build-only   Skip git pull, rebuild the image (uses Docker's build cache)
+  pull         Pull latest changes without rebuilding
+  create       Full clean rebuild from scratch (--no-cache --pull), ignoring git
+  rm|remove    Remove the local image (docker rmi)
+
+Options:
+  --no-cache        Pass --no-cache to docker build (implied by 'create')
+  --progress=<mode> Docker build progress output: plain (default), auto, tty
+  --force-build     Rebuild even if no structural changes were detected (update only)
+  --force           Force removal even if a stopped container still references it (rm/remove only)
+
+The image is only rebuilt when structural files change (Dockerfiles, binary
+dependencies). Script changes are picked up automatically via host volume
+mounts (see SECTION 2 / 'collector-docker -d ...').
+
+Environment:
+  COLLECTOR_IMAGE=${COLLECTOR_IMAGE:-collector:latest}
+  DOCKERFILE=${DOCKERFILE:-Dockerfile}
+  BUILD_PROGRESS=${BUILD_PROGRESS:-plain}
+EOF
+}
+
+# Files that require a Docker image rebuild (binary/package changes).
+# Script-only changes are served via volume mounts and don't need a rebuild.
+_IMAGE_STRUCTURAL_PATTERNS="Dockerfile|functions/check_binaries.sh"
+
+# Pulls the repo and sets IMAGE_PULL_UPDATED / IMAGE_PULL_STRUCTURAL (0/1).
+_image_git_pull() {
+    echo "==> Pulling latest changes..."
+    local current_branch before after
+    current_branch="$(git rev-parse --abbrev-ref HEAD)" || {
+        echo "collector-docker: not a git checkout (run from the repo you cloned)." >&2
+        exit 1
+    }
+    before="$(git rev-parse HEAD)"
+    git pull --ff-only origin "${current_branch}" || {
+        echo "collector-docker: git pull failed (non-fast-forward?)." >&2
+        echo "  resolve manually, then re-run with '--image build-only'" >&2
+        exit 1
+    }
+    after="$(git rev-parse HEAD)"
+    IMAGE_PULL_UPDATED=0
+    IMAGE_PULL_STRUCTURAL=0
+    if [[ "${before}" == "${after}" ]]; then
+        echo "    Already up to date (${after:0:7})."
+        return 0
+    fi
+    IMAGE_PULL_UPDATED=1
+    echo "    Updated: ${before:0:7} -> ${after:0:7}"
+    git --no-pager log --oneline "${before}..${after}"
+    local structural_changed
+    structural_changed="$(git diff --name-only "${before}" "${after}" | grep -E "${_IMAGE_STRUCTURAL_PATTERNS}" || true)"
+    if [[ -n "${structural_changed}" ]]; then
+        IMAGE_PULL_STRUCTURAL=1
+        echo ""
+        echo "    Structural changes detected (image rebuild needed):"
+        echo "${structural_changed}" | sed 's/^/      /'
+    else
+        echo ""
+        echo "    Only script changes detected — no image rebuild needed."
+        echo "    Scripts are mounted from host via collector-docker."
+    fi
+}
+
+# Builds the image. $1 = extra docker-build args prepended to BUILD_ARGS
+# (e.g. "--no-cache --pull" for `--image create`).
+_image_build() {
+    local extra="${1:-}"
+    echo ""
+    echo "==> Building Docker image: ${COLLECTOR_IMAGE}"
+    echo "    Dockerfile: ${DOCKERFILE}"
+    # --progress=plain by default: the fancy TTY progress UI shows zero
+    # useful detail when a step hangs (no way to tell which RUN it's stuck
+    # on). Plain output logs every step as it starts, so a stuck build is
+    # diagnosable instead of just a spinner. Override with BUILD_PROGRESS=auto
+    # if you want the interactive UI back.
+    # shellcheck disable=SC2086
+    if ! docker build --progress="${BUILD_PROGRESS}" ${extra} ${BUILD_ARGS} -f "${DOCKERFILE}" -t "${COLLECTOR_IMAGE}" .; then
+        echo "collector-docker: build failed." >&2
+        exit 1
+    fi
+    echo ""
+    echo "==> Build complete: ${COLLECTOR_IMAGE}"
+    docker images --format "    {{.Repository}}:{{.Tag}}  {{.Size}}  {{.CreatedAt}}" \
+        | grep "${COLLECTOR_IMAGE%%:*}" | head -3
+}
+
+# Removes the local image. $1 = "-f" to force (image used by a stopped
+# container, or has multiple tags).
+_image_rm() {
+    local force="${1:-}"
+    echo ""
+    echo "==> Removing Docker image: ${COLLECTOR_IMAGE}"
+    if ! docker image inspect "${COLLECTOR_IMAGE}" >/dev/null 2>&1; then
+        echo "collector-docker: image '${COLLECTOR_IMAGE}' not found — nothing to remove."
+        return 0
+    fi
+    # shellcheck disable=SC2086
+    if ! docker rmi ${force} "${COLLECTOR_IMAGE}"; then
+        echo "collector-docker: failed to remove '${COLLECTOR_IMAGE}'." >&2
+        echo "  a container is likely still using it — stop it first, or retry with '--image rm --force'." >&2
+        exit 1
+    fi
+    echo "==> Removed: ${COLLECTOR_IMAGE}"
+}
+
+# Dispatches `collector-docker -i|--image <subcommand> ...`. Always exits.
+_image_cmd() {
+    local subcmd="${1:-}"
+    shift || true
+
+    case "${subcmd}" in
+        ""|-h|--help|help) _image_usage; exit 0 ;;
+        update|build-only|pull|create|rm|remove) ;;
+        *)
+            echo "collector-docker: unknown --image subcommand '${subcmd}'" >&2
+            _image_usage >&2
+            exit 1
+            ;;
+    esac
+
+    COLLECTOR_IMAGE="${COLLECTOR_IMAGE:-collector:latest}"
+    DOCKERFILE="${DOCKERFILE:-Dockerfile}"
+    BUILD_ARGS="${BUILD_ARGS:-}"
+    BUILD_PROGRESS="${BUILD_PROGRESS:-plain}"
+    local force_build=no
+    local force_rm=""
+
+    local arg
+    for arg in "$@"; do
+        case "${arg}" in
+            --no-cache)    BUILD_ARGS="--no-cache ${BUILD_ARGS}" ;;
+            --progress=*)  BUILD_PROGRESS="${arg#--progress=}" ;;
+            --force-build) force_build=yes ;;
+            --force)       force_rm="-f" ;;
+            *)
+                echo "collector-docker: unknown option '${arg}' for '--image ${subcmd}'" >&2
+                exit 1
+                ;;
+        esac
+    done
+
+    # rm/remove don't need a git checkout or build context — skip straight
+    # to Docker. Everything else needs SCRIPT_DIR as the build/pull root.
+    if [[ "${subcmd}" != "rm" && "${subcmd}" != "remove" ]]; then
+        cd "${SCRIPT_DIR}" || exit 1
+    fi
+
+    case "${subcmd}" in
+        update)
+            _image_git_pull
+            if [[ "${IMAGE_PULL_STRUCTURAL}" == "1" || "${force_build}" == "yes" ]]; then
+                _image_build
+            else
+                echo ""
+                echo "Done. No image rebuild needed — scripts are served from host volumes."
+            fi
+            ;;
+        build-only)
+            _image_build
+            ;;
+        pull)
+            _image_git_pull
+            echo ""
+            echo "Done. Run 'collector-docker --image build-only' if you need to rebuild."
+            ;;
+        create)
+            echo "==> Full clean rebuild (ignoring git, ignoring Docker's build cache)"
+            _image_build "--no-cache --pull"
+            ;;
+        rm|remove)
+            _image_rm "${force_rm}"
+            ;;
+    esac
+
+    echo ""
+    echo "Done."
+    exit 0
+}
+
+if [[ "${1:-}" == "-i" || "${1:-}" == "--image" ]]; then
+    shift
+    _image_cmd "$@"
+fi
+
+# Validate BEFORE doing any work (image checks, volume setup, docker run):
+# every real collector flag starts with '-' (see functions/menu.sh), and
+# image management is now -i|--image too, so a bare word here is never
+# valid — it's either a typo (e.g. "imagem create") or a plain mistake.
+# Catch it now with a precise error instead of falling through to checks
+# (like "is the image built?") that would report a misleading cause. An
+# empty $1 is fine (falls through to collector's own no-args usage screen).
+if [[ -n "${1:-}" && "${1:0:1}" != "-" ]]; then
+    echo "collector-docker: unknown command '$1'." >&2
+    echo "  did you mean '-i'/'--image'? Subcommands: --image <update|build-only|pull|create|rm|remove>" >&2
+    echo "  every collector flag starts with '-' — see 'collector-docker --help' (once the image is built)" >&2
+    exit 1
+fi
+
+# ==============================================================================
+# SECTION 2 — CONTAINER RUN  (original collector-docker behavior, unchanged)
+# ==============================================================================
+
+# Pick the default root: repo checkout if conf.d/ sits next to the
+# script, otherwise /opt/collector (installed layout).
+if [[ -d "${SCRIPT_DIR}/conf.d" ]]; then
+    DEFAULT_ROOT="${SCRIPT_DIR}"
+else
+    DEFAULT_ROOT="/opt/collector"
+fi
+
+COLLECTOR_IMAGE="${COLLECTOR_IMAGE:-collector:latest}"
+OUTPUTS_DIR="${OUTPUTS_DIR:-${DEFAULT_ROOT}/outputs}"
+WORDLISTS_DIR="${WORDLISTS_DIR:-${DEFAULT_ROOT}/wordlists}"
+APP_REPORT_DB_DIR="${APP_REPORT_DB_DIR:-${DEFAULT_ROOT}/app-report-db}"
+CONF_D_DIR="${CONF_D_DIR:-${DEFAULT_ROOT}/conf.d}"
+APP_PORT="${APP_PORT:-127.0.0.1:8000:8000}"
+
+# Without this, every timestamp collector logs/prints (log_execution_file
+# lines, the history CSV, the dashboard) is in the container's default
+# clock — UTC, unless the image sets otherwise — instead of the host's
+# actual local time. /etc/localtime's symlink target encodes the zone name
+# after "zoneinfo/" on both Linux (/usr/share/zoneinfo/<zone>) and macOS
+# (/var/db/timezone/zoneinfo/<zone>), so this works on either without
+# hardcoding a path style. Silently falls back to the container's own
+# default (UTC) if detection fails or the image lacks tzdata — same as
+# before this existed, not a new failure mode.
+TZ="${TZ:-$(readlink /etc/localtime 2>/dev/null | sed -n 's#.*/zoneinfo/##p')}"
+
+# Determine alert provider type
+# Priority: env var > conf.d/functions.conf > default
+get_alert_provider_type() {
+    local functions_conf="${CONF_D_DIR}/functions.conf"
+    if [[ -n "${ALERT_PROVIDER_TYPE}" ]]; then
+        echo "${ALERT_PROVIDER_TYPE}"
+    elif [[ -f "${functions_conf}" ]]; then
+        # Extract provider type from notify_config path in functions.conf
+        # e.g., /opt/collector/support/templates/alerts-notify/discord-provider.yaml → discord
+        grep "^notify_config=" "${functions_conf}" | \
+            sed -E 's|.*alerts/([a-z]+)-provider\.ya?ml.*|\1|' | \
+            head -1
+    fi
+    # Fallback to discord if nothing found
+    [[ -z "$1" ]] && echo "discord"
+}
+
+ALERT_PROVIDER_TYPE="$(get_alert_provider_type)"
+ALERT_PROVIDER_FILE="${ALERT_PROVIDER_FILE:-${DEFAULT_ROOT}/${ALERT_PROVIDER_TYPE}-provider.yaml}"
+
+# Pre-create the host directories that Docker would otherwise auto-create
+# as root when mounting them as volumes (which then breaks ownership of
+# the outputs produced inside the container).
+mkdir -p "${OUTPUTS_DIR}" "${WORDLISTS_DIR}" "${APP_REPORT_DB_DIR}" 2>/dev/null || true
+
+# Sanity check: if CONF_D_DIR (or its two required files) doesn't exist,
+# abort with a clear message — otherwise Docker would create an empty
+# directory on the host and try to mount it over /opt/collector/conf.d
+# inside the container, and collector's own required-file check inside
+# the container would then report a much less useful error.
+if [[ ! -d "${CONF_D_DIR}" ]]; then
+    echo "collector-docker: CONF_D_DIR not found: ${CONF_D_DIR}" >&2
+    echo "  copy conf.d/ to that path, or set CONF_D_DIR=<path> in the environment." >&2
+    exit 1
+fi
+for _required_conf in operation functions; do
+    if [[ ! -s "${CONF_D_DIR}/${_required_conf}.conf" ]]; then
+        echo "collector-docker: ${CONF_D_DIR}/${_required_conf}.conf not found." >&2
+        exit 1
+    fi
+done
+unset _required_conf
+
+# Sanity check: fail fast and clearly if the image isn't built yet, instead
+# of letting `docker run` try (and fail) to pull "collector" from Docker
+# Hub — a confusing "pull access denied" error that has nothing to do with
+# the actual problem. This also covers the case of a typo'd/invalid first
+# argument (e.g. "imagem create" instead of "image create"): once the
+# image exists, collector's own CLI (functions/menu.sh) already validates
+# every argument and reports unknown ones with a clear "invalid parameter"
+# message + usage — no need to duplicate that logic here.
+if ! docker image inspect "${COLLECTOR_IMAGE}" >/dev/null 2>&1; then
+    echo "collector-docker: image '${COLLECTOR_IMAGE}' not found locally." >&2
+    echo "  build it first: ./collector-docker --image create   (or '--image build-only')" >&2
+    exit 1
+fi
+
+# Detect report flags in "$@" so we can:
+#   --report-only  → name the container 'collector-report' and refuse if
+#                    another one is already running (Docker's --name
+#                    collision gives a clear error, no port race).
+#   --report-stop  → do NOT spawn a new container; call `docker stop`
+#                    on the running one from the host. The in-container
+#                    stop_app_report_foreground path is unreachable when
+#                    the caller is only the host wrapper (no other
+#                    container is running the collector binary), so
+#                    dispatching from here is the only way that works.
+# Long/short forms are both accepted, matching the collector CLI.
+REPORT_CONTAINER_NAME="${REPORT_CONTAINER_NAME:-collector-report}"
+want_report_only=no
+want_report_stop=no
+for arg in "$@"; do
+    case "${arg}" in
+        -ro|--report-only) want_report_only=yes ;;
+        -rs|--report-stop) want_report_stop=yes ;;
+    esac
+done
+
+# --report-stop wins over --report-only (mirrors the ordering inside
+# collector so `--report-only --report-stop` means "stop").
+if [[ "${want_report_stop}" == "yes" ]]; then
+    if docker ps --format '{{.Names}}' | grep -qx "${REPORT_CONTAINER_NAME}"; then
+        docker stop "${REPORT_CONTAINER_NAME}" >/dev/null && \
+            echo "collector-docker: stopped ${REPORT_CONTAINER_NAME}"
+    else
+        echo "collector-docker: no running container named ${REPORT_CONTAINER_NAME}"
+    fi
+    exit 0
+fi
+
+# Host-side port preflight — decides whether to publish APP_PORT.
+#
+# Three outcomes, all silent about the "why" so the recon path stays
+# quiet on happy runs:
+#   1. Host port is free → pass -p normally (default behavior).
+#   2. Host port is bound by anything at all → omit -p. The recon still
+#      completes; if the port is held by a sibling collector container,
+#      its dashboard already renders this run's results (shared outputs
+#      volume). If it's held by something unrelated, the operator sees
+#      no dashboard from this container — a conscious trade-off: never
+#      fail a recon over a busy port.
+#
+# Tool preference: ss > lsof > netstat. If none are present we skip the
+# check and let Docker itself decide (which usually means it fails, but
+# only in the rare case where the port is genuinely taken and no tool
+# is available to detect it beforehand).
+host_port=""
+if [[ "${APP_PORT}" =~ ^[0-9.]+:([0-9]+):[0-9]+$ ]]; then
+    host_port="${BASH_REMATCH[1]}"
+elif [[ "${APP_PORT}" =~ ^([0-9]+):[0-9]+$ ]]; then
+    host_port="${BASH_REMATCH[1]}"
+fi
+
+port_args=(-p "${APP_PORT}")
+if [[ -n "${host_port}" ]]; then
+    port_busy=no
+    if command -v ss >/dev/null 2>&1; then
+        ss -H -ltn "sport = :${host_port}" 2>/dev/null | grep -q . && port_busy=yes
+    elif command -v lsof >/dev/null 2>&1; then
+        lsof -iTCP:"${host_port}" -sTCP:LISTEN -Pn 2>/dev/null | grep -q . && port_busy=yes
+    elif command -v netstat >/dev/null 2>&1; then
+        netstat -ltn 2>/dev/null | awk '{print $4}' | grep -qE "[:.]${host_port}$" && port_busy=yes
+    fi
+    if [[ "${port_busy}" == "yes" ]]; then
+        port_args=()
+    fi
+fi
+
+# The alert provider mount is OPT-IN — only injected when the host file exists.
+# Without it, collector uses the default template baked into the image at
+# /opt/collector/support/templates/alerts-notify/{type}-provider.yaml.
+# This is intentional: a missing custom config is not an error.
+alert_mount_args=()
+if [[ -s "${ALERT_PROVIDER_FILE}" ]]; then
+    alert_mount_args=(-v "${ALERT_PROVIDER_FILE}:/opt/collector/support/templates/alerts-notify/${ALERT_PROVIDER_TYPE}-provider.yaml:ro")
+fi
+
+# Only the report-only container needs a stable name (so --report-stop
+# from another shell can find it). Recon containers stay anonymous.
+name_args=()
+if [[ "${want_report_only}" == "yes" ]]; then
+    if docker ps --format '{{.Names}}' | grep -qx "${REPORT_CONTAINER_NAME}"; then
+        echo "collector-docker: container '${REPORT_CONTAINER_NAME}' is already running." >&2
+        echo "  stop it first with: collector-docker --report-stop" >&2
+        exit 1
+    fi
+    name_args=(--name "${REPORT_CONTAINER_NAME}")
+fi
+
+# Mount scripts from the host so the container always uses the latest code
+# without requiring a Docker image rebuild. The image only needs to provide
+# the compiled binaries (Go tools, Python packages, system utilities).
+script_mount_args=()
+if [[ -d "${DEFAULT_ROOT}/functions" ]]; then
+    script_mount_args+=(
+        -v "${DEFAULT_ROOT}/collector:/opt/collector/collector:ro"
+        -v "${DEFAULT_ROOT}/functions:/opt/collector/functions:ro"
+        -v "${DEFAULT_ROOT}/scans:/opt/collector/scans:ro"
+        -v "${DEFAULT_ROOT}/sources:/opt/collector/sources:ro"
+    )
+    # One directory-level mount for all of support/ (runtime/ schema+prompts+
+    # wordlists, templates/alerts-notify/ provider configs, etc.) instead of
+    # naming each subdirectory individually — less to keep in sync, and a
+    # directory mount doesn't have the single-file bind-mount's stale-inode
+    # problem (see the `collector` mount above: a script rewritten via
+    # write-new+rename after the container started keeps serving the old
+    # inode for that container's lifetime; a directory mount just resolves
+    # the path fresh each time, so this doesn't apply to it).
+    [[ -d "${DEFAULT_ROOT}/support" ]] && \
+        script_mount_args+=(-v "${DEFAULT_ROOT}/support:/opt/collector/support:ro")
+fi
+
+tz_args=()
+[[ -n "${TZ}" ]] && tz_args=(-e "TZ=${TZ}")
+
+exec docker run --rm "${name_args[@]}" \
+    -e "TERM=${TERM:-dumb}" \
+    "${tz_args[@]}" \
+    -v "${OUTPUTS_DIR}:/opt/collector/outputs" \
+    -v "${WORDLISTS_DIR}:/opt/collector/wordlists" \
+    -v "${APP_REPORT_DB_DIR}:/opt/collector/app-report/db" \
+    -v "${CONF_D_DIR}:/opt/collector/conf.d:ro" \
+    "${script_mount_args[@]}" \
+    "${alert_mount_args[@]}" \
+    "${port_args[@]}" \
+    "${COLLECTOR_IMAGE}" \
+    "$@"

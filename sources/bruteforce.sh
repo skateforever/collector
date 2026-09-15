@@ -17,8 +17,18 @@ bruteforce-src(){
             index=$(printf "%s\n" "${dns_wordlists[@]}" | grep -En "^${list}$" | awk -F":" '{print $1}')
             if [ -s "${list}" ]; then
                 echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Execution number ${index}... "
-                echo -e "\namass enum -src -w ${list} -d ${domain}" >> "${log_execution_file}" 
-                amass enum -active -src -ip -brute -d "${domain}" -w "${list}" >> "${tmp_dir}/amass_brute_output_${index}.txt" 2>> "${log_execution_file}"
+                # amass v5's engine rewrite: `enum` only populates a local graph
+                # database under -dir now (-o/-oA are defined but unused). `subs
+                # -names -o` is the separate query step that dumps the names
+                # collected in that database to a clean, one-per-line text file.
+                amass_brute_dir="${tmp_dir}/amass_brute_db_${index}"
+                mkdir -p "${amass_brute_dir}"
+                echo -e "\namass enum -active -brute -d ${domain} -w ${list} -dir ${amass_brute_dir}" >> "${log_execution_file}"
+                amass enum -active -brute -d "${domain}" -w "${list}" \
+                    -dir "${amass_brute_dir}" 2>> "${log_execution_file}"
+                echo "amass subs -d ${domain} -dir ${amass_brute_dir} -names -nocolor -silent -o ${tmp_dir}/amass_brute_output_${index}.txt" >> "${log_execution_file}"
+                amass subs -d "${domain}" -dir "${amass_brute_dir}" -names -nocolor -silent \
+                    -o "${tmp_dir}/amass_brute_output_${index}.txt" 2>> "${log_execution_file}"
 
                 echo "dnssearch -consumers 600 -domain ${domain} -wordlist ${list}" >> "${log_execution_file}"
                 dnssearch -consumers 600 -domain "${domain}" -wordlist "${list}" | \
