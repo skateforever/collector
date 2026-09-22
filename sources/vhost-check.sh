@@ -162,12 +162,9 @@ vhost_check(){
     local IP port
     local -a worker_pids=()
     local pid alive
-    local -a vc_ports=()
-    if [[ "${#vhost_port_detect[@]}" -gt 0 ]]; then
-        vc_ports=("${vhost_port_detect[@]}")
-    else
-        vc_ports=("${webapp_port_detect[@]}")
-    fi
+    # No vhost-specific port list — always the same ports webapp-detection
+    # picked for this run (-wsd/-wcp/-wld).
+    local -a vc_ports=("${webapp_port_detect[@]}")
 
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Looking for vhost with dead subdomains... "
     echo -e "\n" >> "${log_execution_file}"

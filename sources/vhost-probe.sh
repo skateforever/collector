@@ -15,7 +15,7 @@
 # running after infra_data() so it has the full IP surface.
 #
 # A per-IP baseline is computed using a random hostname that
-# should never resolve, mirroring vhost_check_pair()'s approach.
+# should never resolve, mirroring vhost_check_baseline()'s approach.
 #
 # Usage: vhost_probe <ip_file>
 #   ip_file — one IPv4 per line (typically report_dir/infra_ipv4.txt)
@@ -57,12 +57,9 @@ vhost_probe_ffuf(){
         ffuf_ip="$(echo "${ffuf_ip}" | grep -Eo "${IPv4_regex}")"
         [[ -z "${ffuf_ip}" ]] && continue
 
-        local -a vp_ports=()
-        if [[ "${#vhost_port_detect[@]}" -gt 0 ]]; then
-            vp_ports=("${vhost_port_detect[@]}")
-        else
-            vp_ports=("${webapp_port_detect[@]}")
-        fi
+        # No vhost-specific port list — always the same ports webapp-detection
+        # picked for this run (-wsd/-wcp/-wld).
+        local -a vp_ports=("${webapp_port_detect[@]}")
 
         for ffuf_port in "${vp_ports[@]}"; do
             ffuf_proto="http"
@@ -141,12 +138,9 @@ vhost_probe(){
         return 0
     fi
     local vhost_probe_max_workers="${vhost_probe_processes:-50}"
-    local -a vp_probe_ports=()
-    if [[ "${#vhost_port_detect[@]}" -gt 0 ]]; then
-        vp_probe_ports=("${vhost_port_detect[@]}")
-    else
-        vp_probe_ports=("${webapp_port_detect[@]}")
-    fi
+    # No vhost-specific port list — always the same ports webapp-detection
+    # picked for this run (-wsd/-wcp/-wld).
+    local -a vp_probe_ports=("${webapp_port_detect[@]}")
     local vhost_probe_pids=()
     local vhost_probe_pid vhost_probe_alive_pids=()
     local -a vp_curl_opts=()

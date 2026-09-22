@@ -360,13 +360,14 @@ vhost_check_processes=16           # parallel workers for vhost_check (each work
 vhost_check_batch_size=20          # names per vhost_check worker (curl+httpx per name, hence smaller than the probe's)
 vhost_probe_processes=50           # parallel workers for vhost_probe (lightweight single curl each)
 vhost_probe_batch_size=50          # words per worker in vhost_probe (reduces fork overhead)
-vhost_port_detect=(80 443 8080 8443)  # ports for vhost brute (independent of webapp_port_detect)
 vhost_connect_timeout=5            # curl connect timeout for vhost (seconds)
 vhost_max_time=5                   # curl max-time for vhost (seconds)
 vhost_prefilter_timeout=3          # TCP pre-filter timeout (seconds) — skips ports that don't respond
 vhost_use_ffuf="no"                # use ffuf for vhost_probe instead of bash loop (yes/no)
 vhost_ffuf_threads=50              # ffuf threads when enabled
 ```
+
+There is no vhost-specific port list: `vhost_check`/`vhost_probe` always use `webapp_port_detect` — the same list set by whichever webapp-detection flag the run picked (`-wsd`/`-wcp`/`-wld`).
 
 Key behaviors controlled by these variables:
 
