@@ -356,7 +356,8 @@ Vhost discovery has its own tuning section in `conf.d/functions.conf`. These var
 
 ```bash
 # vhost - performance tuning
-vhost_check_processes=8            # parallel workers for vhost_check (curl+httpx per IP:port pair)
+vhost_check_processes=16           # parallel workers for vhost_check (each worker runs one batch of names)
+vhost_check_batch_size=20          # names per vhost_check worker (curl+httpx per name, hence smaller than the probe's)
 vhost_probe_processes=50           # parallel workers for vhost_probe (lightweight single curl each)
 vhost_probe_batch_size=50          # words per worker in vhost_probe (reduces fork overhead)
 vhost_port_detect=(80 443 8080 8443)  # ports for vhost brute (independent of webapp_port_detect)

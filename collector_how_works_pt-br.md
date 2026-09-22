@@ -356,7 +356,8 @@ A descoberta de vhosts tem sua própria seção de tuning no `conf.d/functions.c
 
 ```bash
 # vhost - performance tuning
-vhost_check_processes=8            # workers paralelos para vhost_check (curl+httpx por par IP:porta)
+vhost_check_processes=16           # workers paralelos para vhost_check (cada worker roda um lote de nomes)
+vhost_check_batch_size=20          # nomes por worker no vhost_check (curl+httpx por nome, por isso é menor que o do probe)
 vhost_probe_processes=50           # workers paralelos para vhost_probe (single curl leve cada)
 vhost_probe_batch_size=50          # words por worker no vhost_probe (reduz overhead de fork)
 vhost_port_detect=(80 443 8080 8443)  # portas para brute de vhost (independente de webapp_port_detect)
