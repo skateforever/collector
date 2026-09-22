@@ -35,12 +35,33 @@ vhost_port_alive(){
         -o /dev/null -w "%{http_code}" "${vpa_proto}://${vpa_ip}:${vpa_port}" 2>/dev/null | grep -qE '^[1-5][0-9]{2}$'
 }
 
+# Re-verifies a single ffuf candidate with a fresh curl request, appending
+# it to out_file only if size AND hash both differ from the baseline.
+# ffuf's own -fs only confirms the size differs, so this catches the case
+# where that size difference isn't matched by an actual content difference
+# (or was a one-off blip) — same anti-noise rule vhost_check/vhost_probe's
+# bash-loop worker use.
+# Args: $1=url $2=baseline_size $3=baseline_hash $4=out_file $5=word
+vhost_probe_ffuf_verify_worker(){
+    local fvw_url="$1" fvw_baseline_size="$2" fvw_baseline_hash="$3" fvw_out="$4" fvw_word="$5"
+    local fvw_raw fvw_size fvw_hash
+    fvw_raw="$(curl -k "${ffuf_curl_opts[@]}" \
+        -H "Host: ${fvw_word}.${domain}" \
+        -w $'\n%{size_download}' \
+        "${fvw_url}" 2>/dev/null)"
+    fvw_size="${fvw_raw##*$'\n'}"
+    fvw_hash="$(printf '%s' "${fvw_raw%$'\n'*}" | md5sum | awk '{print $1}')"
+    if [[ "${fvw_size}" != "${fvw_baseline_size}" && "${fvw_hash}" != "${fvw_baseline_hash}" ]]; then
+        echo "${fvw_word}.${domain}" >> "${fvw_out}"
+    fi
+}
+
 # Fast vhost probe using ffuf's native vhost mode.
 # Replaces the bash curl loop with a single ffuf invocation per (IP, port).
 # Requires: ffuf in PATH, vhost_use_ffuf=yes in conf.d/functions.conf.
 vhost_probe_ffuf(){
     local ffuf_ip_file="$1"
-    local ffuf_threads_vp="${vhostffuf_threads_vp:-50}"
+    local ffuf_threads_vp="${vhost_ffuf_threads:-50}"
     local ffuf_wordlist="${collector_vhost_probe_words}"
 
     if [[ ! -s "${ffuf_wordlist}" ]]; then
@@ -50,7 +71,13 @@ vhost_probe_ffuf(){
 
     : > "${tmp_dir}/vhost_probe_output.txt"
     local ffuf_ip ffuf_port ffuf_proto ffuf_url
-    local ffuf_baseline_size ffuf_rand_host ffuf_out tls_p
+    local ffuf_baseline_raw ffuf_baseline_size ffuf_baseline_hash ffuf_rand_host ffuf_out tls_p
+    local -a ffuf_curl_opts=()
+    if [[ "${#vhost_curl_options[@]}" -gt 0 ]]; then
+        ffuf_curl_opts=("${vhost_curl_options[@]}")
+    else
+        ffuf_curl_opts=("${curl_options_fast[@]}")
+    fi
 
     while IFS= read -r ffuf_ip; do
         [[ -z "${ffuf_ip}" ]] && continue
@@ -68,12 +95,18 @@ vhost_probe_ffuf(){
             done
             ffuf_url="${ffuf_proto}://${ffuf_ip}:${ffuf_port}"
 
-            # Get baseline response size with random hostname
+            # Get baseline response (size + hash) with a random hostname.
+            # The hash is used later to re-verify ffuf's hits (ffuf itself
+            # only filters by exact size match via -fs, so it can't tell a
+            # genuinely different vhost from a same-size/different-content
+            # coincidence).
             ffuf_rand_host="$(tr -dc 'a-z' </dev/urandom | fold -w 12 | head -n1).${domain}"
-            ffuf_baseline_size="$(curl -k -s --connect-timeout 3 --max-time 5 \
+            ffuf_baseline_raw="$(curl -k "${ffuf_curl_opts[@]}" \
                 -H "Host: ${ffuf_rand_host}" \
-                -o /dev/null -w "%{size_download}" \
+                -w $'\n%{size_download}' \
                 "${ffuf_url}" 2>/dev/null)"
+            ffuf_baseline_size="${ffuf_baseline_raw##*$'\n'}"
+            ffuf_baseline_hash="$(printf '%s' "${ffuf_baseline_raw%$'\n'*}" | md5sum | awk '{print $1}')"
 
             # Skip port if no response
             [[ -z "${ffuf_baseline_size}" || "${ffuf_baseline_size}" == "0" ]] && continue
@@ -96,12 +129,48 @@ vhost_probe_ffuf(){
                 -o "${ffuf_out}" \
                 -of csv 2>> "${log_execution_file}"
 
-            # Parse ffuf CSV output: extract matched hostnames
+            # Parse ffuf CSV output: column 1 (FUZZ) is the matched word —
+            # header is "FUZZ,url,redirectlocation,position,status_code,
+            # content_length,content_words,content_lines,content_type,
+            # duration,resultfile,Ffufhash".
             if [[ -s "${ffuf_out}" ]]; then
-                # ffuf CSV: first line is header, columns vary but input field is always present
-                tail -n+2 "${ffuf_out}" | while IFS=',' read -r x1 x2 x3 x4 x5 input rest; do
-                    [[ -n "${input}" && "${input}" != "input" ]] && echo "${input}.${domain}"
-                done >> "${tmp_dir}/vhost_probe_output.txt"
+                local -a ffuf_candidates=()
+                local ffuf_word ffuf_rest
+                while IFS=',' read -r ffuf_word ffuf_rest; do
+                    [[ -n "${ffuf_word}" ]] && ffuf_candidates+=("${ffuf_word}")
+                done < <(tail -n+2 "${ffuf_out}")
+
+                if [[ "${#ffuf_candidates[@]}" -gt 0 ]]; then
+                    # One background worker per candidate, capped at
+                    # ffuf_threads_vp concurrent — same concurrency budget
+                    # ffuf itself used for the fuzzing pass. On a noisy
+                    # target (-fs alone lets most of the wordlist through
+                    # as "candidates"), this is what keeps verification
+                    # from turning into a multi-minute serial curl loop.
+                    local ffuf_verify_out="${tmp_dir}/ffuf_verify_${ffuf_ip}_${ffuf_port}_$$.tmp"
+                    : > "${ffuf_verify_out}"
+                    local -a ffuf_verify_pids=() ffuf_verify_alive=()
+                    local ffuf_verify_pid
+                    for ffuf_word in "${ffuf_candidates[@]}"; do
+                        while :; do
+                            ffuf_verify_alive=()
+                            for ffuf_verify_pid in "${ffuf_verify_pids[@]}"; do
+                                kill -0 "${ffuf_verify_pid}" 2>/dev/null && ffuf_verify_alive+=("${ffuf_verify_pid}")
+                            done
+                            ffuf_verify_pids=("${ffuf_verify_alive[@]}")
+                            [[ "${#ffuf_verify_pids[@]}" -lt "${ffuf_threads_vp}" ]] && break
+                            sleep 0.2
+                        done
+                        vhost_probe_ffuf_verify_worker "${ffuf_url}" "${ffuf_baseline_size}" "${ffuf_baseline_hash}" \
+                            "${ffuf_verify_out}" "${ffuf_word}" &
+                        ffuf_verify_pids+=("$!")
+                    done
+                    for ffuf_verify_pid in "${ffuf_verify_pids[@]}"; do
+                        wait "${ffuf_verify_pid}" 2>/dev/null
+                    done
+                    cat "${ffuf_verify_out}" >> "${tmp_dir}/vhost_probe_output.txt" 2>/dev/null
+                    rm -f "${ffuf_verify_out}"
+                fi
             fi
             rm -f "${ffuf_out}"
         done
