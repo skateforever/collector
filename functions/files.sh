@@ -93,6 +93,7 @@ joining_subdomains(){
         if [ -s "${tmp_dir}/katana_output.tmp" ]; then
             echo "Parsing katana" >> "${log_execution_file}"
             awk -F'/' '{print $3}' "${tmp_dir}/katana_output.tmp" \
+                | grep -E "^.*\.${domain}" \
                 | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
@@ -172,6 +173,7 @@ joining_subdomains(){
         if [ -s "${tmp_dir}/urlfinder_output.tmp" ]; then
             echo "Parsing urlfinder" >> "${log_execution_file}"
             awk -F'/' '{print $3}' "${tmp_dir}/urlfinder_output.tmp" \
+                | grep -E "^.*\.${domain}" \
                 | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
@@ -192,6 +194,7 @@ joining_subdomains(){
             awk -F'/' '{print $3}' "${tmp_dir}/waybackurls_output.tmp" \
                 | awk -F'?' '{print $1}' \
                 | sed 's/:[0-9]*$//g' \
+                | grep -E "^.*\.${domain}" \
                 | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
@@ -202,6 +205,7 @@ joining_subdomains(){
                 | sed "/@/d" \
                 | sed -e 's/\.$//' \
                 | sed 's/:[0-9]*$//g' \
+                | grep -E "\.${domain}$" \
                 | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
