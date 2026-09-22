@@ -151,12 +151,20 @@ vhost_probe(){
     fi
 
     # Batch worker: probes a slice of the wordlist for a single (IP, port) pair.
-    # Args: $1=IP $2=port $3=baseline_status $4=baseline_len $5..=words
+    # Args: $1=IP $2=port $3=baseline_status $4=baseline_len $5=baseline_hash $6..=words
+    #
+    # A hit needs the status to differ, OR size AND hash to *both* differ.
+    # Requiring both size and hash (instead of just checking the hash) is
+    # what keeps pages with per-request dynamic content (CSRF token,
+    # timestamp, request id) from flagging as a false positive on every
+    # single word — that kind of noise usually leaves size unchanged while
+    # still flipping the hash. Same rule vhost_check uses for its own
+    # curl_diff/httpx_diff (sources/vhost-check.sh).
     vhost_probe_batch_worker(){
-        local bp_ip="$1" bp_port="$2" bp_baseline_status="$3" bp_baseline_len="$4"
-        shift 4
+        local bp_ip="$1" bp_port="$2" bp_baseline_status="$3" bp_baseline_len="$4" bp_baseline_hash="$5"
+        shift 5
         local bp_proto="http" bp_url bp_ua bp_word bp_host
-        local bp_raw bp_status bp_len bp_diff
+        local bp_raw bp_trailer bp_status bp_len bp_hash
         local tls_p
 
         for tls_p in "${webapp_tls_ports[@]}"; do
@@ -170,14 +178,15 @@ vhost_probe(){
             bp_raw="$(curl "${vp_curl_opts[@]}" \
                 -H "Host: ${bp_host}" \
                 -H "User-agent: ${bp_ua}" \
-                -o /dev/null -w "%{http_code} %{size_download}" \
+                -w $'\n%{http_code} %{size_download}' \
                 "${bp_url}" 2>/dev/null)"
-            bp_status="${bp_raw%% *}"
-            bp_len="${bp_raw##* }"
+            bp_trailer="${bp_raw##*$'\n'}"
+            bp_status="${bp_trailer%% *}"
+            bp_len="${bp_trailer##* }"
             [[ -z "${bp_len}" ]] && bp_len=0
-            bp_diff=$(( bp_len - bp_baseline_len ))
-            [[ "${bp_diff}" -lt 0 ]] && bp_diff=$(( -bp_diff ))
-            if [[ "${bp_status}" != "${bp_baseline_status}" || "${bp_diff}" -gt 200 ]]; then
+            bp_hash="$(printf '%s' "${bp_raw%$'\n'*}" | md5sum | awk '{print $1}')"
+            if [[ "${bp_status}" != "${bp_baseline_status}" ]] || \
+               { [[ "${bp_len}" != "${bp_baseline_len}" ]] && [[ "${bp_hash}" != "${bp_baseline_hash}" ]]; }; then
                 echo "${bp_host}" >> "${tmp_dir}/vhost_probe_worker_${bp_ip}_${bp_port}_$$.tmp"
             fi
         done
@@ -204,16 +213,18 @@ vhost_probe(){
                 [[ "${p2}" == "${vhost_probe_port}" ]] && { bp_proto="https"; break; }
             done
             local bp_url="${bp_proto}://${vhost_probe_ip}:${vhost_probe_port}"
-            local vhost_probe_baseline_raw
+            local vhost_probe_baseline_raw vhost_probe_baseline_trailer
             vhost_probe_baseline_raw="$(curl "${vp_curl_opts[@]}" \
                 -H "Host: ${vhost_probe_rand_host}" \
                 -H "User-agent: ${user_agent}" \
-                -o /dev/null -w "%{http_code} %{size_download}" \
+                -w $'\n%{http_code} %{size_download}' \
                 "${bp_url}" 2>/dev/null)"
-            local vhost_probe_baseline_status vhost_probe_baseline_len
-            vhost_probe_baseline_status="${vhost_probe_baseline_raw%% *}"
-            vhost_probe_baseline_len="${vhost_probe_baseline_raw##* }"
+            local vhost_probe_baseline_status vhost_probe_baseline_len vhost_probe_baseline_hash
+            vhost_probe_baseline_trailer="${vhost_probe_baseline_raw##*$'\n'}"
+            vhost_probe_baseline_status="${vhost_probe_baseline_trailer%% *}"
+            vhost_probe_baseline_len="${vhost_probe_baseline_trailer##* }"
             [[ -z "${vhost_probe_baseline_len}" ]] && vhost_probe_baseline_len=0
+            vhost_probe_baseline_hash="$(printf '%s' "${vhost_probe_baseline_raw%$'\n'*}" | md5sum | awk '{print $1}')"
 
             # Early exit: if baseline gets no response, skip this port.
             if [[ "${vhost_probe_baseline_status}" == "000" || -z "${vhost_probe_baseline_status}" ]]; then
@@ -241,7 +252,7 @@ vhost_probe(){
                         vhost_probe_pids=("${vhost_probe_alive_pids[@]}")
                     done
                     vhost_probe_batch_worker "${vhost_probe_ip}" "${vhost_probe_port}" \
-                        "${vhost_probe_baseline_status}" "${vhost_probe_baseline_len}" "${batch[@]}" &
+                        "${vhost_probe_baseline_status}" "${vhost_probe_baseline_len}" "${vhost_probe_baseline_hash}" "${batch[@]}" &
                     vhost_probe_pids+=("$!")
                     batch=()
                     bidx=0
@@ -263,7 +274,7 @@ vhost_probe(){
                     vhost_probe_pids=("${vhost_probe_alive_pids[@]}")
                 done
                 vhost_probe_batch_worker "${vhost_probe_ip}" "${vhost_probe_port}" \
-                    "${vhost_probe_baseline_status}" "${vhost_probe_baseline_len}" "${batch[@]}" &
+                    "${vhost_probe_baseline_status}" "${vhost_probe_baseline_len}" "${vhost_probe_baseline_hash}" "${batch[@]}" &
                 vhost_probe_pids+=("$!")
             fi
         done  # end port loop
