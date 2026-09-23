@@ -176,6 +176,16 @@ vhost_check_batch_worker(){
             [[ "${httpx_size}" == "${s_httpx_size}" && "${httpx_hash}" == "${s_httpx_hash}" ]] && httpx_diff="no"
         done
 
+        # A connection failure (no TCP response, or httpx got nothing) is
+        # not evidence of a distinct vhost — without this, two failed
+        # probes look identical to each other and would otherwise pass
+        # the reproducibility check below as a false "confirmed" hit.
+        if [[ "${curl_size}" == "0" || -z "${curl_size}" ]] && [[ -z "${curl_hash}" || "${curl_hash}" == "d41d8cd98f00b204e9800998ecf8427e" ]]; then
+            curl_diff="no"
+        fi
+        if [[ "${httpx_size}" == "0" || -z "${httpx_size}" ]] && [[ -z "${httpx_hash}" || "${httpx_hash}" == "d41d8cd98f00b204e9800998ecf8427e" ]]; then
+            httpx_diff="no"
+        fi
 
         confidence=""
         if [[ "${curl_diff}" == "yes" && "${httpx_diff}" == "yes" ]]; then

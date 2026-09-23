@@ -97,6 +97,13 @@ vhost_probe_ffuf_verify_worker(){
             IFS='|' read -r s_size s_hash <<< "${sample}"
             [[ "${size}" == "${s_size}" && "${hash}" == "${s_hash}" ]] && diff="no"
         done
+        # A connection failure (no TCP response at all) is not evidence of
+        # a distinct vhost — without this, two failed probes look
+        # identical to each other and would otherwise pass the
+        # reproducibility check below as a false "confirmed" hit.
+        if [[ "${size}" == "0" || -z "${size}" ]] && [[ -z "${hash}" || "${hash}" == "d41d8cd98f00b204e9800998ecf8427e" ]]; then
+            diff="no"
+        fi
         printf '%s|%s|%s\n' "${size}" "${hash}" "${diff}"
     }
 
@@ -351,6 +358,13 @@ vhost_probe(){
                     diff="no"
                 fi
             done
+            # A connection failure (no TCP response at all) is not evidence
+            # of a distinct vhost — without this, two failed probes look
+            # identical to each other and would otherwise pass the
+            # reproducibility check below as a false "confirmed" hit.
+            if [[ -z "${status}" || "${status}" == "000" ]]; then
+                diff="no"
+            fi
             printf '%s|%s|%s\n' "${len}" "${hash}" "${diff}"
         }
 
