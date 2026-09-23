@@ -10,13 +10,13 @@
 #
 # Scrapes searchdns.netcraft.com (free, no API key required).
 # Paginates via &from=&last= parameters until no new results.
-# Output: netcraft_output.txt — one subdomain per line.
+# Output: netcraft_output.tmp — one subdomain per line.
 #
 #############################################################
 
 netcraft-src(){
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing netcraft... "
-    : > "${tmp_dir}/netcraft_output.txt"
+    : > "${tmp_dir}/netcraft_output.tmp"
     unset user_agent
     user_agent="$(get_user_agent)"
 
@@ -44,7 +44,7 @@ netcraft-src(){
             | grep -oE 'host=[a-zA-Z0-9._-]+\.'"${domain}" \
             | sed 's/host=//' \
             | tr '[:upper:]' '[:lower:]' \
-            >> "${tmp_dir}/netcraft_output.txt"
+            >> "${tmp_dir}/netcraft_output.tmp"
 
         # Check for a "next page" link — pattern: href="?...&from=X&last=X"
         netcraft_next="$(echo "${netcraft_page}" \
@@ -58,7 +58,7 @@ netcraft-src(){
         fi
 
         # Sanity check: stop if result count hasn't grown (duplicate page / loop)
-        netcraft_cur_count="$(wc -l < "${tmp_dir}/netcraft_output.txt")"
+        netcraft_cur_count="$(wc -l < "${tmp_dir}/netcraft_output.tmp")"
         if [[ "${netcraft_cur_count}" -le "${netcraft_prev_count}" ]]; then
             break
         fi
@@ -68,7 +68,7 @@ netcraft-src(){
         sleep 2
     done
 
-    sort -u -o "${tmp_dir}/netcraft_output.txt" "${tmp_dir}/netcraft_output.txt" 2>/dev/null
+    sort -u -o "${tmp_dir}/netcraft_output.tmp" "${tmp_dir}/netcraft_output.tmp" 2>/dev/null
     echo "Done!"
     sleep 1
 }

@@ -10,7 +10,7 @@
 
 ns-brute-src(){
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing NS brute / zone transfer multi-vector... "
-    : > "${tmp_dir}/ns_brute_output.txt"
+    : > "${tmp_dir}/ns_brute_output.tmp"
     ns_brute_candidates=()
     ns_brute_seen_ips=()
 
@@ -70,7 +70,7 @@ ns-brute-src(){
             echo -e "\ndig ${ns_brute_xfr_type} \"${domain}\" \"@${ns_brute_ip}\" (${ns_brute_host})" >> "${log_execution_file}"
             ns_brute_xfr="$(dig "${ns_brute_xfr_type}" "${domain}" "@${ns_brute_ip}" 2>/dev/null)"
             if echo "${ns_brute_xfr}" | grep -qE "[[:space:]]IN[[:space:]]+[A-Z]"; then
-                echo "${ns_brute_xfr}" >> "${tmp_dir}/ns_brute_output.txt"
+                echo "${ns_brute_xfr}" >> "${tmp_dir}/ns_brute_output.tmp"
                 echo -e "\n${ns_brute_xfr_type} SUCCESS on ${ns_brute_host} (${ns_brute_ip})" >> "${log_execution_file}"
                 break
             fi

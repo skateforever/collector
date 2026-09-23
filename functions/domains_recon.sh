@@ -167,8 +167,8 @@ domains_recon(){
           crawler_params "${domain}" "${report_dir}/webapp_consolidated.txt"
           source "${collector_path}/sources/spider.sh"
           spider_src "${report_dir}/webapp_consolidated.txt"
-          if [[ -s "${tmp_dir}/spider_output.txt" ]]; then
-              grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/spider_output.txt" \
+          if [[ -s "${tmp_dir}/spider_output.tmp" ]]; then
+              grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/spider_output.tmp" \
                   | sort -u >> "${report_dir}/domains_found.txt"
               sort -u -o "${report_dir}/domains_found.txt" "${report_dir}/domains_found.txt"
           fi
@@ -222,7 +222,7 @@ domains_recon(){
             asn_sweep "${report_dir}/infra_ipv4.txt"
             source "${collector_path}/sources/ptr-sweep.sh"
             ptr_sweep "${report_dir}/infra_ipv4.txt"
-            cat "${tmp_dir}/asn_sweep_output.txt" "${tmp_dir}/ptr_sweep_output.txt" 2>/dev/null \
+            cat "${tmp_dir}/asn_sweep_output.tmp" "${tmp_dir}/ptr_sweep_output.tmp" 2>/dev/null \
                 | grep -Ei "(\.${domain}$|^${domain}$)" | sort -u > "${tmp_dir}/asn_ptr_sweep_new.tmp"
             if [[ -s "${tmp_dir}/asn_ptr_sweep_new.tmp" ]]; then
                 cat "${tmp_dir}/asn_ptr_sweep_new.tmp" >> "${report_dir}/domains_found.txt"
@@ -285,17 +285,17 @@ domains_recon(){
             [[ -s "${report_dir}/infra_ipv4.txt" ]] && \
                 vhost_probe "${report_dir}/infra_ipv4.txt"
             # Merge vhost_probe findings into domains_found.txt and resolve new entries.
-            # vhost_probe_output.txt lines are "ip\tport\tscheme\thost\tsize\thash"
+            # vhost_probe_output.tmp lines are "ip\tport\tscheme\thost\tsize\thash"
             # (since vhost_probe_persist_hits() already used every field to feed
             # etc_hosts_file.txt/vhost_urls.txt/vhost_probe_hits.txt directly) —
             # pull just the hostname (field 4) before matching/merging here.
-            if [[ -s "${tmp_dir}/vhost_probe_output.txt" ]]; then
-                awk -F'\t' '{print $4}' "${tmp_dir}/vhost_probe_output.txt" \
+            if [[ -s "${tmp_dir}/vhost_probe_output.tmp" ]]; then
+                awk -F'\t' '{print $4}' "${tmp_dir}/vhost_probe_output.tmp" \
                     | grep -Ei "(\.${domain}$|^${domain}$)" \
                     | sort -u >> "${report_dir}/domains_found.txt"
                 sort -u -o "${report_dir}/domains_found.txt" "${report_dir}/domains_found.txt"
                 # Resolve new vhost_probe entries in parallel (10x speedup)
-                awk -F'\t' '{print $4}' "${tmp_dir}/vhost_probe_output.txt" \
+                awk -F'\t' '{print $4}' "${tmp_dir}/vhost_probe_output.tmp" \
                     | grep -Ei "(\.${domain}$|^${domain}$)" \
                     | sort -u > "${tmp_dir}/vhost_probe_new.tmp"
                 if [[ -s "${tmp_dir}/vhost_probe_new.tmp" ]]; then
@@ -338,11 +338,11 @@ domains_recon(){
                 source "${collector_path}/sources/spider.sh"
                 spider_src "${report_dir}/webapp_consolidated.txt"
                 # Merge spider findings into domains_found.txt and resolve new entries
-                if [[ -s "${tmp_dir}/spider_output.txt" ]]; then
-                    grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/spider_output.txt" \
+                if [[ -s "${tmp_dir}/spider_output.tmp" ]]; then
+                    grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/spider_output.tmp" \
                         | sort -u >> "${report_dir}/domains_found.txt"
                     sort -u -o "${report_dir}/domains_found.txt" "${report_dir}/domains_found.txt"
-                    grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/spider_output.txt" \
+                    grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/spider_output.tmp" \
                         | sort -u > "${tmp_dir}/spider_new.tmp"
                     if [[ -s "${tmp_dir}/spider_new.tmp" ]]; then
                         local num_workers=20 pids=()

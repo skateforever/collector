@@ -10,7 +10,7 @@
 
 robots-sitemap-src(){
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing robots/sitemap mining... "
-    : > "${tmp_dir}/robots_sitemap_output.txt"
+    : > "${tmp_dir}/robots_sitemap_output.tmp"
     unset user_agent
     user_agent="$(get_user_agent)"
     local robots_sitemap_queue=()
@@ -34,7 +34,7 @@ robots-sitemap-src(){
             echo "${robots_body}" | grep -iE '^(Disallow|Allow):' | awk '{print $2}' \
                 | grep -Eo 'https?://[^/" ]+' \
                 | grep -Eo '[a-zA-Z0-9._-]+\.'"${domain}" \
-                | tr '[:upper:]' '[:lower:]' >> "${tmp_dir}/robots_sitemap_output.txt"
+                | tr '[:upper:]' '[:lower:]' >> "${tmp_dir}/robots_sitemap_output.tmp"
             break
         fi
     done
@@ -73,10 +73,10 @@ robots-sitemap-src(){
         # <urlset> <loc> entries — extract hostnames
         echo "${robots_sitemap_body}" | sed -n 's|.*<loc>\([^<]*\)</loc>.*|\1|p' \
             | grep -Eo '[a-zA-Z0-9._-]+\.'"${domain}" \
-            | tr '[:upper:]' '[:lower:]' >> "${tmp_dir}/robots_sitemap_output.txt"
+            | tr '[:upper:]' '[:lower:]' >> "${tmp_dir}/robots_sitemap_output.tmp"
     done
 
-    sort -u -o "${tmp_dir}/robots_sitemap_output.txt" "${tmp_dir}/robots_sitemap_output.txt" 2>/dev/null
+    sort -u -o "${tmp_dir}/robots_sitemap_output.tmp" "${tmp_dir}/robots_sitemap_output.tmp" 2>/dev/null
     echo "Done!"
 }
 

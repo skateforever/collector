@@ -11,7 +11,7 @@
 bing-src(){
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing bing... "
     unset user_agent
-    : > "${tmp_dir}/bing_output.txt"
+    : > "${tmp_dir}/bing_output.tmp"
     bing_templates=(
         "https://www.bing.com/search?q=site%3A${domain}&form=DEEPSH&shm=cr&shajax=2"
         "https://www.bing.com/search?q=site%3A${domain}&shm=cr&form=DEEPSH&shajax=1"
@@ -30,7 +30,7 @@ bing-src(){
             -H "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8" \
             -H "Accept-Language: en-US,en;q=0.9" \
             -H "Referer: https://www.bing.com/" \
-            "${bing_url}" >> "${tmp_dir}/bing_output.txt" 2>> "${log_execution_file}"
+            "${bing_url}" >> "${tmp_dir}/bing_output.tmp" 2>> "${log_execution_file}"
         sleep 2
     done
     echo "Done!"

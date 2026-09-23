@@ -14,7 +14,7 @@ webarchive-src(){
     user_agent="$(get_user_agent)"
     echo -e "\ncurl ${curl_options_slow[@]} -H \"User-agent: ${user_agent}\" \"http://web.archive.org/cdx/search/cdx?url=*.${domain}/*&output=text&fl=original&collapse=urlkey\"" >> "${log_execution_file}"
     curl "${curl_options_slow[@]}" -H "User-agent: ${user_agent}" "http://web.archive.org/cdx/search/cdx?url=*.${domain}/*&output=text&fl=original&collapse=urlkey" \
-        > "${tmp_dir}/webarchive_output.txt" 2>> "${log_execution_file}" 
+        > "${tmp_dir}/webarchive_output.tmp" 2>> "${log_execution_file}" 
     echo "Done!"
     sleep 1
 }

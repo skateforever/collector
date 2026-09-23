@@ -18,7 +18,7 @@
 ptr_sweep(){
     local ptr_ip_file="$1"
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing PTR sweep... "
-    : > "${tmp_dir}/ptr_sweep_output.txt"
+    : > "${tmp_dir}/ptr_sweep_output.tmp"
 
     if [[ ! -s "${ptr_ip_file}" ]]; then
         echo "Done!"
@@ -55,7 +55,7 @@ ptr_sweep(){
         for ptr_last in $(seq 1 254); do
             ptr_result="$(dig +short -x "${ptr_base}.${ptr_last}" 2>/dev/null | sed 's/\.$//' | tr '[:upper:]' '[:lower:]')"
             if [[ -n "${ptr_result}" ]]; then
-                echo "${ptr_result}" >> "${tmp_dir}/ptr_sweep_output.txt"
+                echo "${ptr_result}" >> "${tmp_dir}/ptr_sweep_output.tmp"
             fi
         done
     done < <(sort -u "${ptr_ip_file}")
@@ -64,6 +64,6 @@ ptr_sweep(){
         echo "ptr-sweep: skipped ${ptr_skipped} additional /24 block(s) beyond the ${ptr_max_blocks}-block cap" >> "${log_execution_file}"
     fi
 
-    sort -u -o "${tmp_dir}/ptr_sweep_output.txt" "${tmp_dir}/ptr_sweep_output.txt" 2>/dev/null
+    sort -u -o "${tmp_dir}/ptr_sweep_output.tmp" "${tmp_dir}/ptr_sweep_output.tmp" 2>/dev/null
     echo "Done!"
 }

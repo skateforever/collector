@@ -153,7 +153,7 @@ vhost_probe_ffuf(){
         return 0
     fi
 
-    : > "${tmp_dir}/vhost_probe_output.txt"
+    : > "${tmp_dir}/vhost_probe_output.tmp"
     local ffuf_ip ffuf_port ffuf_proto ffuf_url ffuf_out tls_p
     local -a ffuf_curl_opts=()
     if [[ "${#vhost_curl_options[@]}" -gt 0 ]]; then
@@ -250,7 +250,7 @@ vhost_probe_ffuf(){
                     for ffuf_verify_pid in "${ffuf_verify_pids[@]}"; do
                         wait "${ffuf_verify_pid}" 2>/dev/null
                     done
-                    cat "${ffuf_verify_out}" >> "${tmp_dir}/vhost_probe_output.txt" 2>/dev/null
+                    cat "${ffuf_verify_out}" >> "${tmp_dir}/vhost_probe_output.tmp" 2>/dev/null
                     rm -f "${ffuf_verify_out}"
                 fi
             fi
@@ -258,11 +258,11 @@ vhost_probe_ffuf(){
         done
     done < "${ffuf_ip_file}"
 
-    sort -u -o "${tmp_dir}/vhost_probe_output.txt" "${tmp_dir}/vhost_probe_output.txt" 2>/dev/null
+    sort -u -o "${tmp_dir}/vhost_probe_output.tmp" "${tmp_dir}/vhost_probe_output.tmp" 2>/dev/null
     vhost_probe_persist_hits
 }
 
-# Persists tmp_dir/vhost_probe_output.txt ("ip\tport\tscheme\thost\tsize\thash"
+# Persists tmp_dir/vhost_probe_output.tmp ("ip\tport\tscheme\thost\tsize\thash"
 # lines, one per confirmed hit) to report_dir: a plain report file for manual
 # review, laid out the SAME way as vhost_subdomains_strong/weak.txt
 # ("scheme://host<TAB>ip:port<TAB>Size: N<TAB>Hash: X<TAB>tag") for a
@@ -278,7 +278,7 @@ vhost_probe_ffuf(){
 # on). Appends + sort -u so this merges cleanly whether vhost_check already
 # wrote to these files first or not.
 vhost_probe_persist_hits(){
-    [[ -s "${tmp_dir}/vhost_probe_output.txt" ]] || return 0
+    [[ -s "${tmp_dir}/vhost_probe_output.tmp" ]] || return 0
 
     awk -F'\t' '{
         ip=$1; port=$2; proto=$3; host=$4; size=$5; hash=$6;
@@ -287,9 +287,9 @@ vhost_probe_persist_hits(){
         else
             url=proto"://"host":"port;
         print url"\t"ip":"port"\tSize: "size"\tHash: "hash"\tCONFIRMED";
-    }' "${tmp_dir}/vhost_probe_output.txt" | sort -u -o "${report_dir}/vhost_probe_hits.txt"
+    }' "${tmp_dir}/vhost_probe_output.tmp" | sort -u -o "${report_dir}/vhost_probe_hits.txt"
 
-    awk -F'\t' 'BEGIN{OFS="\t"} {print $1, $4}' "${tmp_dir}/vhost_probe_output.txt" \
+    awk -F'\t' 'BEGIN{OFS="\t"} {print $1, $4}' "${tmp_dir}/vhost_probe_output.tmp" \
         >> "${report_dir}/etc_hosts_file.txt"
     sort -u -o "${report_dir}/etc_hosts_file.txt" "${report_dir}/etc_hosts_file.txt"
 
@@ -299,7 +299,7 @@ vhost_probe_persist_hits(){
             print proto"://"host;
         else
             print proto"://"host":"port;
-    }' "${tmp_dir}/vhost_probe_output.txt" >> "${report_dir}/vhost_urls.txt"
+    }' "${tmp_dir}/vhost_probe_output.tmp" >> "${report_dir}/vhost_urls.txt"
     sort -u -o "${report_dir}/vhost_urls.txt" "${report_dir}/vhost_urls.txt"
 }
 
@@ -340,7 +340,7 @@ vhost_probe(){
         return 0
     fi
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing vhost probe... "
-    : > "${tmp_dir}/vhost_probe_output.txt"
+    : > "${tmp_dir}/vhost_probe_output.tmp"
 
     # Fast path: use ffuf if available and enabled.
     if [[ "${vhost_use_ffuf}" == "yes" ]] && command -v ffuf &>/dev/null; then
@@ -526,9 +526,9 @@ vhost_probe(){
     done
 
     # Merge per-worker outputs and deduplicate
-    cat "${tmp_dir}"/vhost_probe_worker_*.tmp >> "${tmp_dir}/vhost_probe_output.txt" 2>/dev/null
+    cat "${tmp_dir}"/vhost_probe_worker_*.tmp >> "${tmp_dir}/vhost_probe_output.tmp" 2>/dev/null
     rm -f "${tmp_dir}"/vhost_probe_worker_*.tmp
-    sort -u -o "${tmp_dir}/vhost_probe_output.txt" "${tmp_dir}/vhost_probe_output.txt" 2>/dev/null
+    sort -u -o "${tmp_dir}/vhost_probe_output.tmp" "${tmp_dir}/vhost_probe_output.tmp" 2>/dev/null
     vhost_probe_persist_hits
     echo "Done!"
 }

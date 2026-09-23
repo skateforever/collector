@@ -16,7 +16,7 @@ publicwww-src(){
     echo -e "\ncurl ${curl_options[@]} -H \"User-agent: ${user_agent}\" \"https://publicwww.com/websites/%22.${domain}%22/?export=csv&k=${publicwww_api_key}\"" >> "${log_execution_file}"
     curl "${curl_options[@]}" \
         -H "User-agent: ${user_agent}" \
-        "https://publicwww.com/websites/%22.${domain}%22/?export=csv&k=${publicwww_api_key}" > "${tmp_dir}/publicwww_output.txt" 2>> "${log_execution_file}"
+        "https://publicwww.com/websites/%22.${domain}%22/?export=csv&k=${publicwww_api_key}" > "${tmp_dir}/publicwww_output.tmp" 2>> "${log_execution_file}"
     echo "Done!"
     sleep 1
 }
