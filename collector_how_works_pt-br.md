@@ -356,6 +356,7 @@ A descoberta de vhosts tem sua própria seção de tuning no `conf.d/functions.c
 
 ```bash
 # vhost - performance tuning
+vhost_baseline_samples=3           # amostras independentes (host aleatório cada) que formam a baseline "vhost não existe"
 vhost_check_processes=16           # workers paralelos para vhost_check (cada worker roda um lote de nomes)
 vhost_check_batch_size=20          # nomes por worker no vhost_check (curl+httpx por nome, por isso é menor que o do probe)
 vhost_probe_processes=50           # workers paralelos para vhost_probe (single curl leve cada)
@@ -372,8 +373,9 @@ Não há lista de portas própria do vhost: `vhost_check`/`vhost_probe` sempre u
 Comportamentos chave controlados por essas variáveis:
 
 - **Pré-filtro TCP:** antes de forçar uma porta, um teste rápido de TCP connect (`vhost_prefilter_timeout`) descarta portas fechadas — evita milhares de timeouts desperdiçados na lista longa de portas.
-- **Early-exit em baselines mortos:** se o request de baseline (host aleatório) retorna status `000` (connection refused), aquele par (IP, porta) é inteiramente ignorado.
-- **Modo ffuf:** configurar `vhost_use_ffuf=yes` substitui o loop Bash do probe por uma única invocação de `ffuf` por par (IP, porta) — ordens de magnitude mais rápido para wordlists grandes. Cai no loop Bash se `ffuf` não estiver no PATH.
+- **Early-exit em baselines mortos:** se todas as amostras de baseline (hosts aleatórios) retornam status `000` (connection refused), aquele par (IP, porta) é inteiramente ignorado.
+- **Baseline por múltiplas amostras:** uma única amostra não distingue um alvo com resposta padrão estável de um alvo cuja página padrão varia a cada request (token CSRF, timestamp, request-id) — nesse segundo caso, todo candidato pareceria "diferente" da amostra única, gerando avalanche de falso positivo. `vhost_baseline_samples` amostras (host aleatório cada) formam um conjunto; um candidato só é tratado como diferente se não bater com **nenhuma** amostra do conjunto, e mesmo assim é testado de novo (mesma pergunta, mesmo host) antes de ser reportado — um vhost real reproduz a mesma resposta; ruído normalmente não.
+- **Modo ffuf:** configurar `vhost_use_ffuf=yes` substitui o loop Bash do probe por uma única invocação de `ffuf` por par (IP, porta) — ordens de magnitude mais rápido para wordlists grandes. O `-fs` recebe a lista de tamanhos de todas as amostras de baseline (separados por vírgula), e cada candidato que passar o filtro do ffuf ainda é reverificado (tamanho + hash + reprodutibilidade) antes de entrar no resultado. Cai no loop Bash se `ffuf` não estiver no PATH.
 
 ## 6. Mais detalhes
 

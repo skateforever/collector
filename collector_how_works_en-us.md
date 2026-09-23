@@ -356,6 +356,7 @@ Vhost discovery has its own tuning section in `conf.d/functions.conf`. These var
 
 ```bash
 # vhost - performance tuning
+vhost_baseline_samples=3           # independent samples (random host each) making up the "no such vhost" baseline
 vhost_check_processes=16           # parallel workers for vhost_check (each worker runs one batch of names)
 vhost_check_batch_size=20          # names per vhost_check worker (curl+httpx per name, hence smaller than the probe's)
 vhost_probe_processes=50           # parallel workers for vhost_probe (lightweight single curl each)
@@ -372,8 +373,9 @@ There is no vhost-specific port list: `vhost_check`/`vhost_probe` always use `we
 Key behaviors controlled by these variables:
 
 - **TCP pre-filter:** before brute-forcing a port, a fast TCP connect test (`vhost_prefilter_timeout`) discards ports that are closed — avoids thousands of wasted timeouts on the long port list.
-- **Early-exit on dead baselines:** if the baseline request (random host) returns status `000` (connection refused), that (IP, port) pair is skipped entirely.
-- **ffuf mode:** setting `vhost_use_ffuf=yes` replaces the Bash-loop probe with a single `ffuf` invocation per (IP, port) pair — orders of magnitude faster for large wordlists. Falls back to the Bash loop if `ffuf` is not in PATH.
+- **Early-exit on dead baselines:** if every baseline sample (random host) returns status `000` (connection refused), that (IP, port) pair is skipped entirely.
+- **Multi-sample baseline:** a single sample can't tell a stable default response apart from one draw of a page that varies per request (CSRF token, timestamp, request id) — in the latter case every candidate would look "different" from that one snapshot, flooding the output with false positives. `vhost_baseline_samples` samples (random host each) form a set instead; a candidate only counts as different if it matches **none** of the samples in that set, and is still re-probed once more (same question, same host) before being reported — a genuine vhost reproduces the same answer; noise usually doesn't.
+- **ffuf mode:** setting `vhost_use_ffuf=yes` replaces the Bash-loop probe with a single `ffuf` invocation per (IP, port) pair — orders of magnitude faster for large wordlists. `-fs` gets the comma-separated size list from every baseline sample, and each candidate that clears ffuf's filter is still re-verified (size + hash + reproducibility) before making it into the result. Falls back to the Bash loop if `ffuf` is not in PATH.
 
 ## 6. Further details
 

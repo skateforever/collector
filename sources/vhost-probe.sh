@@ -14,8 +14,15 @@
 # common vhost names against all real target IPs (infra_ipv4.txt),
 # running after infra_data() so it has the full IP surface.
 #
-# A per-IP baseline is computed using a random hostname that
-# should never resolve, mirroring vhost_check_baseline()'s approach.
+# The baseline ("what does this IP:port answer for a vhost name that
+# doesn't exist") is sampled vhost_baseline_samples times, each with its
+# own random hostname — see vhost-check.sh's header for why a single
+# sample isn't enough (a target whose default page varies per request
+# would otherwise flag basically every candidate). A word only counts
+# as a hit if it matches none of the baseline samples AND a repeat
+# request to that same word reproduces the same reading — mirroring
+# vhost_check_baseline()'s approach end to end, including the
+# reproducibility re-check.
 #
 # Usage: vhost_probe <ip_file>
 #   ip_file — one IPv4 per line (typically report_dir/infra_ipv4.txt)
@@ -35,25 +42,73 @@ vhost_port_alive(){
         -o /dev/null -w "%{http_code}" "${vpa_proto}://${vpa_ip}:${vpa_port}" 2>/dev/null | grep -qE '^[1-5][0-9]{2}$'
 }
 
-# Re-verifies a single ffuf candidate with a fresh curl request, appending
-# it to out_file only if size AND hash both differ from the baseline.
-# ffuf's own -fs only confirms the size differs, so this catches the case
-# where that size difference isn't matched by an actual content difference
-# (or was a one-off blip) — same anti-noise rule vhost_check/vhost_probe's
-# bash-loop worker use.
-# Args: $1=url $2=baseline_size $3=baseline_hash $4=out_file $5=word
+# Computes the ffuf-mode baseline for one target URL as a SET of
+# vhost_baseline_samples independent samples (random hostname each).
+# Prints one "size|hash" line per successful sample; returns 1 if every
+# sample failed (the pair is dead).
+vhost_probe_ffuf_baseline(){
+    local url="$1"
+    local samples="${vhost_baseline_samples:-3}"
+    local i got_any="no" rand_host raw size hash
+    for ((i = 0; i < samples; i++)); do
+        rand_host="$(tr -dc 'a-z' </dev/urandom | fold -w 12 | head -n1).${domain}"
+        raw="$(curl -k "${ffuf_curl_opts[@]}" \
+            -H "Host: ${rand_host}" \
+            -w $'\n%{size_download}' \
+            "${url}" 2>/dev/null)"
+        size="${raw##*$'\n'}"
+        [[ -z "${size}" || "${size}" == "0" ]] && continue
+        hash="$(printf '%s' "${raw%$'\n'*}" | md5sum | awk '{print $1}')"
+        got_any="yes"
+        printf '%s|%s\n' "${size}" "${hash}"
+    done
+    [[ "${got_any}" == "yes" ]] || return 1
+}
+
+# Re-verifies a single ffuf candidate against the full baseline sample
+# set with a fresh curl request, and — if it still looks different —
+# repeats that same request once more to confirm the reading is
+# reproducible before reporting it. ffuf's own -fs only filters by exact
+# size match, so this is what actually tells a genuine vhost apart from
+# a same-size/different-content coincidence or from noise on a target
+# whose default page varies per request.
+# Args: $1=url $2=out_file $3=word $4=num_samples $5..=baseline samples
+#       ("size|hash")
 vhost_probe_ffuf_verify_worker(){
-    local fvw_url="$1" fvw_baseline_size="$2" fvw_baseline_hash="$3" fvw_out="$4" fvw_word="$5"
-    local fvw_raw fvw_size fvw_hash
-    fvw_raw="$(curl -k "${ffuf_curl_opts[@]}" \
-        -H "Host: ${fvw_word}.${domain}" \
-        -w $'\n%{size_download}' \
-        "${fvw_url}" 2>/dev/null)"
-    fvw_size="${fvw_raw##*$'\n'}"
-    fvw_hash="$(printf '%s' "${fvw_raw%$'\n'*}" | md5sum | awk '{print $1}')"
-    if [[ "${fvw_size}" != "${fvw_baseline_size}" && "${fvw_hash}" != "${fvw_baseline_hash}" ]]; then
-        echo "${fvw_word}.${domain}" >> "${fvw_out}"
-    fi
+    local fvw_url="$1" fvw_out="$2" fvw_word="$3" fvw_num_samples="$4"
+    shift 4
+    local -a fvw_samples=()
+    local i
+    for ((i = 0; i < fvw_num_samples; i++)); do
+        fvw_samples+=("$1")
+        shift
+    done
+
+    _fvw_probe_once(){
+        local raw size hash sample s_size s_hash diff
+        raw="$(curl -k "${ffuf_curl_opts[@]}" \
+            -H "Host: ${fvw_word}.${domain}" \
+            -w $'\n%{size_download}' \
+            "${fvw_url}" 2>/dev/null)"
+        size="${raw##*$'\n'}"
+        hash="$(printf '%s' "${raw%$'\n'*}" | md5sum | awk '{print $1}')"
+        diff="yes"
+        for sample in "${fvw_samples[@]}"; do
+            IFS='|' read -r s_size s_hash <<< "${sample}"
+            [[ "${size}" == "${s_size}" && "${hash}" == "${s_hash}" ]] && diff="no"
+        done
+        printf '%s|%s|%s\n' "${size}" "${hash}" "${diff}"
+    }
+
+    local reading1 reading2
+    reading1="$(_fvw_probe_once)"
+    [[ "${reading1##*|}" == "yes" ]] || return 0
+
+    reading2="$(_fvw_probe_once)"
+    [[ "${reading2##*|}" == "yes" ]] || return 0
+    [[ "${reading1%|*}" == "${reading2%|*}" ]] || return 0
+
+    echo "${fvw_word}.${domain}" >> "${fvw_out}"
 }
 
 # Fast vhost probe using ffuf's native vhost mode.
@@ -70,8 +125,7 @@ vhost_probe_ffuf(){
     fi
 
     : > "${tmp_dir}/vhost_probe_output.txt"
-    local ffuf_ip ffuf_port ffuf_proto ffuf_url
-    local ffuf_baseline_raw ffuf_baseline_size ffuf_baseline_hash ffuf_rand_host ffuf_out tls_p
+    local ffuf_ip ffuf_port ffuf_proto ffuf_url ffuf_out tls_p
     local -a ffuf_curl_opts=()
     if [[ "${#vhost_curl_options[@]}" -gt 0 ]]; then
         ffuf_curl_opts=("${vhost_curl_options[@]}")
@@ -95,32 +149,31 @@ vhost_probe_ffuf(){
             done
             ffuf_url="${ffuf_proto}://${ffuf_ip}:${ffuf_port}"
 
-            # Get baseline response (size + hash) with a random hostname.
-            # The hash is used later to re-verify ffuf's hits (ffuf itself
-            # only filters by exact size match via -fs, so it can't tell a
-            # genuinely different vhost from a same-size/different-content
-            # coincidence).
-            ffuf_rand_host="$(tr -dc 'a-z' </dev/urandom | fold -w 12 | head -n1).${domain}"
-            ffuf_baseline_raw="$(curl -k "${ffuf_curl_opts[@]}" \
-                -H "Host: ${ffuf_rand_host}" \
-                -w $'\n%{size_download}' \
-                "${ffuf_url}" 2>/dev/null)"
-            ffuf_baseline_size="${ffuf_baseline_raw##*$'\n'}"
-            ffuf_baseline_hash="$(printf '%s' "${ffuf_baseline_raw%$'\n'*}" | md5sum | awk '{print $1}')"
+            # Baseline: a SET of samples, not one. The hash is used later
+            # to re-verify ffuf's hits (ffuf itself only filters by exact
+            # size match via -fs, so it can't tell a genuinely different
+            # vhost from a same-size/different-content coincidence).
+            local -a ffuf_baseline_samples=()
+            mapfile -t ffuf_baseline_samples < <(vhost_probe_ffuf_baseline "${ffuf_url}")
 
-            # Skip port if no response
-            [[ -z "${ffuf_baseline_size}" || "${ffuf_baseline_size}" == "0" ]] && continue
+            # Skip port if every sample got no response
+            [[ "${#ffuf_baseline_samples[@]}" -eq 0 ]] && continue
+
+            # -fs takes a comma-separated list of sizes: filter out every
+            # size observed across the baseline samples, not just one.
+            local ffuf_fs_sizes
+            ffuf_fs_sizes="$(printf '%s\n' "${ffuf_baseline_samples[@]}" | awk -F'|' '{print $1}' | sort -un | paste -sd, -)"
 
             ffuf_out="${tmp_dir}/ffuf_vhost_${ffuf_ip}_${ffuf_port}.tmp"
 
             # ffuf vhost mode: FUZZ is replaced with each wordlist entry
-            # -fs filters out responses matching baseline size (false positives)
+            # -fs filters out responses matching a baseline sample's size
             # -t threads, -timeout per-request timeout
-            echo "ffuf -u ${ffuf_url} -H \"Host: FUZZ.${domain}\" -w ${ffuf_wordlist} -fs ${ffuf_baseline_size} -t ${ffuf_threads_vp}" >> "${log_execution_file}"
+            echo "ffuf -u ${ffuf_url} -H \"Host: FUZZ.${domain}\" -w ${ffuf_wordlist} -fs ${ffuf_fs_sizes} -t ${ffuf_threads_vp}" >> "${log_execution_file}"
             ffuf -u "${ffuf_url}" \
                 -H "Host: FUZZ.${domain}" \
                 -w "${ffuf_wordlist}" \
-                -fs "${ffuf_baseline_size}" \
+                -fs "${ffuf_fs_sizes}" \
                 -t "${ffuf_threads_vp}" \
                 -timeout 5 \
                 -s \
@@ -161,8 +214,8 @@ vhost_probe_ffuf(){
                             [[ "${#ffuf_verify_pids[@]}" -lt "${ffuf_threads_vp}" ]] && break
                             sleep 0.2
                         done
-                        vhost_probe_ffuf_verify_worker "${ffuf_url}" "${ffuf_baseline_size}" "${ffuf_baseline_hash}" \
-                            "${ffuf_verify_out}" "${ffuf_word}" &
+                        vhost_probe_ffuf_verify_worker "${ffuf_url}" "${ffuf_verify_out}" "${ffuf_word}" \
+                            "${#ffuf_baseline_samples[@]}" "${ffuf_baseline_samples[@]}" &
                         ffuf_verify_pids+=("$!")
                     done
                     for ffuf_verify_pid in "${ffuf_verify_pids[@]}"; do
@@ -177,6 +230,37 @@ vhost_probe_ffuf(){
     done < "${ffuf_ip_file}"
 
     sort -u -o "${tmp_dir}/vhost_probe_output.txt" "${tmp_dir}/vhost_probe_output.txt" 2>/dev/null
+}
+
+# Computes the bash-loop-mode baseline for one (IP, port) pair as a SET
+# of vhost_baseline_samples independent samples (random hostname each).
+# Prints one "status|size|hash" line per successful sample; returns 1 if
+# every sample got no TCP response at all (the pair is dead).
+# Args: $1=url $2..=curl options array
+vhost_probe_baseline(){
+    local url="$1"
+    shift
+    local -a curl_opts=("$@")
+    local samples="${vhost_baseline_samples:-3}"
+    local i got_any="no" rand_host ua raw trailer status len hash
+    for ((i = 0; i < samples; i++)); do
+        rand_host="$(tr -dc 'a-z' </dev/urandom | fold -w 12 | head -n1).${domain}"
+        ua="$(get_user_agent)"
+        raw="$(curl "${curl_opts[@]}" \
+            -H "Host: ${rand_host}" \
+            -H "User-agent: ${ua}" \
+            -w $'\n%{http_code} %{size_download}' \
+            "${url}" 2>/dev/null)"
+        trailer="${raw##*$'\n'}"
+        status="${trailer%% *}"
+        len="${trailer##* }"
+        [[ -z "${status}" || "${status}" == "000" ]] && continue
+        [[ -z "${len}" ]] && len=0
+        hash="$(printf '%s' "${raw%$'\n'*}" | md5sum | awk '{print $1}')"
+        got_any="yes"
+        printf '%s|%s|%s\n' "${status}" "${len}" "${hash}"
+    done
+    [[ "${got_any}" == "yes" ]] || return 1
 }
 
 vhost_probe(){
@@ -220,44 +304,68 @@ vhost_probe(){
     fi
 
     # Batch worker: probes a slice of the wordlist for a single (IP, port) pair.
-    # Args: $1=IP $2=port $3=baseline_status $4=baseline_len $5=baseline_hash $6..=words
+    # Args: $1=IP $2=port $3=num_samples $4..$(3+num_samples)=baseline
+    #       samples ("status|size|hash") remaining=words
     #
-    # A hit needs the status to differ, OR size AND hash to *both* differ.
-    # Requiring both size and hash (instead of just checking the hash) is
-    # what keeps pages with per-request dynamic content (CSRF token,
-    # timestamp, request id) from flagging as a false positive on every
-    # single word — that kind of noise usually leaves size unchanged while
-    # still flipping the hash. Same rule vhost_check uses for its own
-    # curl_diff/httpx_diff (sources/vhost-check.sh).
+    # A word only counts as a hit if it matches NONE of the baseline
+    # samples AND a repeat request to that same word reproduces the same
+    # reading. Matching a sample means: status equal AND (size equal OR
+    # hash equal) — same per-sample rule the old single-baseline check
+    # used, just checked against every observed sample instead of one.
     vhost_probe_batch_worker(){
-        local bp_ip="$1" bp_port="$2" bp_baseline_status="$3" bp_baseline_len="$4" bp_baseline_hash="$5"
-        shift 5
-        local bp_proto="http" bp_url bp_ua bp_word bp_host
-        local bp_raw bp_trailer bp_status bp_len bp_hash
+        local bp_ip="$1" bp_port="$2" bp_num_samples="$3"
+        shift 3
+        local -a bp_baseline_samples=()
+        local i
+        for ((i = 0; i < bp_num_samples; i++)); do
+            bp_baseline_samples+=("$1")
+            shift
+        done
+        local bp_proto="http" bp_url bp_word bp_host
         local tls_p
 
         for tls_p in "${webapp_tls_ports[@]}"; do
             [[ "${tls_p}" == "${bp_port}" ]] && { bp_proto="https"; break; }
         done
         bp_url="${bp_proto}://${bp_ip}:${bp_port}"
-        bp_ua="$(get_user_agent)"
 
-        for bp_word in "$@"; do
-            bp_host="${bp_word}.${domain}"
-            bp_raw="$(curl "${vp_curl_opts[@]}" \
-                -H "Host: ${bp_host}" \
-                -H "User-agent: ${bp_ua}" \
+        _bp_probe_once(){
+            local host="$1" ua raw trailer status len hash
+            local sample s_status s_size s_hash diff
+            ua="$(get_user_agent)"
+            raw="$(curl "${vp_curl_opts[@]}" \
+                -H "Host: ${host}" \
+                -H "User-agent: ${ua}" \
                 -w $'\n%{http_code} %{size_download}' \
                 "${bp_url}" 2>/dev/null)"
-            bp_trailer="${bp_raw##*$'\n'}"
-            bp_status="${bp_trailer%% *}"
-            bp_len="${bp_trailer##* }"
-            [[ -z "${bp_len}" ]] && bp_len=0
-            bp_hash="$(printf '%s' "${bp_raw%$'\n'*}" | md5sum | awk '{print $1}')"
-            if [[ "${bp_status}" != "${bp_baseline_status}" ]] || \
-               { [[ "${bp_len}" != "${bp_baseline_len}" ]] && [[ "${bp_hash}" != "${bp_baseline_hash}" ]]; }; then
-                echo "${bp_host}" >> "${tmp_dir}/vhost_probe_worker_${bp_ip}_${bp_port}_$$.tmp"
-            fi
+            trailer="${raw##*$'\n'}"
+            status="${trailer%% *}"
+            len="${trailer##* }"
+            [[ -z "${len}" ]] && len=0
+            hash="$(printf '%s' "${raw%$'\n'*}" | md5sum | awk '{print $1}')"
+
+            diff="yes"
+            for sample in "${bp_baseline_samples[@]}"; do
+                IFS='|' read -r s_status s_size s_hash <<< "${sample}"
+                if [[ "${status}" == "${s_status}" ]] && { [[ "${len}" == "${s_size}" ]] || [[ "${hash}" == "${s_hash}" ]]; }; then
+                    diff="no"
+                fi
+            done
+            printf '%s|%s|%s\n' "${len}" "${hash}" "${diff}"
+        }
+
+        local bp_reading1 bp_reading2
+        for bp_word in "$@"; do
+            bp_host="${bp_word}.${domain}"
+
+            bp_reading1="$(_bp_probe_once "${bp_host}")"
+            [[ "${bp_reading1##*|}" == "yes" ]] || continue
+
+            bp_reading2="$(_bp_probe_once "${bp_host}")"
+            [[ "${bp_reading2##*|}" == "yes" ]] || continue
+            [[ "${bp_reading1%|*}" == "${bp_reading2%|*}" ]] || continue
+
+            echo "${bp_host}" >> "${tmp_dir}/vhost_probe_worker_${bp_ip}_${bp_port}_$$.tmp"
         done
     }
 
@@ -268,11 +376,6 @@ vhost_probe(){
         vhost_probe_ip="$(echo "${vhost_probe_ip}" | grep -Eo "${IPv4_regex}")"
         [[ -z "${vhost_probe_ip}" ]] && continue
 
-        local vhost_probe_rand_host
-        vhost_probe_rand_host="$(tr -dc 'a-z' </dev/urandom | fold -w 12 | head -n1).${domain}"
-        unset user_agent
-        user_agent="$(get_user_agent)"
-
         local vhost_probe_port
         for vhost_probe_port in "${vp_probe_ports[@]}"; do
             vhost_port_alive "${vhost_probe_ip}" "${vhost_probe_port}" || continue
@@ -282,23 +385,12 @@ vhost_probe(){
                 [[ "${p2}" == "${vhost_probe_port}" ]] && { bp_proto="https"; break; }
             done
             local bp_url="${bp_proto}://${vhost_probe_ip}:${vhost_probe_port}"
-            local vhost_probe_baseline_raw vhost_probe_baseline_trailer
-            vhost_probe_baseline_raw="$(curl "${vp_curl_opts[@]}" \
-                -H "Host: ${vhost_probe_rand_host}" \
-                -H "User-agent: ${user_agent}" \
-                -w $'\n%{http_code} %{size_download}' \
-                "${bp_url}" 2>/dev/null)"
-            local vhost_probe_baseline_status vhost_probe_baseline_len vhost_probe_baseline_hash
-            vhost_probe_baseline_trailer="${vhost_probe_baseline_raw##*$'\n'}"
-            vhost_probe_baseline_status="${vhost_probe_baseline_trailer%% *}"
-            vhost_probe_baseline_len="${vhost_probe_baseline_trailer##* }"
-            [[ -z "${vhost_probe_baseline_len}" ]] && vhost_probe_baseline_len=0
-            vhost_probe_baseline_hash="$(printf '%s' "${vhost_probe_baseline_raw%$'\n'*}" | md5sum | awk '{print $1}')"
 
-            # Early exit: if baseline gets no response, skip this port.
-            if [[ "${vhost_probe_baseline_status}" == "000" || -z "${vhost_probe_baseline_status}" ]]; then
-                continue
-            fi
+            local -a vhost_probe_baseline_samples=()
+            mapfile -t vhost_probe_baseline_samples < <(vhost_probe_baseline "${bp_url}" "${vp_curl_opts[@]}")
+
+            # Early exit: if every sample got no response, skip this port.
+            [[ "${#vhost_probe_baseline_samples[@]}" -eq 0 ]] && continue
 
             # Dispatch batches of words
             local batch=() bidx=0
@@ -320,8 +412,8 @@ vhost_probe(){
                         done
                         vhost_probe_pids=("${vhost_probe_alive_pids[@]}")
                     done
-                    vhost_probe_batch_worker "${vhost_probe_ip}" "${vhost_probe_port}" \
-                        "${vhost_probe_baseline_status}" "${vhost_probe_baseline_len}" "${vhost_probe_baseline_hash}" "${batch[@]}" &
+                    vhost_probe_batch_worker "${vhost_probe_ip}" "${vhost_probe_port}" "${#vhost_probe_baseline_samples[@]}" \
+                        "${vhost_probe_baseline_samples[@]}" "${batch[@]}" &
                     vhost_probe_pids+=("$!")
                     batch=()
                     bidx=0
@@ -342,8 +434,8 @@ vhost_probe(){
                     done
                     vhost_probe_pids=("${vhost_probe_alive_pids[@]}")
                 done
-                vhost_probe_batch_worker "${vhost_probe_ip}" "${vhost_probe_port}" \
-                    "${vhost_probe_baseline_status}" "${vhost_probe_baseline_len}" "${vhost_probe_baseline_hash}" "${batch[@]}" &
+                vhost_probe_batch_worker "${vhost_probe_ip}" "${vhost_probe_port}" "${#vhost_probe_baseline_samples[@]}" \
+                    "${vhost_probe_baseline_samples[@]}" "${batch[@]}" &
                 vhost_probe_pids+=("$!")
             fi
         done  # end port loop
