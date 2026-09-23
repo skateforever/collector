@@ -414,7 +414,7 @@ Both use `collector-docker` (or `docker run --rm` directly) — each run fires a
         ├── vhost_subdomains_strong.txt            STRONG vhost_check hits (curl + httpx both disagree with baseline)
         ├── vhost_subdomains_weak.txt              WEAK vhost_check hits (only one of curl/httpx disagreed) — manual review only, never auto-injected
         ├── vhost_subdomains_diff.txt              STRONG hits new since the previous run (drives the notify channel)
-        ├── vhost_probe_hits.txt                   confirmed vhost_probe hits (ip:port<TAB>scheme://host[:port], ready to paste) — merged into etc_hosts_file.txt too, same bar as STRONG
+        ├── vhost_probe_hits.txt                   confirmed vhost_probe hits, same layout as vhost_subdomains_*.txt (scheme://host<TAB>ip:port<TAB>Size<TAB>Hash<TAB>tag; tag is always CONFIRMED) — merged into etc_hosts_file.txt too, same bar as STRONG
         ├── email_recon.txt / email_recon_diff.txt
         ├── robots_urls.txt
         ├── sitemap_urls.txt                       URLs harvested from sitemap.xml (recursive sitemapindex)

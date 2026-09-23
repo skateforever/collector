@@ -122,7 +122,7 @@ vhost_probe_ffuf_verify_worker(){
         printf '%s|%s|%s\n' "${size}" "${hash}" "${diff}"
     }
 
-    local reading1 reading2
+    local reading1 reading2 fvw_size fvw_hash fvw_diff
     reading1="$(_fvw_probe_once)"
     [[ "${reading1##*|}" == "yes" ]] || return 0
 
@@ -136,7 +136,8 @@ vhost_probe_ffuf_verify_worker(){
     local fvw_scheme="${fvw_url%%://*}"
     local fvw_ip="${fvw_url#*://}"; fvw_ip="${fvw_ip%%:*}"
     local fvw_port="${fvw_url##*:}"
-    printf '%s\t%s\t%s\t%s\n' "${fvw_ip}" "${fvw_port}" "${fvw_scheme}" "${fvw_word}.${domain}" >> "${fvw_out}"
+    IFS='|' read -r fvw_size fvw_hash fvw_diff <<< "${reading1}"
+    printf '%s\t%s\t%s\t%s\t%s\t%s\n' "${fvw_ip}" "${fvw_port}" "${fvw_scheme}" "${fvw_word}.${domain}" "${fvw_size}" "${fvw_hash}" >> "${fvw_out}"
 }
 
 # Fast vhost probe using ffuf's native vhost mode.
@@ -261,31 +262,31 @@ vhost_probe_ffuf(){
     vhost_probe_persist_hits
 }
 
-# Persists tmp_dir/vhost_probe_output.txt ("ip\tport\tscheme\thost" lines,
-# one per confirmed hit) to report_dir: a plain report file for manual
-# review (rewritten as "ip:port<TAB>scheme://host[:port]" — ip:port is
-# always shown since that's the actual socket probed regardless of
-# scheme; the URL's own port is dropped only for the canonical 80/443,
-# same convention vhost_urls.txt already uses, so the whole line is
-# ready to paste into a terminal or browser), plus a merge into the SAME
-# etc_hosts_file.txt / vhost_urls.txt vhost_check's STRONG hits feed. A
-# confirmed probe hit already cleared the same bar STRONG does
-# (multi-sample baseline + reproducibility re-check), so it gets the
-# same automatic /etc/hosts injection and webapp_consolidated.txt
-# inclusion — see the file header for why that's the whole point (most
-# real hits here won't have public DNS to fall back on). Appends +
-# sort -u so this merges cleanly whether vhost_check already wrote to
-# these files first or not.
+# Persists tmp_dir/vhost_probe_output.txt ("ip\tport\tscheme\thost\tsize\thash"
+# lines, one per confirmed hit) to report_dir: a plain report file for manual
+# review, laid out the SAME way as vhost_subdomains_strong/weak.txt
+# ("scheme://host<TAB>ip:port<TAB>Size: N<TAB>Hash: X<TAB>tag") for a
+# consistent look across all three vhost report files — the tag is always
+# CONFIRMED here since there's no dual-tool consensus to split on (single
+# curl, or ffuf), just confirmed-by-reproducibility or not in this file at
+# all — plus a merge into the SAME etc_hosts_file.txt / vhost_urls.txt
+# vhost_check's STRONG hits feed. A confirmed probe hit already cleared the
+# same bar STRONG does (multi-sample baseline + reproducibility re-check),
+# so it gets the same automatic /etc/hosts injection and
+# webapp_consolidated.txt inclusion — see the file header for why that's
+# the whole point (most real hits here won't have public DNS to fall back
+# on). Appends + sort -u so this merges cleanly whether vhost_check already
+# wrote to these files first or not.
 vhost_probe_persist_hits(){
     [[ -s "${tmp_dir}/vhost_probe_output.txt" ]] || return 0
 
     awk -F'\t' '{
-        ip=$1; port=$2; proto=$3; host=$4;
+        ip=$1; port=$2; proto=$3; host=$4; size=$5; hash=$6;
         if ((proto=="http" && port=="80") || (proto=="https" && port=="443"))
             url=proto"://"host;
         else
             url=proto"://"host":"port;
-        print ip":"port"\t"url;
+        print url"\t"ip":"port"\tSize: "size"\tHash: "hash"\tCONFIRMED";
     }' "${tmp_dir}/vhost_probe_output.txt" | sort -u -o "${report_dir}/vhost_probe_hits.txt"
 
     awk -F'\t' 'BEGIN{OFS="\t"} {print $1, $4}' "${tmp_dir}/vhost_probe_output.txt" \
@@ -431,7 +432,7 @@ vhost_probe(){
             printf '%s|%s|%s\n' "${len}" "${hash}" "${diff}"
         }
 
-        local bp_reading1 bp_reading2
+        local bp_reading1 bp_reading2 bp_len bp_hash bp_diff
         for bp_word in "$@"; do
             bp_host="${bp_word}.${domain}"
 
@@ -442,7 +443,8 @@ vhost_probe(){
             [[ "${bp_reading2##*|}" == "yes" ]] || continue
             [[ "${bp_reading1%|*}" == "${bp_reading2%|*}" ]] || continue
 
-            printf '%s\t%s\t%s\t%s\n' "${bp_ip}" "${bp_port}" "${bp_proto}" "${bp_host}" >> "${tmp_dir}/vhost_probe_worker_${bp_ip}_${bp_port}_$$.tmp"
+            IFS='|' read -r bp_len bp_hash bp_diff <<< "${bp_reading1}"
+            printf '%s\t%s\t%s\t%s\t%s\t%s\n' "${bp_ip}" "${bp_port}" "${bp_proto}" "${bp_host}" "${bp_len}" "${bp_hash}" >> "${tmp_dir}/vhost_probe_worker_${bp_ip}_${bp_port}_$$.tmp"
         done
     }
 

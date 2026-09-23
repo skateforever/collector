@@ -285,10 +285,10 @@ domains_recon(){
             [[ -s "${report_dir}/infra_ipv4.txt" ]] && \
                 vhost_probe "${report_dir}/infra_ipv4.txt"
             # Merge vhost_probe findings into domains_found.txt and resolve new entries.
-            # vhost_probe_output.txt lines are "ip\tport\tscheme\thost" (since
-            # vhost_probe_persist_hits() already used ip/port/scheme to feed
-            # etc_hosts_file.txt/vhost_urls.txt directly) — pull just the
-            # hostname (field 4) before matching/merging here.
+            # vhost_probe_output.txt lines are "ip\tport\tscheme\thost\tsize\thash"
+            # (since vhost_probe_persist_hits() already used every field to feed
+            # etc_hosts_file.txt/vhost_urls.txt/vhost_probe_hits.txt directly) —
+            # pull just the hostname (field 4) before matching/merging here.
             if [[ -s "${tmp_dir}/vhost_probe_output.txt" ]]; then
                 awk -F'\t' '{print $4}' "${tmp_dir}/vhost_probe_output.txt" \
                     | grep -Ei "(\.${domain}$|^${domain}$)" \
