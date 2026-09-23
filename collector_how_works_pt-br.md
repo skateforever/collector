@@ -9,7 +9,7 @@ O foco ofensivo é encadear, em um único pipeline, as etapas que normalmente um
 - enumeração passiva e ativa de subdomínios em ~30 fontes OSINT (crt.sh, securitytrails, shodan, virustotal, alienvault, commoncrawl, dnsdumpster, rapiddns, hackertarget, whoisxmlapi, etc.);
 - enriquecimento da infraestrutura do alvo (ASN, blocos IPv4/IPv6, registros DNS, transferência de zona);
 - varredura de portas com nmap e Shodan;
-- descoberta de serviços HTTP(S) vivos com `httpx` e descoberta de vhosts (cabeçalho `Host` arbitrário) com classificação STRONG/WEAK e injeção automática em `/etc/hosts` do container;
+- descoberta de serviços HTTP(S) vivos com `httpx` e descoberta de vhosts (cabeçalho `Host` arbitrário): `vhost_check` com classificação STRONG/WEAK (curl+httpx), `vhost_probe` por wordlist genérica com confirmação por reprodutibilidade — ambos injetam automaticamente em `/etc/hosts` do container quando confirmados;
 - brute-force de diretórios e arquivos com `gobuster` + `dirsearch`, captura de `robots.txt`, `sitemap.xml`, screenshots com `aquatone`;
 - crawling de JS com `katana` + `waybackurls`, mineração de parâmetros, classificação por sinks (SQLi/XSS/SSRF/XXE/CMD) e busca por segredos hardcoded (chaves de API, JWTs, tokens);
 - coleta de e-mails do alvo via Hunter.io, IntelX, Lampyre, Snov.io e crawl do consolidado;
@@ -137,7 +137,7 @@ O entrypoint do container é o script `collector`. Resumidamente o fluxo é:
    6. `asn_sweep` + `ptr_sweep` — varrem o ASN/netblock e o `/24` reverso (PTR) de **todo** IP de infraestrutura em `infra_ipv4.txt` (não só o IP do domínio raiz, como antes); dedup por ASN/bloco e cap de segurança (`asn_max_targets`/`ptr_max_blocks`) evitam explodir o tempo de execução. Como `joining_subdomains` já rodou (passo 2), os hits novos são mesclados direto em `domains_found.txt` e re-resolvidos aqui mesmo, no mesmo padrão do `spider_src`;
    7. `nmap_scan` + `shodan_scan` — varredura de portas no conjunto de IPs externos;
    8. `webapp_alive` — `httpx` contra `domains_alive.txt` na lista de portas (`webapp_http_ports` com `-wsd`; a união completa `webapp_http_ports`+`webapp_tls_ports`+`webapp_multiple_ports` com `-wld`; ou só `webapp_http_ports`+`webapp_tls_ports` com `-wcp`);
-   9. `vhost_check` + `vhost_probe` **(somente quando `-vc|--vhost-check` é passado)** — descobre vhosts servidos pelos IPs externos cujo nome não resolve em DNS, classifica em STRONG/WEAK, escreve `etc_hosts_file.txt` e adiciona ao `/etc/hosts` do container para que as demais ferramentas resolvam transparentemente. Quando `vhost_use_ffuf=yes` no `conf.d/functions.conf`, `vhost_probe` delega ao `ffuf` para descoberta muito mais rápida via wordlist;
+   9. `vhost_check` + `vhost_probe` **(somente quando `-vc|--vhost-check` é passado)** — descobrem vhosts servidos pelos IPs externos. `vhost_check` testa candidatos com evidência prévia (curl+httpx, classifica STRONG/WEAK); `vhost_probe` testa uma wordlist genérica sem evidência prévia (single-tool, confirma por reprodutibilidade). Hits confirmados dos dois — STRONG do `vhost_check`, ou qualquer hit confirmado do `vhost_probe` — escrevem em `etc_hosts_file.txt` e são adicionados ao `/etc/hosts` do container para que as demais ferramentas resolvam transparentemente, com ou sem DNS público. WEAK do `vhost_check` fica só em `vhost_subdomains_weak.txt`, pra revisão manual. Quando `vhost_use_ffuf=yes` no `conf.d/functions.conf`, `vhost_probe` delega ao `ffuf` para descoberta muito mais rápida via wordlist;
    10. `build_consolidated_urls` — produz `webapp_consolidated.txt` (todas as URLs HTTP(S) vivas, DNS + vhosts STRONG);
    11. `webapp_tech` — captura cabeçalhos de resposta para fingerprinting (em `report/webapp/tech/`);
    12. `emails_recon` — Hunter.io + IntelX (phonebook target=2) + Lampyre + Snov.io + crawl de páginas/JS do consolidado;
@@ -180,8 +180,9 @@ Todos os artefatos finais vivem em `outputs/<domain>/recon_YYYYMMDD/`:
 ### Web
 `report/webapp_consolidated.txt` — **o artefato central**: lista de todas as URLs HTTP(S) vivas (resolução DNS + vhosts STRONG validados). É o input de gobuster, dirsearch, nuclei, katana, aquatone.
 `report/webapp_consolidated_diff.txt` — delta entre runs (foco do operador).
-`report/etc_hosts_file.txt` — mapeamento `ip<TAB>hostname` injetado em `/etc/hosts` do container. Só leva hits **STRONG** — WEAK nunca é injetado nem auto-escaneado, é sinal de confiança única (curl e httpx concordam), não dupla.
-`report/vhost_subdomains_strong.txt` / `vhost_subdomains_weak.txt` / `vhost_subdomains_diff.txt` — todos os hits de vhost_check, classificados por confiança (STRONG = curl e httpx concordam; WEAK = só um dos dois) e o delta de STRONG entre runs. WEAK fica de fora do pipeline automático de propósito — não é injetado em `/etc/hosts` nem alimenta `webapp_consolidated.txt` — mas agora é persistido pra revisão manual, em vez de ser calculado e descartado.
+`report/etc_hosts_file.txt` — mapeamento `ip<TAB>hostname` injetado em `/etc/hosts` do container. Leva hits **STRONG** do `vhost_check` **e** hits confirmados do `vhost_probe` (mesma barra: passou pela baseline multi-amostra + reprodutibilidade). WEAK do `vhost_check` nunca entra aqui — é sinal de confiança única (curl e httpx concordam), não dupla.
+`report/vhost_subdomains_strong.txt` / `vhost_subdomains_weak.txt` / `vhost_subdomains_diff.txt` — hits de `vhost_check`, classificados por confiança (STRONG = curl e httpx concordam; WEAK = só um dos dois) e o delta de STRONG entre runs. WEAK fica de fora do pipeline automático de propósito — não é injetado em `/etc/hosts` nem alimenta `webapp_consolidated.txt` — mas é persistido pra revisão manual, em vez de ser calculado e descartado.
+`report/vhost_probe_hits.txt` — hits confirmados do `vhost_probe`, formato `ip:porta<TAB>scheme://host[:porta]` (pronto pra copiar/colar num terminal ou browser — a porta na URL só é omitida quando é a canônica do scheme, 80/443), sem tier de confiança (é ferramenta única, não tem o consenso curl+httpx do `vhost_check` — ou confirma por reprodutibilidade, ou não entra aqui). Também alimenta `etc_hosts_file.txt`/`vhost_urls.txt`, então é testável mesmo sem DNS público.
 `report/robots_urls.txt` — URLs extraídas dos `robots.txt` coletados.
 `report/sitemap_urls.txt` — URLs colhidas recursivamente de `sitemap.xml`/`sitemapindex`.
 `report/webapp_js_secrets.txt` — segredos, tokens, JWTs e chaves de API encontrados nos JS baixados.
@@ -272,7 +273,7 @@ Recon + descoberta de aplicações web **com validação de vhost**:
 collector-docker -d example.com --recon --webapp-discovery --webapp-short-detection --vhost-check
 ```
 
-O que entrega: tudo acima + `vhost_subdomains_strong.txt`, `vhost_subdomains_weak.txt`, `etc_hosts_file.txt`. A validação de vhost sonda cada IP de `infra_ipv4.txt` na lista de portas configurada usando validação cruzada dual-tool (curl + httpx), e opcionalmente `ffuf` para o probe baseado em wordlist. Só STRONG é injetado em `/etc/hosts` e alimenta `webapp_consolidated.txt`; WEAK fica persistido só pra revisão manual.
+O que entrega: tudo acima + `vhost_subdomains_strong.txt`, `vhost_subdomains_weak.txt`, `vhost_probe_hits.txt`, `etc_hosts_file.txt`. `vhost_check` sonda cada IP de `infra_ipv4.txt` usando validação cruzada dual-tool (curl + httpx); `vhost_probe` testa uma wordlist genérica com uma ferramenta só (ou `ffuf`, se habilitado), confirmando por reprodutibilidade. STRONG (vhost_check) e qualquer hit confirmado (vhost_probe) são injetados em `/etc/hosts` e alimentam `webapp_consolidated.txt`; WEAK (vhost_check) fica persistido só pra revisão manual.
 
 ### 5.4. Comandos intermediários
 

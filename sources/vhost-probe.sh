@@ -24,6 +24,21 @@
 # vhost_check_baseline()'s approach end to end, including the
 # reproducibility re-check.
 #
+# A confirmed hit already carries everything vhost_check's STRONG tier
+# carries (the IP and port it was probed on, plus the scheme) — there's
+# no dual-tool consensus here (single curl, or ffuf), so there's no
+# STRONG/WEAK split, just "confirmed" or nothing. vhost_probe_persist_hits()
+# writes those hits to report_dir/vhost_probe_hits.txt and merges them
+# into the SAME etc_hosts_file.txt / vhost_urls.txt vhost_check's STRONG
+# hits use — a confirmed vhost_probe hit gets injected into /etc/hosts
+# and scanned downstream exactly like a STRONG one, whether or not it
+# also happens to have a public DNS record (most won't; that's the
+# entire point of brute-forcing Host headers instead of just reading
+# DNS). domains_recon.sh's dns_parallel_worker merge is a SEPARATE,
+# additional enrichment for whichever hits DO also resolve publicly —
+# it's not what makes a hit usable, it just adds independently-resolved
+# IP data on top for the subset where that's available.
+#
 # Usage: vhost_probe <ip_file>
 #   ip_file — one IPv4 per line (typically report_dir/infra_ipv4.txt)
 #
@@ -115,7 +130,13 @@ vhost_probe_ffuf_verify_worker(){
     [[ "${reading2##*|}" == "yes" ]] || return 0
     [[ "${reading1%|*}" == "${reading2%|*}" ]] || return 0
 
-    echo "${fvw_word}.${domain}" >> "${fvw_out}"
+    # url is "scheme://ip:port" (built as such, no path) — pull the pieces
+    # back out so the hit line carries everything needed to act on it,
+    # not just the bare hostname.
+    local fvw_scheme="${fvw_url%%://*}"
+    local fvw_ip="${fvw_url#*://}"; fvw_ip="${fvw_ip%%:*}"
+    local fvw_port="${fvw_url##*:}"
+    printf '%s\t%s\t%s\t%s\n' "${fvw_ip}" "${fvw_port}" "${fvw_scheme}" "${fvw_word}.${domain}" >> "${fvw_out}"
 }
 
 # Fast vhost probe using ffuf's native vhost mode.
@@ -237,6 +258,48 @@ vhost_probe_ffuf(){
     done < "${ffuf_ip_file}"
 
     sort -u -o "${tmp_dir}/vhost_probe_output.txt" "${tmp_dir}/vhost_probe_output.txt" 2>/dev/null
+    vhost_probe_persist_hits
+}
+
+# Persists tmp_dir/vhost_probe_output.txt ("ip\tport\tscheme\thost" lines,
+# one per confirmed hit) to report_dir: a plain report file for manual
+# review (rewritten as "ip:port<TAB>scheme://host[:port]" — ip:port is
+# always shown since that's the actual socket probed regardless of
+# scheme; the URL's own port is dropped only for the canonical 80/443,
+# same convention vhost_urls.txt already uses, so the whole line is
+# ready to paste into a terminal or browser), plus a merge into the SAME
+# etc_hosts_file.txt / vhost_urls.txt vhost_check's STRONG hits feed. A
+# confirmed probe hit already cleared the same bar STRONG does
+# (multi-sample baseline + reproducibility re-check), so it gets the
+# same automatic /etc/hosts injection and webapp_consolidated.txt
+# inclusion — see the file header for why that's the whole point (most
+# real hits here won't have public DNS to fall back on). Appends +
+# sort -u so this merges cleanly whether vhost_check already wrote to
+# these files first or not.
+vhost_probe_persist_hits(){
+    [[ -s "${tmp_dir}/vhost_probe_output.txt" ]] || return 0
+
+    awk -F'\t' '{
+        ip=$1; port=$2; proto=$3; host=$4;
+        if ((proto=="http" && port=="80") || (proto=="https" && port=="443"))
+            url=proto"://"host;
+        else
+            url=proto"://"host":"port;
+        print ip":"port"\t"url;
+    }' "${tmp_dir}/vhost_probe_output.txt" | sort -u -o "${report_dir}/vhost_probe_hits.txt"
+
+    awk -F'\t' 'BEGIN{OFS="\t"} {print $1, $4}' "${tmp_dir}/vhost_probe_output.txt" \
+        >> "${report_dir}/etc_hosts_file.txt"
+    sort -u -o "${report_dir}/etc_hosts_file.txt" "${report_dir}/etc_hosts_file.txt"
+
+    awk -F'\t' '{
+        port=$2; proto=$3; host=$4;
+        if ((proto=="http" && port=="80") || (proto=="https" && port=="443"))
+            print proto"://"host;
+        else
+            print proto"://"host":"port;
+    }' "${tmp_dir}/vhost_probe_output.txt" >> "${report_dir}/vhost_urls.txt"
+    sort -u -o "${report_dir}/vhost_urls.txt" "${report_dir}/vhost_urls.txt"
 }
 
 # Computes the bash-loop-mode baseline for one (IP, port) pair as a SET
@@ -379,7 +442,7 @@ vhost_probe(){
             [[ "${bp_reading2##*|}" == "yes" ]] || continue
             [[ "${bp_reading1%|*}" == "${bp_reading2%|*}" ]] || continue
 
-            echo "${bp_host}" >> "${tmp_dir}/vhost_probe_worker_${bp_ip}_${bp_port}_$$.tmp"
+            printf '%s\t%s\t%s\t%s\n' "${bp_ip}" "${bp_port}" "${bp_proto}" "${bp_host}" >> "${tmp_dir}/vhost_probe_worker_${bp_ip}_${bp_port}_$$.tmp"
         done
     }
 
@@ -464,5 +527,6 @@ vhost_probe(){
     cat "${tmp_dir}"/vhost_probe_worker_*.tmp >> "${tmp_dir}/vhost_probe_output.txt" 2>/dev/null
     rm -f "${tmp_dir}"/vhost_probe_worker_*.tmp
     sort -u -o "${tmp_dir}/vhost_probe_output.txt" "${tmp_dir}/vhost_probe_output.txt" 2>/dev/null
+    vhost_probe_persist_hits
     echo "Done!"
 }

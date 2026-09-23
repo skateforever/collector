@@ -284,13 +284,19 @@ domains_recon(){
             source "${collector_path}/sources/vhost-probe.sh"
             [[ -s "${report_dir}/infra_ipv4.txt" ]] && \
                 vhost_probe "${report_dir}/infra_ipv4.txt"
-            # Merge vhost_probe findings into domains_found.txt and resolve new entries
+            # Merge vhost_probe findings into domains_found.txt and resolve new entries.
+            # vhost_probe_output.txt lines are "ip\tport\tscheme\thost" (since
+            # vhost_probe_persist_hits() already used ip/port/scheme to feed
+            # etc_hosts_file.txt/vhost_urls.txt directly) — pull just the
+            # hostname (field 4) before matching/merging here.
             if [[ -s "${tmp_dir}/vhost_probe_output.txt" ]]; then
-                grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/vhost_probe_output.txt" \
+                awk -F'\t' '{print $4}' "${tmp_dir}/vhost_probe_output.txt" \
+                    | grep -Ei "(\.${domain}$|^${domain}$)" \
                     | sort -u >> "${report_dir}/domains_found.txt"
                 sort -u -o "${report_dir}/domains_found.txt" "${report_dir}/domains_found.txt"
                 # Resolve new vhost_probe entries in parallel (10x speedup)
-                grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/vhost_probe_output.txt" \
+                awk -F'\t' '{print $4}' "${tmp_dir}/vhost_probe_output.txt" \
+                    | grep -Ei "(\.${domain}$|^${domain}$)" \
                     | sort -u > "${tmp_dir}/vhost_probe_new.tmp"
                 if [[ -s "${tmp_dir}/vhost_probe_new.tmp" ]]; then
                     local num_workers=20 pids=()

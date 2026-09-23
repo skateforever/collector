@@ -65,6 +65,7 @@ build_llm_prompt(){
         "vhost_subdomains_strong.txt"
         "vhost_subdomains_weak.txt"
         "vhost_subdomains_diff.txt"
+        "vhost_probe_hits.txt"
         "email_recon.txt"
         "email_recon_diff.txt"
         "robots_urls.txt"

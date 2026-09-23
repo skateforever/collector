@@ -143,7 +143,7 @@ The hook calls `collector-docker --image build-only` internally.
 | Flag | Description |
 |------|-------------|
 | `-wd \| --webapp-discovery` | Probes live hosts for active HTTP(S) services and builds `webapp_consolidated.txt`. Vhost discovery is **not** included unless `-vc` is also passed. |
-| `-vc \| --vhost-check` | Runs `vhost_check` and `vhost_probe` against live IPs to discover virtual hosts (STRONG/WEAK classification). Requires `-wd`. Without this flag, vhost checks are skipped entirely. |
+| `-vc \| --vhost-check` | Runs `vhost_check` (curl+httpx dual-tool, STRONG/WEAK confidence) and `vhost_probe` (single-tool wordlist brute force, confirmed/not) against live IPs to discover virtual hosts. Confirmed hits from either — STRONG, or a probe hit that passed its reproducibility check — get injected into `/etc/hosts` and scanned downstream. Requires `-wd`. Without this flag, vhost checks are skipped entirely. |
 | `-wsd \| --webapp-short-detection` | Probes `webapp_http_ports` (`conf.d/functions.conf`) — ports whose protocol is fixed as plain HTTP by convention (80, 8080, ...). Use with `-wd`. |
 | `-wld \| --webapp-long-detection` | Probes the full port list: `webapp_http_ports` + `webapp_tls_ports` + `webapp_multiple_ports` (`conf.d/functions.conf`) — the comprehensive, slower option. Use with `-wd`. |
 | `-wcp \| --webapp-common-ports` | Probes the union of `webapp_http_ports` and `webapp_tls_ports` — the ports whose protocol is fixed by convention, HTTP or TLS. Use with `-wd`. |
@@ -373,7 +373,7 @@ Both use `collector-docker` (or `docker run --rm` directly) — each run fires a
 - Per-run dated folder (`recon_YYYYMMDD`) with logs, tmp, and structured report tree
 - Subdomain discovery via passive sources + active DNS bruteforce
 - Infrastructure enrichment: AS / IPv4 / IPv6 / netblocks / nmap / Shodan
-- vhost discovery (opt-in via `-vc`): parallel curl + httpx probing, STRONG vs. WEAK confidence classification, automatic `/etc/hosts` injection inside the container so all tools resolve vhosts transparently. Optional `ffuf`-backed mode for orders-of-magnitude faster probing (set `vhost_use_ffuf=yes` in `conf.d/functions.conf`)
+- vhost discovery (opt-in via `-vc`): `vhost_check` (parallel curl + httpx, STRONG vs. WEAK confidence) against candidates with prior evidence, plus `vhost_probe` (single-tool wordlist brute force, with reproducibility confirmation) against a generic wordlist. Both feed the same automatic `/etc/hosts` injection inside the container once confirmed, so all tools resolve vhosts transparently — whether or not the vhost also has public DNS. Optional `ffuf`-backed mode for orders-of-magnitude faster probing (set `vhost_use_ffuf=yes` in `conf.d/functions.conf`)
 - `-dr|--dry-run` pre-flight validation mode — confirm config and parameters before a long run
 - Per-artifact diff vs. previous run — only deltas pushed to notify channel
 - Email harvesting from APIs + page/JS crawl filtered to the target domain
@@ -410,10 +410,11 @@ Both use `collector-docker` (or `docker run --rm` directly) — each run fires a
         ├── infra_ipv6.txt / infra_blocks.txt
         ├── webapp_consolidated.txt                all live HTTP(S) URLs (DNS + validated vhosts)
         ├── webapp_consolidated_diff.txt
-        ├── etc_hosts_file.txt                     vhost→IP map (ip<TAB>hostname), STRONG only
-        ├── vhost_subdomains_strong.txt            STRONG vhost hits (curl + httpx both disagree with baseline)
-        ├── vhost_subdomains_weak.txt              WEAK vhost hits (only one of curl/httpx disagreed) — manual review only, never auto-injected
+        ├── etc_hosts_file.txt                     vhost→IP map (ip<TAB>hostname) injected into /etc/hosts — vhost_check STRONG + confirmed vhost_probe hits, combined
+        ├── vhost_subdomains_strong.txt            STRONG vhost_check hits (curl + httpx both disagree with baseline)
+        ├── vhost_subdomains_weak.txt              WEAK vhost_check hits (only one of curl/httpx disagreed) — manual review only, never auto-injected
         ├── vhost_subdomains_diff.txt              STRONG hits new since the previous run (drives the notify channel)
+        ├── vhost_probe_hits.txt                   confirmed vhost_probe hits (ip:port<TAB>scheme://host[:port], ready to paste) — merged into etc_hosts_file.txt too, same bar as STRONG
         ├── email_recon.txt / email_recon_diff.txt
         ├── robots_urls.txt
         ├── sitemap_urls.txt                       URLs harvested from sitemap.xml (recursive sitemapindex)

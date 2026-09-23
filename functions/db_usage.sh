@@ -78,13 +78,16 @@ db_usage(){
     # CREATE TABLE IF NOT EXISTS above only helps a brand-new database —
     # an existing recon_runs table keeps whatever columns it had when it
     # was first created. Add any column the schema has grown since then,
-    # one at a time, so a fresh column (like vhosts_weak) doesn't just
-    # break every subsequent ingest with "no such column".
-    local has_col
-    has_col="$(sqlite3 "${db}" "SELECT COUNT(*) FROM pragma_table_info('recon_runs') WHERE name='vhosts_weak';" 2>>"${log_execution_file}")"
-    if [[ "${has_col}" == "0" ]]; then
-        sqlite3 "${db}" "ALTER TABLE recon_runs ADD COLUMN vhosts_weak INTEGER;" 2>>"${log_execution_file}"
-    fi
+    # one at a time, so a fresh column doesn't just break every
+    # subsequent ingest with "no such column". Extend this list whenever
+    # the schema/CSV grows another trailing column.
+    local new_col has_col
+    for new_col in vhosts_weak vhost_probe_hits; do
+        has_col="$(sqlite3 "${db}" "SELECT COUNT(*) FROM pragma_table_info('recon_runs') WHERE name='${new_col}';" 2>>"${log_execution_file}")"
+        if [[ "${has_col}" == "0" ]]; then
+            sqlite3 "${db}" "ALTER TABLE recon_runs ADD COLUMN ${new_col} INTEGER;" 2>>"${log_execution_file}"
+        fi
+    done
 
     # Pull this run's row out of the CSV. The latest row in the file is
     # always the run we just finished — record_history appends.
@@ -98,7 +101,7 @@ db_usage(){
     # header-shape check.
     local header expected
     header="$(head -n 1 "${hist}")"
-    expected="domain,run_id,run_date,started_at,finished_at,mode,subdomains,subdomains_alive,subdomains_added,ips,ips_added,webapp_consolidated,webapp_consolidated_added,vhosts_strong,vhosts_added,emails,emails_added,js_secrets,js_params,findings_info,findings_low,findings_medium,findings_high,findings_critical,report_dir,llm_prompt_path,status,vhosts_weak"
+    expected="domain,run_id,run_date,started_at,finished_at,mode,subdomains,subdomains_alive,subdomains_added,ips,ips_added,webapp_consolidated,webapp_consolidated_added,vhosts_strong,vhosts_added,emails,emails_added,js_secrets,js_params,findings_info,findings_low,findings_medium,findings_high,findings_critical,report_dir,llm_prompt_path,status,vhosts_weak,vhost_probe_hits"
     if [[ "${header}" != "${expected}" ]]; then
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} db_usage: history CSV header drift, refusing to ingest."
         echo "  expected: ${expected}" >> "${log_execution_file}"
@@ -131,7 +134,7 @@ db_usage(){
 BEGIN IMMEDIATE;
 INSERT OR IGNORE INTO targets(domain) VALUES ('${target_safe}');
 
--- Stage table mirrors the CSV payload columns ONLY (29 cols). Cloning
+-- Stage table mirrors the CSV payload columns ONLY (30 cols). Cloning
 -- recon_runs verbatim used to pull in \`ingested_at\` too, leaving the
 -- column NULL after .import — the subsequent \`SELECT s.*, datetime('now')\`
 -- then produced one too many values for the destination table. Define
@@ -164,7 +167,8 @@ CREATE TEMP TABLE recon_runs_stage (
     report_dir          TEXT,
     llm_prompt_path     TEXT,
     status              TEXT,
-    vhosts_weak         INTEGER
+    vhosts_weak         INTEGER,
+    vhost_probe_hits    INTEGER
 );
 .mode csv
 .import --skip 1 '${stage}' recon_runs_stage
@@ -183,7 +187,7 @@ INSERT OR REPLACE INTO recon_runs (
     js_secrets, js_params,
     findings_info, findings_low, findings_medium, findings_high, findings_critical,
     report_dir, llm_prompt_path, status,
-    vhosts_weak,
+    vhosts_weak, vhost_probe_hits,
     ingested_at
 )
 SELECT s.*, datetime('now') AS ingested_at
@@ -216,7 +220,8 @@ WHERE r.run_id IS NULL
    OR r.report_dir        IS NOT s.report_dir
    OR r.llm_prompt_path   IS NOT s.llm_prompt_path
    OR r.status            IS NOT s.status
-   OR r.vhosts_weak       IS NOT s.vhosts_weak;
+   OR r.vhosts_weak       IS NOT s.vhosts_weak
+   OR r.vhost_probe_hits  IS NOT s.vhost_probe_hits;
 
 DROP TABLE recon_runs_stage;
 COMMIT;

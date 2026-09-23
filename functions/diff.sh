@@ -174,7 +174,12 @@ diff_artifacts(){
 #   ips_added            count of infra_ipv4_diff.txt
 #   webapp_consolidated       count of webapp_consolidated.txt
 #   webapp_consolidated_added count of webapp_consolidated_diff.txt
-#   vhosts_strong        count of etc_hosts_file.txt (STRONG vhost_check hits)
+#   vhosts_strong        count of etc_hosts_file.txt — STRONG vhost_check
+#                        hits AND confirmed vhost_probe hits combined; both
+#                        feed the same file (a confirmed probe hit clears
+#                        the same bar STRONG does, so it gets the same
+#                        /etc/hosts injection). See vhost_probe_hits below
+#                        to isolate the probe-only count.
 #   vhosts_added         count of vhost_subdomains_diff.txt
 #   emails               count of email_recon.txt
 #   emails_added         count of email_recon_diff.txt
@@ -193,12 +198,14 @@ diff_artifacts(){
 #                        a pre-existing *_history.csv written before this
 #                        column existed doesn't get a value spliced into the
 #                        middle of its row; old columns keep their position)
+#   vhost_probe_hits     count of vhost_probe_hits.txt — confirmed vhost_probe
+#                        hits only (also appended last, same reason as above)
 record_history(){
     local hist="${report_dir}/${domain}_history.csv"
     local target="${domain:-${url_domain}}"
     local run_id finished_at mode
     local subs subs_alive subs_added ips ips_added urls urls_added
-    local vhosts_strong vhosts_weak vhosts_added emails emails_added
+    local vhosts_strong vhosts_weak vhost_probe_hits vhosts_added emails emails_added
     local secrets params info low med high crit
     local llm_prompt status
 
@@ -245,6 +252,7 @@ record_history(){
     urls_added="$(count_lines  "${report_dir}/webapp_consolidated_diff.txt")"
     vhosts_strong="$(count_lines "${report_dir}/etc_hosts_file.txt")"
     vhosts_weak="$(count_lines   "${report_dir}/vhost_subdomains_weak.txt")"
+    vhost_probe_hits="$(count_lines "${report_dir}/vhost_probe_hits.txt")"
     vhosts_added="$(count_lines  "${report_dir}/vhost_subdomains_diff.txt")"
     emails="$(count_lines        "${report_dir}/email_recon.txt")"
     emails_added="$(count_lines  "${report_dir}/email_recon_diff.txt")"
@@ -270,9 +278,9 @@ record_history(){
     [[ -n "${llm_prompt}" ]] && status="finished"
 
     if [[ ! -s "${hist}" ]]; then
-        echo "domain,run_id,run_date,started_at,finished_at,mode,subdomains,subdomains_alive,subdomains_added,ips,ips_added,webapp_consolidated,webapp_consolidated_added,vhosts_strong,vhosts_added,emails,emails_added,js_secrets,js_params,findings_info,findings_low,findings_medium,findings_high,findings_critical,report_dir,llm_prompt_path,status,vhosts_weak" > "${hist}"
+        echo "domain,run_id,run_date,started_at,finished_at,mode,subdomains,subdomains_alive,subdomains_added,ips,ips_added,webapp_consolidated,webapp_consolidated_added,vhosts_strong,vhosts_added,emails,emails_added,js_secrets,js_params,findings_info,findings_low,findings_medium,findings_high,findings_critical,report_dir,llm_prompt_path,status,vhosts_weak,vhost_probe_hits" > "${hist}"
     fi
-    printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' \
+    printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' \
         "${target}" "${run_id}" "${run_date:-${date_recon}}" "${started_at:-}" "${finished_at}" "${mode}" \
         "${subs}" "${subs_alive}" "${subs_added}" \
         "${ips}" "${ips_added}" \
@@ -281,5 +289,5 @@ record_history(){
         "${emails}" "${emails_added}" \
         "${secrets}" "${params}" \
         "${info}" "${low}" "${med}" "${high}" "${crit}" \
-        "${report_dir}" "${llm_prompt}" "${status}" "${vhosts_weak}" >> "${hist}"
+        "${report_dir}" "${llm_prompt}" "${status}" "${vhosts_weak}" "${vhost_probe_hits}" >> "${hist}"
 }
