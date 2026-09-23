@@ -334,11 +334,17 @@ vhost_check(){
         # against, or hand to nuclei/gobuster unsupervised) but a
         # human can now actually see and manually verify these candidates
         # instead of them vanishing silently.
-        sort -u -o "${report_dir}/vhost_subdomains_strong.txt" "${strong_out}" 2>/dev/null
-        sort -u -o "${report_dir}/vhost_subdomains_weak.txt" "${weak_out}" 2>/dev/null
+        local tls_ports_pat
+        tls_ports_pat="$(echo "${webapp_tls_ports[@]}" | tr ' ' '|')"
+
+        # Field 1 gets a scheme:// prefix only in the report_dir copies, for
+        # human readability. The .tmp files below stay hostname-only — that's
+        # the format domains_recon.sh's vhost_subdomains_strong.tmp reader
+        # expects (bare $1 for domain matching / etc_hosts_file.txt lookup).
+        awk -v tls="${tls_ports_pat}" 'BEGIN{OFS="\t"}{split($2,a,":");port=a[2];proto=(port~"^("tls")$")?"https":"http";$1=proto"://"$1;print}' "${strong_out}" 2>/dev/null | sort -u -o "${report_dir}/vhost_subdomains_strong.txt"
+        awk -v tls="${tls_ports_pat}" 'BEGIN{OFS="\t"}{split($2,a,":");port=a[2];proto=(port~"^("tls")$")?"https":"http";$1=proto"://"$1;print}' "${weak_out}" 2>/dev/null | sort -u -o "${report_dir}/vhost_subdomains_weak.txt"
 
         if [[ -s "${strong_out}" ]]; then
-            tls_ports_pat="$(echo "${webapp_tls_ports[@]}" | tr ' ' '|')"
             awk 'BEGIN{OFS="\t"}{split($2,a,":"); print a[1], $1}' "${strong_out}" | sort -u > "${tmp_dir}/etc_hosts_file.tmp"
             sort -u -o "${report_dir}/etc_hosts_file.txt" "${tmp_dir}/etc_hosts_file.tmp"
             awk -v tls="${tls_ports_pat}" '{split($2,a,":");port=a[2];proto=(port~"^("tls")$")?"https":"http";if((proto=="http"&&port=="80")||(proto=="https"&&port=="443"))print proto"://"$1;else print proto"://"$1":"port}' "${strong_out}" | sort -u > "${tmp_dir}/vhost_urls.tmp"
