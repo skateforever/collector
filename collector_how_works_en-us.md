@@ -180,8 +180,8 @@ Every final artifact lives under `outputs/<domain>/recon_YYYYMMDD/`:
 ### Web
 `report/webapp_consolidated.txt` — **the central artifact**: the list of every live HTTP(S) URL (DNS resolution + validated STRONG vhosts). It is the input for gobuster, dirsearch, nuclei, katana and aquatone.
 `report/webapp_consolidated_diff.txt` — between-runs delta (operator's focus).
-`report/etc_hosts_file.txt` — `ip<TAB>hostname` map injected into the container's `/etc/hosts` so every tool resolves WEAK/STRONG vhosts transparently.
-`report/vhost_subdomains.txt` / `vhost_subdomains_weak.txt` / `vhost_subdomains_diff.txt` — vhost hits classified by confidence, with their delta.
+`report/etc_hosts_file.txt` — `ip<TAB>hostname` map injected into the container's `/etc/hosts`. Only carries **STRONG** hits — WEAK is never injected or auto-scanned, it's single-tool confidence (curl and httpx disagree), not dual.
+`report/vhost_subdomains_strong.txt` / `vhost_subdomains_weak.txt` / `vhost_subdomains_diff.txt` — every vhost_check hit, classified by confidence (STRONG = curl and httpx agree; WEAK = only one of them does) plus the STRONG delta between runs. WEAK is deliberately kept out of the automated pipeline — never injected into `/etc/hosts`, never feeds `webapp_consolidated.txt` — but is now persisted for manual review instead of being computed and thrown away.
 `report/robots_urls.txt` — URLs extracted from the harvested `robots.txt` files.
 `report/sitemap_urls.txt` — URLs harvested recursively from `sitemap.xml`/`sitemapindex`.
 `report/webapp_js_secrets.txt` — secrets, tokens, JWTs and API keys found in downloaded JS.
@@ -264,7 +264,7 @@ Recon + web application discovery using the fixed-plain-HTTP port list (defined 
 collector-docker -d example.com --recon --webapp-discovery --webapp-short-detection
 ```
 
-What you get: everything from the previous command plus `webapp_consolidated.txt` (live HTTP(S) URLs) and `webapp/tech/` with fingerprinting headers. This is the typical entry point for any new target. **Note:** vhost discovery (`vhost_subdomains.txt`, `etc_hosts_file.txt`) requires adding `-vc|--vhost-check`.
+What you get: everything from the previous command plus `webapp_consolidated.txt` (live HTTP(S) URLs) and `webapp/tech/` with fingerprinting headers. This is the typical entry point for any new target. **Note:** vhost discovery (`vhost_subdomains_strong.txt`, `etc_hosts_file.txt`) requires adding `-vc|--vhost-check`.
 
 Recon + web application discovery **with vhost validation**:
 
@@ -272,7 +272,7 @@ Recon + web application discovery **with vhost validation**:
 collector-docker -d example.com --recon --webapp-discovery --webapp-short-detection --vhost-check
 ```
 
-What you get: everything above plus `vhost_subdomains.txt` (STRONG), `vhost_subdomains_weak.txt`, `etc_hosts_file.txt`. Vhost validation probes every IP in `infra_ipv4.txt` on the configured port list using dual-tool (curl + httpx) cross-validation, and optionally `ffuf` for the wordlist-based probe.
+What you get: everything above plus `vhost_subdomains_strong.txt`, `vhost_subdomains_weak.txt`, `etc_hosts_file.txt`. Vhost validation probes every IP in `infra_ipv4.txt` on the configured port list using dual-tool (curl + httpx) cross-validation, and optionally `ffuf` for the wordlist-based probe. Only STRONG gets injected into `/etc/hosts` and feeds `webapp_consolidated.txt`; WEAK is persisted for manual review only.
 
 ### 5.3. Intermediate commands
 

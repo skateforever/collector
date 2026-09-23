@@ -62,6 +62,8 @@ build_llm_prompt(){
         "webapp_consolidated.txt"
         "webapp_consolidated_diff.txt"
         "etc_hosts_file.txt"
+        "vhost_subdomains_strong.txt"
+        "vhost_subdomains_weak.txt"
         "vhost_subdomains_diff.txt"
         "email_recon.txt"
         "email_recon_diff.txt"

@@ -68,9 +68,22 @@ db_usage(){
         fi
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} db_usage: created ${db} (schema: ${schema})"
     else
-        # Apply schema as IF-NOT-EXISTS — covers upgrades that add columns,
-        # indexes or views without touching existing data.
+        # Applying the schema again is only safe for NEW tables/indexes/
+        # views (CREATE ... IF NOT EXISTS) — it does NOT add columns to a
+        # recon_runs that already exists under an older shape. Migrate
+        # that case explicitly below.
         sqlite3 "${db}" < "${schema}" > /dev/null 2>> "${log_execution_file}"
+    fi
+
+    # CREATE TABLE IF NOT EXISTS above only helps a brand-new database —
+    # an existing recon_runs table keeps whatever columns it had when it
+    # was first created. Add any column the schema has grown since then,
+    # one at a time, so a fresh column (like vhosts_weak) doesn't just
+    # break every subsequent ingest with "no such column".
+    local has_col
+    has_col="$(sqlite3 "${db}" "SELECT COUNT(*) FROM pragma_table_info('recon_runs') WHERE name='vhosts_weak';" 2>>"${log_execution_file}")"
+    if [[ "${has_col}" == "0" ]]; then
+        sqlite3 "${db}" "ALTER TABLE recon_runs ADD COLUMN vhosts_weak INTEGER;" 2>>"${log_execution_file}"
     fi
 
     # Pull this run's row out of the CSV. The latest row in the file is
@@ -85,7 +98,7 @@ db_usage(){
     # header-shape check.
     local header expected
     header="$(head -n 1 "${hist}")"
-    expected="domain,run_id,run_date,started_at,finished_at,mode,subdomains,subdomains_alive,subdomains_added,ips,ips_added,webapp_consolidated,webapp_consolidated_added,vhosts_strong,vhosts_added,emails,emails_added,js_secrets,js_params,findings_info,findings_low,findings_medium,findings_high,findings_critical,report_dir,llm_prompt_path,status"
+    expected="domain,run_id,run_date,started_at,finished_at,mode,subdomains,subdomains_alive,subdomains_added,ips,ips_added,webapp_consolidated,webapp_consolidated_added,vhosts_strong,vhosts_added,emails,emails_added,js_secrets,js_params,findings_info,findings_low,findings_medium,findings_high,findings_critical,report_dir,llm_prompt_path,status,vhosts_weak"
     if [[ "${header}" != "${expected}" ]]; then
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} db_usage: history CSV header drift, refusing to ingest."
         echo "  expected: ${expected}" >> "${log_execution_file}"
@@ -118,7 +131,7 @@ db_usage(){
 BEGIN IMMEDIATE;
 INSERT OR IGNORE INTO targets(domain) VALUES ('${target_safe}');
 
--- Stage table mirrors the CSV payload columns ONLY (28 cols). Cloning
+-- Stage table mirrors the CSV payload columns ONLY (29 cols). Cloning
 -- recon_runs verbatim used to pull in \`ingested_at\` too, leaving the
 -- column NULL after .import — the subsequent \`SELECT s.*, datetime('now')\`
 -- then produced one too many values for the destination table. Define
@@ -150,7 +163,8 @@ CREATE TEMP TABLE recon_runs_stage (
     findings_critical   INTEGER,
     report_dir          TEXT,
     llm_prompt_path     TEXT,
-    status              TEXT
+    status              TEXT,
+    vhosts_weak         INTEGER
 );
 .mode csv
 .import --skip 1 '${stage}' recon_runs_stage
@@ -169,6 +183,7 @@ INSERT OR REPLACE INTO recon_runs (
     js_secrets, js_params,
     findings_info, findings_low, findings_medium, findings_high, findings_critical,
     report_dir, llm_prompt_path, status,
+    vhosts_weak,
     ingested_at
 )
 SELECT s.*, datetime('now') AS ingested_at
@@ -200,7 +215,8 @@ WHERE r.run_id IS NULL
    OR r.findings_critical IS NOT s.findings_critical
    OR r.report_dir        IS NOT s.report_dir
    OR r.llm_prompt_path   IS NOT s.llm_prompt_path
-   OR r.status            IS NOT s.status;
+   OR r.status            IS NOT s.status
+   OR r.vhosts_weak       IS NOT s.vhosts_weak;
 
 DROP TABLE recon_runs_stage;
 COMMIT;

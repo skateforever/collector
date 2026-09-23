@@ -324,6 +324,19 @@ vhost_check(){
             rm -f "${per_batch_out}"
         done
 
+        # Persist both tiers to report_dir, regardless of confidence. STRONG
+        # still drives etc_hosts_file.txt/vhost_urls.txt below (only STRONG
+        # gets auto-injected into /etc/hosts and auto-scanned downstream —
+        # that's a deliberate confidence gate, not a bug). WEAK never got a
+        # report artifact before this; it was computed, then discarded with
+        # nothing else in the codebase ever reading it. It stays out of the
+        # automated pipeline (still not confident enough to script /etc/hosts
+        # against, or hand to nuclei/gobuster unsupervised) but a
+        # human can now actually see and manually verify these candidates
+        # instead of them vanishing silently.
+        sort -u -o "${report_dir}/vhost_subdomains_strong.txt" "${strong_out}" 2>/dev/null
+        sort -u -o "${report_dir}/vhost_subdomains_weak.txt" "${weak_out}" 2>/dev/null
+
         if [[ -s "${strong_out}" ]]; then
             tls_ports_pat="$(echo "${webapp_tls_ports[@]}" | tr ' ' '|')"
             awk 'BEGIN{OFS="\t"}{split($2,a,":"); print a[1], $1}' "${strong_out}" | sort -u > "${tmp_dir}/etc_hosts_file.tmp"

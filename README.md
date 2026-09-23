@@ -410,10 +410,10 @@ Both use `collector-docker` (or `docker run --rm` directly) — each run fires a
         ├── infra_ipv6.txt / infra_blocks.txt
         ├── webapp_consolidated.txt                all live HTTP(S) URLs (DNS + validated vhosts)
         ├── webapp_consolidated_diff.txt
-        ├── etc_hosts_file.txt                     vhost→IP map (ip<TAB>hostname format)
-        ├── vhost_subdomains.txt                   STRONG vhost hits
-        ├── vhost_subdomains_weak.txt              WEAK vhost hits
-        ├── vhost_subdomains_diff.txt
+        ├── etc_hosts_file.txt                     vhost→IP map (ip<TAB>hostname), STRONG only
+        ├── vhost_subdomains_strong.txt            STRONG vhost hits (curl + httpx both disagree with baseline)
+        ├── vhost_subdomains_weak.txt              WEAK vhost hits (only one of curl/httpx disagreed) — manual review only, never auto-injected
+        ├── vhost_subdomains_diff.txt              STRONG hits new since the previous run (drives the notify channel)
         ├── email_recon.txt / email_recon_diff.txt
         ├── robots_urls.txt
         ├── sitemap_urls.txt                       URLs harvested from sitemap.xml (recursive sitemapindex)

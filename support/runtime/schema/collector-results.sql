@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS recon_runs (
     report_dir          TEXT,
     llm_prompt_path     TEXT,
     status              TEXT,
+    vhosts_weak         INTEGER,
     ingested_at         TEXT NOT NULL DEFAULT (datetime('now')),
     PRIMARY KEY (domain, run_id),
     FOREIGN KEY (domain) REFERENCES targets(domain) ON DELETE CASCADE
