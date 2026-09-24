@@ -227,10 +227,15 @@ domains_recon(){
             if [[ -s "${tmp_dir}/asn_ptr_sweep_new.tmp" ]]; then
                 cat "${tmp_dir}/asn_ptr_sweep_new.tmp" >> "${report_dir}/domains_found.txt"
                 sort -u -o "${report_dir}/domains_found.txt" "${report_dir}/domains_found.txt"
-                local num_workers=20 pids=()
-                split -n l/${num_workers} "${tmp_dir}/asn_ptr_sweep_new.tmp" "${tmp_dir}/asn_ptr_sweep_chunk_"
+                local num_workers=20 pids=() chunk_id
+                # -d: numeric suffixes (00, 01, ...) — split's default is
+                # alphabetic (aa, ab, ...), which never matches the ${i}
+                # lookup below and silently drops every chunk (worker reads
+                # from a file that was never created).
+                split -d -n l/${num_workers} "${tmp_dir}/asn_ptr_sweep_new.tmp" "${tmp_dir}/asn_ptr_sweep_chunk_"
                 for ((i=0; i<num_workers; i++)); do
-                    dns_parallel_worker "$i" "${tmp_dir}/asn_ptr_sweep_chunk_${i}" \
+                    printf -v chunk_id '%02d' "${i}"
+                    dns_parallel_worker "$i" "${tmp_dir}/asn_ptr_sweep_chunk_${chunk_id}" \
                         "${domain}" "${report_dir}" "${IPv4_regex}" \
                         "${webapp_port_detect[@]}" "${webapp_tls_ports[@]}" &
                     pids+=($!)
@@ -302,12 +307,17 @@ domains_recon(){
                         | grep -Ei "(\.${domain}$|^${domain}$)" \
                         | sort -u > "${tmp_dir}/vhost_probe_new.tmp"
                     if [[ -s "${tmp_dir}/vhost_probe_new.tmp" ]]; then
-                        local num_workers=20 pids=()
+                        local num_workers=20 pids=() chunk_id
 
-                        split -n l/${num_workers} "${tmp_dir}/vhost_probe_new.tmp" "${tmp_dir}/vhost_probe_chunk_"
+                        # -d: numeric suffixes (00, 01, ...) — split's default
+                        # is alphabetic (aa, ab, ...), which never matches the
+                        # ${i} lookup below and silently drops every chunk
+                        # (worker reads from a file that was never created).
+                        split -d -n l/${num_workers} "${tmp_dir}/vhost_probe_new.tmp" "${tmp_dir}/vhost_probe_chunk_"
 
                         for ((i=0; i<num_workers; i++)); do
-                            dns_parallel_worker "$i" "${tmp_dir}/vhost_probe_chunk_${i}" \
+                            printf -v chunk_id '%02d' "${i}"
+                            dns_parallel_worker "$i" "${tmp_dir}/vhost_probe_chunk_${chunk_id}" \
                                 "${domain}" "${report_dir}" "${IPv4_regex}" \
                                 "${webapp_port_detect[@]}" "${webapp_tls_ports[@]}" &
                             pids+=($!)
@@ -349,12 +359,17 @@ domains_recon(){
                     grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/spider_output.tmp" \
                         | sort -u > "${tmp_dir}/spider_new.tmp"
                     if [[ -s "${tmp_dir}/spider_new.tmp" ]]; then
-                        local num_workers=20 pids=()
+                        local num_workers=20 pids=() chunk_id
 
-                        split -n l/${num_workers} "${tmp_dir}/spider_new.tmp" "${tmp_dir}/spider_chunk_"
+                        # -d: numeric suffixes (00, 01, ...) — split's default
+                        # is alphabetic (aa, ab, ...), which never matches the
+                        # ${i} lookup below and silently drops every chunk
+                        # (worker reads from a file that was never created).
+                        split -d -n l/${num_workers} "${tmp_dir}/spider_new.tmp" "${tmp_dir}/spider_chunk_"
 
                         for ((i=0; i<num_workers; i++)); do
-                            dns_parallel_worker "$i" "${tmp_dir}/spider_chunk_${i}" \
+                            printf -v chunk_id '%02d' "${i}"
+                            dns_parallel_worker "$i" "${tmp_dir}/spider_chunk_${chunk_id}" \
                                 "${domain}" "${report_dir}" "${IPv4_regex}" \
                                 "${webapp_port_detect[@]}" "${webapp_tls_ports[@]}" &
                             pids+=($!)
