@@ -61,11 +61,17 @@
 #                           interactive TTY UI back)
 #   OUTPUTS_DIR           — outputs directory (default: <root>/outputs)
 #   WORDLISTS_DIR         — wordlists directory (default: <root>/wordlists)
-#   APP_REPORT_DB_DIR     — app-report results DB directory (default: <root>/app-report-db) —
+#   APP_REPORT_DB_DIR     — app-report results DB directory (default: <root>/app-report/db,
+#                           i.e. mounted onto itself — same path host and container side) —
 #                           persists app-report/db/collector-results across
 #                           `docker run --rm` invocations; separate from OUTPUTS_DIR
 #                           since the DB isn't per-run recon output (see collector_db
 #                           in conf.d/operation.conf).
+#   APP_REPORT_RUN_DIR    — app-report runtime directory (default: <root>/app-report/run,
+#                           mounted onto itself, same as APP_REPORT_DB_DIR above) —
+#                           persists app-report/run/app-report.{pid,log} across
+#                           `docker run --rm` invocations, same reasoning as
+#                           APP_REPORT_DB_DIR (see functions/app_report.sh).
 #   CONF_D_DIR            — path to the conf.d/ directory (default: <root>/conf.d),
 #                           mounted whole so operation.conf, functions.conf,
 #                           and whichever of apis-recon.conf/apis-emails.conf
@@ -319,7 +325,8 @@ fi
 COLLECTOR_IMAGE="${COLLECTOR_IMAGE:-collector:latest}"
 OUTPUTS_DIR="${OUTPUTS_DIR:-${DEFAULT_ROOT}/outputs}"
 WORDLISTS_DIR="${WORDLISTS_DIR:-${DEFAULT_ROOT}/wordlists}"
-APP_REPORT_DB_DIR="${APP_REPORT_DB_DIR:-${DEFAULT_ROOT}/app-report-db}"
+APP_REPORT_DB_DIR="${APP_REPORT_DB_DIR:-${DEFAULT_ROOT}/app-report/db}"
+APP_REPORT_RUN_DIR="${APP_REPORT_RUN_DIR:-${DEFAULT_ROOT}/app-report/run}"
 CONF_D_DIR="${CONF_D_DIR:-${DEFAULT_ROOT}/conf.d}"
 APP_PORT="${APP_PORT:-127.0.0.1:8000:8000}"
 
@@ -357,7 +364,7 @@ ALERT_PROVIDER_FILE="${ALERT_PROVIDER_FILE:-${DEFAULT_ROOT}/${ALERT_PROVIDER_TYP
 # Pre-create the host directories that Docker would otherwise auto-create
 # as root when mounting them as volumes (which then breaks ownership of
 # the outputs produced inside the container).
-mkdir -p "${OUTPUTS_DIR}" "${WORDLISTS_DIR}" "${APP_REPORT_DB_DIR}" 2>/dev/null || true
+mkdir -p "${OUTPUTS_DIR}" "${WORDLISTS_DIR}" "${APP_REPORT_DB_DIR}" "${APP_REPORT_RUN_DIR}" 2>/dev/null || true
 
 # Sanity check: if CONF_D_DIR (or its two required files) doesn't exist,
 # abort with a clear message — otherwise Docker would create an empty
@@ -397,10 +404,10 @@ fi
 #                    collision gives a clear error, no port race).
 #   --report-stop  → do NOT spawn a new container; call `docker stop`
 #                    on the running one from the host. The in-container
-#                    stop_app_report_foreground path is unreachable when
-#                    the caller is only the host wrapper (no other
-#                    container is running the collector binary), so
-#                    dispatching from here is the only way that works.
+#                    stop_app_report path is unreachable when the caller
+#                    is only the host wrapper (no other container is
+#                    running the collector binary), so dispatching from
+#                    here is the only way that works.
 # Long/short forms are both accepted, matching the collector CLI.
 REPORT_CONTAINER_NAME="${REPORT_CONTAINER_NAME:-collector-report}"
 want_report_only=no
@@ -515,6 +522,7 @@ exec docker run --rm "${name_args[@]}" \
     -v "${OUTPUTS_DIR}:/opt/collector/outputs" \
     -v "${WORDLISTS_DIR}:/opt/collector/wordlists" \
     -v "${APP_REPORT_DB_DIR}:/opt/collector/app-report/db" \
+    -v "${APP_REPORT_RUN_DIR}:/opt/collector/app-report/run" \
     -v "${CONF_D_DIR}:/opt/collector/conf.d:ro" \
     "${script_mount_args[@]}" \
     "${alert_mount_args[@]}" \

@@ -23,7 +23,7 @@ usage(){
     echo -e "\t-ro |--report-only            - Opens the read-only app-report dashboard against the existing outputs directory and exits when stopped."
     echo -e "\t\t\t\t        Skips recon entirely — use to re-open the results of a previous scan. Requires ${yellow}collector-results${reset} inside ${yellow}app-report/db${reset}."
     echo -e "\t\t\t\t        No target flag needed. Ctrl-C, ${yellow}--report-stop${reset}, or ${yellow}docker stop${reset} on the host stops the dashboard and exits."
-    echo -e "\t-rs |--report-stop            - Stops a dashboard previously started with ${yellow}-ro|--report-only${reset}."
+    echo -e "\t-rs |--report-stop            - Stops the app-report dashboard, however it was started: automatically in the background at the tail of a recon, or via ${yellow}-ro|--report-only${reset}."
     echo -e "\t\t\t\t        Sends SIGTERM to the recorded gunicorn pid, waits up to 5s, then SIGKILLs if needed. No-op if nothing is running."
     echo -e "\t-s  |--subdomain-brute        - Specify the wordlist to put in dns_wordlist array and execute gobuster and dnssearch brute force, ${red}used only with${reset} ${yellow}-d|--domain${reset}."
     echo -e "\t\t\t\t        By default the array is empty and not execute amass, gobuster and dnssearch. This option take a long time to finish, use this own your need!"

@@ -46,8 +46,11 @@ By default the compose file uses repo-relative paths, so a fresh clone works wit
 |---|---|
 | `./outputs` (auto-created on first run) | `/opt/collector/outputs` |
 | `./wordlists` (auto-created on first run) | `/opt/collector/wordlists` |
-| `./app-report-db` (auto-created on first run) | `/opt/collector/app-report/db` |
+| `./app-report/db` (already in the repo) | `/opt/collector/app-report/db` |
+| `./app-report/run` (already in the repo) | `/opt/collector/app-report/run` |
 | `./conf.d` (already in the repo) | `/opt/collector/conf.d` (read-only) |
+
+`app-report/db` and `app-report/run` mount onto themselves — same repo-relative path on both host and container sides (see the comment block in `docker-compose.yaml` for why). Their contents are gitignored (only `.gitkeep` is tracked), so this stays a clean checkout regardless of how much scan history or dashboard state piles up locally.
 
 To redirect any of these to a different host location, drop a `.env` file in the repo root (Docker Compose loads it automatically). Example:
 
@@ -55,7 +58,8 @@ To redirect any of these to a different host location, drop a `.env` file in the
 # .env at the repo root
 OUTPUTS_DIR=/data/recon/outputs
 WORDLISTS_DIR=/data/wordlists
-APP_REPORT_DB_DIR=/data/app-report-db
+APP_REPORT_DB_DIR=/data/app-report/db
+APP_REPORT_RUN_DIR=/data/app-report/run
 CONF_D_DIR=/etc/collector/conf.d
 ```
 
@@ -76,7 +80,7 @@ Install it once and use it like a native command:
 
 ```bash
 sudo install -m 0755 /opt/collector/collector-docker /usr/local/bin/collector-docker
-sudo mkdir -p /opt/collector/{outputs,wordlists,app-report-db}
+sudo mkdir -p /opt/collector/{outputs,wordlists,app-report/db,app-report/run}
 sudo cp -r /opt/collector/conf.d /opt/collector/conf.d
 ```
 
@@ -87,7 +91,8 @@ Override defaults via environment variables (`<root>` is the checkout directory 
 | `COLLECTOR_IMAGE` | `collector:latest` |
 | `OUTPUTS_DIR` | `<root>/outputs` (mounted to `/opt/collector/outputs`) |
 | `WORDLISTS_DIR` | `<root>/wordlists` (mounted to `/opt/collector/wordlists`) |
-| `APP_REPORT_DB_DIR` | `<root>/app-report-db` (mounted to `/opt/collector/app-report/db`) |
+| `APP_REPORT_DB_DIR` | `<root>/app-report/db` (mounted onto itself, `/opt/collector/app-report/db`) |
+| `APP_REPORT_RUN_DIR` | `<root>/app-report/run` (mounted onto itself, `/opt/collector/app-report/run`) |
 | `CONF_D_DIR` | `<root>/conf.d` (mounted to `/opt/collector/conf.d`) |
 | `ALERT_PROVIDER_TYPE` | `discord` (discord, slack, teams, telegram, signal) |
 | `ALERT_PROVIDER_FILE` | `<root>/{type}-provider.yaml` (optional; if missing, uses template from image) |
