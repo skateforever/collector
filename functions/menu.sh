@@ -38,7 +38,7 @@ check_argument(){
     local options=()
     options+=(-d --domain -dl --domain-list -ed --exclude-domains -el --exclude-domain-list -h --help)
     options+=(-l --limit-urls -p --proxy -r --recon -ro --report-only -rs --report-stop -s --subdomain-brute -u --url)
-    options+=(-vc --vhost-check -wc --webapp-crawler -wd --webapp-discovery -we --webapp-enum -ws --webapp-scan)
+    options+=(-vc --vhost-check -vp --vhost-probe -vpw --vhost-probe-wordlist -wc --webapp-crawler -wd --webapp-discovery -we --webapp-enum -ws --webapp-scan)
     options+=(-wcp --webapp-common-ports -wld --webapp-long-detection -wsd --webapp-short-detection -ww --webapp-wordlists -dr --dry-run)
     local argument=$2
     local option
@@ -127,6 +127,31 @@ menu(){
             -vc|--vhost-check)
                 vhost_check_check="yes"
                 shift
+                ;;
+            -vp|--vhost-probe)
+                vhost_probe_check="yes"
+                shift
+                ;;
+            -vpw|--vhost-probe-wordlist)
+                check_argument "$1" "$2"
+                if [[ -s "$2" ]]; then
+                    # Scalar, not an array (unlike -ww/-s) — vhost_probe reads
+                    # a single wordlist, so one file in, one file used.
+                    collector_vhost_probe_words="$2"
+                    shift 2
+                else
+                    # Same host-vs-container pitfall as --webapp-wordlists:
+                    # the -s test runs inside the container, so a plain
+                    # host path (~/foo.txt) or an unmounted path looks
+                    # missing here even though it exists on the host.
+                    echo -e "${yellow}${2}${reset} is not a valid file ${red}inside the container${reset}."
+                    echo -e "  hint: the path you passed is resolved inside the container, not on the host."
+                    echo -e "  Place the wordlist under ${yellow}\${WORDLISTS_DIR}${reset} on the host"
+                    echo -e "  (default: ${yellow}<root>/wordlists${reset}, mounted at ${yellow}/opt/collector/wordlists${reset}),"
+                    echo -e "  then pass: ${yellow}--vhost-probe-wordlist /opt/collector/wordlists/${2##*/}${reset}"
+                    echo -e "  Or set ${yellow}WORDLISTS_DIR=<dir-that-contains-your-file>${reset} when running collector-docker.\n"
+                    usage
+                fi
                 ;;
             -ro|--report-only)
                 # Opens the read-only app-report dashboard against the existing

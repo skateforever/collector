@@ -20,11 +20,16 @@
 #           ├─ -wc|--webapp-crawler                         #
 #           ├─ -we|--webapp-enum (also needs -ww)           #
 #           ├─ -ws|--webapp-scan                            #
-#           └─ -vc|--vhost-check                            #
+#           ├─ -vc|--vhost-check                            #
+#           └─ -vp|--vhost-probe (also needs -vpw)          #
 #                                                           #
 #   -we|--webapp-enum                                       #
 #       ├─ requires: -wd|--webapp-discovery                 #
 #       └─ requires: -ww|--webapp-wordlists                 #
+#                                                           #
+#   -vp|--vhost-probe                                       #
+#       ├─ requires: -wd|--webapp-discovery                 #
+#       └─ requires: -vpw|--vhost-probe-wordlist             #
 #                                                           #
 #   -wld|--webapp-long-detection                            #
 #   -wsd|--webapp-short-detection                           #
@@ -117,6 +122,11 @@ check_parameter_conflicts(){
         echo -e "The -vc|--vhost-check option requires -wd|--webapp-discovery to work.\n"
         usage
     fi
+
+    if [[ "${vhost_probe_check}" == "yes" && "${webapp_discovery_check}" != "yes" ]]; then
+        echo -e "The -vp|--vhost-probe option requires -wd|--webapp-discovery to work.\n"
+        usage
+    fi
 }
 
 check_parameter_dependency(){
@@ -171,6 +181,13 @@ check_parameter_dependency(){
         if [[ "${webapp_enum_check}" == "yes" && ${#webapp_wordlists[@]} -eq 0 ]]; then
             echo -e "The -we|--webapp-enum option requires at least one wordlist for directory and file discovery."
             echo -e "Add -ww|--webapp-wordlists /path/to/wordlist to specify wordlists for enumeration.\n"
+            usage
+        fi
+
+        # Vhost Probe Check
+        if [[ "${vhost_probe_check}" == "yes" && -z "${collector_vhost_probe_words}" ]]; then
+            echo -e "The -vp|--vhost-probe option requires a wordlist for vhost brute-forcing."
+            echo -e "Add -vpw|--vhost-probe-wordlist /path/to/wordlist to specify the wordlist.\n"
             usage
         fi
 

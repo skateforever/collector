@@ -147,8 +147,10 @@ The hook calls `collector-docker --image build-only` internally.
 
 | Flag | Description |
 |------|-------------|
-| `-wd \| --webapp-discovery` | Probes live hosts for active HTTP(S) services and builds `webapp_consolidated.txt`. Vhost discovery is **not** included unless `-vc` is also passed. |
-| `-vc \| --vhost-check` | Runs `vhost_check` (curl+httpx dual-tool, STRONG/WEAK confidence) and `vhost_probe` (single-tool wordlist brute force, confirmed/not) against live IPs to discover virtual hosts. Confirmed hits from either — STRONG, or a probe hit that passed its reproducibility check — get injected into `/etc/hosts` and scanned downstream. Requires `-wd`. Without this flag, vhost checks are skipped entirely. |
+| `-wd \| --webapp-discovery` | Probes live hosts for active HTTP(S) services and builds `webapp_consolidated.txt`. Vhost discovery is **not** included unless `-vc` and/or `-vp` is also passed. |
+| `-vc \| --vhost-check` | Runs `vhost_check` (curl+httpx dual-tool, STRONG/WEAK confidence) against candidates with prior evidence (`domains_without_resolution.txt`) to discover virtual hosts. STRONG hits get injected into `/etc/hosts` and scanned downstream. Requires `-wd`. Independent of `-vp` — use either or both. |
+| `-vp \| --vhost-probe` | Runs `vhost_probe` (single-tool wordlist brute force, confirmed by reproducibility) against live IPs to discover virtual hosts with no prior evidence. Confirmed hits get injected into `/etc/hosts` and scanned downstream. Requires `-wd` and `-vpw`. Independent of `-vc` — use either or both. |
+| `-vpw \| --vhost-probe-wordlist` | Wordlist `-vp` brute-forces vhost names from (sets `collector_vhost_probe_words`) — **required** with `-vp`, no config fallback. |
 | `-wsd \| --webapp-short-detection` | Probes `webapp_http_ports` (`conf.d/functions.conf`) — ports whose protocol is fixed as plain HTTP by convention (80, 8080, ...). Use with `-wd`. |
 | `-wld \| --webapp-long-detection` | Probes the full port list: `webapp_http_ports` + `webapp_tls_ports` + `webapp_multiple_ports` (`conf.d/functions.conf`) — the comprehensive, slower option. Use with `-wd`. |
 | `-wcp \| --webapp-common-ports` | Probes the union of `webapp_http_ports` and `webapp_tls_ports` — the ports whose protocol is fixed by convention, HTTP or TLS. Use with `-wd`. |
@@ -217,10 +219,11 @@ docker compose run --rm collector \
 collector-docker -d example.com --recon --webapp-discovery --webapp-short-detection
 ```
 
-Full recon + webapp discovery + vhost validation (short port list):
+Full recon + webapp discovery + vhost validation (short port list, both `-vc` and `-vp`):
 
 ```bash
-collector-docker -d example.com --recon --webapp-discovery --webapp-short-detection --vhost-check
+collector-docker -d example.com --recon --webapp-discovery --webapp-short-detection \
+  --vhost-check --vhost-probe --vhost-probe-wordlist /opt/collector/support/runtime/wordlists/vhost-probe-names.txt
 ```
 
 Full recon + webapp discovery + enum + scan in one shot (with vhost):
@@ -231,11 +234,13 @@ docker run --rm \
   -v /opt/collector/wordlists:/opt/collector/wordlists \
   -v /opt/collector/conf.d:/opt/collector/conf.d:ro \
   collector:latest \
-  -d example.com --recon --webapp-discovery --webapp-short-detection --vhost-check \
+  -d example.com --recon --webapp-discovery --webapp-short-detection \
+  --vhost-check --vhost-probe --vhost-probe-wordlist /opt/collector/support/runtime/wordlists/vhost-probe-names.txt \
   --webapp-enum --webapp-wordlists /opt/collector/wordlists/common.txt --webapp-scan
 
 docker compose run --rm collector \
-  -d example.com --recon --webapp-discovery --webapp-short-detection --vhost-check \
+  -d example.com --recon --webapp-discovery --webapp-short-detection \
+  --vhost-check --vhost-probe --vhost-probe-wordlist /opt/collector/support/runtime/wordlists/vhost-probe-names.txt \
   --webapp-enum --webapp-wordlists /opt/collector/wordlists/common.txt --webapp-scan
 
 collector-docker -d example.com --recon --webapp-discovery --webapp-short-detection \
@@ -378,7 +383,7 @@ Both use `collector-docker` (or `docker run --rm` directly) — each run fires a
 - Per-run dated folder (`recon_YYYYMMDD`) with logs, tmp, and structured report tree
 - Subdomain discovery via passive sources + active DNS bruteforce
 - Infrastructure enrichment: AS / IPv4 / IPv6 / netblocks / nmap / Shodan
-- vhost discovery (opt-in via `-vc`): `vhost_check` (parallel curl + httpx, STRONG vs. WEAK confidence) against candidates with prior evidence, plus `vhost_probe` (single-tool wordlist brute force, with reproducibility confirmation) against a generic wordlist. Both feed the same automatic `/etc/hosts` injection inside the container once confirmed, so all tools resolve vhosts transparently — whether or not the vhost also has public DNS. Optional `ffuf`-backed mode for orders-of-magnitude faster probing (set `vhost_use_ffuf=yes` in `conf.d/functions.conf`)
+- vhost discovery, two independent opt-ins: `-vc|--vhost-check` runs `vhost_check` (parallel curl + httpx, STRONG vs. WEAK confidence) against candidates with prior evidence; `-vp|--vhost-probe` (requires `-vpw|--vhost-probe-wordlist`) runs `vhost_probe` (single-tool wordlist brute force, with reproducibility confirmation) against a generic wordlist. Use either or both — both feed the same automatic `/etc/hosts` injection inside the container once confirmed, so all tools resolve vhosts transparently — whether or not the vhost also has public DNS. `vhost_probe` has an optional `ffuf`-backed mode for orders-of-magnitude faster probing (set `vhost_use_ffuf=yes` in `conf.d/functions.conf`)
 - `-dr|--dry-run` pre-flight validation mode — confirm config and parameters before a long run
 - Per-artifact diff vs. previous run — only deltas pushed to notify channel
 - Email harvesting from APIs + page/JS crawl filtered to the target domain

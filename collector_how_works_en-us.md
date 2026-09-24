@@ -9,7 +9,7 @@ The offensive focus is to chain into a single pipeline the steps an attacker wou
 - passive and active subdomain enumeration across ~30 OSINT sources (crt.sh, securitytrails, shodan, virustotal, alienvault, commoncrawl, dnsdumpster, rapiddns, hackertarget, whoisxmlapi, and others);
 - target-infrastructure enrichment (ASN, IPv4/IPv6 blocks, DNS records, zone transfer);
 - port scanning with nmap and Shodan;
-- live HTTP(S) service discovery with `httpx` and vhost discovery (arbitrary `Host` header): `vhost_check` with STRONG/WEAK confidence (curl+httpx), `vhost_probe` via generic wordlist with reproducibility confirmation — both auto-inject into the container's `/etc/hosts` once confirmed;
+- live HTTP(S) service discovery with `httpx` and vhost discovery (arbitrary `Host` header), two independent flags: `-vc|--vhost-check` (`vhost_check`, STRONG/WEAK confidence via curl+httpx) and `-vp|--vhost-probe` (`vhost_probe`, generic wordlist with reproducibility confirmation, requires `-vpw|--vhost-probe-wordlist`) — use either or both; confirmed hits from either auto-inject into the container's `/etc/hosts`;
 - directory and file brute-force with `gobuster` + `dirsearch`, `robots.txt` and `sitemap.xml` capture, screenshots with `aquatone`;
 - JS crawling with `katana` + `waybackurls`, parameter mining, sink classification (SQLi/XSS/SSRF/XXE/CMD) and hardcoded-secret hunting (API keys, JWTs, tokens);
 - target email harvesting via Hunter.io, IntelX, Lampyre, Snov.io and a crawl of the consolidated URL list;
@@ -128,7 +128,7 @@ The container entrypoint is the `collector` script. The flow is, in short:
 6. **Per-target lock.** `collector_acquire_lock "${domain}"` uses `flock` to prevent concurrent runs against the same domain (so the `*_diff.txt` artifacts stay consistent).
 7. **Directory tree.** `create_directory_structure` builds `outputs/<domain>/recon_YYYYMMDD/{log,tmp,report/{scan/{nmap,nuclei,shodan},webapp/{aquatone,enum,javascript,params,tech}}}`. In "reuse" mode (running `-we`/`-ws`/`-wc` without `-r`), it picks the most recent recon_dir that has a `domains_alive.txt`.
 8. **Dry-run exit.** If `-dr` (or `--dry-run`) is passed, the script prints a pre-flight summary (target, IPv4 regex, timeouts, wordlists, port list, proxy, Shodan) and exits 0 without executing recon.
-9. **Mode routing.** `domains_recon` (for `-d`/`-dl`) or `url_recon` (for `-u`) decides which subset of the pipeline to execute based on the flags present. The full happy-path for `-d --recon --webapp-discovery --vhost-check --webapp-enum --webapp-crawler --webapp-scan` is:
+9. **Mode routing.** `domains_recon` (for `-d`/`-dl`) or `url_recon` (for `-u`) decides which subset of the pipeline to execute based on the flags present. The full happy-path for `-d --recon --webapp-discovery --vhost-check --vhost-probe --vhost-probe-wordlist <file> --webapp-enum --webapp-crawler --webapp-scan` is:
    1. `subdomains_recon` — fans out all `sources/` modules in parallel (OSINT APIs + optional DNS bruteforce + amass/subfinder/tlsx);
    2. `joining_subdomains` — `files.sh` consolidates every raw output under `tmp/` into a single deduplicated `domains_found.txt` filtered to the root domain;
    3. `diff_domains` — produces `domains_diff.txt` (delta vs. previous run);
@@ -137,7 +137,7 @@ The container entrypoint is the `collector` script. The flow is, in short:
    6. `asn_sweep` + `ptr_sweep` — sweep the ASN/netblock and reverse `/24` (PTR) of **every** infrastructure IP in `infra_ipv4.txt` (not just the root domain's own IP, like before); dedup by ASN/block plus a safety cap (`asn_max_targets`/`ptr_max_blocks`) keep this from ballooning the run time. Since `joining_subdomains` already ran (step 2), fresh hits get merged straight into `domains_found.txt` and re-resolved right here, the same pattern `spider_src` uses;
    7. `nmap_scan` + `shodan_scan` — port scan on the external IP set;
    8. `webapp_alive` — `httpx` against `domains_alive.txt` across the port list (`webapp_http_ports` with `-wsd`; the full `webapp_http_ports`+`webapp_tls_ports`+`webapp_multiple_ports` union with `-wld`; or just the `webapp_http_ports`+`webapp_tls_ports` union with `-wcp`);
-   9. `vhost_check` + `vhost_probe` **(only when `-vc|--vhost-check` is passed)** — discover vhosts served by external IPs. `vhost_check` tests candidates with prior evidence (curl+httpx, classifies STRONG/WEAK); `vhost_probe` tests a generic wordlist with no prior evidence (single-tool, confirms via reproducibility). Confirmed hits from either — STRONG from `vhost_check`, or any confirmed `vhost_probe` hit — write into `etc_hosts_file.txt` and get injected into the container's `/etc/hosts` so every downstream tool resolves them transparently, with or without public DNS. `vhost_check` WEAK stays in `vhost_subdomains_weak.txt` only, for manual review. When `vhost_use_ffuf=yes` in `conf.d/functions.conf`, `vhost_probe` delegates to `ffuf` for significantly faster wordlist-based discovery;
+   9. `vhost_check` **(only when `-vc|--vhost-check` is passed)** + `vhost_probe` **(only when `-vp|--vhost-probe` is passed, requires `-vpw|--vhost-probe-wordlist`)** — two independent gates, use either or both, to discover vhosts served by external IPs. `vhost_check` tests candidates with prior evidence (curl+httpx, classifies STRONG/WEAK); `vhost_probe` tests a generic wordlist with no prior evidence (single-tool, confirms via reproducibility). Confirmed hits from either — STRONG from `vhost_check`, or any confirmed `vhost_probe` hit — write into `etc_hosts_file.txt` and get injected into the container's `/etc/hosts` so every downstream tool resolves them transparently, with or without public DNS. `vhost_check` WEAK stays in `vhost_subdomains_weak.txt` only, for manual review. When `vhost_use_ffuf=yes` in `conf.d/functions.conf`, `vhost_probe` delegates to `ffuf` for significantly faster wordlist-based discovery;
    10. `build_consolidated_urls` — produces `webapp_consolidated.txt` (every live HTTP(S) URL, DNS + STRONG vhosts);
    11. `webapp_tech` — captures response headers for fingerprinting (in `report/webapp/tech/`);
    12. `emails_recon` — Hunter.io + IntelX (phonebook target=2) + Lampyre + Snov.io + page/JS crawl of the consolidated list;
@@ -265,15 +265,16 @@ Recon + web application discovery using the fixed-plain-HTTP port list (defined 
 collector-docker -d example.com --recon --webapp-discovery --webapp-short-detection
 ```
 
-What you get: everything from the previous command plus `webapp_consolidated.txt` (live HTTP(S) URLs) and `webapp/tech/` with fingerprinting headers. This is the typical entry point for any new target. **Note:** vhost discovery (`vhost_subdomains_strong.txt`, `etc_hosts_file.txt`) requires adding `-vc|--vhost-check`.
+What you get: everything from the previous command plus `webapp_consolidated.txt` (live HTTP(S) URLs) and `webapp/tech/` with fingerprinting headers. This is the typical entry point for any new target. **Note:** vhost discovery (`vhost_subdomains_strong.txt`, `etc_hosts_file.txt`) requires adding `-vc|--vhost-check` and/or `-vp|--vhost-probe` (the latter also needs `-vpw|--vhost-probe-wordlist`) — two independent flags, see below.
 
-Recon + web application discovery **with vhost validation**:
+Recon + web application discovery **with vhost validation** (both `-vc` and `-vp` — either works alone too):
 
 ```bash
-collector-docker -d example.com --recon --webapp-discovery --webapp-short-detection --vhost-check
+collector-docker -d example.com --recon --webapp-discovery --webapp-short-detection \
+  --vhost-check --vhost-probe --vhost-probe-wordlist /opt/collector/support/runtime/wordlists/vhost-probe-names.txt
 ```
 
-What you get: everything above plus `vhost_subdomains_strong.txt`, `vhost_subdomains_weak.txt`, `vhost_probe_hits.txt`, `etc_hosts_file.txt`. `vhost_check` probes every IP in `infra_ipv4.txt` using dual-tool (curl + httpx) cross-validation; `vhost_probe` tests a generic wordlist with a single tool (or `ffuf`, if enabled), confirming via reproducibility. STRONG (vhost_check) and any confirmed hit (vhost_probe) get injected into `/etc/hosts` and feed `webapp_consolidated.txt`; WEAK (vhost_check) is persisted for manual review only.
+What you get: everything above plus `vhost_subdomains_strong.txt`, `vhost_subdomains_weak.txt` (from `-vc`), `vhost_probe_hits.txt` (from `-vp`), `etc_hosts_file.txt`. `vhost_check` probes every IP in `infra_ipv4.txt` using dual-tool (curl + httpx) cross-validation; `vhost_probe` tests a generic wordlist with a single tool (or `ffuf`, if enabled), confirming via reproducibility. STRONG (vhost_check) and any confirmed hit (vhost_probe) get injected into `/etc/hosts` and feed `webapp_consolidated.txt`; WEAK (vhost_check) is persisted for manual review only.
 
 ### 5.3. Intermediate commands
 
@@ -330,7 +331,8 @@ End-to-end pipeline — recon + web discovery + vhost + enumeration + crawler + 
 ```bash
 collector-docker -d example.com \
   --recon \
-  --webapp-discovery --webapp-short-detection --vhost-check \
+  --webapp-discovery --webapp-short-detection \
+  --vhost-check --vhost-probe --vhost-probe-wordlist /opt/collector/support/runtime/wordlists/vhost-probe-names.txt \
   --webapp-enum --webapp-wordlists /opt/collector/wordlists/common.txt \
   --webapp-crawler \
   --webapp-scan
@@ -353,7 +355,7 @@ When the host port in `APP_PORT` (default `127.0.0.1:8000:8000`) is already boun
 
 ### 5.6. Vhost-specific configuration (conf.d/functions.conf)
 
-Vhost discovery has its own tuning section in `conf.d/functions.conf`. These variables only matter when `-vc|--vhost-check` is used:
+Vhost discovery has its own tuning section in `conf.d/functions.conf`. `vhost_baseline_samples`/`vhost_connect_timeout`/`vhost_max_time`/`vhost_prefilter_timeout` are shared by both tools; `vhost_check_*` only matters with `-vc|--vhost-check`, `vhost_probe_*`/`vhost_use_ffuf` only with `-vp|--vhost-probe`:
 
 ```bash
 # vhost - performance tuning

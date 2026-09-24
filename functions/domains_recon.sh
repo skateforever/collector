@@ -250,81 +250,85 @@ domains_recon(){
         if [[ "${webapp_discovery_check}" == "yes" ]]; then
             webapp_alive "${domain}" "${report_dir}/domains_alive.txt"
             if [[ "${vhost_check_check}" == "yes" ]]; then
-            source "${collector_path}/sources/vhost-check.sh"
-            [[ -s "${report_dir}/domains_without_resolution.txt" ]] && [[ -s "${report_dir}/infra_ipv4.txt" ]] && \
-                vhost_check "${report_dir}/domains_without_resolution.txt" "${report_dir}/infra_ipv4.txt"
-            # Merge vhost_check STRONG findings into domains_found.txt / domains_alive.txt.
-            # The IP is already known (from infra_ipv4.txt), so pull it from etc_hosts_file.txt
-            # (format: "ip\tvhost") rather than doing a fresh DNS lookup.
-            if [[ -s "${tmp_dir}/vhost_subdomains_strong.tmp" ]]; then
-                awk '{print $1}' "${tmp_dir}/vhost_subdomains_strong.tmp" \
-                    | grep -Ei "(\.${domain}$|^${domain}$)" | sort -u >> "${report_dir}/domains_found.txt"
-                sort -u -o "${report_dir}/domains_found.txt" "${report_dir}/domains_found.txt"
+                source "${collector_path}/sources/vhost-check.sh"
+                [[ -s "${report_dir}/domains_without_resolution.txt" ]] && [[ -s "${report_dir}/infra_ipv4.txt" ]] && \
+                    vhost_check "${report_dir}/domains_without_resolution.txt" "${report_dir}/infra_ipv4.txt"
+                # Merge vhost_check STRONG findings into domains_found.txt / domains_alive.txt.
+                # The IP is already known (from infra_ipv4.txt), so pull it from etc_hosts_file.txt
+                # (format: "ip\tvhost") rather than doing a fresh DNS lookup.
+                if [[ -s "${tmp_dir}/vhost_subdomains_strong.tmp" ]]; then
+                    awk '{print $1}' "${tmp_dir}/vhost_subdomains_strong.tmp" \
+                        | grep -Ei "(\.${domain}$|^${domain}$)" | sort -u >> "${report_dir}/domains_found.txt"
+                    sort -u -o "${report_dir}/domains_found.txt" "${report_dir}/domains_found.txt"
 
-                # Read ONLY strong vhosts (correct source) and lookup IP in etc_hosts_file.txt
-                while IFS= read -r vc_host; do
-                    # Validate that it belongs to target domain (defense in depth)
-                    if ! grep -qEi "(\.${domain}$|^${domain}$)" <<< "${vc_host}"; then
-                        continue
-                    fi
+                    # Read ONLY strong vhosts (correct source) and lookup IP in etc_hosts_file.txt
+                    while IFS= read -r vc_host; do
+                        # Validate that it belongs to target domain (defense in depth)
+                        if ! grep -qEi "(\.${domain}$|^${domain}$)" <<< "${vc_host}"; then
+                            continue
+                        fi
 
-                    # Lookup IP in etc_hosts_file.txt
-                    local vc_ip
-                    vc_ip="$(grep -F "${vc_host}" "${report_dir}/etc_hosts_file.txt" | awk '{print $1}' | head -1)"
+                        # Lookup IP in etc_hosts_file.txt
+                        local vc_ip
+                        vc_ip="$(grep -F "${vc_host}" "${report_dir}/etc_hosts_file.txt" | awk '{print $1}' | head -1)"
 
-                    if [[ -n "${vc_ip}" ]]; then
-                        echo "${vc_host}"$'\t'"${vc_ip}" >> "${report_dir}/domains_external_ipv4.txt"
-                        echo "${vc_host}" >> "${report_dir}/domains_alive.txt"
-                    fi
-                done < "${tmp_dir}/vhost_subdomains_strong.tmp"
+                        if [[ -n "${vc_ip}" ]]; then
+                            echo "${vc_host}"$'\t'"${vc_ip}" >> "${report_dir}/domains_external_ipv4.txt"
+                            echo "${vc_host}" >> "${report_dir}/domains_alive.txt"
+                        fi
+                    done < "${tmp_dir}/vhost_subdomains_strong.tmp"
 
-                sort -u -o "${report_dir}/domains_external_ipv4.txt" "${report_dir}/domains_external_ipv4.txt"
-                sort -u -o "${report_dir}/domains_alive.txt" "${report_dir}/domains_alive.txt"
-            fi
-            source "${collector_path}/sources/vhost-probe.sh"
-            [[ -s "${report_dir}/infra_ipv4.txt" ]] && \
-                vhost_probe "${report_dir}/infra_ipv4.txt"
-            # Merge vhost_probe findings into domains_found.txt and resolve new entries.
-            # vhost_probe_output.tmp lines are "ip\tport\tscheme\thost\tsize\thash"
-            # (since vhost_probe_persist_hits() already used every field to feed
-            # etc_hosts_file.txt/vhost_urls.txt/vhost_probe_hits.txt directly) —
-            # pull just the hostname (field 4) before matching/merging here.
-            if [[ -s "${tmp_dir}/vhost_probe_output.tmp" ]]; then
-                awk -F'\t' '{print $4}' "${tmp_dir}/vhost_probe_output.tmp" \
-                    | grep -Ei "(\.${domain}$|^${domain}$)" \
-                    | sort -u >> "${report_dir}/domains_found.txt"
-                sort -u -o "${report_dir}/domains_found.txt" "${report_dir}/domains_found.txt"
-                # Resolve new vhost_probe entries in parallel (10x speedup)
-                awk -F'\t' '{print $4}' "${tmp_dir}/vhost_probe_output.tmp" \
-                    | grep -Ei "(\.${domain}$|^${domain}$)" \
-                    | sort -u > "${tmp_dir}/vhost_probe_new.tmp"
-                if [[ -s "${tmp_dir}/vhost_probe_new.tmp" ]]; then
-                    local num_workers=20 pids=()
-
-                    split -n l/${num_workers} "${tmp_dir}/vhost_probe_new.tmp" "${tmp_dir}/vhost_probe_chunk_"
-
-                    for ((i=0; i<num_workers; i++)); do
-                        dns_parallel_worker "$i" "${tmp_dir}/vhost_probe_chunk_${i}" \
-                            "${domain}" "${report_dir}" "${IPv4_regex}" \
-                            "${webapp_port_detect[@]}" "${webapp_tls_ports[@]}" &
-                        pids+=($!)
-                    done
-
-                    for pid in "${pids[@]}"; do
-                        wait "$pid" 2>/dev/null
-                    done
-
-                    merge_parallel_dns_results "${report_dir}" "domains_external_ipv4"
-                    merge_parallel_dns_results "${report_dir}" "domains_alive"
-                    merge_parallel_dns_results "${report_dir}" "infra_ipv4"
-                    merge_parallel_dns_results "${report_dir}" "vhost_urls"
+                    sort -u -o "${report_dir}/domains_external_ipv4.txt" "${report_dir}/domains_external_ipv4.txt"
+                    sort -u -o "${report_dir}/domains_alive.txt" "${report_dir}/domains_alive.txt"
                 fi
-            fi
             fi  # end vhost_check_check
-            # Build the consolidated URL list once — after both vhost_check and
-            # vhost_probe have finished writing to vhost_urls.txt. The call that
-            # was previously inside vhost_check() was removed so that probe hits
-            # are included here in a single pass (F-05 fix).
+
+            if [[ "${vhost_probe_check}" == "yes" ]]; then
+                source "${collector_path}/sources/vhost-probe.sh"
+                [[ -s "${report_dir}/infra_ipv4.txt" ]] && \
+                    vhost_probe "${report_dir}/infra_ipv4.txt"
+                # Merge vhost_probe findings into domains_found.txt and resolve new entries.
+                # vhost_probe_output.tmp lines are "ip\tport\tscheme\thost\tsize\thash"
+                # (since vhost_probe_persist_hits() already used every field to feed
+                # etc_hosts_file.txt/vhost_urls.txt/vhost_probe_hits.txt directly) —
+                # pull just the hostname (field 4) before matching/merging here.
+                if [[ -s "${tmp_dir}/vhost_probe_output.tmp" ]]; then
+                    awk -F'\t' '{print $4}' "${tmp_dir}/vhost_probe_output.tmp" \
+                        | grep -Ei "(\.${domain}$|^${domain}$)" \
+                        | sort -u >> "${report_dir}/domains_found.txt"
+                    sort -u -o "${report_dir}/domains_found.txt" "${report_dir}/domains_found.txt"
+                    # Resolve new vhost_probe entries in parallel (10x speedup)
+                    awk -F'\t' '{print $4}' "${tmp_dir}/vhost_probe_output.tmp" \
+                        | grep -Ei "(\.${domain}$|^${domain}$)" \
+                        | sort -u > "${tmp_dir}/vhost_probe_new.tmp"
+                    if [[ -s "${tmp_dir}/vhost_probe_new.tmp" ]]; then
+                        local num_workers=20 pids=()
+
+                        split -n l/${num_workers} "${tmp_dir}/vhost_probe_new.tmp" "${tmp_dir}/vhost_probe_chunk_"
+
+                        for ((i=0; i<num_workers; i++)); do
+                            dns_parallel_worker "$i" "${tmp_dir}/vhost_probe_chunk_${i}" \
+                                "${domain}" "${report_dir}" "${IPv4_regex}" \
+                                "${webapp_port_detect[@]}" "${webapp_tls_ports[@]}" &
+                            pids+=($!)
+                        done
+
+                        for pid in "${pids[@]}"; do
+                            wait "$pid" 2>/dev/null
+                        done
+
+                        merge_parallel_dns_results "${report_dir}" "domains_external_ipv4"
+                        merge_parallel_dns_results "${report_dir}" "domains_alive"
+                        merge_parallel_dns_results "${report_dir}" "infra_ipv4"
+                        merge_parallel_dns_results "${report_dir}" "vhost_urls"
+                    fi
+                fi
+            fi  # end vhost_probe_check
+            # Build the consolidated URL list once — after vhost_check and/or
+            # vhost_probe (whichever ran, independently gated above) have
+            # finished writing to vhost_urls.txt. The call that was previously
+            # inside vhost_check() was removed so that probe hits are included
+            # here in a single pass (F-05 fix).
             build_consolidated_urls
             webapp_tech "${domain}" "${report_dir}/webapp_consolidated.txt"
         fi
