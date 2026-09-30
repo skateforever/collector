@@ -15,8 +15,6 @@ dns_parallel_worker(){
     local domain="$3"
     local report_dir="$4"
     local IPv4_regex="$5"
-    local webapp_port_detect=("${@:6:$((${#@}-7))}")
-    local webapp_tls_ports=("${@:((${#@}-1))}")
 
     while IFS= read -r host; do
         [[ -z "${host}" ]] && continue
@@ -32,17 +30,6 @@ dns_parallel_worker(){
             echo "${host}"$'\t'"${ip}" >> "${report_dir}/domains_external_ipv4_${worker_id}.tmp"
             echo "${host}" >> "${report_dir}/domains_alive_${worker_id}.tmp"
             echo "${ip}" >> "${report_dir}/infra_ipv4_${worker_id}.tmp"
-
-            for port in "${webapp_port_detect[@]}"; do
-                local proto="http"
-                [[ "${port}" =~ ^($(echo "${webapp_tls_ports[@]}" | tr ' ' '|'))$ ]] && proto="https"
-                if [[ "${proto}" == "http" && "${port}" == "80" ]] || \
-                   [[ "${proto}" == "https" && "${port}" == "443" ]]; then
-                    echo "${proto}://${host}"
-                else
-                    echo "${proto}://${host}:${port}"
-                fi
-            done >> "${report_dir}/vhost_urls_${worker_id}.tmp"
         fi
     done < "${chunk_file}"
 }
@@ -236,8 +223,7 @@ domains_recon(){
                 for ((i=0; i<num_workers; i++)); do
                     printf -v chunk_id '%02d' "${i}"
                     dns_parallel_worker "$i" "${tmp_dir}/asn_ptr_sweep_chunk_${chunk_id}" \
-                        "${domain}" "${report_dir}" "${IPv4_regex}" \
-                        "${webapp_port_detect[@]}" "${webapp_tls_ports[@]}" &
+                        "${domain}" "${report_dir}" "${IPv4_regex}" &
                     pids+=($!)
                 done
                 for pid in "${pids[@]}"; do
@@ -297,6 +283,14 @@ domains_recon(){
                 # (since vhost_probe_persist_hits() already used every field to feed
                 # etc_hosts_file.txt/vhost_urls.txt/vhost_probe_hits.txt directly) —
                 # pull just the hostname (field 4) before matching/merging here.
+                # dns_parallel_worker below only registers domains_alive.txt/
+                # infra_ipv4.txt/domains_external_ipv4.txt for these hosts — it must
+                # NOT also fabricate webapp_port_detect × host URLs into vhost_urls.txt
+                # (a prior bug did exactly that, unconditionally, with zero port
+                # reachability check, flooding webapp_consolidated.txt with false
+                # positives). vhost_probe() already tested every port itself and
+                # vhost_probe_persist_hits() already wrote the verified hits to
+                # vhost_urls.txt; nothing more should be added here.
                 if [[ -s "${tmp_dir}/vhost_probe_output.tmp" ]]; then
                     awk -F'\t' '{print $4}' "${tmp_dir}/vhost_probe_output.tmp" \
                         | grep -Ei "(\.${domain}$|^${domain}$)" \
@@ -318,8 +312,7 @@ domains_recon(){
                         for ((i=0; i<num_workers; i++)); do
                             printf -v chunk_id '%02d' "${i}"
                             dns_parallel_worker "$i" "${tmp_dir}/vhost_probe_chunk_${chunk_id}" \
-                                "${domain}" "${report_dir}" "${IPv4_regex}" \
-                                "${webapp_port_detect[@]}" "${webapp_tls_ports[@]}" &
+                                "${domain}" "${report_dir}" "${IPv4_regex}" &
                             pids+=($!)
                         done
 
@@ -330,7 +323,6 @@ domains_recon(){
                         merge_parallel_dns_results "${report_dir}" "domains_external_ipv4"
                         merge_parallel_dns_results "${report_dir}" "domains_alive"
                         merge_parallel_dns_results "${report_dir}" "infra_ipv4"
-                        merge_parallel_dns_results "${report_dir}" "vhost_urls"
                     fi
                 fi
             fi  # end vhost_probe_check
@@ -370,8 +362,7 @@ domains_recon(){
                         for ((i=0; i<num_workers; i++)); do
                             printf -v chunk_id '%02d' "${i}"
                             dns_parallel_worker "$i" "${tmp_dir}/spider_chunk_${chunk_id}" \
-                                "${domain}" "${report_dir}" "${IPv4_regex}" \
-                                "${webapp_port_detect[@]}" "${webapp_tls_ports[@]}" &
+                                "${domain}" "${report_dir}" "${IPv4_regex}" &
                             pids+=($!)
                         done
 
