@@ -280,6 +280,23 @@ vhost_probe_ffuf(){
 vhost_probe_persist_hits(){
     [[ -s "${tmp_dir}/vhost_probe_output.tmp" ]] || return 0
 
+    # Drop hits sharing a default/catch-all fingerprint with
+    # vhost_fingerprint_cluster_min+ other candidates at the same (ip, port)
+    # — see vhost_dedupe_fingerprint_clusters() in functions/utils.sh.
+    # Fields here are ip\tport\tscheme\thost\tsize\thash: ip, port, hash
+    # make up the grouping key (field 4, host, is the candidate identity).
+    local before_dedupe after_dedupe
+    before_dedupe="$(wc -l < "${tmp_dir}/vhost_probe_output.tmp")"
+    vhost_dedupe_fingerprint_clusters "${tmp_dir}/vhost_probe_output.tmp" 4 "1,2,6" \
+        > "${tmp_dir}/vhost_probe_output_deduped.tmp"
+    mv "${tmp_dir}/vhost_probe_output_deduped.tmp" "${tmp_dir}/vhost_probe_output.tmp"
+    after_dedupe="$(wc -l < "${tmp_dir}/vhost_probe_output.tmp")"
+    if [[ "${before_dedupe}" -ne "${after_dedupe}" ]]; then
+        echo "vhost_probe: dropped $((before_dedupe - after_dedupe)) hit(s) sharing a default-page fingerprint with ${vhost_fingerprint_cluster_min:-3}+ other candidates" >> "${log_execution_file}"
+    fi
+
+    [[ -s "${tmp_dir}/vhost_probe_output.tmp" ]] || return 0
+
     awk -F'\t' '{
         ip=$1; port=$2; proto=$3; host=$4; size=$5; hash=$6;
         if ((proto=="http" && port=="80") || (proto=="https" && port=="443"))

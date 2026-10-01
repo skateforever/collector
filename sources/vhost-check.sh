@@ -324,6 +324,23 @@ vhost_check(){
             rm -f "${per_batch_out}"
         done
 
+        # Drop hits sharing a default/catch-all fingerprint with
+        # vhost_fingerprint_cluster_min+ other candidates at the same
+        # (ip:port, hash) — see vhost_dedupe_fingerprint_clusters() in
+        # functions/utils.sh. Lines here are vhost\tip:port\tSize: N\tHash: X\tCONFIDENCE:
+        # field 2 (ip:port) + field 4 (Hash: X) make up the grouping key,
+        # field 1 (vhost) is the candidate identity. Applied to each tier
+        # independently since STRONG/WEAK is an orthogonal confidence axis
+        # (dual-tool consensus) from the fingerprint-sharing problem.
+        if [[ -s "${strong_out}" ]]; then
+            vhost_dedupe_fingerprint_clusters "${strong_out}" 1 "2,4" > "${strong_out}.deduped"
+            mv "${strong_out}.deduped" "${strong_out}"
+        fi
+        if [[ -s "${weak_out}" ]]; then
+            vhost_dedupe_fingerprint_clusters "${weak_out}" 1 "2,4" > "${weak_out}.deduped"
+            mv "${weak_out}.deduped" "${weak_out}"
+        fi
+
         # Persist both tiers to report_dir, regardless of confidence. STRONG
         # still drives etc_hosts_file.txt/vhost_urls.txt below (only STRONG
         # gets auto-injected into /etc/hosts and auto-scanned downstream —
