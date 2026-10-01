@@ -179,7 +179,15 @@ joining_subdomains(){
 
         if [ -s "${tmp_dir}/urlscan_output.json" ]; then
             echo "Parsing urlscan" >> "${log_execution_file}"
+            # Unlike every other source parsed here, urlscan's search API can
+            # surface task.domain values with no relation to the query domain
+            # at all (unrelated third-party pages indexed by urlscan.io that
+            # merely referenced/linked/redirected to the target) — observed
+            # in the wild as plain google.com entries polluting
+            # domains_found.txt. Every sibling parser below filters by domain
+            # suffix; this one didn't.
             jq -r '.results[].task.domain' "${tmp_dir}/urlscan_output.json" \
+                | grep -Ei "(\.${domain}$|^${domain}$)" \
                 | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
