@@ -18,7 +18,7 @@
 asn_sweep(){
     local asn_ip_file="$1"
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing ASN sweep... "
-    : > "${tmp_dir}/asn_sweep_output.txt"
+    : > "${tmp_dir}/asn_sweep_output.tmp"
 
     if [[ ! -s "${asn_ip_file}" ]]; then
         echo "Done!"
@@ -128,7 +128,7 @@ asn_sweep(){
                 asn_c=$(( (asn_cur >>  8) & 255 ))
                 asn_d=$(( asn_cur & 255 ))
                 asn_ptr="$(dig +short -x "${asn_a}.${asn_b}.${asn_c}.${asn_d}" 2>/dev/null | sed 's/\.$//' | tr '[:upper:]' '[:lower:]')"
-                [[ -n "${asn_ptr}" ]] && echo "${asn_ptr}" >> "${tmp_dir}/asn_sweep_output.txt"
+                [[ -n "${asn_ptr}" ]] && echo "${asn_ptr}" >> "${tmp_dir}/asn_sweep_output.tmp"
             done
         done
     done < <(sort -u "${asn_ip_file}")
@@ -137,6 +137,6 @@ asn_sweep(){
         echo "asn-sweep: skipped ${asn_skipped} additional IP(s) beyond the ${asn_max_targets}-target cap" >> "${log_execution_file}"
     fi
 
-    sort -u -o "${tmp_dir}/asn_sweep_output.txt" "${tmp_dir}/asn_sweep_output.txt" 2>/dev/null
+    sort -u -o "${tmp_dir}/asn_sweep_output.tmp" "${tmp_dir}/asn_sweep_output.tmp" 2>/dev/null
     echo "Done!"
 }

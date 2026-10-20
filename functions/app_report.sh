@@ -4,7 +4,7 @@
 # app-report dashboard lifecycle.                           #
 #                                                           #
 # The dashboard (Flask+HTMX under gunicorn) is read-only    #
-# and runs in two modes:                                    #
+# and can be launched two ways:                              #
 #                                                           #
 #   * background — spawned at the tail of a recon run so    #
 #                  the operator can browse results the      #
@@ -13,30 +13,51 @@
 #                  exec-replacing the collector process so  #
 #                  Ctrl-C reaches gunicorn cleanly.         #
 #                                                           #
+# Both are the SAME service identity, though — one shared    #
+# pidfile/logfile under app-report/run/, sibling to           #
+# app-report/db/ (the cross-run, cross-domain SQLite results   #
+# DB). app-report isn't a per-scan artifact; it's a tool-level  #
+# long-lived process, so its own runtime state lives with the    #
+# tool, not scattered into whichever outputs/${domain}/           #
+# recon_${date}/ happened to spawn it. One shared identity        #
+# also means --report-stop can stop EITHER launch mode, not        #
+# just a foreground one.                                            #
+#                                                           #
 # One implementation (run_app_report) handles both; the     #
 # public wrappers below are the historical entry points.    #
 #                                                           #
 # Exposes:                                                  #
-#   * app_report_foreground_pidfile   (path helper)         #
-#   * run_app_report                  (mode-parameterized)  #
-#   * start_app_report                (background wrapper)  #
-#   * start_app_report_foreground     (foreground wrapper)  #
-#   * stop_app_report_foreground      (SIGTERM→SIGKILL)     #
+#   * app_report_run_dir               (path helper)         #
+#   * app_report_pidfile               (path helper)         #
+#   * app_report_logfile               (path helper)         #
+#   * run_app_report                   (mode-parameterized)  #
+#   * start_app_report                 (background wrapper)  #
+#   * start_app_report_foreground      (foreground wrapper)  #
+#   * stop_app_report                  (SIGTERM→SIGKILL)     #
 #                                                           #
 # Depends on start_cloudflare_tunnel from                   #
 # functions/cloudflare_tunnel.sh (optional add-on).         #
 #                                                           #
 #############################################################
 
-# app_report_foreground_pidfile — path resolver shared by the foreground
-# start and stop paths. Kept as a helper so both agree on where the file
-# lives. The .fg suffix differentiates the foreground pidfile from the
-# background one written by mode=background below, so a recon run (which
-# leaves a background dashboard) and a --report-only session can coexist
-# without clobbering each other.
-app_report_foreground_pidfile(){
-    local base="${app_report_pidfile_name:-.app-report.pid}"
-    echo "${app_report_pidfile:-${output_dir}/${base%.pid}.fg.pid}"
+# app_report_run_dir — app-report/run, sibling to app-report/db. Same
+# tool-level lifecycle as the DB, not scoped to any one scan — see file
+# header. mkdir -p defensively; also tracked in git via a .gitkeep (same
+# pattern as app-report/db) so a fresh checkout/image already has it.
+app_report_run_dir(){
+    local app_dir="${app_report_dir:-app-report}"
+    [[ "${app_dir}" != /* ]] && app_dir="${collector_path:-.}/${app_dir}"
+    echo "${app_dir}/run"
+}
+
+# app_report_pidfile / app_report_logfile — path resolvers shared by every
+# start/stop path (background AND foreground alike, per the file header).
+# Kept as helpers so nothing drifts out of sync between them.
+app_report_pidfile(){
+    echo "${app_report_pidfile_path:-$(app_report_run_dir)/${app_report_pidfile_name:-app-report.pid}}"
+}
+app_report_logfile(){
+    echo "${app_report_logfile_path:-$(app_report_run_dir)/${app_report_logfile_name:-app-report.log}}"
 }
 
 # run_app_report — single implementation behind start_app_report (called
@@ -51,14 +72,17 @@ app_report_foreground_pidfile(){
 #   * gunicorn preferred, python3 app.py fallback
 #
 # Mode-dependent behavior is fenced by "$1":
-#   background  — nohup + &, redirects logs to file, optional cloudflare
-#                 tunnel, returns after confirming the child is alive.
-#                 A missing app_dir / DB is a soft skip (return 0) so a
-#                 recon run isn't aborted by a missing UI.
-#   foreground  — exec so gunicorn takes over PID $$, logs to stdout, no
-#                 tunnel, no return-on-success (exec never returns).
-#                 Preflight failures are hard errors (return 1) since the
-#                 whole point of the invocation is to serve the UI.
+#   background  — nohup + &, optional cloudflare tunnel, returns after
+#                 confirming the child is alive. A missing app_dir / DB is
+#                 a soft skip (return 0) so a recon run isn't aborted by a
+#                 missing UI.
+#   foreground  — exec so gunicorn takes over PID $$, no tunnel, no
+#                 return-on-success (exec never returns). Preflight
+#                 failures are hard errors (return 1) since the whole
+#                 point of the invocation is to serve the UI.
+# Both modes write the SAME logfile now — foreground also tees its
+# stdout/stderr there in addition to the live terminal, so the shared log
+# has a continuous history regardless of how the dashboard was started.
 run_app_report(){
     local mode="$1"
     local tag                    # log-line prefix and pidfile lookup key
@@ -83,14 +107,10 @@ run_app_report(){
     local host="${app_report_host:-127.0.0.1}"
     local port="${app_report_port:-8000}"
     local db="${collector_db:-${collector_path}/${app_report_dir:-app-report}/db/${collector_db_name:-collector-results}}"
+    mkdir -p "$(app_report_run_dir)" 2>/dev/null
     local pidfile logfile
-    if [[ "${mode}" == "foreground" ]]; then
-        pidfile="$(app_report_foreground_pidfile)"
-        logfile=""   # foreground writes to stdout/stderr, no file
-    else
-        pidfile="${app_report_pidfile:-${output_dir}/${app_report_pidfile_name:-.app-report.pid}}"
-        logfile="${app_report_logfile:-${output_dir}/${app_report_logfile_name:-.app-report.log}}"
-    fi
+    pidfile="$(app_report_pidfile)"
+    logfile="$(app_report_logfile)"
 
     if [[ ! -d "${app_dir}" ]]; then
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${tag}: ${app_dir} not found."
@@ -111,34 +131,24 @@ run_app_report(){
     fi
 
     # ─── already-running detection ─────────────────────────────────────
-    # Two pidfiles can exist on the same outputs/ volume:
-    #   background: .app-report.pid   (written by start_app_report from
-    #               inside a recon run)
-    #   foreground: .app-report.fg.pid (written by --report-only)
-    # A live process behind EITHER pidfile blocks starting a new instance
-    # in ANY mode — both would race on the same TCP port. Hence we check
-    # both, not just the pidfile of the current mode.
-    local bg_pidfile fg_pidfile
-    bg_pidfile="${app_report_pidfile:-${output_dir}/${app_report_pidfile_name:-.app-report.pid}}"
-    fg_pidfile="$(app_report_foreground_pidfile)"
-
-    local check_file check_pid check_mode
-    for check_file in "${bg_pidfile}" "${fg_pidfile}"; do
-        [[ -s "${check_file}" ]] || continue
-        check_pid="$(cat "${check_file}" 2>/dev/null)"
+    # One shared pidfile for both launch modes (see file header) — a live
+    # process behind it blocks starting a new instance in ANY mode, both
+    # would race on the same TCP port.
+    if [[ -s "${pidfile}" ]]; then
+        local check_pid
+        check_pid="$(cat "${pidfile}" 2>/dev/null)"
         if [[ -z "${check_pid}" ]] || ! kill -0 "${check_pid}" 2>/dev/null; then
             # Stale pidfile from a previous run — clean and move on.
-            rm -f "${check_file}"
-            continue
+            rm -f "${pidfile}"
+        else
+            echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${tag}: already running (pid ${check_pid}) at http://${host}:${port}"
+            if [[ "${mode}" == "foreground" ]]; then
+                echo -e "  stop it with ${yellow}collector --report-stop${reset} (or ${yellow}collector-docker --report-stop${reset}) before starting a new one."
+                return 1
+            fi
+            return 0
         fi
-        [[ "${check_file}" == "${fg_pidfile}" ]] && check_mode="foreground" || check_mode="background"
-        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${tag}: already running (pid ${check_pid}, ${check_mode} mode) at http://${host}:${port}"
-        if [[ "${mode}" == "foreground" ]]; then
-            echo -e "  stop it with ${yellow}collector --report-stop${reset} (or ${yellow}collector-docker --report-stop${reset}) before starting a new one."
-            return 1
-        fi
-        return 0
-    done
+    fi
 
     # Even without a matching pidfile, the TCP port may already be taken
     # (someone started gunicorn by hand, or a sibling container is
@@ -177,6 +187,13 @@ run_app_report(){
 
     if [[ "${mode}" == "foreground" ]]; then
         cd "${app_dir}" || return 1
+        # Duplicate stdout/stderr to the shared logfile in addition to the
+        # live terminal — tee via process substitution keeps Ctrl-C and
+        # streaming output working normally; the redirection survives the
+        # exec below since file descriptors carry over, only the program
+        # image changes. Set up BEFORE the "serving at" announcement so
+        # that line lands in the shared log too, not just the terminal.
+        exec > >(tee -a "${logfile}") 2>&1
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${tag}: serving at http://${host}:${port} (Ctrl-C or --report-stop to stop)"
         # Record OUR pid before exec — after exec, $$ is inherited by
         # gunicorn (same PID, different program), so --report-stop still
@@ -230,11 +247,13 @@ run_app_report(){
 start_app_report(){ run_app_report background; }
 start_app_report_foreground(){ run_app_report foreground; }
 
-# stop_app_report_foreground — counterpart of start_app_report_foreground.
-# Signals the gunicorn master recorded in the pidfile with SIGTERM (which
-# gunicorn handles gracefully), waits up to 5 seconds, then escalates to
-# SIGKILL. Also cleans up stale pidfiles. Returns 0 on success or when
-# there was nothing to stop, 1 only if the kill escalation failed.
+# stop_app_report — counterpart of BOTH start_app_report and
+# start_app_report_foreground, now that they share one pidfile (see file
+# header). Signals the gunicorn master recorded in the pidfile with
+# SIGTERM (which gunicorn handles gracefully), waits up to 5 seconds, then
+# escalates to SIGKILL. Also cleans up stale pidfiles. Returns 0 on
+# success or when there was nothing to stop, 1 only if the kill
+# escalation failed.
 #
 # Note on containers: when the dashboard was started via `collector-docker
 # --report-only`, the gunicorn PID lives inside that container's PID
@@ -243,31 +262,31 @@ start_app_report_foreground(){ run_app_report foreground; }
 # in-container half, invoked when the operator hits `collector
 # --report-stop` inside the same container (or runs the collector
 # natively on the host).
-stop_app_report_foreground(){
+stop_app_report(){
     local pidfile
-    pidfile="$(app_report_foreground_pidfile)"
+    pidfile="$(app_report_pidfile)"
 
     if [[ ! -s "${pidfile}" ]]; then
-        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} stop_app_report_foreground: no pidfile at ${pidfile} — nothing to stop."
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} stop_app_report: no pidfile at ${pidfile} — nothing to stop."
         return 0
     fi
 
     local pid
     pid="$(cat "${pidfile}" 2>/dev/null)"
     if [[ -z "${pid}" ]] || ! kill -0 "${pid}" 2>/dev/null; then
-        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} stop_app_report_foreground: stale pidfile (pid ${pid:-?} not alive), removing."
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} stop_app_report: stale pidfile (pid ${pid:-?} not alive), removing."
         rm -f "${pidfile}"
         return 0
     fi
 
-    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} stop_app_report_foreground: sending SIGTERM to gunicorn (pid ${pid})"
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} stop_app_report: sending SIGTERM to gunicorn (pid ${pid})"
     kill -TERM "${pid}" 2>/dev/null
 
     local waited=0
     while [[ "${waited}" -lt 5 ]]; do
         if ! kill -0 "${pid}" 2>/dev/null; then
             rm -f "${pidfile}"
-            echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} stop_app_report_foreground: stopped."
+            echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} stop_app_report: stopped."
             return 0
         fi
         sleep 1
@@ -275,11 +294,11 @@ stop_app_report_foreground(){
     done
 
     # Didn't exit within 5s — force it.
-    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} stop_app_report_foreground: SIGTERM ignored after 5s, escalating to SIGKILL."
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} stop_app_report: SIGTERM ignored after 5s, escalating to SIGKILL."
     if kill -KILL "${pid}" 2>/dev/null; then
         rm -f "${pidfile}"
         return 0
     fi
-    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} stop_app_report_foreground: SIGKILL failed for pid ${pid}."
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} stop_app_report: SIGKILL failed for pid ${pid}."
     return 1
 }

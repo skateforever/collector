@@ -15,8 +15,6 @@ dns_parallel_worker(){
     local domain="$3"
     local report_dir="$4"
     local IPv4_regex="$5"
-    local webapp_port_detect=("${@:6:$((${#@}-7))}")
-    local webapp_tls_ports=("${@:((${#@}-1))}")
 
     while IFS= read -r host; do
         [[ -z "${host}" ]] && continue
@@ -32,17 +30,6 @@ dns_parallel_worker(){
             echo "${host}"$'\t'"${ip}" >> "${report_dir}/domains_external_ipv4_${worker_id}.tmp"
             echo "${host}" >> "${report_dir}/domains_alive_${worker_id}.tmp"
             echo "${ip}" >> "${report_dir}/infra_ipv4_${worker_id}.tmp"
-
-            for port in "${webapp_port_detect[@]}"; do
-                local proto="http"
-                [[ "${port}" =~ ^($(echo "${webapp_tls_ports[@]}" | tr ' ' '|'))$ ]] && proto="https"
-                if [[ "${proto}" == "http" && "${port}" == "80" ]] || \
-                   [[ "${proto}" == "https" && "${port}" == "443" ]]; then
-                    echo "${proto}://${host}"
-                else
-                    echo "${proto}://${host}:${port}"
-                fi
-            done >> "${report_dir}/vhost_urls_${worker_id}.tmp"
         fi
     done < "${chunk_file}"
 }
@@ -167,8 +154,8 @@ domains_recon(){
           crawler_params "${domain}" "${report_dir}/webapp_consolidated.txt"
           source "${collector_path}/sources/spider.sh"
           spider_src "${report_dir}/webapp_consolidated.txt"
-          if [[ -s "${tmp_dir}/spider_output.txt" ]]; then
-              grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/spider_output.txt" \
+          if [[ -s "${tmp_dir}/spider_output.tmp" ]]; then
+              grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/spider_output.tmp" \
                   | sort -u >> "${report_dir}/domains_found.txt"
               sort -u -o "${report_dir}/domains_found.txt" "${report_dir}/domains_found.txt"
           fi
@@ -222,17 +209,21 @@ domains_recon(){
             asn_sweep "${report_dir}/infra_ipv4.txt"
             source "${collector_path}/sources/ptr-sweep.sh"
             ptr_sweep "${report_dir}/infra_ipv4.txt"
-            cat "${tmp_dir}/asn_sweep_output.txt" "${tmp_dir}/ptr_sweep_output.txt" 2>/dev/null \
+            cat "${tmp_dir}/asn_sweep_output.tmp" "${tmp_dir}/ptr_sweep_output.tmp" 2>/dev/null \
                 | grep -Ei "(\.${domain}$|^${domain}$)" | sort -u > "${tmp_dir}/asn_ptr_sweep_new.tmp"
             if [[ -s "${tmp_dir}/asn_ptr_sweep_new.tmp" ]]; then
                 cat "${tmp_dir}/asn_ptr_sweep_new.tmp" >> "${report_dir}/domains_found.txt"
                 sort -u -o "${report_dir}/domains_found.txt" "${report_dir}/domains_found.txt"
-                local num_workers=20 pids=()
-                split -n l/${num_workers} "${tmp_dir}/asn_ptr_sweep_new.tmp" "${tmp_dir}/asn_ptr_sweep_chunk_"
+                local num_workers=20 pids=() chunk_id
+                # -d: numeric suffixes (00, 01, ...) — split's default is
+                # alphabetic (aa, ab, ...), which never matches the ${i}
+                # lookup below and silently drops every chunk (worker reads
+                # from a file that was never created).
+                split -d -n l/${num_workers} "${tmp_dir}/asn_ptr_sweep_new.tmp" "${tmp_dir}/asn_ptr_sweep_chunk_"
                 for ((i=0; i<num_workers; i++)); do
-                    dns_parallel_worker "$i" "${tmp_dir}/asn_ptr_sweep_chunk_${i}" \
-                        "${domain}" "${report_dir}" "${IPv4_regex}" \
-                        "${webapp_port_detect[@]}" "${webapp_tls_ports[@]}" &
+                    printf -v chunk_id '%02d' "${i}"
+                    dns_parallel_worker "$i" "${tmp_dir}/asn_ptr_sweep_chunk_${chunk_id}" \
+                        "${domain}" "${report_dir}" "${IPv4_regex}" &
                     pids+=($!)
                 done
                 for pid in "${pids[@]}"; do
@@ -250,75 +241,96 @@ domains_recon(){
         if [[ "${webapp_discovery_check}" == "yes" ]]; then
             webapp_alive "${domain}" "${report_dir}/domains_alive.txt"
             if [[ "${vhost_check_check}" == "yes" ]]; then
-            source "${collector_path}/sources/vhost-check.sh"
-            [[ -s "${report_dir}/domains_without_resolution.txt" ]] && [[ -s "${report_dir}/infra_ipv4.txt" ]] && \
-                vhost_check "${report_dir}/domains_without_resolution.txt" "${report_dir}/infra_ipv4.txt"
-            # Merge vhost_check STRONG findings into domains_found.txt / domains_alive.txt.
-            # The IP is already known (from infra_ipv4.txt), so pull it from etc_hosts_file.txt
-            # (format: "ip\tvhost") rather than doing a fresh DNS lookup.
-            if [[ -s "${tmp_dir}/vhost_subdomains_strong.tmp" ]]; then
-                awk '{print $1}' "${tmp_dir}/vhost_subdomains_strong.tmp" \
-                    | grep -Ei "(\.${domain}$|^${domain}$)" | sort -u >> "${report_dir}/domains_found.txt"
-                sort -u -o "${report_dir}/domains_found.txt" "${report_dir}/domains_found.txt"
+                source "${collector_path}/sources/vhost-check.sh"
+                [[ -s "${report_dir}/domains_without_resolution.txt" ]] && [[ -s "${report_dir}/infra_ipv4.txt" ]] && \
+                    vhost_check "${report_dir}/domains_without_resolution.txt" "${report_dir}/infra_ipv4.txt"
+                # Merge vhost_check STRONG findings into domains_found.txt / domains_alive.txt.
+                # The IP is already known (from infra_ipv4.txt), so pull it from etc_hosts_file.txt
+                # (format: "ip\tvhost") rather than doing a fresh DNS lookup.
+                if [[ -s "${tmp_dir}/vhost_subdomains_strong.tmp" ]]; then
+                    awk '{print $1}' "${tmp_dir}/vhost_subdomains_strong.tmp" \
+                        | grep -Ei "(\.${domain}$|^${domain}$)" | sort -u >> "${report_dir}/domains_found.txt"
+                    sort -u -o "${report_dir}/domains_found.txt" "${report_dir}/domains_found.txt"
 
-                # Read ONLY strong vhosts (correct source) and lookup IP in etc_hosts_file.txt
-                while IFS= read -r vc_host; do
-                    # Validate that it belongs to target domain (defense in depth)
-                    if ! grep -qEi "(\.${domain}$|^${domain}$)" <<< "${vc_host}"; then
-                        continue
-                    fi
+                    # Read ONLY strong vhosts (correct source) and lookup IP in etc_hosts_file.txt
+                    while IFS= read -r vc_host; do
+                        # Validate that it belongs to target domain (defense in depth)
+                        if ! grep -qEi "(\.${domain}$|^${domain}$)" <<< "${vc_host}"; then
+                            continue
+                        fi
 
-                    # Lookup IP in etc_hosts_file.txt
-                    local vc_ip
-                    vc_ip="$(grep -F "${vc_host}" "${report_dir}/etc_hosts_file.txt" | awk '{print $1}' | head -1)"
+                        # Lookup IP in etc_hosts_file.txt
+                        local vc_ip
+                        vc_ip="$(grep -F "${vc_host}" "${report_dir}/etc_hosts_file.txt" | awk '{print $1}' | head -1)"
 
-                    if [[ -n "${vc_ip}" ]]; then
-                        echo "${vc_host}"$'\t'"${vc_ip}" >> "${report_dir}/domains_external_ipv4.txt"
-                        echo "${vc_host}" >> "${report_dir}/domains_alive.txt"
-                    fi
-                done < "${tmp_dir}/vhost_subdomains_strong.tmp"
+                        if [[ -n "${vc_ip}" ]]; then
+                            echo "${vc_host}"$'\t'"${vc_ip}" >> "${report_dir}/domains_external_ipv4.txt"
+                            echo "${vc_host}" >> "${report_dir}/domains_alive.txt"
+                        fi
+                    done < "${tmp_dir}/vhost_subdomains_strong.tmp"
 
-                sort -u -o "${report_dir}/domains_external_ipv4.txt" "${report_dir}/domains_external_ipv4.txt"
-                sort -u -o "${report_dir}/domains_alive.txt" "${report_dir}/domains_alive.txt"
-            fi
-            source "${collector_path}/sources/vhost-probe.sh"
-            [[ -s "${report_dir}/infra_ipv4.txt" ]] && \
-                vhost_probe "${report_dir}/infra_ipv4.txt"
-            # Merge vhost_probe findings into domains_found.txt and resolve new entries
-            if [[ -s "${tmp_dir}/vhost_probe_output.txt" ]]; then
-                grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/vhost_probe_output.txt" \
-                    | sort -u >> "${report_dir}/domains_found.txt"
-                sort -u -o "${report_dir}/domains_found.txt" "${report_dir}/domains_found.txt"
-                # Resolve new vhost_probe entries in parallel (10x speedup)
-                grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/vhost_probe_output.txt" \
-                    | sort -u > "${tmp_dir}/vhost_probe_new.tmp"
-                if [[ -s "${tmp_dir}/vhost_probe_new.tmp" ]]; then
-                    local num_workers=20 pids=()
-
-                    split -n l/${num_workers} "${tmp_dir}/vhost_probe_new.tmp" "${tmp_dir}/vhost_probe_chunk_"
-
-                    for ((i=0; i<num_workers; i++)); do
-                        dns_parallel_worker "$i" "${tmp_dir}/vhost_probe_chunk_${i}" \
-                            "${domain}" "${report_dir}" "${IPv4_regex}" \
-                            "${webapp_port_detect[@]}" "${webapp_tls_ports[@]}" &
-                        pids+=($!)
-                    done
-
-                    for pid in "${pids[@]}"; do
-                        wait "$pid" 2>/dev/null
-                    done
-
-                    merge_parallel_dns_results "${report_dir}" "domains_external_ipv4"
-                    merge_parallel_dns_results "${report_dir}" "domains_alive"
-                    merge_parallel_dns_results "${report_dir}" "infra_ipv4"
-                    merge_parallel_dns_results "${report_dir}" "vhost_urls"
+                    sort -u -o "${report_dir}/domains_external_ipv4.txt" "${report_dir}/domains_external_ipv4.txt"
+                    sort -u -o "${report_dir}/domains_alive.txt" "${report_dir}/domains_alive.txt"
                 fi
-            fi
             fi  # end vhost_check_check
-            # Build the consolidated URL list once — after both vhost_check and
-            # vhost_probe have finished writing to vhost_urls.txt. The call that
-            # was previously inside vhost_check() was removed so that probe hits
-            # are included here in a single pass (F-05 fix).
+
+            if [[ "${vhost_probe_check}" == "yes" ]]; then
+                source "${collector_path}/sources/vhost-probe.sh"
+                [[ -s "${report_dir}/infra_ipv4.txt" ]] && \
+                    vhost_probe "${report_dir}/infra_ipv4.txt"
+                # Merge vhost_probe findings into domains_found.txt and resolve new entries.
+                # vhost_probe_output.tmp lines are "ip\tport\tscheme\thost\tsize\thash"
+                # (since vhost_probe_persist_hits() already used every field to feed
+                # etc_hosts_file.txt/vhost_urls.txt/vhost_probe_hits.txt directly) —
+                # pull just the hostname (field 4) before matching/merging here.
+                # dns_parallel_worker below only registers domains_alive.txt/
+                # infra_ipv4.txt/domains_external_ipv4.txt for these hosts — it must
+                # NOT also fabricate webapp_port_detect × host URLs into vhost_urls.txt
+                # (a prior bug did exactly that, unconditionally, with zero port
+                # reachability check, flooding webapp_consolidated.txt with false
+                # positives). vhost_probe() already tested every port itself and
+                # vhost_probe_persist_hits() already wrote the verified hits to
+                # vhost_urls.txt; nothing more should be added here.
+                if [[ -s "${tmp_dir}/vhost_probe_output.tmp" ]]; then
+                    awk -F'\t' '{print $4}' "${tmp_dir}/vhost_probe_output.tmp" \
+                        | grep -Ei "(\.${domain}$|^${domain}$)" \
+                        | sort -u >> "${report_dir}/domains_found.txt"
+                    sort -u -o "${report_dir}/domains_found.txt" "${report_dir}/domains_found.txt"
+                    # Resolve new vhost_probe entries in parallel (10x speedup)
+                    awk -F'\t' '{print $4}' "${tmp_dir}/vhost_probe_output.tmp" \
+                        | grep -Ei "(\.${domain}$|^${domain}$)" \
+                        | sort -u > "${tmp_dir}/vhost_probe_new.tmp"
+                    if [[ -s "${tmp_dir}/vhost_probe_new.tmp" ]]; then
+                        local num_workers=20 pids=() chunk_id
+
+                        # -d: numeric suffixes (00, 01, ...) — split's default
+                        # is alphabetic (aa, ab, ...), which never matches the
+                        # ${i} lookup below and silently drops every chunk
+                        # (worker reads from a file that was never created).
+                        split -d -n l/${num_workers} "${tmp_dir}/vhost_probe_new.tmp" "${tmp_dir}/vhost_probe_chunk_"
+
+                        for ((i=0; i<num_workers; i++)); do
+                            printf -v chunk_id '%02d' "${i}"
+                            dns_parallel_worker "$i" "${tmp_dir}/vhost_probe_chunk_${chunk_id}" \
+                                "${domain}" "${report_dir}" "${IPv4_regex}" &
+                            pids+=($!)
+                        done
+
+                        for pid in "${pids[@]}"; do
+                            wait "$pid" 2>/dev/null
+                        done
+
+                        merge_parallel_dns_results "${report_dir}" "domains_external_ipv4"
+                        merge_parallel_dns_results "${report_dir}" "domains_alive"
+                        merge_parallel_dns_results "${report_dir}" "infra_ipv4"
+                    fi
+                fi
+            fi  # end vhost_probe_check
+            # Build the consolidated URL list once — after vhost_check and/or
+            # vhost_probe (whichever ran, independently gated above) have
+            # finished writing to vhost_urls.txt. The call that was previously
+            # inside vhost_check() was removed so that probe hits are included
+            # here in a single pass (F-05 fix).
             build_consolidated_urls
             webapp_tech "${domain}" "${report_dir}/webapp_consolidated.txt"
         fi
@@ -332,21 +344,25 @@ domains_recon(){
                 source "${collector_path}/sources/spider.sh"
                 spider_src "${report_dir}/webapp_consolidated.txt"
                 # Merge spider findings into domains_found.txt and resolve new entries
-                if [[ -s "${tmp_dir}/spider_output.txt" ]]; then
-                    grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/spider_output.txt" \
+                if [[ -s "${tmp_dir}/spider_output.tmp" ]]; then
+                    grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/spider_output.tmp" \
                         | sort -u >> "${report_dir}/domains_found.txt"
                     sort -u -o "${report_dir}/domains_found.txt" "${report_dir}/domains_found.txt"
-                    grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/spider_output.txt" \
+                    grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/spider_output.tmp" \
                         | sort -u > "${tmp_dir}/spider_new.tmp"
                     if [[ -s "${tmp_dir}/spider_new.tmp" ]]; then
-                        local num_workers=20 pids=()
+                        local num_workers=20 pids=() chunk_id
 
-                        split -n l/${num_workers} "${tmp_dir}/spider_new.tmp" "${tmp_dir}/spider_chunk_"
+                        # -d: numeric suffixes (00, 01, ...) — split's default
+                        # is alphabetic (aa, ab, ...), which never matches the
+                        # ${i} lookup below and silently drops every chunk
+                        # (worker reads from a file that was never created).
+                        split -d -n l/${num_workers} "${tmp_dir}/spider_new.tmp" "${tmp_dir}/spider_chunk_"
 
                         for ((i=0; i<num_workers; i++)); do
-                            dns_parallel_worker "$i" "${tmp_dir}/spider_chunk_${i}" \
-                                "${domain}" "${report_dir}" "${IPv4_regex}" \
-                                "${webapp_port_detect[@]}" "${webapp_tls_ports[@]}" &
+                            printf -v chunk_id '%02d' "${i}"
+                            dns_parallel_worker "$i" "${tmp_dir}/spider_chunk_${chunk_id}" \
+                                "${domain}" "${report_dir}" "${IPv4_regex}" &
                             pids+=($!)
                         done
 

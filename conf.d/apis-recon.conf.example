@@ -5,12 +5,21 @@
 # apis-recon.conf doesn't exist, so recon still runs without it; you just
 # won't get the enrichment from these OSINT sources.
 bevigil_api_key=""
+# No sources/binaryedge.sh consumes this yet — investigated 2026-10-01:
+# BinaryEdge's public API endpoints return 403 regardless of key, and its
+# docs domain now redirects to a Coalition (its acquirer) support article
+# about their internal scanner. The public API product looks discontinued
+# post-acquisition; left here in case that's wrong or changes.
+binaryedge_api_key=""
+binaryedge_api_url="https://api.binaryedge.io/v2"
 builtwith_api_key=""
 builtwith_api_url="https://api.builtwith.com"
 c99_api_key=""
-censys_api_id=""
-censys_api_secret=""
-censys_api_url="https://search.censys.io/api/v1"
+# Censys Search v2 (search.censys.io/api/v2, API ID+secret auth) was shut
+# down 2026-09-30. censys.sh now uses the Platform API, which authenticates
+# with a Bearer Personal Access Token instead — generate one at
+# https://accounts.censys.io/settings/personal-access-tokens.
+censys_platform_api_token=""
 chaos_api_key=""
 commoncrawl_url="http://index.commoncrawl.org/collinfo.json"
 dnsdumpster_api_key=""

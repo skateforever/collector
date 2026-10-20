@@ -46,8 +46,11 @@ By default the compose file uses repo-relative paths, so a fresh clone works wit
 |---|---|
 | `./outputs` (auto-created on first run) | `/opt/collector/outputs` |
 | `./wordlists` (auto-created on first run) | `/opt/collector/wordlists` |
-| `./app-report-db` (auto-created on first run) | `/opt/collector/app-report/db` |
+| `./app-report/db` (already in the repo) | `/opt/collector/app-report/db` |
+| `./app-report/run` (already in the repo) | `/opt/collector/app-report/run` |
 | `./conf.d` (already in the repo) | `/opt/collector/conf.d` (read-only) |
+
+`app-report/db` and `app-report/run` mount onto themselves — same repo-relative path on both host and container sides (see the comment block in `docker-compose.yaml` for why). Their contents are gitignored (only `.gitkeep` is tracked), so this stays a clean checkout regardless of how much scan history or dashboard state piles up locally.
 
 To redirect any of these to a different host location, drop a `.env` file in the repo root (Docker Compose loads it automatically). Example:
 
@@ -55,7 +58,8 @@ To redirect any of these to a different host location, drop a `.env` file in the
 # .env at the repo root
 OUTPUTS_DIR=/data/recon/outputs
 WORDLISTS_DIR=/data/wordlists
-APP_REPORT_DB_DIR=/data/app-report-db
+APP_REPORT_DB_DIR=/data/app-report/db
+APP_REPORT_RUN_DIR=/data/app-report/run
 CONF_D_DIR=/etc/collector/conf.d
 ```
 
@@ -76,7 +80,7 @@ Install it once and use it like a native command:
 
 ```bash
 sudo install -m 0755 /opt/collector/collector-docker /usr/local/bin/collector-docker
-sudo mkdir -p /opt/collector/{outputs,wordlists,app-report-db}
+sudo mkdir -p /opt/collector/{outputs,wordlists,app-report/db,app-report/run}
 sudo cp -r /opt/collector/conf.d /opt/collector/conf.d
 ```
 
@@ -87,7 +91,8 @@ Override defaults via environment variables (`<root>` is the checkout directory 
 | `COLLECTOR_IMAGE` | `collector:latest` |
 | `OUTPUTS_DIR` | `<root>/outputs` (mounted to `/opt/collector/outputs`) |
 | `WORDLISTS_DIR` | `<root>/wordlists` (mounted to `/opt/collector/wordlists`) |
-| `APP_REPORT_DB_DIR` | `<root>/app-report-db` (mounted to `/opt/collector/app-report/db`) |
+| `APP_REPORT_DB_DIR` | `<root>/app-report/db` (mounted onto itself, `/opt/collector/app-report/db`) |
+| `APP_REPORT_RUN_DIR` | `<root>/app-report/run` (mounted onto itself, `/opt/collector/app-report/run`) |
 | `CONF_D_DIR` | `<root>/conf.d` (mounted to `/opt/collector/conf.d`) |
 | `ALERT_PROVIDER_TYPE` | `discord` (discord, slack, teams, telegram, signal) |
 | `ALERT_PROVIDER_FILE` | `<root>/{type}-provider.yaml` (optional; if missing, uses template from image) |
@@ -142,8 +147,10 @@ The hook calls `collector-docker --image build-only` internally.
 
 | Flag | Description |
 |------|-------------|
-| `-wd \| --webapp-discovery` | Probes live hosts for active HTTP(S) services and builds `webapp_consolidated.txt`. Vhost discovery is **not** included unless `-vc` is also passed. |
-| `-vc \| --vhost-check` | Runs `vhost_check` and `vhost_probe` against live IPs to discover virtual hosts (STRONG/WEAK classification). Requires `-wd`. Without this flag, vhost checks are skipped entirely. |
+| `-wd \| --webapp-discovery` | Probes live hosts for active HTTP(S) services and builds `webapp_consolidated.txt`. Vhost discovery is **not** included unless `-vc` and/or `-vp` is also passed. |
+| `-vc \| --vhost-check` | Runs `vhost_check` (curl+httpx dual-tool, STRONG/WEAK confidence) against candidates with prior evidence (`domains_without_resolution.txt`) to discover virtual hosts. STRONG hits get injected into `/etc/hosts` and scanned downstream. Requires `-wd`. Independent of `-vp` — use either or both. |
+| `-vp \| --vhost-probe` | Runs `vhost_probe` (single-tool wordlist brute force, confirmed by reproducibility) against live IPs to discover virtual hosts with no prior evidence. Confirmed hits get injected into `/etc/hosts` and scanned downstream. Requires `-wd` and `-vpw`. Independent of `-vc` — use either or both. |
+| `-vpw \| --vhost-probe-wordlist` | Wordlist `-vp` brute-forces vhost names from (sets `collector_vhost_probe_words`) — **required** with `-vp`, no config fallback. |
 | `-wsd \| --webapp-short-detection` | Probes `webapp_http_ports` (`conf.d/functions.conf`) — ports whose protocol is fixed as plain HTTP by convention (80, 8080, ...). Use with `-wd`. |
 | `-wld \| --webapp-long-detection` | Probes the full port list: `webapp_http_ports` + `webapp_tls_ports` + `webapp_multiple_ports` (`conf.d/functions.conf`) — the comprehensive, slower option. Use with `-wd`. |
 | `-wcp \| --webapp-common-ports` | Probes the union of `webapp_http_ports` and `webapp_tls_ports` — the ports whose protocol is fixed by convention, HTTP or TLS. Use with `-wd`. |
@@ -212,10 +219,11 @@ docker compose run --rm collector \
 collector-docker -d example.com --recon --webapp-discovery --webapp-short-detection
 ```
 
-Full recon + webapp discovery + vhost validation (short port list):
+Full recon + webapp discovery + vhost validation (short port list, both `-vc` and `-vp`):
 
 ```bash
-collector-docker -d example.com --recon --webapp-discovery --webapp-short-detection --vhost-check
+collector-docker -d example.com --recon --webapp-discovery --webapp-short-detection \
+  --vhost-check --vhost-probe --vhost-probe-wordlist /opt/collector/support/runtime/wordlists/vhost-probe-names.txt
 ```
 
 Full recon + webapp discovery + enum + scan in one shot (with vhost):
@@ -226,11 +234,13 @@ docker run --rm \
   -v /opt/collector/wordlists:/opt/collector/wordlists \
   -v /opt/collector/conf.d:/opt/collector/conf.d:ro \
   collector:latest \
-  -d example.com --recon --webapp-discovery --webapp-short-detection --vhost-check \
+  -d example.com --recon --webapp-discovery --webapp-short-detection \
+  --vhost-check --vhost-probe --vhost-probe-wordlist /opt/collector/support/runtime/wordlists/vhost-probe-names.txt \
   --webapp-enum --webapp-wordlists /opt/collector/wordlists/common.txt --webapp-scan
 
 docker compose run --rm collector \
-  -d example.com --recon --webapp-discovery --webapp-short-detection --vhost-check \
+  -d example.com --recon --webapp-discovery --webapp-short-detection \
+  --vhost-check --vhost-probe --vhost-probe-wordlist /opt/collector/support/runtime/wordlists/vhost-probe-names.txt \
   --webapp-enum --webapp-wordlists /opt/collector/wordlists/common.txt --webapp-scan
 
 collector-docker -d example.com --recon --webapp-discovery --webapp-short-detection \
@@ -373,7 +383,7 @@ Both use `collector-docker` (or `docker run --rm` directly) — each run fires a
 - Per-run dated folder (`recon_YYYYMMDD`) with logs, tmp, and structured report tree
 - Subdomain discovery via passive sources + active DNS bruteforce
 - Infrastructure enrichment: AS / IPv4 / IPv6 / netblocks / nmap / Shodan
-- vhost discovery (opt-in via `-vc`): parallel curl + httpx probing, STRONG vs. WEAK confidence classification, automatic `/etc/hosts` injection inside the container so all tools resolve vhosts transparently. Optional `ffuf`-backed mode for orders-of-magnitude faster probing (set `vhost_use_ffuf=yes` in `conf.d/functions.conf`)
+- vhost discovery, two independent opt-ins: `-vc|--vhost-check` runs `vhost_check` (parallel curl + httpx, STRONG vs. WEAK confidence) against candidates with prior evidence; `-vp|--vhost-probe` (requires `-vpw|--vhost-probe-wordlist`) runs `vhost_probe` (single-tool wordlist brute force, with reproducibility confirmation) against a generic wordlist. Use either or both — both feed the same automatic `/etc/hosts` injection inside the container once confirmed, so all tools resolve vhosts transparently — whether or not the vhost also has public DNS. `vhost_probe` has an optional `ffuf`-backed mode for orders-of-magnitude faster probing (set `vhost_use_ffuf=yes` in `conf.d/functions.conf`)
 - `-dr|--dry-run` pre-flight validation mode — confirm config and parameters before a long run
 - Per-artifact diff vs. previous run — only deltas pushed to notify channel
 - Email harvesting from APIs + page/JS crawl filtered to the target domain
@@ -410,10 +420,11 @@ Both use `collector-docker` (or `docker run --rm` directly) — each run fires a
         ├── infra_ipv6.txt / infra_blocks.txt
         ├── webapp_consolidated.txt                all live HTTP(S) URLs (DNS + validated vhosts)
         ├── webapp_consolidated_diff.txt
-        ├── etc_hosts_file.txt                     vhost→IP map (ip<TAB>hostname format)
-        ├── vhost_subdomains.txt                   STRONG vhost hits
-        ├── vhost_subdomains_weak.txt              WEAK vhost hits
-        ├── vhost_subdomains_diff.txt
+        ├── etc_hosts_file.txt                     vhost→IP map (ip<TAB>hostname) injected into /etc/hosts — vhost_check STRONG + confirmed vhost_probe hits, combined
+        ├── vhost_subdomains_strong.txt            STRONG vhost_check hits (curl + httpx both disagree with baseline)
+        ├── vhost_subdomains_weak.txt              WEAK vhost_check hits (only one of curl/httpx disagreed) — manual review only, never auto-injected
+        ├── vhost_subdomains_diff.txt              STRONG hits new since the previous run (drives the notify channel)
+        ├── vhost_probe_hits.txt                   confirmed vhost_probe hits, same layout as vhost_subdomains_*.txt (scheme://host<TAB>ip:port<TAB>Size<TAB>Hash<TAB>tag; tag is always CONFIRMED) — merged into etc_hosts_file.txt too, same bar as STRONG
         ├── email_recon.txt / email_recon_diff.txt
         ├── robots_urls.txt
         ├── sitemap_urls.txt                       URLs harvested from sitemap.xml (recursive sitemapindex)

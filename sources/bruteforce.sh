@@ -26,20 +26,20 @@ bruteforce-src(){
                 echo -e "\namass enum -active -brute -d ${domain} -w ${list} -dir ${amass_brute_dir}" >> "${log_execution_file}"
                 amass enum -active -brute -d "${domain}" -w "${list}" \
                     -dir "${amass_brute_dir}" 2>> "${log_execution_file}"
-                echo "amass subs -d ${domain} -dir ${amass_brute_dir} -names -nocolor -silent -o ${tmp_dir}/amass_brute_output_${index}.txt" >> "${log_execution_file}"
+                echo "amass subs -d ${domain} -dir ${amass_brute_dir} -names -nocolor -silent -o ${tmp_dir}/amass_brute_output_${index}.tmp" >> "${log_execution_file}"
                 amass subs -d "${domain}" -dir "${amass_brute_dir}" -names -nocolor -silent \
-                    -o "${tmp_dir}/amass_brute_output_${index}.txt" 2>> "${log_execution_file}"
+                    -o "${tmp_dir}/amass_brute_output_${index}.tmp" 2>> "${log_execution_file}"
 
                 echo "dnssearch -consumers 600 -domain ${domain} -wordlist ${list}" >> "${log_execution_file}"
                 dnssearch -consumers 600 -domain "${domain}" -wordlist "${list}" | \
-                    grep "${domain}" >> "${tmp_dir}/dnssearch_output_${index}.txt" 2>> "${log_execution_file}"
+                    grep "${domain}" >> "${tmp_dir}/dnssearch_output_${index}.tmp" 2>> "${log_execution_file}"
 
                 echo "Done!"
 
                 #ffuf -c -u https://FUZZ."${domain}" -w "${list}" -mc 200 -rate 100 -v results.txt
 
                 echo "gobuster dns -q -t ${gobuster_threads} --domain ${domain} --wordlist ${list}" >> "${log_execution_file}"
-                gobuster dns -q -t "${gobuster_threads}" --domain "${domain}" --wordlist "${list}" >> "${tmp_dir}/gobuster_dns_output_${index}.txt" 2>> "${log_execution_file}"
+                gobuster dns -q -t "${gobuster_threads}" --domain "${domain}" --wordlist "${list}" >> "${tmp_dir}/gobuster_dns_output_${index}.tmp" 2>> "${log_execution_file}"
 
                 sleep 1
             else

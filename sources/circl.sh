@@ -13,7 +13,7 @@ circl-src(){
     unset user_agent
     user_agent="$(get_user_agent)"
     echo -e "\ncurl ${curl_options[@]} -H \"User-agent: ${user_agent}\" \"https://www.circl.lu/pdns/query/${domain}\"" >> "${log_execution_file}"
-    curl "${curl_options[@]}" -H "User-agent: ${user_agent}" "https://www.circl.lu/pdns/query/${domain}" > "${tmp_dir}/circl_output.txt" 2>> "${log_execution_file}"
+    curl "${curl_options[@]}" -H "User-agent: ${user_agent}" "https://www.circl.lu/pdns/query/${domain}" > "${tmp_dir}/circl_output.tmp" 2>> "${log_execution_file}"
     echo "Done!"
     sleep 1
 }

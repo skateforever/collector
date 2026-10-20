@@ -25,7 +25,7 @@ spider_src(){
         return 0
     fi
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing spider... "
-    : > "${tmp_dir}/spider_output.txt"
+    : > "${tmp_dir}/spider_output.tmp"
     unset user_agent
     user_agent="$(get_user_agent)"
     # Associative array for O(1) visited lookups
@@ -82,7 +82,7 @@ spider_src(){
             "${spider_url}" 2>> "${log_execution_file}")"
         [[ -z "${spider_page_body}" ]] && continue
         echo "${spider_page_body}" | grep -Eo '[a-zA-Z0-9._-]+\.'"${domain}" \
-            | tr '[:upper:]' '[:lower:]' >> "${tmp_dir}/spider_output.txt"
+            | tr '[:upper:]' '[:lower:]' >> "${tmp_dir}/spider_output.tmp"
         while IFS= read -r spider_js; do
             [[ -z "${spider_js}" ]] && continue
             if [[ -z "${spider_js_seen_map[${spider_js}]}" ]]; then
@@ -113,7 +113,7 @@ spider_src(){
             "${spider_js_url}" 2>> "${log_execution_file}")"
         [[ -z "${spider_js_body}" ]] && continue
         echo "${spider_js_body}" | grep -Eo '[a-zA-Z0-9._-]+\.'"${domain}" \
-            | tr '[:upper:]' '[:lower:]' >> "${tmp_dir}/spider_output.txt"
+            | tr '[:upper:]' '[:lower:]' >> "${tmp_dir}/spider_output.tmp"
         # Phase 3: sourcemap references
         spider_map_ref="$(echo "${spider_js_body}" \
             | grep -oE '//[#@]\s*sourceMappingURL=[^\s"'"'"']+' \
@@ -125,10 +125,10 @@ spider_src(){
                 -H "User-agent: ${user_agent}" \
                 "${spider_map_ref}" 2>> "${log_execution_file}" \
                 | grep -Eo '[a-zA-Z0-9._-]+\.'"${domain}" \
-                | tr '[:upper:]' '[:lower:]' >> "${tmp_dir}/spider_output.txt"
+                | tr '[:upper:]' '[:lower:]' >> "${tmp_dir}/spider_output.tmp"
         fi
     done
 
-    sort -u -o "${tmp_dir}/spider_output.txt" "${tmp_dir}/spider_output.txt" 2>/dev/null
+    sort -u -o "${tmp_dir}/spider_output.tmp" "${tmp_dir}/spider_output.tmp" 2>/dev/null
     echo "Done!"
 }

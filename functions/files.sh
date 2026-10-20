@@ -82,9 +82,9 @@ joining_subdomains(){
                 | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
-        if [ -s "${tmp_dir}/hackertarget_output.txt" ]; then
+        if [ -s "${tmp_dir}/hackertarget_output.tmp" ]; then
             echo "Parsing hackertarget" >> "${log_execution_file}"
-            grep -v "API count exceeded - Increase Quota with Membership" "${tmp_dir}/hackertarget_output.txt" \
+            grep -v "API count exceeded - Increase Quota with Membership" "${tmp_dir}/hackertarget_output.tmp" \
                 | awk -F',' '{print $1}' \
                 | sed 's/^\*\.//' \
                 | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
@@ -93,6 +93,7 @@ joining_subdomains(){
         if [ -s "${tmp_dir}/katana_output.tmp" ]; then
             echo "Parsing katana" >> "${log_execution_file}"
             awk -F'/' '{print $3}' "${tmp_dir}/katana_output.tmp" \
+                | grep -E "^.*\.${domain}" \
                 | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
@@ -102,15 +103,15 @@ joining_subdomains(){
                 | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
-        if [ -s "${tmp_dir}/netcraft_output.txt" ]; then
+        if [ -s "${tmp_dir}/netcraft_output.tmp" ]; then
             echo "Parsing netcraft" >> "${log_execution_file}"
-            grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/netcraft_output.txt" \
+            grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/netcraft_output.tmp" \
                 | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
-        if [ -s "${tmp_dir}/rapiddns_output.txt" ]; then
+        if [ -s "${tmp_dir}/rapiddns_output.tmp" ]; then
             echo "Parsing rapiddns" >> "${log_execution_file}"
-            grep -Ei "<td>.*${domain}</td>" "${tmp_dir}/rapiddns_output.txt" \
+            grep -Ei "<td>.*${domain}</td>" "${tmp_dir}/rapiddns_output.tmp" \
                 | sed 's/<td>// ; s/<\/td>//' \
                 | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
@@ -138,10 +139,10 @@ joining_subdomains(){
                 done | sort -u >> "${tmp_dir}/domains_found.tmp"
         fi
 
-        if [ -s "${tmp_dir}/shodan_output.txt" ]; then
+        if [ -s "${tmp_dir}/shodan_output.tmp" ]; then
             echo "Parsing shodan" >> "${log_execution_file}"
-            sed -i -e 's/;/\n/g' -e '/^$/d' "${tmp_dir}/shodan_output.txt"
-            sort -u "${tmp_dir}/shodan_output.txt" \
+            sed -i -e 's/;/\n/g' -e '/^$/d' "${tmp_dir}/shodan_output.tmp"
+            sort -u "${tmp_dir}/shodan_output.tmp" \
                 | grep -E "^.*\.${domain}" >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
@@ -172,12 +173,21 @@ joining_subdomains(){
         if [ -s "${tmp_dir}/urlfinder_output.tmp" ]; then
             echo "Parsing urlfinder" >> "${log_execution_file}"
             awk -F'/' '{print $3}' "${tmp_dir}/urlfinder_output.tmp" \
+                | grep -E "^.*\.${domain}" \
                 | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
         if [ -s "${tmp_dir}/urlscan_output.json" ]; then
             echo "Parsing urlscan" >> "${log_execution_file}"
+            # Unlike every other source parsed here, urlscan's search API can
+            # surface task.domain values with no relation to the query domain
+            # at all (unrelated third-party pages indexed by urlscan.io that
+            # merely referenced/linked/redirected to the target) — observed
+            # in the wild as plain google.com entries polluting
+            # domains_found.txt. Every sibling parser below filters by domain
+            # suffix; this one didn't.
             jq -r '.results[].task.domain' "${tmp_dir}/urlscan_output.json" \
+                | grep -Ei "(\.${domain}$|^${domain}$)" \
                 | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
@@ -192,16 +202,18 @@ joining_subdomains(){
             awk -F'/' '{print $3}' "${tmp_dir}/waybackurls_output.tmp" \
                 | awk -F'?' '{print $1}' \
                 | sed 's/:[0-9]*$//g' \
+                | grep -E "^.*\.${domain}" \
                 | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
-        if [ -s "${tmp_dir}/webarchive_output.txt" ]; then
+        if [ -s "${tmp_dir}/webarchive_output.tmp" ]; then
             echo "Parsing webarchive" >> "${log_execution_file}"
-            cat "${tmp_dir}/webarchive_output.txt" \
+            cat "${tmp_dir}/webarchive_output.tmp" \
                 | sed -e 's_https*://__' -e "s/\/.*//" -e 's/:.*//' -e 's/^www\.//' \
                 | sed "/@/d" \
                 | sed -e 's/\.$//' \
                 | sed 's/:[0-9]*$//g' \
+                | grep -E "\.${domain}$" \
                 | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
@@ -226,9 +238,9 @@ joining_subdomains(){
                 | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
-        if [ -s "${tmp_dir}/circl_output.txt" ]; then
+        if [ -s "${tmp_dir}/circl_output.tmp" ]; then
             echo "Parsing circl" >> "${log_execution_file}"
-            grep -Eo '"rrname"[[:space:]]*:[[:space:]]*"[^"]+"' "${tmp_dir}/circl_output.txt" \
+            grep -Eo '"rrname"[[:space:]]*:[[:space:]]*"[^"]+"' "${tmp_dir}/circl_output.tmp" \
                 | awk -F'"' '{print $4}' \
                 | sed 's/\.$//' \
                 | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
@@ -247,7 +259,7 @@ joining_subdomains(){
                 | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
-        if [ -s "${tmp_dir}/bing_output.txt" ]; then
+        if [ -s "${tmp_dir}/bing_output.tmp" ]; then
             echo "Parsing bing" >> "${log_execution_file}"
             # The third alternative used to exclude bing.com's own links via
             # a (?!...) negative lookahead — PCRE syntax, not supported by
@@ -256,7 +268,7 @@ joining_subdomains(){
             # matches nothing, so this source extracted zero domains on every
             # run. Dropped the lookahead — bing.com links get filtered out
             # anyway by the "\.${domain}$" suffix match below.
-            grep -Eo 'hover-url="https?://[^"]+"|<cite[^>]*>[^<]+</cite>|href="https?://[^"]+"' "${tmp_dir}/bing_output.txt" \
+            grep -Eo 'hover-url="https?://[^"]+"|<cite[^>]*>[^<]+</cite>|href="https?://[^"]+"' "${tmp_dir}/bing_output.tmp" \
                 | grep -Eo 'https?://[^/" >]+' \
                 | sed -e 's_https*://__' -e 's_/.*__' -e 's_:.*__' -e 's/^www\.//' \
                 | grep -E "\.${domain}$" \
@@ -381,9 +393,9 @@ joining_subdomains(){
                 | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
-        if [ -s "${tmp_dir}/publicwww_output.txt" ]; then
+        if [ -s "${tmp_dir}/publicwww_output.tmp" ]; then
             echo "Parsing publicwww" >> "${log_execution_file}"
-            grep -Eo '[a-zA-Z0-9._-]+\.'"${domain}" "${tmp_dir}/publicwww_output.txt" \
+            grep -Eo '[a-zA-Z0-9._-]+\.'"${domain}" "${tmp_dir}/publicwww_output.tmp" \
                 | tr '[:upper:]' '[:lower:]' \
                 | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
@@ -396,33 +408,33 @@ joining_subdomains(){
                 | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
-        if [ -s "${tmp_dir}/dns_mining_output.txt" ]; then
+        if [ -s "${tmp_dir}/dns_mining_output.tmp" ]; then
             echo "Parsing dns_mining" >> "${log_execution_file}"
-            grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/dns_mining_output.txt" \
+            grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/dns_mining_output.tmp" \
                 | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
-        if [ -s "${tmp_dir}/caa_enum_output.txt" ]; then
+        if [ -s "${tmp_dir}/caa_enum_output.tmp" ]; then
             echo "Parsing caa_enum" >> "${log_execution_file}"
-            grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/caa_enum_output.txt" \
+            grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/caa_enum_output.tmp" \
                 | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
-        if [ -s "${tmp_dir}/srv_enum_output.txt" ]; then
+        if [ -s "${tmp_dir}/srv_enum_output.tmp" ]; then
             echo "Parsing srv_enum" >> "${log_execution_file}"
-            grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/srv_enum_output.txt" \
+            grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/srv_enum_output.tmp" \
                 | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
-        if [ -s "${tmp_dir}/nsec_walk_output.txt" ]; then
+        if [ -s "${tmp_dir}/nsec_walk_output.tmp" ]; then
             echo "Parsing nsec_walk" >> "${log_execution_file}"
-            grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/nsec_walk_output.txt" \
+            grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/nsec_walk_output.tmp" \
                 | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
-        if [ -s "${tmp_dir}/ns_brute_output.txt" ]; then
+        if [ -s "${tmp_dir}/ns_brute_output.tmp" ]; then
             echo "Parsing ns_brute" >> "${log_execution_file}"
-            awk '/IN[[:space:]]+A[[:space:]]/{print $1}' "${tmp_dir}/ns_brute_output.txt" \
+            awk '/IN[[:space:]]+A[[:space:]]/{print $1}' "${tmp_dir}/ns_brute_output.tmp" \
                 | sed 's/\.$//' | tr '[:upper:]' '[:lower:]' \
                 | grep -Ei "(\.${domain}$|^${domain}$)" \
                 | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
@@ -435,21 +447,21 @@ joining_subdomains(){
                 | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
-        if [ -s "${tmp_dir}/robots_sitemap_output.txt" ]; then
+        if [ -s "${tmp_dir}/robots_sitemap_output.tmp" ]; then
             echo "Parsing robots_sitemap" >> "${log_execution_file}"
-            grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/robots_sitemap_output.txt" \
+            grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/robots_sitemap_output.tmp" \
                 | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
-        if [ -s "${tmp_dir}/spider_output.txt" ]; then
+        if [ -s "${tmp_dir}/spider_output.tmp" ]; then
             echo "Parsing spider" >> "${log_execution_file}"
-            grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/spider_output.txt" \
+            grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/spider_output.tmp" \
                 | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
-        if [ -s "${tmp_dir}/vhost_probe_output.txt" ]; then
+        if [ -s "${tmp_dir}/vhost_probe_output.tmp" ]; then
             echo "Parsing vhost_probe" >> "${log_execution_file}"
-            grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/vhost_probe_output.txt" \
+            grep -Ei "(\.${domain}$|^${domain}$)" "${tmp_dir}/vhost_probe_output.tmp" \
                 | sort -u >> "${tmp_dir}/domains_found.tmp" 2>> "${log_execution_file}"
         fi
 
@@ -549,8 +561,8 @@ joining_subdomains(){
         fi
 
         echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Looking for Zone Transfer... "
-        if [ -s "${tmp_dir}/zone_transfer.txt" ]; then
-            cp "${tmp_dir}/zone_transfer.txt" "${report_dir}/zone_transfer.txt"
+        if [ -s "${tmp_dir}/zone_transfer.tmp" ]; then
+            cp "${tmp_dir}/zone_transfer.tmp" "${report_dir}/zone_transfer.txt"
             echo "Done!"
         else
             echo "Fail!"

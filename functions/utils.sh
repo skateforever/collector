@@ -160,6 +160,57 @@ run_summary(){
         | notify "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
 }
 
+# vhost_dedupe_fingerprint_clusters — drop hits that are really a shared
+# default/catch-all page, not N distinct vhosts. vhost_check/vhost_probe's
+# baseline+reproducibility check only proves a candidate differs from random
+# noise and repeats the same way twice — it does NOT prove the candidate
+# routes to a genuinely distinct backend. A target whose "no such vhost"
+# handler returns the exact same byte-identical page for every plausible-
+# looking Host header (as opposed to the random baseline strings) clears
+# that bar for EVERY candidate in the wordlist, because the response is
+# stable, just not meaningfully different across candidates — it's one
+# generic page, not dozens of real applications.
+#
+# Any (ip, port, fingerprint) combination hit by at least
+# vhost_fingerprint_cluster_min DIFFERENT candidate hostnames is treated as
+# that generic bucket and every line sharing it is dropped. Two or three
+# real vhosts legitimately serving identical content (e.g. aliases of the
+# same app) are expected to happen by chance; dozens of unrelated wordlist
+# entries landing on the exact same bytes is not — observed in the wild as
+# a ~30-candidate cluster that, on inspection, lacked public DNS records
+# entirely.
+#
+# Args: $1=input file (tab-separated)
+#       $2=1-based field number identifying the candidate (hostname)
+#       $3=comma-separated 1-based field numbers that make up the
+#          (ip, port, fingerprint) grouping key, e.g. "1,2,6"
+# Prints surviving lines to stdout; input file is untouched.
+vhost_dedupe_fingerprint_clusters(){
+    local in_file="$1" host_field="$2" key_fields="$3"
+    local min="${vhost_fingerprint_cluster_min:-3}"
+    [[ -s "${in_file}" ]] || return 0
+    awk -F'\t' -v hf="${host_field}" -v kf="${key_fields}" -v min="${min}" '
+    BEGIN { nk = split(kf, kfa, ",") }
+    {
+        key = ""
+        for (i = 1; i <= nk; i++) key = key SUBSEP $(kfa[i])
+        hostkey = key SUBSEP $hf
+        if (!(hostkey in seen_host)) {
+            seen_host[hostkey] = 1
+            count[key]++
+        }
+        lines[NR] = $0
+        linekey[NR] = key
+        total = NR
+    }
+    END {
+        for (i = 1; i <= total; i++) {
+            if (count[linekey[i]] < min) print lines[i]
+        }
+    }
+    ' "${in_file}"
+}
+
 # Safe wrapper for dig with timeout
 dig_safe(){
     # Usage: dig_safe <record_type> <hostname>

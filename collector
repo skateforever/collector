@@ -234,7 +234,7 @@ trap cleanup_global EXIT
 # --report-stop is checked FIRST so `collector --report-only --report-stop`
 # means "stop, don't start" instead of racing on the pidfile.
 if [[ "${report_stop_check}" == "yes" ]]; then
-    stop_app_report_foreground
+    stop_app_report
     exit $?
 fi
 

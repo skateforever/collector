@@ -10,7 +10,7 @@
 
 nsec-walk-src(){
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing NSEC walk... "
-    : > "${tmp_dir}/nsec_walk_output.txt"
+    : > "${tmp_dir}/nsec_walk_output.tmp"
     nsec_ns="$(dig +short NS "${domain}" 2>/dev/null | head -1 | sed 's/\.$//')"
     if [[ -z "${nsec_ns}" ]]; then
         echo "Done!"
@@ -40,14 +40,14 @@ nsec-walk-src(){
         nsec_owner="$(echo "${nsec_answer}" | awk '/NSEC/{print $1}' | sed 's/\.$//' | tr '[:upper:]' '[:lower:]' | head -1)"
         nsec_next="$(echo "${nsec_answer}" | awk '/NSEC/{print $5}' | sed 's/\.$//' | tr '[:upper:]' '[:lower:]' | head -1)"
         if [[ -n "${nsec_owner}" ]]; then
-            echo "${nsec_owner}" | grep -Ei "(\.${domain}$|^${domain}$)" >> "${tmp_dir}/nsec_walk_output.txt"
+            echo "${nsec_owner}" | grep -Ei "(\.${domain}$|^${domain}$)" >> "${tmp_dir}/nsec_walk_output.tmp"
         fi
         if [[ -z "${nsec_next}" || "${nsec_next}" == "${domain}" || "${nsec_next}" == "${nsec_current}" ]]; then
             break
         fi
         nsec_current="${nsec_next}"
     done
-    sort -u -o "${tmp_dir}/nsec_walk_output.txt" "${tmp_dir}/nsec_walk_output.txt" 2>/dev/null
+    sort -u -o "${tmp_dir}/nsec_walk_output.tmp" "${tmp_dir}/nsec_walk_output.tmp" 2>/dev/null
     echo "Done!"
 }
 

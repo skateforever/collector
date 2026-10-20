@@ -10,7 +10,7 @@
 
 srv-enum-src(){
     echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing SRV enum... "
-    : > "${tmp_dir}/srv_enum_output.txt"
+    : > "${tmp_dir}/srv_enum_output.tmp"
     srv_prefixes=(
         _http._tcp _https._tcp _ftp._tcp _sftp._tcp _ssh._tcp _smtp._tcp
         _submission._tcp _smtps._tcp _pop3._tcp _pop3s._tcp _imap._tcp _imaps._tcp
@@ -27,10 +27,10 @@ srv-enum-src(){
         echo -e "\ndig +short SRV \"${srv_prefix}.${domain}\"" >> "${log_execution_file}"
         srv_result="$(dig +short SRV "${srv_prefix}.${domain}" 2>/dev/null)"
         if [[ -n "${srv_result}" ]]; then
-            echo "${srv_result}" | awk '{print $4}' | sed 's/\.$//' | tr '[:upper:]' '[:lower:]' >> "${tmp_dir}/srv_enum_output.txt"
+            echo "${srv_result}" | awk '{print $4}' | sed 's/\.$//' | tr '[:upper:]' '[:lower:]' >> "${tmp_dir}/srv_enum_output.tmp"
         fi
     done
-    sort -u -o "${tmp_dir}/srv_enum_output.txt" "${tmp_dir}/srv_enum_output.txt" 2>/dev/null
+    sort -u -o "${tmp_dir}/srv_enum_output.tmp" "${tmp_dir}/srv_enum_output.tmp" 2>/dev/null
     echo "Done!"
 }
 
