@@ -110,8 +110,10 @@ crawler_js(){
 
     echo "Done!"
 
-    # Post-process: scan everything we just downloaded for hardcoded
-    # credentials, API keys, JWTs, etc.
+    # Post-process: beautify every downloaded .js file in place so the
+    # grep-based scans below can match content hidden on a minified single
+    # line, then scan for hardcoded credentials, API keys, JWTs, etc.
+    beautify_js_files "${webapp_js_dir}"
     scan_js_secrets "${webapp_js_dir}" "${report_dir}/webapp_js_secrets.txt"
 }
 

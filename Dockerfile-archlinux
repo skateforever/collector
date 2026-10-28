@@ -120,7 +120,8 @@ RUN python -m pip install --no-cache-dir --upgrade pip wheel && \
         shodan \
         sublist3r \
         flask \
-        gunicorn
+        gunicorn \
+        jsbeautifier
 
 # sublist3r's DNSdumpster engine crashes with an unhandled IndexError when
 # dnsdumpster.com's page doesn't have the expected CSRF token (site

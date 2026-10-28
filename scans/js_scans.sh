@@ -3,21 +3,58 @@
 #                                                           #
 # JavaScript static-scan helpers.                           #
 #                                                           #
-# Both functions consume files downloaded by the crawler    #
-# (crawler_js), grep them against a pattern set from        #
-# conf.d/operation.conf, and emit tagged findings in the    #
-# standard format:                                          #
+# All functions consume files downloaded by the crawler     #
+# (crawler_js). scan_js_secrets and scan_js_params grep them #
+# against a pattern set from conf.d/operation.conf, and     #
+# emit tagged findings in the standard format:               #
 #                                                           #
 #     <label|category>:<file>:<line>:<match>                #
 #                                                           #
-# Findings are notified via the notify pipeline. The scans  #
-# never mutate the JS files themselves.                     #
+# Findings are notified via the notify pipeline. scan_js_secrets and         #
+# scan_js_params never mutate the JS files themselves.        #
+#                                                           #
+# beautify_js_files is the exception: it rewrites the JS     #
+# files in place (via js-beautify) before the scans run, so  #
+# minified/obfuscated bundles get expanded onto multiple     #
+# lines first — the grep-based scans below match per line,   #
+# so a secret or sink packed into a single minified line     #
+# would otherwise be invisible to them.                      #
 #                                                           #
 # Exposes:                                                  #
-#   * scan_js_secrets   (API keys / tokens / credentials)   #
-#   * scan_js_params    (parameter names + injection sinks) #
+#   * beautify_js_files    (pretty-print downloaded JS in place)
+#   * scan_js_secrets      (API keys / tokens / credentials)
+#   * scan_js_params       (parameter names + injection sinks)
 #                                                           #
 #############################################################
+
+# Pretty-print every downloaded .js file in place so the line-based grep
+# scans below (scan_js_secrets, scan_js_params) can actually match content
+# that ships minified onto a single line. Requires the js-beautify binary
+# (pip package: jsbeautifier); skips quietly if it's not installed, since
+# the scans still work on unminified files without it.
+#
+# Args:
+#   $1 - directory to beautify recursively (default: ${webapp_js_dir})
+beautify_js_files(){
+    local scan_dir="${1:-${webapp_js_dir}}"
+    local js_file total=0
+
+    [[ ! -d "${scan_dir}" ]] && return 0
+    if ! command -v js-beautify > /dev/null 2>&1; then
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} JS beautify: js-beautify binary not found, skipping."
+        return 1
+    fi
+
+    while IFS= read -r js_file; do
+        [[ -z "${js_file}" ]] && continue
+        echo "js-beautify -r --quiet \"${js_file}\"" >> "${log_execution_file}"
+        js-beautify -r --quiet "${js_file}" >> "${log_execution_file}" 2>&1 && total=$((total+1))
+    done < <(find "${scan_dir}" -type f -name '*.js')
+
+    if [[ "${total}" -gt 0 ]]; then
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} JS beautify: ${total} file(s) formatted."
+    fi
+}
 
 # Scan downloaded JavaScript files for likely API keys, tokens, secrets and
 # other credentials. Designed to run after crawler_js, so the input is already
