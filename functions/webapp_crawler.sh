@@ -110,10 +110,15 @@ crawler_js(){
 
     echo "Done!"
 
-    # Post-process: beautify every downloaded .js file in place so the
-    # grep-based scans below can match content hidden on a minified single
-    # line, then scan for hardcoded credentials, API keys, JWTs, etc.
+    # Post-process: beautify_js_files pretty-prints each downloaded .js and
+    # MOVES it to a sibling <name>.beautify.js (kept as an audit artifact,
+    # still minified/obfuscated — <name>.js no longer exists at this point);
+    # deobfuscate_js_files then reverses common obfuscation techniques
+    # (string-array encoding, hex/unicode escapes, base64, packers) and
+    # CREATES <name>.js fresh from that copy, so literal secrets hidden
+    # behind a decoder call are restored before scanning.
     beautify_js_files "${webapp_js_dir}"
+    deobfuscate_js_files "${webapp_js_dir}"
     scan_js_secrets "${webapp_js_dir}" "${report_dir}/webapp_js_secrets.txt"
 }
 
