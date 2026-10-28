@@ -119,6 +119,10 @@ crawler_js(){
     # behind a decoder call are restored before scanning.
     beautify_js_files "${webapp_js_dir}"
     deobfuscate_js_files "${webapp_js_dir}"
+    # scan_js_api also emits an OpenAPI 3.0 YAML and a Postman Collection
+    # v2.1 consolidating every reconstructed call (defaults:
+    # webapp_js_api_openapi.yaml / webapp_js_api_postman_collection.json).
+    scan_js_api "${webapp_js_dir}" "${report_dir}/webapp_js_api.txt"
     scan_js_secrets "${webapp_js_dir}" "${report_dir}/webapp_js_secrets.txt"
 }
 

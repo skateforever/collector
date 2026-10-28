@@ -10,8 +10,18 @@
 #                                                           #
 #     <label|category>:<file>:<line>:<match>                #
 #                                                           #
-# Findings are notified via the notify pipeline. scan_js_secrets and         #
-# scan_js_params never mutate the JS files themselves.        #
+# scan_js_api instead drives js_api_extractor.py (support/    #
+# runtime/scripts/) to reconstruct API calls (method/url/body)#
+# via structural, string-aware scanning — not a fixed grep     #
+# pattern — and emits THREE artifacts: the script's own human-  #
+# readable block format (text report), an OpenAPI 3.0 YAML,     #
+# and a Postman Collection v2.1 (JSON), consolidating every      #
+# reconstructed call from every file into one API surface.       #
+# See its own comment for details.                                #
+#                                                           #
+# Findings are notified via the notify pipeline. scan_js_api,    #
+# scan_js_secrets and scan_js_params never mutate the JS files   #
+# themselves.                                                     #
 #                                                           #
 # beautify_js_files and deobfuscate_js_files run first, and    #
 # between them a downloaded <name>.js goes through TWO          #
@@ -56,6 +66,7 @@
 # Exposes:                                                  #
 #   * beautify_js_files    (move downloaded JS into <name>.beautify.js)
 #   * deobfuscate_js_files (detect + reverse JS obfuscation, creating <name>.js)
+#   * scan_js_api          (reconstruct API calls: method / url / body)
 #   * scan_js_secrets      (API keys / tokens / credentials)
 #   * scan_js_params       (parameter names + injection sinks)
 #                                                           #
@@ -231,6 +242,123 @@ deobfuscate_js_files(){
     fi
     if [[ "${failed}" -gt 0 ]]; then
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} JS deobfuscate: ${failed} file(s) failed or timed out."
+    fi
+}
+
+# Reconstruct API calls (HTTP method, URL expression, request body) found
+# across every scanned .js file by driving js_api_extractor.py (support/
+# runtime/scripts/) against all of them in a SINGLE invocation — unlike
+# scan_js_secrets/scan_js_params below, this isn't a grep over a fixed
+# pattern set, so output doesn't accumulate per-file; the script locates
+# common HTTP client call shapes (Angular HttpClient, axios, fetch,
+# jQuery.ajax) via paren/brace-balanced, string-aware scanning (same
+# structural approach as js_deobfuscator.py's detectors — not a full JS
+# parser) and reports each call's method/url/body as raw source text. A
+# URL or body that's itself an expression (e.g. `this.baseUrl + '/foo'`)
+# is reported as written, not resolved — this is a static reconstruction
+# for manual triage, same spirit as scan_js_params: a hit means "here's
+# an API call worth looking at", not "this is exploitable". No code is
+# ever executed.
+#
+# Besides the human-readable $2 report (js_api_extractor.py's own block
+# format, reused as-is), this ALSO emits two importable artifacts
+# consolidating every reconstructed call from every file into one API
+# surface:
+#   $3 - an OpenAPI 3.0 document (YAML, no 3rd-party yaml package needed —
+#        js_api_extractor.py ships its own minimal emitter)
+#   $4 - a Postman Collection v2.1 (JSON), with the base URL as a
+#        collection variable so it imports and runs with no setup
+# Both use "https://${domain}" as the default base URL/server — the
+# recon's own target, since that's the only "the API probably lives
+# here" signal scan_js_api has. Unresolved URLs/bodies (bare variables,
+# function calls — can't be resolved statically) become "<expr>"
+# placeholders in both outputs rather than guessed values, and every
+# OpenAPI operation carries an x-source extension (file:line) pointing
+# back at the original call for manual verification.
+#
+# Designed to run after deobfuscate_js_files, same reasoning as
+# scan_js_secrets/scan_js_params: an obfuscator's member-bracket access
+# (this.http[decoder(0x1f1)](...)) only reads as this.http["post"](...) —
+# matchable by this script's regex — once the decoder call has already
+# been resolved to its literal string.
+#
+# --exclude *.beautify.js for the same reason as the other two scans.
+# Requires python3 (stdlib only); skips quietly if it's not installed.
+#
+# Args:
+#   $1 - directory to scan recursively          (default: ${webapp_js_dir})
+#   $2 - text report output file                (default: ${report_dir}/webapp_js_api.txt)
+#   $3 - OpenAPI 3.0 YAML output file            (default: ${report_dir}/webapp_js_api_openapi.yaml)
+#   $4 - Postman Collection v2.1 JSON output file (default: ${report_dir}/webapp_js_api_postman_collection.json)
+scan_js_api(){
+    local scan_dir="${1:-${webapp_js_dir}}"
+    local out_file="${2:-${report_dir}/webapp_js_api.txt}"
+    local openapi_file="${3:-${report_dir}/webapp_js_api_openapi.yaml}"
+    local postman_file="${4:-${report_dir}/webapp_js_api_postman_collection.json}"
+    local script="${collector_js_api_extractor}"
+    local channel="${notify_recon_channel}"
+    local js_file js_files=() tmp_json block count total_timeout server_url
+
+    [[ ! -d "${scan_dir}" ]] && return 0
+    if ! command -v python3 > /dev/null 2>&1; then
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} JS API: python3 not found, skipping."
+        return 1
+    fi
+    if [[ ! -s "${script}" ]]; then
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} JS API: script missing → ${script}"
+        return 1
+    fi
+
+    while IFS= read -r js_file; do
+        [[ -z "${js_file}" ]] && continue
+        js_files+=("${js_file}")
+    done < <(find "${scan_dir}" -type f -name '*.js' ! -name '*.beautify.js')
+
+    [[ "${#js_files[@]}" -eq 0 ]] && return 0
+
+    # The script processes every file in one process now (so the OpenAPI/
+    # Postman output consolidates the whole app's API surface into a
+    # single document, instead of one subprocess's worth of output per
+    # file) — scale the outer timeout with file count accordingly.
+    total_timeout=$(( js_api_extract_timeout * ${#js_files[@]} ))
+    server_url="https://${domain}"
+    tmp_json="${out_file}.calls.tmp"
+
+    : > "${out_file}"
+    {
+        echo "# JS API-reconstruction report for ${domain}"
+        echo "# scan_dir: ${scan_dir}"
+        echo "# script: ${script}"
+        echo "# date: $(date +"%Y-%m-%d %H:%M:%S")"
+        echo "# NOTE: method/url/body are raw source text, not resolved values."
+        echo "# A hit means \"here's an API call worth a manual look\", not \"this is exploitable\"."
+        echo "# See also: ${openapi_file} (OpenAPI 3.0) and ${postman_file} (Postman collection)."
+        echo
+    } >> "${out_file}"
+
+    echo "timeout ${total_timeout} python3 \"${script}\" ${js_files[*]} --relatorio-json \"${tmp_json}\" --openapi \"${openapi_file}\" --postman \"${postman_file}\" --title \"${domain} API\" --server-url \"${server_url}\"" >> "${log_execution_file}"
+    block="$(timeout "${total_timeout}" python3 "${script}" "${js_files[@]}" \
+        --relatorio-json "${tmp_json}" --openapi "${openapi_file}" --postman "${postman_file}" \
+        --title "${domain} API" --server-url "${server_url}" 2>>"${log_execution_file}")"
+    [[ -n "${block}" ]] && printf '%s\n' "${block}" >> "${out_file}"
+
+    count="$(jq 'length' "${tmp_json}" 2>/dev/null)"
+    rm -f "${tmp_json}"
+    [[ "${count}" =~ ^[0-9]+$ ]] || count=0
+
+    if [[ "${count}" -gt 0 ]]; then
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} JS API: ${count} call(s) reconstructed → ${out_file}"
+        [[ -s "${openapi_file}" ]] && echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} JS API: OpenAPI spec → ${openapi_file}"
+        [[ -s "${postman_file}" ]] && echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} JS API: Postman collection → ${postman_file}"
+        {
+            echo "JS API calls reconstructed for ${domain}: ${count}"
+            echo "Report: ${out_file}"
+            echo "OpenAPI: ${openapi_file}"
+            echo "Postman collection: ${postman_file}"
+            echo
+            grep -v '^#' "${out_file}" | grep -v '^$' | head -n 60
+            [[ "${count}" -gt 20 ]] && echo "... (see ${out_file} for the rest)"
+        } | notify "${notify_options[@]}" -id "${channel}" > /dev/null 2>&1
     fi
 }
 
