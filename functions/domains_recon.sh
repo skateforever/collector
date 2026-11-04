@@ -139,6 +139,7 @@ domains_recon(){
           # build_llm_prompt MUST run before record_history: the latter
           # decides status=finished only when llm-prompt.txt exists on disk.
           build_llm_prompt
+          build_llm_json
           record_history
           db_usage
           run_summary "${domain}"
@@ -161,6 +162,7 @@ domains_recon(){
           fi
           diff_artifacts
           build_llm_prompt
+          build_llm_json
           record_history
           db_usage
           run_summary "${domain}"
@@ -178,6 +180,7 @@ domains_recon(){
           #acunetix_scan "${domain}" "${report_dir}/webapp_consolidated.txt"
           diff_artifacts
           build_llm_prompt
+          build_llm_json
           record_history
           db_usage
           run_summary "${domain}"
@@ -384,7 +387,7 @@ domains_recon(){
             #acunetix_scan "${domain}" "${report_dir}/webapp_consolidated.txt"
         fi
         [[ "${recon_check}" == "yes" && "${webapp_enum_check}" != "yes" ]] && \
-            { diff_artifacts; build_llm_prompt; record_history; db_usage; run_summary "${domain}"; message "${domain}" finished; start_app_report; exit 0; }
+            { diff_artifacts; build_llm_prompt; build_llm_json; record_history; db_usage; run_summary "${domain}"; message "${domain}" finished; start_app_report; exit 0; }
     fi
 
     if [[ "${webapp_enum_check}" == "yes" ]]; then
@@ -423,6 +426,7 @@ domains_recon(){
     fi
     diff_artifacts
     build_llm_prompt
+    build_llm_json
     record_history
     db_usage
     run_summary "${domain}"
