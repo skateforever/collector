@@ -3,6 +3,7 @@
 Improve the sources that uses API and put the "Fail" message when API don't get any result;</br>
 ~~Improve the webapp_enum function to use ffuf to get file or directory;~~ **done — ffuf runs in parallel with gobuster/dirsearch inside webapp_enum().**</br>
 Improve crawler_js:</br>
+~~JS Desobfuscation~~ **done — beautify_js_files() + deobfuscate_js_files() (js_deobfuscator.py) reverse hex/unicode escapes, base64, Dean Edwards packer and javascript-obfuscator's string-array encoding before scan_js_secrets/scan_js_params run; scan_js_api() (js_api_extractor.py) reconstructs API calls into a text report, an OpenAPI 3.0 YAML and a Postman Collection v2.1.**
 
 * ~~sitemap~~ **done — sitemap_xml() expands sitemapindex/urlset recursively into sitemap_urls.txt.**
 

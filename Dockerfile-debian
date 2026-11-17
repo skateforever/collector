@@ -94,10 +94,16 @@ WORKDIR /opt/collector
 # e do uso direto (curl/dig/host/jq/nmap/whois/html2text/chromium/sqlite3/
 # xmllint/git/ping/pkill) em functions/, scans/ e sources/. Nenhuma delas é
 # necessária para compilar as ferramentas Go — isso ficou só no builder.
+# nodejs: NÃO está em check_binaries.sh (não é um binário obrigatório) —
+# support/runtime/scripts/js_deobfuscator.py o usa apenas como sandbox
+# descartável para reverter o string-array decoder do javascript-obfuscator
+# e o packer Dean Edwards; sem ele, o script ainda roda e aplica as demais
+# técnicas (hex/unicode escapes, base64), só perde essas duas.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git curl procps \
     jq dnsutils whois html2text chromium nmap sqlite3 libxml2-utils \
     nano vim iputils-ping \
+    nodejs \
     tzdata \
     && rm -rf /var/lib/apt/lists/*
 
@@ -115,7 +121,7 @@ COPY --from=builder /usr/local/bin/ /usr/local/bin/
 RUN pip install --no-cache-dir --upgrade pip wheel && \
     pip install --no-cache-dir "setuptools==80.10.2" && \
     pip install --no-cache-dir dirsearch git-dumper requests shodan sublist3r \
-                                flask gunicorn
+                                flask gunicorn jsbeautifier
 
 # sublist3r's DNSdumpster engine crashes with an unhandled IndexError when
 # dnsdumpster.com's page doesn't have the expected CSRF token (site

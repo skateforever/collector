@@ -81,6 +81,7 @@ url_recon(){
     done
 
     build_llm_prompt
+    build_llm_json
     db_usage
     message "${url_domain}" finished
     start_app_report

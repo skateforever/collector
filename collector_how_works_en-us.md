@@ -11,7 +11,7 @@ The offensive focus is to chain into a single pipeline the steps an attacker wou
 - port scanning with nmap and Shodan;
 - live HTTP(S) service discovery with `httpx` and vhost discovery (arbitrary `Host` header), two independent flags: `-vc|--vhost-check` (`vhost_check`, STRONG/WEAK confidence via curl+httpx) and `-vp|--vhost-probe` (`vhost_probe`, generic wordlist with reproducibility confirmation, requires `-vpw|--vhost-probe-wordlist`) — use either or both; confirmed hits from either auto-inject into the container's `/etc/hosts`;
 - directory and file brute-force with `gobuster` + `dirsearch`, `robots.txt` and `sitemap.xml` capture, screenshots with `aquatone`;
-- JS crawling with `katana` + `waybackurls`, parameter mining, sink classification (SQLi/XSS/SSRF/XXE/CMD) and hardcoded-secret hunting (API keys, JWTs, tokens);
+- JS crawling with `katana` + `waybackurls`, de-obfuscation and pretty-printing of every downloaded bundle, parameter mining, sink classification (SQLi/XSS/SSRF/XXE/CMD), hardcoded-secret hunting (API keys, JWTs, tokens) and static reconstruction of the app's API surface into an OpenAPI 3.0 spec + Postman collection;
 - target email harvesting via Hunter.io, IntelX, Lampyre, Snov.io and a crawl of the consolidated URL list;
 - subdomain-takeover detection (`subjack`, `subzy` + custom fingerprints);
 - web vulnerability scanning with `nuclei`;
@@ -73,7 +73,7 @@ collector/
 │   ├── nuclei.sh                       web vulnerability scan
 │   ├── acunetix.sh                     optional Acunetix integration
 │   ├── takeover.sh                     subjack + subzy + custom fingerprints
-│   └── js_scans.sh                     scan_js_secrets + scan_js_params (regex-based JS static scan)
+│   └── js_scans.sh                     beautify_js_files + deobfuscate_js_files + scan_js_api + scan_js_secrets + scan_js_params
 │
 ├── sources/                            ~60 OSINT modules — one file per source/technique
 │   ├── alienvault.sh, crt.sh, certspotter.sh, securitytrails.sh, virustotal.sh,
@@ -91,7 +91,10 @@ collector/
 │   │   │                               takeover-fingerprints.txt
 │   │   ├── patterns/                   regexes for secrets and sensitive parameter names
 │   │   ├── prompts/                    header for llm-prompt.txt
-│   │   └── schema/                     SQL schema for collector-results
+│   │   ├── schema/                     SQL schema for collector-results
+│   │   └── scripts/                    js_deobfuscator.py (reverses JS obfuscation) +
+│   │                                   js_api_extractor.py (reconstructs API calls into
+│   │                                   OpenAPI 3.0 YAML + Postman Collection v2.1)
 │   ├── docker/                         Docker configuration and volume strategy
 │   │   ├── docker.env.template         template for environment variables (Docker Compose)
 │   │   └── VOLUME_STRATEGY.md          detailed documentation on volumes (code replication)
@@ -141,7 +144,7 @@ The container entrypoint is the `collector` script. The flow is, in short:
    10. `build_consolidated_urls` — produces `webapp_consolidated.txt` (every live HTTP(S) URL, DNS + STRONG vhosts);
    11. `webapp_tech` — captures response headers for fingerprinting (in `report/webapp/tech/`);
    12. `emails_recon` — Hunter.io + IntelX (phonebook target=2) + Lampyre + Snov.io + page/JS crawl of the consolidated list;
-   13. `crawler_js` + `crawler_params` — katana + waybackurls extract JS, parameters and recursively expand `sitemap.xml`; classify parameters by sink and search for hardcoded secrets;
+   13. `crawler_js` + `crawler_params` — katana + waybackurls extract JS and parameters and recursively expand `sitemap.xml`. `crawler_js` then runs every downloaded `.js` through a post-process chain: `beautify_js_files` pretty-prints it and moves it to `<name>.beautify.js` (kept as a permanent audit copy, still obfuscated); `deobfuscate_js_files` reverses hex/unicode escapes, base64, the Dean Edwards packer and javascript-obfuscator's string-array encoding, creating the final `<name>.js` from that copy; `scan_js_api` reconstructs the app's API calls (method/url/body) into a text report, an OpenAPI 3.0 YAML and a Postman Collection v2.1; `scan_js_secrets` searches the de-obfuscated JS for hardcoded secrets. `crawler_params` then classifies discovered parameters by sink (`scan_js_params`);
    14. `nuclei_scan` — vulnerability scan against the consolidated list;
    15. `webapp_enum` — gobuster + dirsearch against the consolidated list, `robots.txt`, `sitemap.xml`; `aquatone_screenshot` for each batch; `git_rebuild` (git-dumper) if exposed `.git/` directories are found;
    16. `diff_artifacts` — generates `*_diff.txt` for each relevant artifact;
@@ -185,8 +188,11 @@ Every final artifact lives under `outputs/<domain>/recon_YYYYMMDD/`:
 `report/vhost_probe_hits.txt` — confirmed `vhost_probe` hits, in the same layout as `vhost_subdomains_strong/weak.txt` (`scheme://host<TAB>ip:port<TAB>Size: N<TAB>Hash: X<TAB>tag`), with the tag always `CONFIRMED` — no real confidence tier (single-tool, no curl+httpx consensus to split on — it's either confirmed by reproducibility or it isn't in this file). Also feeds `etc_hosts_file.txt`/`vhost_urls.txt`, so it's testable even without public DNS.
 `report/robots_urls.txt` — URLs extracted from the harvested `robots.txt` files.
 `report/sitemap_urls.txt` — URLs harvested recursively from `sitemap.xml`/`sitemapindex`.
-`report/webapp_js_secrets.txt` — secrets, tokens, JWTs and API keys found in downloaded JS.
+`report/webapp_js_secrets.txt` — secrets, tokens, JWTs and API keys found in the de-obfuscated JS.
 `report/webapp_js_params.txt` — discovered parameters + sink classification (SQLi, XSS, SSRF, XXE, CMD, etc.).
+`report/webapp_js_api.txt` — API calls (method/url/body) reconstructed from the JS, as raw source text — a static best-effort for manual triage, never a resolved/verified value.
+`report/webapp_js_api_openapi.yaml` — the same reconstructed calls as an OpenAPI 3.0 document; every operation carries an `x-source` extension pointing back at the file:line it came from.
+`report/webapp_js_api_postman_collection.json` — the same reconstructed calls as a Postman Collection v2.1, with the target as a `{{baseUrl}}` collection variable — import and run with no setup.
 
 ### Emails
 `report/email_recon.txt` / `email_recon_diff.txt` — target email addresses (APIs + crawl), filtered by the root domain.
@@ -201,7 +207,7 @@ Every final artifact lives under `outputs/<domain>/recon_YYYYMMDD/`:
 ### Webapp enum
 `report/webapp/aquatone/` — HTML+PNG screenshots of every live URL (quick view of the surface).
 `report/webapp/enum/` — raw gobuster and dirsearch output per host.
-`report/webapp/javascript/` — downloaded JS files (input for `webapp_js_secrets`/`webapp_js_params`).
+`report/webapp/javascript/` — one `<name>.js` (de-obfuscated, final) + `<name>.beautify.js` (pretty but still obfuscated, permanent audit copy) per downloaded file. `<name>.js` is the input for `webapp_js_secrets`/`webapp_js_params`/`webapp_js_api`; `*.beautify.js` is excluded from all three.
 `report/webapp/params/` — raw katana and waybackurls output.
 `report/webapp/tech/` — response headers for fingerprinting (Server, X-Powered-By, etc.).
 
@@ -295,7 +301,7 @@ JS crawler and parameter mining (also reuse):
 collector-docker -d example.com --webapp-crawler
 ```
 
-What you get: `webapp/javascript/` (downloaded JS), `webapp/params/` (katana + waybackurls output), `webapp_js_secrets.txt` (hardcoded keys/tokens/JWTs) and `webapp_js_params.txt` (parameters with sink classification). Focus on finding injection vectors for the exploitation phase.
+What you get: `webapp/javascript/` (de-obfuscated JS as `<name>.js`, plus the still-obfuscated `<name>.beautify.js` audit copy), `webapp/params/` (katana + waybackurls output), `webapp_js_secrets.txt` (hardcoded keys/tokens/JWTs), `webapp_js_params.txt` (parameters with sink classification), `webapp_js_api.txt` + `webapp_js_api_openapi.yaml` + `webapp_js_api_postman_collection.json` (the app's API calls reconstructed from the JS — import the Postman collection directly, or the OpenAPI spec into any client). Focus on finding injection vectors and mapping the API surface for the exploitation phase.
 
 Standalone vulnerability scan (also reuse):
 
