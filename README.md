@@ -99,7 +99,7 @@ Override defaults via environment variables (`<root>` is the checkout directory 
 | `APP_PORT` | `127.0.0.1:8000:8000` |
 | `REPORT_CONTAINER_NAME` | `collector-report` |
 
-When the host port in `APP_PORT` is already bound (by a previous recon container, an ongoing `--report-only` session, or any other listener), the wrapper silently drops the `-p` flag from `docker run` instead of failing with "port already allocated" — the recon still completes; if a sibling container's dashboard is publishing that port, its view mirrors this run's results (shared `outputs/` volume).
+`APP_PORT` is only published when `--report-up` is passed — the dashboard itself never starts without it (see [Dashboard control](#dashboard-control) below), so a plain recon run doesn't publish or need the port at all. When `--report-up` is passed and the host port in `APP_PORT` is already bound (by an ongoing `--report-up` session, or any other listener), the wrapper fails fast with a clear message instead of silently booting a persistent, unreachable container.
 
 ## Keeping collector up to date
 
@@ -192,12 +192,14 @@ The hook calls `collector-docker --image build-only` internally.
 
 ### Dashboard control
 
-The app-report dashboard is started automatically at the end of each recon (in the background). These flags let you reopen or stop it without triggering another recon.
+The app-report dashboard **never starts unless you explicitly ask for it** with `-ru|--report-up`. It is not automatic at the end of a recon — `collector` runs as the container's PID 1, so a dashboard left running in the background would be killed the instant the recon finishes and PID 1 exits (the kernel tears down the whole PID namespace the moment its init process dies). `--report-up` keeps the container itself alive for exactly as long as the dashboard should stay up.
 
 | Flag | Description |
 |------|-------------|
-| `-ro \| --report-only` | Open the read-only app-report dashboard against the existing `outputs/` directory and stay in the foreground. Skips recon entirely; requires `collector-results` (in `app-report/db/`) from a previous run. Ctrl-C or `--report-stop` (from another shell) stops it. |
-| `-rs \| --report-stop` | Stop a dashboard previously started with `--report-only`. Sends SIGTERM, waits 5 s, then SIGKILLs if needed. Via `collector-docker` it does the equivalent `docker stop collector-report` on the host. |
+| `-ru \| --report-up` | Requests the dashboard. **Alone** (no target flag): opens it read-only against the existing `outputs/` directory and exits when stopped — skips recon entirely; requires `collector-results` (in `app-report/db/`) from a previous run, and fails with a clear message if that file doesn't exist yet. **Combined** with a target flag and `--recon` (e.g. `-d target.com --recon --report-up`): runs the recon first, then brings the dashboard up and keeps the container running afterward. Either way, Ctrl-C or `--report-down` (from another shell) stops it. |
+| `-rd \| --report-down` | Stop the dashboard, however it was started — alone via `--report-up`, or combined with a recon. Sends SIGTERM, waits 5 s, then SIGKILLs if needed. Via `collector-docker` it does the equivalent `docker stop collector-report` on the host. |
+
+Via `collector-docker`, `--report-up` also changes how the container itself runs: it's started detached (`docker run -d`, not attached) and **without** `--rm` (so it persists until stopped), with `APP_PORT` published. Without `--report-up`, nothing changes from a plain recon: attached, `--rm`, no port published. Recon progress isn't streamed to your terminal in the combined `--report-up` case since the container runs detached — follow it with `docker logs -f collector-report` or the run's own log file under `outputs/`.
 
 > **On stopping recon runs:** collector runs in a one-shot container, so the right way to abort an in-flight recon is `docker stop <container>` on the host. To wipe artifacts, `rm -rf` the target's directory under `outputs/`. Per-target `flock` already prevents concurrent runs against the same domain.
 
@@ -479,13 +481,20 @@ collector-docker -d example.com --recon --webapp-discovery --webapp-short-detect
 Reopening the dashboard from an earlier scan (no new recon):
 
 ```bash
-collector-docker --report-only         # foreground, Ctrl-C to stop
-collector-docker --report-stop         # stop from another shell
+collector-docker --report-up           # detached, port published, persists until stopped
+collector-docker --report-down         # stop from another shell
 ```
 
-`--report-only` names its container `collector-report` (override with `REPORT_CONTAINER_NAME=<name>`) and refuses to start when one is already running. It requires `collector-results` to exist in the `app-report/db/` directory — otherwise it aborts with a clear message rather than serving an empty dashboard.
+Or bring it up at the end of a fresh recon, same container:
 
-Or set `cloudflare_tunnel="yes"` in `conf.d/operation.conf` for an ephemeral `https://*.trycloudflare.com` URL (only meaningful when the dashboard runs in the background, i.e. at end-of-recon; `--report-only` doesn't publish a tunnel).
+```bash
+collector-docker -d example.com --recon --report-up
+collector-docker --report-down         # stop when done
+```
+
+`--report-up` names its container `collector-report` (override with `REPORT_CONTAINER_NAME=<name>`) and refuses to start when one is already running. Passed alone, it requires `collector-results` to exist in the `app-report/db/` directory — otherwise it aborts with a clear message rather than serving an empty dashboard.
+
+Or set `cloudflare_tunnel="yes"` in `conf.d/operation.conf` for an ephemeral `https://*.trycloudflare.com` URL (only meaningful when `--report-up` is combined with a recon, since that's the only background-dashboard case; `--report-up` alone doesn't publish a tunnel).
 
 ## Screenshots
 

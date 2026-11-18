@@ -129,7 +129,17 @@ cleanup_global(){
     # confirmed alive (reproduced: gunicorn's own log shows "Handling
     # signal: term" moments after "Starting gunicorn", every run). Skip
     # its pid explicitly.
-    local _app_report_pidfile="${app_report_pidfile:-${output_dir}/${app_report_pidfile_name:-.app-report.pid}}"
+    #
+    # app_report_pidfile() (functions/app_report.sh) is the resolver used
+    # by start_app_report()/stop_app_report() themselves, under
+    # app-report/run/ — calling it here instead of re-deriving the path
+    # from a stale ${output_dir}/${app_report_pidfile_name} fallback keeps
+    # this check in sync with wherever the dashboard actually wrote its
+    # pidfile (previously the fallback always missed, so
+    # _app_report_live_pid stayed empty and the dashboard got killed
+    # along with everything else below — the exact bug this comment block
+    # describes guarding against).
+    local _app_report_pidfile="$(app_report_pidfile)"
     local _app_report_live_pid=""
     [[ -s "${_app_report_pidfile}" ]] && _app_report_live_pid="$(cat "${_app_report_pidfile}" 2>/dev/null)"
     local _child
@@ -220,25 +230,83 @@ cleanup_global(){
 # "exit code: N" line accurate for a signal-triggered shutdown, instead of
 # reporting the exit code of whatever unrelated command last ran before
 # the signal arrived.
-trap 'echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Execution terminated."; exit 130' SIGINT
-trap 'echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Execution terminated."; exit 143' SIGTERM
+# stop_app_report() is safe to call unconditionally (it no-ops when
+# nothing is running), so both signal traps call it before exiting — this
+# gives gunicorn a graceful SIGTERM/wait/SIGKILL-escalation shutdown
+# (functions/app_report.sh) instead of leaving it to the kernel's
+# unconditional PID-namespace SIGKILL that fires the instant this PID 1
+# process exits (see _collector_hold_for_dashboard below for the other
+# half of this — keeping PID 1 alive at all while the dashboard should
+# still be serving).
+trap 'echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Execution terminated."; stop_app_report; exit 130' SIGINT
+trap 'echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Execution terminated."; stop_app_report; exit 143' SIGTERM
 trap cleanup_global EXIT
 
-# --report-stop / --report-only short-circuit every step below (target
-# validation, lock acquisition, directory creation, recon). The app-report
-# Flask app is strictly read-only over the existing outputs/, so there's
-# nothing to validate here beyond what start_app_report_foreground already
-# checks (DB present, app-report dir present). exec inside that function
-# replaces this shell with gunicorn — Ctrl-C then reaches gunicorn directly.
+# _collector_hold_for_dashboard — only relevant when -ru|--report-up
+# accompanied a recon flag (the alone case exec's into gunicorn via
+# start_app_report_foreground below and never reaches this). The recon's
+# own tail already backgrounded the dashboard (start_app_report, gated in
+# app_report.sh's run_app_report() to only fire when report_up_check=yes).
+# Without this, this script would `exit` immediately after recon and the
+# kernel would SIGKILL the whole PID namespace — dashboard included — the
+# instant PID 1 dies (pid_namespaces(7)), regardless of docker run --rm.
+# Blocking here on the dashboard's own pid keeps the container up exactly
+# as long as the dashboard should stay up.
 #
-# --report-stop is checked FIRST so `collector --report-only --report-stop`
-# means "stop, don't start" instead of racing on the pidfile.
-if [[ "${report_stop_check}" == "yes" ]]; then
+# Can't just `wait "${_pid}"` — bash's wait builtin only works on PIDs it
+# forked itself as a tracked job; the dashboard was forked inside
+# start_app_report's own subshell (already exited), so by the time we get
+# here it's merely a reparented process, not a job of THIS shell — bash
+# refuses with "pid N is not a child of this shell" (verified). Poll
+# instead, in a sleep-1-second-at-a-time loop: `sleep 1 &` backgrounds a
+# job this shell DID fork, so `wait $!` on THAT is valid and — critically
+# — still gets interrupted promptly by the SIGTERM/SIGINT traps above,
+# same as a real `wait` would (confirmed: a trapped signal interrupts an
+# in-progress `wait` immediately, it doesn't wait out the full sleep).
+_collector_hold_for_dashboard(){
+    [[ "${report_up_check:-}" == "yes" ]] || return 0
+    local _pid
+    _pid="$(cat "$(app_report_pidfile)" 2>/dev/null)"
+    if [[ -n "${_pid}" ]] && kill -0 "${_pid}" 2>/dev/null; then
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Dashboard staying up at http://${app_report_host:-127.0.0.1}:${app_report_port:-8000} — collector-docker --report-down (or docker stop) to end."
+        while kill -0 "${_pid}" 2>/dev/null; do
+            sleep 1 &
+            wait $! 2>/dev/null
+        done
+    fi
+}
+
+# --report-down / --report-up (alone) short-circuit every step below
+# (target validation, lock acquisition, directory creation, recon). The
+# app-report Flask app is strictly read-only over the existing outputs/,
+# so there's nothing to validate here beyond what start_app_report_foreground
+# already checks (DB present, app-report dir present). exec inside that
+# function replaces this shell with gunicorn — Ctrl-C then reaches
+# gunicorn directly.
+#
+# --report-down is checked FIRST so `collector --report-up --report-down`
+# means "stop, don't start" instead of racing on the pidfile. The
+# --report-up branch only fires here when NO target flag was also given —
+# combined with a target flag, --report-up instead falls through to the
+# normal recon dispatch below, and the dashboard comes up at the tail of
+# that recon (see the <recon>; _collector_hold_for_dashboard pattern in
+# each target branch).
+if [[ "${report_down_check}" == "yes" ]]; then
+    # --report-down stops the dashboard unconditionally — it doesn't make
+    # sense combined with ANY other flag (target, recon options, etc.),
+    # so reject that combination outright instead of silently ignoring
+    # the extra flags (args_count is the raw CLI token count set by
+    # menu(), so args_count -ne 1 means something besides -rd|--report-down
+    # itself was passed).
+    if [[ "${args_count}" -ne 1 ]]; then
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} -rd|--report-down must be used alone, with no other parameters."
+        usage
+    fi
     stop_app_report
     exit $?
 fi
 
-if [[ "${report_only_check}" == "yes" ]]; then
+if [[ "${report_up_check}" == "yes" && -z "${domain_check}${domainlist_check}${url_check}" ]]; then
     start_app_report_foreground
     exit $?
 fi
@@ -278,7 +346,9 @@ if [[ "${domain_check}" == "yes" && -n "${domain}" ]]; then
     create_directory_structure
     check_parameter_dependency
     domains_recon
-    exit $?
+    _domains_recon_exit=$?
+    _collector_hold_for_dashboard
+    exit "${_domains_recon_exit}"
 fi
 
 if  [[ "${domainlist_check}" == "yes" && -s "${domain_list}" ]]; then
@@ -343,6 +413,14 @@ if  [[ "${domainlist_check}" == "yes" && -s "${domain_list}" ]]; then
     echo -e "  Skipped:        ${yellow}${skipped_runs}${reset}"
     echo -e "${yellow}════════════════════════════════════════════════════════════${reset}"
 
+    # Dashboard (if --report-up accompanied this run) was (re)started by
+    # each successful target's domains_recon tail call inside its own
+    # subshell above — a subshell exiting doesn't kill it (it's not PID 1,
+    # just a forked child of this top-level process), so one hold here
+    # after the whole list finishes is enough to keep this process (and
+    # thus the container) alive for it.
+    _collector_hold_for_dashboard
+
     # Exit com código apropriado
     if [[ "${failed_runs}" -gt 0 ]]; then
         exit 1
@@ -364,5 +442,7 @@ if [[ "${url_check}" == "yes" && -n "${url_verify}" ]]; then
     create_directory_structure
     check_parameter_dependency
     url_recon
-    exit $?
+    _url_recon_exit=$?
+    _collector_hold_for_dashboard
+    exit "${_url_recon_exit}"
 fi

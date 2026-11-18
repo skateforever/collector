@@ -37,7 +37,7 @@ check_argument(){
     # on the accumulation).
     local options=()
     options+=(-d --domain -dl --domain-list -ed --exclude-domains -el --exclude-domain-list -h --help)
-    options+=(-l --limit-urls -p --proxy -r --recon -ro --report-only -rs --report-stop -s --subdomain-brute -u --url)
+    options+=(-l --limit-urls -p --proxy -r --recon -ru --report-up -rd --report-down -s --subdomain-brute -u --url)
     options+=(-vc --vhost-check -vp --vhost-probe -vpw --vhost-probe-wordlist -wc --webapp-crawler -wd --webapp-discovery -we --webapp-enum -ws --webapp-scan)
     options+=(-wcp --webapp-common-ports -wld --webapp-long-detection -wsd --webapp-short-detection -ww --webapp-wordlists -dr --dry-run)
     local argument=$2
@@ -153,19 +153,24 @@ menu(){
                     usage
                 fi
                 ;;
-            -ro|--report-only)
-                # Opens the read-only app-report dashboard against the existing
-                # outputs/ directory without triggering recon. Handled early
-                # in collector (right after menu) so target/lock/validation
-                # blocks are skipped entirely.
-                report_only_check="yes"
+            -ru|--report-up)
+                # Requests the app-report dashboard. Alone (no target flag),
+                # opens it read-only against the existing outputs/ directory
+                # without triggering recon — handled early in collector
+                # (right after menu) so target/lock/validation blocks are
+                # skipped entirely, exec-replacing this shell with gunicorn.
+                # Combined with a target flag + --recon, the dashboard comes
+                # up in the background after recon finishes and collector
+                # blocks (holding the container open) until stopped — see
+                # _collector_hold_for_dashboard in collector.
+                report_up_check="yes"
                 shift
                 ;;
-            -rs|--report-stop)
-                # Stops a report dashboard previously started with
-                # --report-only (foreground gunicorn, pidfile-tracked).
+            -rd|--report-down)
+                # Stops the app-report dashboard, however it was started
+                # (--report-up alone, or --recon ... --report-up combined).
                 # Also handled early in collector; no target needed.
-                report_stop_check="yes"
+                report_down_check="yes"
                 shift
                 ;;
             -s|--subdomain-brute)

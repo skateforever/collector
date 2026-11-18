@@ -50,8 +50,8 @@ reset_vars(){
     unset webapp_scan_check
     unset webapp_port_detect
     unset webapp_wordlists
-    unset report_only_check
-    unset report_stop_check
+    unset report_up_check
+    unset report_down_check
     unset dry_run_check
     unset vhost_check_check
     unset args_count

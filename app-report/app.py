@@ -28,8 +28,17 @@ from pathlib import Path
 
 from flask import Flask, abort, g, render_template, request
 
-DB_PATH = Path(os.environ.get("COLLECTOR_DB", "collector-results")).resolve()
-OUTPUT_DIR = Path(os.environ.get("COLLECTOR_OUTPUT_DIR", ".")).resolve()
+# Fallbacks are anchored to this file's own location, not the process's
+# CWD — "collector-results" / "." used to resolve relative to wherever
+# the caller happened to `cd` before running `python3 app.py` (e.g. the
+# repo root instead of app-report/), silently creating/reading a stray
+# DB at <repo>/collector-results instead of the real
+# app-report/db/collector-results. start_app_report() always exports
+# both env vars correctly; these defaults only matter when app.py is run
+# by hand without them, and should still point at the real locations.
+APP_DIR = Path(__file__).resolve().parent
+DB_PATH = Path(os.environ.get("COLLECTOR_DB") or (APP_DIR / "db" / "collector-results")).resolve()
+OUTPUT_DIR = Path(os.environ.get("COLLECTOR_OUTPUT_DIR") or (APP_DIR.parent / "outputs")).resolve()
 
 app = Flask(__name__)
 

@@ -9,7 +9,7 @@
 #   * background — spawned at the tail of a recon run so    #
 #                  the operator can browse results the      #
 #                  moment the run finishes.                 #
-#   * foreground — spawned by `collector --report-only`,    #
+#   * foreground — spawned by `collector --report-up` alone, #
 #                  exec-replacing the collector process so  #
 #                  Ctrl-C reaches gunicorn cleanly.         #
 #                                                           #
@@ -20,7 +20,7 @@
 # long-lived process, so its own runtime state lives with the    #
 # tool, not scattered into whichever outputs/${domain}/           #
 # recon_${date}/ happened to spawn it. One shared identity        #
-# also means --report-stop can stop EITHER launch mode, not        #
+# also means --report-down can stop EITHER launch mode, not        #
 # just a foreground one.                                            #
 #                                                           #
 # One implementation (run_app_report) handles both; the     #
@@ -60,9 +60,36 @@ app_report_logfile(){
     echo "${app_report_logfile_path:-$(app_report_run_dir)/${app_report_logfile_name:-app-report.log}}"
 }
 
+# _app_report_pid_is_live — is this PID actually OUR dashboard process,
+# not merely a live PID?
+#
+# app-report/run/ (where the pidfile lives) is bind-mounted from the host
+# (APP_REPORT_RUN_DIR), so the SAME pidfile is visible across DIFFERENT
+# containers/PID-namespaces that mount it — but a PID number only means
+# something within the namespace that assigned it. `kill -0 "$pid"` alone
+# answers "does a process with this number exist in MY namespace", not
+# "is it the gunicorn/python3 I started" — and PID 1 ALWAYS exists (it's
+# each container's own init process), so a pidfile left over from a
+# foreground `--report-up` run (where gunicorn exec'd into PID 1) reads
+# back as "pid 1, alive" in the NEXT container too, where PID 1 is
+# `collector` itself. Confirmed: this caused start_app_report to
+# false-positive "already running (pid 1)" and skip starting the real
+# dashboard, and later made its SIGTERM-based stop target collector's
+# own PID 1 — i.e. itself — recursing through the SIGTERM trap.
+# /proc/<pid>/cmdline disambiguates: only a real gunicorn or `python3
+# app.py` process matches.
+_app_report_pid_is_live(){
+    local _pid="$1"
+    [[ -n "${_pid}" ]] || return 1
+    kill -0 "${_pid}" 2>/dev/null || return 1
+    local _cmdline
+    _cmdline="$(tr '\0' ' ' < "/proc/${_pid}/cmdline" 2>/dev/null)"
+    [[ "${_cmdline}" == *gunicorn* || "${_cmdline}" == *app.py* ]]
+}
+
 # run_app_report — single implementation behind start_app_report (called
 # at the tail of a recon run, backgrounded) and start_app_report_foreground
-# (called by `collector --report-only`, exec-replaces this shell).
+# (called by `collector --report-up` alone, exec-replaces this shell).
 #
 # Everything the two variants used to duplicate lives here:
 #   * enablement gate (app_report_enabled)
@@ -102,6 +129,20 @@ run_app_report(){
         return 0
     fi
 
+    # The dashboard used to start unconditionally at the tail of every
+    # recon — but collector is the container's PID 1, so the instant it
+    # exited afterward, the kernel SIGKILLed the whole PID namespace
+    # (dashboard included), regardless of docker run --rm. Rather than
+    # keep every recon's container alive "just in case", the dashboard
+    # now only ever starts when the operator explicitly asked for it via
+    # -ru|--report-up — background mode is a silent no-op otherwise.
+    # Foreground mode needs no such gate: it's only ever reached via the
+    # --report-up-alone dispatch in collector, so report_up_check is
+    # already implied.
+    if [[ "${mode}" == "background" && "${report_up_check:-}" != "yes" ]]; then
+        return 0
+    fi
+
     local app_dir="${app_report_dir:-app-report}"
     [[ "${app_dir}" != /* ]] && app_dir="${collector_path:-.}/${app_dir}"
     local host="${app_report_host:-127.0.0.1}"
@@ -137,13 +178,14 @@ run_app_report(){
     if [[ -s "${pidfile}" ]]; then
         local check_pid
         check_pid="$(cat "${pidfile}" 2>/dev/null)"
-        if [[ -z "${check_pid}" ]] || ! kill -0 "${check_pid}" 2>/dev/null; then
-            # Stale pidfile from a previous run — clean and move on.
+        if ! _app_report_pid_is_live "${check_pid}"; then
+            # Stale pidfile from a previous run (or a previous CONTAINER —
+            # see _app_report_pid_is_live) — clean and move on.
             rm -f "${pidfile}"
         else
             echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${tag}: already running (pid ${check_pid}) at http://${host}:${port}"
             if [[ "${mode}" == "foreground" ]]; then
-                echo -e "  stop it with ${yellow}collector --report-stop${reset} (or ${yellow}collector-docker --report-stop${reset}) before starting a new one."
+                echo -e "  stop it with ${yellow}collector --report-down${reset} (or ${yellow}collector-docker --report-down${reset}) before starting a new one."
                 return 1
             fi
             return 0
@@ -194,11 +236,11 @@ run_app_report(){
         # image changes. Set up BEFORE the "serving at" announcement so
         # that line lands in the shared log too, not just the terminal.
         exec > >(tee -a "${logfile}") 2>&1
-        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${tag}: serving at http://${host}:${port} (Ctrl-C or --report-stop to stop)"
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${tag}: serving at http://${host}:${port} (Ctrl-C or --report-down to stop)"
         # Record OUR pid before exec — after exec, $$ is inherited by
-        # gunicorn (same PID, different program), so --report-stop still
+        # gunicorn (same PID, different program), so --report-down still
         # targets the right process. Written to a temp path + rename so a
-        # concurrent --report-stop never sees a half-written file.
+        # concurrent --report-down never sees a half-written file.
         echo "$$" > "${pidfile}.tmp" && mv "${pidfile}.tmp" "${pidfile}"
         if [[ "${launcher}" == "gunicorn" ]]; then
             exec gunicorn --workers 1 --bind "${host}:${port}" \
@@ -225,7 +267,7 @@ run_app_report(){
     )
 
     sleep 1
-    if [[ -s "${pidfile}" ]] && kill -0 "$(cat "${pidfile}")" 2>/dev/null; then
+    if [[ -s "${pidfile}" ]] && _app_report_pid_is_live "$(cat "${pidfile}")"; then
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${tag}: serving at http://${host}:${port} (pid $(cat "${pidfile}"), log ${logfile})"
     else
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${tag}: failed to start (see ${logfile})"
@@ -256,12 +298,15 @@ start_app_report_foreground(){ run_app_report foreground; }
 # escalation failed.
 #
 # Note on containers: when the dashboard was started via `collector-docker
-# --report-only`, the gunicorn PID lives inside that container's PID
-# namespace, not the host's. `collector-docker --report-stop` handles that
+# --report-up`, the gunicorn PID lives inside that container's PID
+# namespace, not the host's. `collector-docker --report-down` handles that
 # case by running `docker stop` from the host; this function is the
 # in-container half, invoked when the operator hits `collector
-# --report-stop` inside the same container (or runs the collector
-# natively on the host).
+# --report-down` inside the same container (or runs the collector
+# natively on the host), or when collector's own SIGINT/SIGTERM traps
+# call it before exiting so a combined recon+--report-up container
+# shuts gunicorn down gracefully instead of relying on the kernel's
+# unconditional PID-namespace SIGKILL on PID 1 exit.
 stop_app_report(){
     local pidfile
     pidfile="$(app_report_pidfile)"
@@ -273,8 +318,8 @@ stop_app_report(){
 
     local pid
     pid="$(cat "${pidfile}" 2>/dev/null)"
-    if [[ -z "${pid}" ]] || ! kill -0 "${pid}" 2>/dev/null; then
-        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} stop_app_report: stale pidfile (pid ${pid:-?} not alive), removing."
+    if ! _app_report_pid_is_live "${pid}"; then
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} stop_app_report: stale pidfile (pid ${pid:-?} not alive, or not our dashboard — see this container's own namespace), removing."
         rm -f "${pidfile}"
         return 0
     fi

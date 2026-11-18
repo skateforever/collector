@@ -399,29 +399,44 @@ if ! docker image inspect "${COLLECTOR_IMAGE}" >/dev/null 2>&1; then
 fi
 
 # Detect report flags in "$@" so we can:
-#   --report-only  → name the container 'collector-report' and refuse if
+#   --report-up    → name the container 'collector-report' and refuse if
 #                    another one is already running (Docker's --name
-#                    collision gives a clear error, no port race).
-#   --report-stop  → do NOT spawn a new container; call `docker stop`
+#                    collision gives a clear error, no port race). Applies
+#                    whether --report-up was passed alone or combined with
+#                    a target flag — either way the container needs to
+#                    persist (no --rm) and publish the dashboard port.
+#   --report-down  → do NOT spawn a new container; call `docker stop`
 #                    on the running one from the host. The in-container
 #                    stop_app_report path is unreachable when the caller
 #                    is only the host wrapper (no other container is
 #                    running the collector binary), so dispatching from
-#                    here is the only way that works.
+#                    here is the only way that works. Keyed purely on the
+#                    container name, so it stops the dashboard regardless
+#                    of which --report-up variant started it.
 # Long/short forms are both accepted, matching the collector CLI.
 REPORT_CONTAINER_NAME="${REPORT_CONTAINER_NAME:-collector-report}"
-want_report_only=no
-want_report_stop=no
+want_report_up=no
+want_report_down=no
+has_target_flag=no
 for arg in "$@"; do
     case "${arg}" in
-        -ro|--report-only) want_report_only=yes ;;
-        -rs|--report-stop) want_report_stop=yes ;;
+        -ru|--report-up)   want_report_up=yes ;;
+        -rd|--report-down) want_report_down=yes ;;
+        -d|--domain|-dl|--domain-list|-u|--url) has_target_flag=yes ;;
     esac
 done
 
-# --report-stop wins over --report-only (mirrors the ordering inside
-# collector so `--report-only --report-stop` means "stop").
-if [[ "${want_report_stop}" == "yes" ]]; then
+# --report-down wins over --report-up (mirrors the ordering inside
+# collector so `--report-up --report-down` means "stop").
+if [[ "${want_report_down}" == "yes" ]]; then
+    # Stops the dashboard unconditionally — doesn't make sense combined
+    # with any other flag, so reject rather than silently ignore them
+    # (matches the same check inside collector, which this wrapper's
+    # own container never gets a chance to run since we exit here first).
+    if [[ $# -ne 1 ]]; then
+        echo "collector-docker: -rd|--report-down must be used alone, with no other parameters." >&2
+        exit 1
+    fi
     if docker ps --format '{{.Names}}' | grep -qx "${REPORT_CONTAINER_NAME}"; then
         docker stop "${REPORT_CONTAINER_NAME}" >/dev/null && \
             echo "collector-docker: stopped ${REPORT_CONTAINER_NAME}"
@@ -431,42 +446,56 @@ if [[ "${want_report_stop}" == "yes" ]]; then
     exit 0
 fi
 
-# Host-side port preflight — decides whether to publish APP_PORT.
-#
-# Three outcomes, all silent about the "why" so the recon path stays
-# quiet on happy runs:
-#   1. Host port is free → pass -p normally (default behavior).
-#   2. Host port is bound by anything at all → omit -p. The recon still
-#      completes; if the port is held by a sibling collector container,
-#      its dashboard already renders this run's results (shared outputs
-#      volume). If it's held by something unrelated, the operator sees
-#      no dashboard from this container — a conscious trade-off: never
-#      fail a recon over a busy port.
-#
-# Tool preference: ss > lsof > netstat. If none are present we skip the
-# check and let Docker itself decide (which usually means it fails, but
-# only in the rare case where the port is genuinely taken and no tool
-# is available to detect it beforehand).
-host_port=""
-if [[ "${APP_PORT}" =~ ^[0-9.]+:([0-9]+):[0-9]+$ ]]; then
-    host_port="${BASH_REMATCH[1]}"
-elif [[ "${APP_PORT}" =~ ^([0-9]+):[0-9]+$ ]]; then
-    host_port="${BASH_REMATCH[1]}"
+# --report-up alone (no target flag) needs the DB to already exist — the
+# in-container preflight (functions/app_report.sh) would catch this too,
+# but failing here on the host avoids booting a persistent, --rm-less
+# container only to have it immediately report "nothing to render" and
+# sit there anyway. Combined with a target flag, the recon about to run
+# will create the DB, so this check doesn't apply.
+if [[ "${want_report_up}" == "yes" && "${has_target_flag}" == "no" ]]; then
+    if [[ ! -s "${APP_REPORT_DB_DIR}/collector-results" ]]; then
+        echo "collector-docker: no collector-results DB found at ${APP_REPORT_DB_DIR}/collector-results" >&2
+        echo "  run at least one recon first, e.g.: collector-docker -d <target> --recon" >&2
+        exit 1
+    fi
 fi
 
-port_args=(-p "${APP_PORT}")
-if [[ -n "${host_port}" ]]; then
-    port_busy=no
-    if command -v ss >/dev/null 2>&1; then
-        ss -H -ltn "sport = :${host_port}" 2>/dev/null | grep -q . && port_busy=yes
-    elif command -v lsof >/dev/null 2>&1; then
-        lsof -iTCP:"${host_port}" -sTCP:LISTEN -Pn 2>/dev/null | grep -q . && port_busy=yes
-    elif command -v netstat >/dev/null 2>&1; then
-        netstat -ltn 2>/dev/null | awk '{print $4}' | grep -qE "[:.]${host_port}$" && port_busy=yes
+# Port publishing — only when the dashboard was actually requested.
+# Without --report-up: no port args at all (today's plain-recon
+# behavior — the dashboard never starts in-container either, per the
+# report_up_check gate in functions/app_report.sh, so publishing a port
+# nothing listens on would be pointless).
+# With --report-up: publishing is a hard requirement, not a best-effort
+# — a persistent, --rm-less container that silently never published its
+# port would be a trap (unlike the old transient-dashboard case, there's
+# no "recon still completes fine either way" consolation here).
+#
+# Tool preference: ss > lsof > netstat. If none are present we skip the
+# busy-port check and let `docker run` itself fail with its own error.
+port_args=()
+if [[ "${want_report_up}" == "yes" ]]; then
+    host_port=""
+    if [[ "${APP_PORT}" =~ ^[0-9.]+:([0-9]+):[0-9]+$ ]]; then
+        host_port="${BASH_REMATCH[1]}"
+    elif [[ "${APP_PORT}" =~ ^([0-9]+):[0-9]+$ ]]; then
+        host_port="${BASH_REMATCH[1]}"
     fi
-    if [[ "${port_busy}" == "yes" ]]; then
-        port_args=()
+    if [[ -n "${host_port}" ]]; then
+        port_busy=no
+        if command -v ss >/dev/null 2>&1; then
+            ss -H -ltn "sport = :${host_port}" 2>/dev/null | grep -q . && port_busy=yes
+        elif command -v lsof >/dev/null 2>&1; then
+            lsof -iTCP:"${host_port}" -sTCP:LISTEN -Pn 2>/dev/null | grep -q . && port_busy=yes
+        elif command -v netstat >/dev/null 2>&1; then
+            netstat -ltn 2>/dev/null | awk '{print $4}' | grep -qE "[:.]${host_port}$" && port_busy=yes
+        fi
+        if [[ "${port_busy}" == "yes" ]]; then
+            echo "collector-docker: port ${host_port} is already in use — the dashboard needs it published." >&2
+            echo "  free the port, or override it: APP_PORT=127.0.0.1:<port>:8000 collector-docker ..." >&2
+            exit 1
+        fi
     fi
+    port_args=(-p "${APP_PORT}")
 fi
 
 # The alert provider mount is OPT-IN — only injected when the host file exists.
@@ -478,13 +507,15 @@ if [[ -s "${ALERT_PROVIDER_FILE}" ]]; then
     alert_mount_args=(-v "${ALERT_PROVIDER_FILE}:/opt/collector/support/templates/alerts-notify/${ALERT_PROVIDER_TYPE}-provider.yaml:ro")
 fi
 
-# Only the report-only container needs a stable name (so --report-stop
-# from another shell can find it). Recon containers stay anonymous.
+# Only a --report-up container needs a stable name (so --report-down
+# from another shell can find it) — applies whether it was passed alone
+# or combined with a target flag, since either way the container
+# persists afterward. Plain recon containers stay anonymous.
 name_args=()
-if [[ "${want_report_only}" == "yes" ]]; then
+if [[ "${want_report_up}" == "yes" ]]; then
     if docker ps --format '{{.Names}}' | grep -qx "${REPORT_CONTAINER_NAME}"; then
         echo "collector-docker: container '${REPORT_CONTAINER_NAME}' is already running." >&2
-        echo "  stop it first with: collector-docker --report-stop" >&2
+        echo "  stop it first with: collector-docker --report-down" >&2
         exit 1
     fi
     name_args=(--name "${REPORT_CONTAINER_NAME}")
@@ -516,16 +547,33 @@ fi
 tz_args=()
 [[ -n "${TZ}" ]] && tz_args=(-e "TZ=${TZ}")
 
-exec docker run --rm "${name_args[@]}" \
-    -e "TERM=${TERM:-dumb}" \
-    "${tz_args[@]}" \
-    -v "${OUTPUTS_DIR}:/opt/collector/outputs" \
-    -v "${WORDLISTS_DIR}:/opt/collector/wordlists" \
-    -v "${APP_REPORT_DB_DIR}:/opt/collector/app-report/db" \
-    -v "${APP_REPORT_RUN_DIR}:/opt/collector/app-report/run" \
-    -v "${CONF_D_DIR}:/opt/collector/conf.d:ro" \
-    "${script_mount_args[@]}" \
-    "${alert_mount_args[@]}" \
-    "${port_args[@]}" \
-    "${COLLECTOR_IMAGE}" \
-    "$@"
+docker_common_args=(
+    -e "TERM=${TERM:-dumb}"
+    "${tz_args[@]}"
+    -v "${OUTPUTS_DIR}:/opt/collector/outputs"
+    -v "${WORDLISTS_DIR}:/opt/collector/wordlists"
+    -v "${APP_REPORT_DB_DIR}:/opt/collector/app-report/db"
+    -v "${APP_REPORT_RUN_DIR}:/opt/collector/app-report/run"
+    -v "${CONF_D_DIR}:/opt/collector/conf.d:ro"
+    "${script_mount_args[@]}"
+    "${alert_mount_args[@]}"
+)
+
+# --report-up means the container must persist past this invocation (so
+# the dashboard keeps serving) — that needs `-d` (detached, so this
+# wrapper returns control to the shell instead of blocking for the
+# container's entire lifetime) and NOT `--rm` (so `docker run`'s own
+# cleanup doesn't remove the container the moment collector's PID 1
+# would otherwise exit; collector itself now also holds PID 1 open via
+# _collector_hold_for_dashboard for exactly this reason). Recon output
+# isn't streamed to this terminal in that mode — point at `docker logs`.
+if [[ "${want_report_up}" == "yes" ]]; then
+    container_id="$(docker run -d "${name_args[@]}" "${docker_common_args[@]}" "${port_args[@]}" "${COLLECTOR_IMAGE}" "$@")" || exit 1
+    echo "collector-docker: ${REPORT_CONTAINER_NAME} started (${container_id:0:12})"
+    echo "  dashboard port mapping: ${APP_PORT}"
+    echo "  follow logs: docker logs -f ${REPORT_CONTAINER_NAME}"
+    echo "  stop: collector-docker --report-down"
+    exit 0
+fi
+
+exec docker run --rm "${name_args[@]}" "${docker_common_args[@]}" "${COLLECTOR_IMAGE}" "$@"

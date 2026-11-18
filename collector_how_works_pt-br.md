@@ -62,7 +62,7 @@ collector/
 │   ├── webapp_enum.sh                  gobuster + dirsearch + aquatone + robots/sitemap
 │   ├── webapp_crawler.sh               katana + waybackurls + extração de JS e parâmetros
 │   ├── git.sh                          git-dumper para repositórios .git expostos
-│   ├── app_report.sh                   ciclo de vida do dashboard Flask/gunicorn (background + foreground via --report-only)
+│   ├── app_report.sh                   ciclo de vida do dashboard Flask/gunicorn (sob demanda via --report-up, background ou foreground)
 │   ├── cloudflare_tunnel.sh            quick-tunnel do cloudflared para o dashboard (opt-in)
 │   ├── db_usage.sh                     ingestão SQLite idempotente do CSV de histórico por run
 │   └── llm_prompt.sh                   build_llm_prompt + llm_emit_artifact (montador do bundle LLM)
@@ -344,20 +344,25 @@ collector-docker -d example.com \
   --webapp-scan
 ```
 
-O que entrega: **todos** os artefatos descritos na seção 4, incluindo `llm-prompt.txt`, `<domain>_history.csv` atualizado, ingestão no `collector-results` e dashboard subindo em `http://127.0.0.1:8000`. Tipicamente é o comando agendado em cron/systemd (semanal) — o diff por artefato garante que apenas as mudanças vão para o canal de notificação.
+O que entrega: **todos** os artefatos descritos na seção 4, incluindo `llm-prompt.txt`, `<domain>_history.csv` atualizado e ingestão no `collector-results`. Adicione `--report-up` a esse comando se também quiser o dashboard no ar depois (veja abaixo) — normalmente fica de fora na invocação agendada em cron/systemd (semanal), onde só o diff por artefato precisa chegar ao canal de notificação.
 
-### 5.6. Reabrir o dashboard sem rodar um novo recon
+### 5.6. O dashboard — sob demanda, via `--report-up`
 
-Ao final de cada recon, `start_app_report` sobe o dashboard Flask/gunicorn em background para que o operador tenha uma interface pronta para navegar nos resultados. Quando aquele container termina (ou o processo é derrubado), o dashboard vai junto — mas os dados continuam preservados: os artefatos em `outputs/` e o SQLite em `app-report/db/` (volume próprio, `APP_REPORT_DB_DIR`). Para consultá-los de novo sem disparar outro scan, use `--report-only`:
+O dashboard nunca sobe por conta própria. O `collector` roda como PID 1 do container, então um dashboard apenas deixado em background seria derrubado no instante em que o recon termina e o PID 1 sai — o kernel destrói todo o namespace de PIDs no momento em que seu processo init morre, independente de `docker run --rm`. Por isso o dashboard só sobe quando `-ru|--report-up` é explicitamente passado, e quando isso ocorre, o próprio container permanece vivo (em background, sem `--rm`, porta publicada) por exatamente o tempo que o dashboard deve continuar servindo:
 
 ```bash
-collector-docker --report-only        # gunicorn em foreground em 127.0.0.1:8000, Ctrl-C encerra
-collector-docker --report-stop        # encerra a partir de outro shell
+# Dashboard isolado, lendo resultados de um scan anterior (sem novo recon):
+collector-docker --report-up          # background, http://127.0.0.1:8000, persiste até ser parado
+collector-docker --report-down        # encerra a partir de outro shell
+
+# Ou combinado com um recon novo, no mesmo container:
+collector-docker -d example.com --recon --report-up
+collector-docker --report-down        # encerra quando terminar
 ```
 
-`--report-only` exige um `collector-results` dentro de `app-report/db/` (aborta com mensagem clara caso contrário), recusa iniciar quando outra instância já estiver rodando (via pidfile + sondagem de porta no host) e é estritamente read-only — o Flask abre o SQLite com `mode=ro`. O wrapper nomeia esse container como `collector-report` (sobrescreva via `REPORT_CONTAINER_NAME=<nome>` no ambiente), que é o alvo de `--report-stop` no host.
+`--report-up` isolado exige um `collector-results` dentro de `app-report/db/` (aborta com mensagem clara caso contrário, antes mesmo de iniciar um container); combinado com um recon, é esse recon que cria o DB, então essa verificação não se aplica. De qualquer forma, recusa iniciar quando outra instância já estiver rodando (via colisão de nome de container + pidfile), e o dashboard em si é estritamente read-only — o Flask abre o SQLite com `mode=ro`. O wrapper nomeia o container como `collector-report` (sobrescreva via `REPORT_CONTAINER_NAME=<nome>` no ambiente), que é o alvo de `--report-down` no host independente de qual das duas formas acima o iniciou.
 
-Quando a porta host de `APP_PORT` (default `127.0.0.1:8000:8000`) já está ocupada — por exemplo porque um recon anterior deixou um dashboard em background rodando, ou outro container publica ali —, o `collector-docker` silenciosamente omite o `-p` do `docker run` em vez de abortar com "port already allocated". O recon continua e o dashboard já em execução renderiza os dados do novo run porque `outputs/` é compartilhado.
+Sem `--report-up`, nada muda em relação a um recon simples: o container roda em foreground, usa `--rm`, e a porta do dashboard nunca é publicada — não há dashboard para alcançar de qualquer forma, então publicar a porta seria inútil. Quando `--report-up` *é* passado e a porta host de `APP_PORT` (default `127.0.0.1:8000:8000`) já está ocupada, o `collector-docker` agora falha rápido com uma mensagem clara em vez de omitir silenciosamente o `-p` — um container persistente, sem `--rm`, que nunca publicou de fato sua porta ficaria ali sem utilidade.
 
 ### 5.7. Configuração específica de vhost (conf.d/functions.conf)
 
