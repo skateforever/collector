@@ -28,12 +28,13 @@ collector/
 ├── Dockerfile                          symlink → Dockerfile-debian (default image)
 ├── Dockerfile-debian                   official image (python:3.12-slim + Go + Chromium)
 ├── Dockerfile-archlinux                alternative Arch-based image
-├── docker-compose.yaml                  ready-to-use service: volumes and -p pre-configured
+├── docker-compose.yaml                  ready-to-use service: volumes pre-configured,
+│                                        -p needs -P|--service-ports with `run` (never automatic)
 ├── README.md                           full documentation
 ├── TODO.md                             internal roadmap
 │
 ├── collector                           main Bash script (container entrypoint)
-├── collector-docker                    host wrapper: injects -v / -p and calls docker run,
+├── collector-docker                    host wrapper: injects -v always, -p only with --report-up,
 │                                        plus `-i|--image` subcommands (update/pull/build-only/create/rm)
 ├── conf.d/                             config, split by concern:
 │   ├── operation.conf                  runtime plumbing (colors, paths, DB, app-report)
@@ -253,7 +254,7 @@ collector-docker -d example.com --recon --webapp-discovery --webapp-short-detect
 
 This executes every pre-flight check (CLI parsing, domain validation, directory creation, lock acquisition) and prints a summary of resolved parameters. It exits 0 on success without generating any traffic.
 
-The examples below use the `collector-docker` wrapper, which automatically injects the volumes (`outputs`, `wordlists`, `conf.d/`) and `-p 127.0.0.1:8000:8000`. The same commands work directly with `docker run --rm -v … collector:latest <flags>` or `docker compose run --rm collector <flags>`.
+The examples below use the `collector-docker` wrapper, which automatically injects the volumes (`outputs`, `wordlists`, `conf.d/`) — and `-p 127.0.0.1:8000:8000`, but **only** when `-ru|--report-up` is present (the dashboard never starts otherwise, see §5.6). The same commands work directly with `docker run --rm -v … collector:latest <flags>` (add `-p 127.0.0.1:8000:8000` yourself for `--report-up`), or `docker compose run --rm collector <flags>` (add `-P|--service-ports` instead — `docker compose run` never auto-publishes ports, with or without `--report-up`).
 
 ### 5.2. Basic reconnaissance commands
 
@@ -362,7 +363,11 @@ collector-docker --report-down        # stop when done
 
 `--report-up` alone requires a `collector-results` inside `app-report/db/` (it aborts with a clear message otherwise, before even starting a container); combined with a recon, that recon is what creates the DB, so no such preflight applies. Either way it refuses to start when another instance is already running (via container-name collision + pidfile), and the dashboard itself is a strict read-only path — the Flask app opens the SQLite database with `mode=ro`. The wrapper names the container `collector-report` (override via `REPORT_CONTAINER_NAME=<name>` in the environment), which is what `--report-down` targets on the host regardless of which of the two forms above started it.
 
-Without `--report-up`, nothing changes from a plain recon invocation: the container runs attached, uses `--rm`, and the dashboard port is never published — there's no dashboard to reach either way, so publishing the port would be pointless. When `--report-up` *is* passed and the host port in `APP_PORT` (default `127.0.0.1:8000:8000`) is already bound, `collector-docker` now fails fast with a clear message instead of silently dropping the `-p` flag — a persistent, `--rm`-less container that never actually published its port would otherwise sit there uselessly.
+`--report-down` must be used alone — passing any other flag alongside it (a target flag, `--report-up`, anything) is rejected with a usage error instead of silently ignored. This is checked twice: by `collector-docker` on the host (before it even touches Docker) and by `collector` itself inside the container (so the rule holds even if you call `collector` directly, bypassing the wrapper).
+
+Without `--report-up`, nothing changes from a plain recon invocation: the container runs attached, uses `--rm`, and the dashboard port is never published — there's no dashboard to reach either way, so publishing the port would be pointless. When `--report-up` *is* passed and the host port is already bound, `collector-docker` now fails fast with a clear message instead of silently dropping the `-p` flag — a persistent, `--rm`-less container that never actually published its port would otherwise sit there uselessly.
+
+The port itself is configured once, in `conf.d/operation.conf`'s `app_report_port` (default `8000`) — `collector-docker` reads that same file to build its default `APP_PORT` mapping, so changing `app_report_port` is enough on its own: gunicorn inside the container and the `-p` mapping published on the host always agree. `APP_PORT` as an environment variable still works as an explicit override (e.g. to publish on a different host port than the container listens on internally), taking priority over `conf.d/operation.conf` when set. `docker-compose.yaml` can't read that file from its YAML, so it uses its own `APP_REPORT_PORT` variable instead (see the README's Execution methods section) — keep the two in sync by hand if you use `docker compose` and change the port.
 
 ### 5.6. Vhost-specific configuration (conf.d/functions.conf)
 

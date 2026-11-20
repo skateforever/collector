@@ -82,7 +82,13 @@
 #   ALERT_PROVIDER_FILE   — path to alert provider config file
 #                           (default: <root>/{type}-provider.yaml — optional;
 #                           if missing, uses template baked into image)
-#   APP_PORT              — dashboard port mapping (default: 127.0.0.1:8000:8000)
+#   APP_PORT              — dashboard host<->container port mapping
+#                           (default: 127.0.0.1:<app_report_port>:<app_report_port>,
+#                           where app_report_port is read from conf.d/operation.conf —
+#                           8000 unless you changed it there. Only takes effect
+#                           with -ru|--report-up; see collector_db in
+#                           conf.d/operation.conf for the companion
+#                           app_report_host/app_report_port settings)
 #   TZ                    — timezone for every timestamp collector logs/prints
 #                           (default: auto-detected from the host's
 #                           /etc/localtime; falls back to the image's own
@@ -92,6 +98,13 @@
 #   1. ALERT_PROVIDER_TYPE environment variable (if set)
 #   2. conf.d/functions.conf notify_config value (if available)
 #   3. Default: discord
+#
+# Configuration precedence (dashboard port):
+#   1. APP_PORT environment variable (if set) — full host:container mapping,
+#      e.g. APP_PORT=127.0.0.1:9000:8000 to publish on a different host port
+#      than the container listens on internally
+#   2. app_report_port in conf.d/operation.conf (same port, host and container)
+#   3. Default: 8000
 #
 # Installation:
 #   sudo install -m 0755 collector-docker /usr/local/bin/collector-docker
@@ -328,7 +341,6 @@ WORDLISTS_DIR="${WORDLISTS_DIR:-${DEFAULT_ROOT}/wordlists}"
 APP_REPORT_DB_DIR="${APP_REPORT_DB_DIR:-${DEFAULT_ROOT}/app-report/db}"
 APP_REPORT_RUN_DIR="${APP_REPORT_RUN_DIR:-${DEFAULT_ROOT}/app-report/run}"
 CONF_D_DIR="${CONF_D_DIR:-${DEFAULT_ROOT}/conf.d}"
-APP_PORT="${APP_PORT:-127.0.0.1:8000:8000}"
 
 # Without this, every timestamp collector logs/prints (log_execution_file
 # lines, the history CSV, the dashboard) is in the container's default
@@ -360,6 +372,31 @@ get_alert_provider_type() {
 
 ALERT_PROVIDER_TYPE="$(get_alert_provider_type)"
 ALERT_PROVIDER_FILE="${ALERT_PROVIDER_FILE:-${DEFAULT_ROOT}/${ALERT_PROVIDER_TYPE}-provider.yaml}"
+
+# Determine the dashboard's container-side port.
+# Priority: APP_PORT env var (if it already names a full host:container
+# mapping) > app_report_port from conf.d/operation.conf > hardcoded 8000.
+#
+# Without this, app_report_port in conf.d/operation.conf (the port
+# gunicorn actually binds to INSIDE the container — see
+# functions/app_report.sh) and APP_PORT here (the host<->container
+# mapping collector-docker publishes) were two independent values that
+# happened to agree only by both defaulting to 8000. Changing
+# app_report_port alone silently broke the dashboard: the host mapping
+# kept publishing 8000, but nothing inside the container listened there
+# anymore. Same precedence pattern as get_alert_provider_type() above —
+# a conf.d/ value read from the host, not baked into this script.
+get_app_report_container_port() {
+    local operation_conf="${CONF_D_DIR}/operation.conf"
+    local port
+    if [[ -f "${operation_conf}" ]]; then
+        port="$(grep -E '^app_report_port=' "${operation_conf}" | tail -1 | sed -E 's/^app_report_port="?([0-9]+)"?.*/\1/')"
+    fi
+    echo "${port:-8000}"
+}
+
+APP_REPORT_CONTAINER_PORT="$(get_app_report_container_port)"
+APP_PORT="${APP_PORT:-127.0.0.1:${APP_REPORT_CONTAINER_PORT}:${APP_REPORT_CONTAINER_PORT}}"
 
 # Pre-create the host directories that Docker would otherwise auto-create
 # as root when mounting them as volumes (which then breaks ownership of
@@ -491,7 +528,8 @@ if [[ "${want_report_up}" == "yes" ]]; then
         fi
         if [[ "${port_busy}" == "yes" ]]; then
             echo "collector-docker: port ${host_port} is already in use — the dashboard needs it published." >&2
-            echo "  free the port, or override it: APP_PORT=127.0.0.1:<port>:8000 collector-docker ..." >&2
+            echo "  free the port, change app_report_port in conf.d/operation.conf, or override just this run:" >&2
+            echo "  APP_PORT=127.0.0.1:<free-host-port>:${APP_REPORT_CONTAINER_PORT} collector-docker ..." >&2
             exit 1
         fi
     fi

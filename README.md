@@ -38,7 +38,13 @@ There are three equivalent ways to run collector — all produce the same result
 
 **`docker run`** — explicit, no setup required beyond building the image. You must pass `-v` and optionally `-p` on every invocation.
 
-**`docker compose`** — volumes and port mapping are pre-configured in `docker-compose.yaml`. Run from the repo root. Useful when overriding build args or pinning the image.
+**`docker compose`** — volumes are pre-configured in `docker-compose.yaml`. Run from the repo root. Useful when overriding build args or pinning the image.
+
+The `ports:` entry in `docker-compose.yaml` only takes effect with `docker compose up` or `-P|--service-ports` — **`docker compose run` (the verb used everywhere below) does not publish it**. This isn't a gap in practice: the dashboard itself only ever starts with `-ru|--report-up` (see [Dashboard control](#dashboard-control)), so nothing needs the port published on a plain recon anyway. For `--report-up` via `docker compose run`, add `-P`:
+
+```bash
+docker compose run --rm -P collector -d example.com --recon --report-up
+```
 
 By default the compose file uses repo-relative paths, so a fresh clone works without `sudo` and without pre-creating directories:
 
@@ -96,10 +102,14 @@ Override defaults via environment variables (`<root>` is the checkout directory 
 | `CONF_D_DIR` | `<root>/conf.d` (mounted to `/opt/collector/conf.d`) |
 | `ALERT_PROVIDER_TYPE` | `discord` (discord, slack, teams, telegram, signal) |
 | `ALERT_PROVIDER_FILE` | `<root>/{type}-provider.yaml` (optional; if missing, uses template from image) |
-| `APP_PORT` | `127.0.0.1:8000:8000` |
+| `APP_PORT` | `127.0.0.1:<app_report_port>:<app_report_port>` — derived from `conf.d/operation.conf`, not hardcoded (see below) |
 | `REPORT_CONTAINER_NAME` | `collector-report` |
 
-`APP_PORT` is only published when `--report-up` is passed — the dashboard itself never starts without it (see [Dashboard control](#dashboard-control) below), so a plain recon run doesn't publish or need the port at all. When `--report-up` is passed and the host port in `APP_PORT` is already bound (by an ongoing `--report-up` session, or any other listener), the wrapper fails fast with a clear message instead of silently booting a persistent, unreachable container.
+**The dashboard's port is configured once, in `conf.d/operation.conf`** (`app_report_port`, default `8000`) — not duplicated as a separate setting on the host side. `collector-docker` reads that same file to build its default `APP_PORT`, so changing `app_report_port` alone is enough: the gunicorn process inside the container and the `-p` mapping `collector-docker` publishes always agree. Set the `APP_PORT` environment variable explicitly only if you need the **host** port to differ from the container's internal `app_report_port` (e.g. running two collector instances on one machine, each with its own host port but the same in-container port) — `APP_PORT` always wins over `conf.d/operation.conf` when set.
+
+`APP_PORT` is only published when `--report-up` is passed — the dashboard itself never starts without it (see [Dashboard control](#dashboard-control) below), so a plain recon run doesn't publish or need the port at all. When `--report-up` is passed and the host port is already bound (by an ongoing `--report-up` session, or any other listener), the wrapper fails fast with a clear message — naming `app_report_port`, not a hardcoded `8000` — instead of silently booting a persistent, unreachable container.
+
+> **Using `docker compose` instead of `collector-docker`?** Compose's YAML can't execute shell logic to read `conf.d/operation.conf`, so `docker-compose.yaml`'s `ports:` mapping uses its own `APP_REPORT_PORT` variable (default `8000`, overridable via `.env`) — if you change `app_report_port`, set `APP_REPORT_PORT` to the same value too. `collector-docker` doesn't have this gap; it derives the port directly from `conf.d/operation.conf` with no second variable to keep in sync.
 
 ## Keeping collector up to date
 
@@ -197,7 +207,7 @@ The app-report dashboard **never starts unless you explicitly ask for it** with 
 | Flag | Description |
 |------|-------------|
 | `-ru \| --report-up` | Requests the dashboard. **Alone** (no target flag): opens it read-only against the existing `outputs/` directory and exits when stopped — skips recon entirely; requires `collector-results` (in `app-report/db/`) from a previous run, and fails with a clear message if that file doesn't exist yet. **Combined** with a target flag and `--recon` (e.g. `-d target.com --recon --report-up`): runs the recon first, then brings the dashboard up and keeps the container running afterward. Either way, Ctrl-C or `--report-down` (from another shell) stops it. |
-| `-rd \| --report-down` | Stop the dashboard, however it was started — alone via `--report-up`, or combined with a recon. Sends SIGTERM, waits 5 s, then SIGKILLs if needed. Via `collector-docker` it does the equivalent `docker stop collector-report` on the host. |
+| `-rd \| --report-down` | Stop the dashboard, however it was started — alone via `--report-up`, or combined with a recon. **Must be used alone**: passing any other flag alongside it is rejected with a usage error (checked both by `collector-docker` and by `collector` itself). Sends SIGTERM, waits 5 s, then SIGKILLs if needed. Via `collector-docker` it does the equivalent `docker stop collector-report` on the host. |
 
 Via `collector-docker`, `--report-up` also changes how the container itself runs: it's started detached (`docker run -d`, not attached) and **without** `--rm` (so it persists until stopped), with `APP_PORT` published. Without `--report-up`, nothing changes from a plain recon: attached, `--rm`, no port published. Recon progress isn't streamed to your terminal in the combined `--report-up` case since the container runs detached — follow it with `docker logs -f collector-report` or the run's own log file under `outputs/`.
 
@@ -392,8 +402,8 @@ Both use `collector-docker` (or `docker run --rm` directly) — each run fires a
 - JS scraping and parameter mining with sink classification (SQLi/XSS/SSRF/XXE/CMD/...)
 - Single LLM prompt bundle per run: `llm-prompt.txt` — all artifacts included, ready to paste into any LLM for follow-up analysis
 - SQLite ingestion: each run upserted into `collector-results` (idempotent, WAL, FK-protected)
-- Flask + HTMX read-only web UI at `http://127.0.0.1:8000` auto-started after each run
-- Cloudflare quick-tunnel (opt-in via `cloudflare_tunnel="yes"` in `conf.d/operation.conf`) for remote dashboard access
+- Flask + HTMX read-only web UI at `http://127.0.0.1:8000`, on-demand via `-ru|--report-up` (never automatic — see [Dashboard control](#dashboard-control))
+- Cloudflare quick-tunnel (opt-in via `cloudflare_tunnel="yes"` in `conf.d/operation.conf`) for remote dashboard access, only meaningful when `--report-up` is combined with a recon
 - Per-target flock so concurrent runs for the same domain abort instead of corrupting state
 
 ## Output layout
@@ -462,7 +472,7 @@ sqlite3 /opt/collector/app-report/db/collector-results \
 
 ## Web UI
 
-Flask + HTMX read-only dashboard auto-started at `http://127.0.0.1:8000` after each run. The port mapping is included by default in `docker-compose.yaml` and `collector-docker`. With plain `docker run` add `-p 127.0.0.1:8000:8000` explicitly:
+Flask + HTMX read-only dashboard at `http://127.0.0.1:8000` — **on-demand only**, via `-ru|--report-up` (see [Dashboard control](#dashboard-control) for the full flag reference). It never starts automatically: a plain recon doesn't publish the port or touch the dashboard at all. Add `--report-up` to any recon invocation to bring it up afterward, in the same container:
 
 ```bash
 docker run --rm \
@@ -471,11 +481,13 @@ docker run --rm \
   -v /opt/collector/conf.d:/opt/collector/conf.d:ro \
   -p 127.0.0.1:8000:8000 \
   collector:latest \
-  -d example.com --recon --webapp-discovery --webapp-short-detection
+  -d example.com --recon --webapp-discovery --webapp-short-detection --report-up
 
-# docker compose and collector-docker already include -p 127.0.0.1:8000:8000
-docker compose run --rm collector -d example.com --recon --webapp-discovery --webapp-short-detection
-collector-docker -d example.com --recon --webapp-discovery --webapp-short-detection
+# collector-docker figures out the -p mapping for you when --report-up is present
+collector-docker -d example.com --recon --webapp-discovery --webapp-short-detection --report-up
+
+# docker compose run needs -P explicitly — it never auto-publishes ports (see above)
+docker compose run --rm -P collector -d example.com --recon --webapp-discovery --webapp-short-detection --report-up
 ```
 
 Reopening the dashboard from an earlier scan (no new recon):

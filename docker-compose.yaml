@@ -38,8 +38,25 @@ services:
       - ${APP_REPORT_DB_DIR:-./app-report/db}:/opt/collector/app-report/db
       - ${APP_REPORT_RUN_DIR:-./app-report/run}:/opt/collector/app-report/run
       - ${CONF_D_DIR:-./conf.d}:/opt/collector/conf.d:ro
+    # `docker compose run` (the verb this file documents below) does NOT
+    # publish this by default — only `-P|--service-ports` or `docker
+    # compose up` would (confirmed: a plain `run` leaves the port
+    # unbound). Declared anyway so `docker compose run -P ... -ru
+    # --report-up` or `docker compose up` work without extra flags; the
+    # dashboard itself only ever starts with -ru|--report-up regardless
+    # (see README's Dashboard control section).
+    #
+    # APP_REPORT_PORT must match app_report_port in conf.d/operation.conf
+    # (the port gunicorn actually binds to INSIDE the container — see
+    # functions/app_report.sh) on BOTH sides of the mapping. Unlike
+    # collector-docker (plain bash, reads operation.conf itself — see its
+    # own header comment), Compose's YAML can't execute shell logic to
+    # read that file, so this has to be kept in sync by hand: if you
+    # change app_report_port, set APP_REPORT_PORT to the same value via
+    # .env (Docker Compose loads it automatically — see "Execution
+    # methods" above).
     ports:
-      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:${APP_REPORT_PORT:-8000}:${APP_REPORT_PORT:-8000}"
 
 # Usage:
 #   # collector exits with usage() when called without args, so 'up' is
