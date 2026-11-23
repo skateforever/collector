@@ -8,6 +8,7 @@
 #   * reset_vars                                            #
 #   * get_user_agent                                        #
 #   * dig_safe                                              #
+#   * dig_timeout                                           #
 #                                                           #
 #############################################################
 
@@ -257,4 +258,19 @@ dig_safe(){
     # it out here — once, centrally — protects every caller instead of
     # requiring each one to remember to do it.
     dig +short +time=2 +tries=1 "${dig_type_args[@]}" 2>/dev/null | grep -vE '^;;'
+}
+
+# dig_timeout — same two fixes as dig_safe (2s/1-try timeout instead of
+# dig's own multi-retry default; strip dig's own "communications error"/
+# "no servers could be reached" diagnostic lines, which it prints to
+# STDOUT, not stderr, so plain `2>/dev/null` never catches them), but as
+# a plain passthrough — every argument goes straight to dig untouched.
+# dig_safe can't cover queries that need a specific nameserver (@ip),
+# extra flags (+dnssec), a non-+short query type (AXFR/IXFR), or more
+# than one record/hostname pair; dig_timeout takes whatever args the
+# caller already had instead of reshaping them. Usage: dig_timeout
+# <args...> — e.g. dig_timeout +dnssec NSEC "${name}" "@${ns_ip}" or
+# dig_timeout AXFR "${domain}" "@${ns_ip}".
+dig_timeout(){
+    dig +time=2 +tries=1 "$@" 2>/dev/null | grep -vE '^;;'
 }
