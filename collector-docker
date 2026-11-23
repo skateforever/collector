@@ -598,20 +598,77 @@ docker_common_args=(
 )
 
 # --report-up means the container must persist past this invocation (so
-# the dashboard keeps serving) — that needs `-d` (detached, so this
-# wrapper returns control to the shell instead of blocking for the
-# container's entire lifetime) and NOT `--rm` (so `docker run`'s own
-# cleanup doesn't remove the container the moment collector's PID 1
-# would otherwise exit; collector itself now also holds PID 1 open via
-# _collector_hold_for_dashboard for exactly this reason). Recon output
-# isn't streamed to this terminal in that mode — point at `docker logs`.
+# the dashboard keeps serving) — that needs `-d` (detached from the
+# DOCKER DAEMON's point of view, so the container survives this
+# wrapper exiting and this terminal closing) and NOT `--rm` (so
+# `docker run`'s own cleanup doesn't remove the container the moment
+# collector's PID 1 would otherwise exit; collector itself now also
+# holds PID 1 open via _collector_hold_for_dashboard for exactly this
+# reason).
+#
+# Detached does NOT mean silent, though: the operator's terminal must
+# show the real collector output (banner, recon progress, and finally
+# the real "dashboard is up" line printed from inside by
+# functions/app_report.sh) as it happens — not a guess printed by this
+# wrapper the instant `docker run -d` returns, before the container has
+# done anything at all (that was the bug: the old message claimed the
+# dashboard was already up when the container had barely started).
+#
+# `docker logs -f` (backgrounded, its OWN process — never the
+# container) streams the container's real stdout/stderr live to this
+# terminal. A separate poll loop watches a SNAPSHOT of the log
+# (`docker logs`, no -f) for the real confirmation line, then kills
+# just the log-follower. Piping `docker logs -f` into `sed '/pat/q'`
+# directly was considered and rejected: sed stops READING the moment
+# it matches, but `docker logs -f` only notices (via SIGPIPE) on its
+# NEXT write — if the container goes quiet right after printing the
+# confirmation line (which it does; nothing else follows), that next
+# write may never come, and this wrapper would hang forever waiting
+# for a pipe that's already done its job. The poll loop below has no
+# such blind spot: it re-checks the log directly, not through the
+# live-streaming pipe.
 if [[ "${want_report_up}" == "yes" ]]; then
     container_id="$(docker run -d "${name_args[@]}" "${docker_common_args[@]}" "${port_args[@]}" "${COLLECTOR_IMAGE}" "$@")" || exit 1
-    echo "collector-docker: ${REPORT_CONTAINER_NAME} started (${container_id:0:12})"
-    echo "  dashboard port mapping: ${APP_PORT}"
-    echo "  follow logs: docker logs -f ${REPORT_CONTAINER_NAME}"
-    echo "  stop: collector-docker --report-down"
-    exit 0
+    docker logs -f "${container_id}" 2>&1 &
+    follower_pid=$!
+    dashboard_up=no
+    container_exited=no
+    while true; do
+        if docker logs "${container_id}" 2>/dev/null | grep -qE 'app-report dashboard is up|access the dashboard at'; then
+            dashboard_up=yes
+            break
+        fi
+        # docker inspect's exit code is the reliable signal here — a
+        # transient Docker daemon hiccup (confirmed to happen: a 500 from
+        # the API mid-poll) makes `docker ps`/`docker logs` print an error
+        # instead of the real container list, and `grep -q` against THAT
+        # looks identical to "container not found" even though the
+        # container is still running fine. `docker inspect`'s own exit
+        # status (0 = container exists, regardless of running/exited;
+        # non-zero = truly gone or the daemon call itself failed) doesn't
+        # have that ambiguity — only trust it as "container exited" when
+        # it succeeds AND reports a non-running state.
+        if docker inspect -f '{{.State.Running}}' "${container_id}" 2>/dev/null | grep -qx "false"; then
+            container_exited=yes
+            break
+        fi
+        sleep 1
+    done
+    # Give the follower a moment to flush the confirmation line itself
+    # (so the operator sees it come from the real container output, not
+    # just this wrapper's own echo below) before cutting it off.
+    sleep 1
+    kill "${follower_pid}" 2>/dev/null
+    wait "${follower_pid}" 2>/dev/null
+
+    if [[ "${dashboard_up}" == "yes" ]]; then
+        echo "collector-docker: ${REPORT_CONTAINER_NAME} is running in the background (${container_id:0:12})"
+        echo "  stop: collector-docker --report-down"
+        exit 0
+    fi
+    echo "collector-docker: ${REPORT_CONTAINER_NAME} exited before the dashboard came up." >&2
+    echo "  check what happened: docker logs ${REPORT_CONTAINER_NAME} (the container stays until you remove it)" >&2
+    exit 1
 fi
 
 exec docker run --rm "${name_args[@]}" "${docker_common_args[@]}" "${COLLECTOR_IMAGE}" "$@"

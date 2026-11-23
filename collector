@@ -186,28 +186,35 @@ cleanup_global(){
         echo "$(date +"%d/%m/%Y %H:%M") GRACEFUL SHUTDOWN - exit code: ${exit_code}" >> "${log_execution_file}"
     fi
 
-    # message() usually runs inside domains_recon()/url_recon()'s own
-    # subshell (their body is wrapped in one so cleanup_on_exit/tee scope
-    # correctly there) — a subshell is a forked child, so the
-    # _collector_final_message assignment it made never reaches this
-    # process's own variables. message() also drops the same text into a
-    # $$-scoped file for exactly this case ($$ stays the same across that
-    # subshell boundary), so recover it from there when the variable
-    # itself is empty.
-    if [[ -z "${_collector_final_message:-}" && -n "${output_dir:-}" ]]; then
+    # message()'s finished/failed branches now print
+    # _collector_final_message themselves, immediately, instead of
+    # deferring it to be printed here last (see functions/message.sh for
+    # why — short version: deferring it meant "finished!" only appeared
+    # once --report-up's dashboard was stopped, possibly minutes/hours
+    # after the run actually finished). message() usually runs inside
+    # domains_recon()/url_recon()'s own subshell (their body is wrapped
+    # in one so cleanup_on_exit/tee scope correctly there), so that
+    # immediate print already reached the live terminal AND
+    # log_execution_file via the `| tee -a` wrapping that subshell — this
+    # process just never saw the variable assignment itself (subshells
+    # don't propagate variables to their parent). The $$-scoped file
+    # below exists only so this cleanup can find out THAT a final message
+    # was already printed (to skip the no-message-at-all fallback right
+    # below) — reprinting its contents here would duplicate output that's
+    # already in the terminal/log.
+    local _final_message_already_printed=no
+    if [[ -n "${output_dir:-}" ]]; then
         local _final_message_file="${output_dir}/.final_message.$$"
-        [[ -s "${_final_message_file}" ]] && _collector_final_message="$(cat "${_final_message_file}" 2>/dev/null)"
+        [[ -s "${_final_message_file}" ]] && _final_message_already_printed=yes
         rm -f "${_final_message_file}" 2>/dev/null
     fi
 
-    # Printed LAST, after every shutdown step above, so the run's verdict
-    # reads as the final word instead of appearing before the cleanup
-    # sequence. cleanup_global runs as the top-level script's own EXIT
-    # trap, outside the `| tee -a "${log_execution_file}"` pipe that wraps
-    # domains_recon()/url_recon()'s body — so unlike every other progress
-    # line, this one needs an explicit append or it never reaches the log
-    # at all.
-    if [[ -n "${_collector_final_message:-}" ]]; then
+    # Fallback ONLY: a crash/exit somewhere before message() ever got
+    # called (so there's no final verdict line at all yet, in the
+    # terminal or the log) prints a generic one here instead of leaving
+    # the run with no verdict whatsoever.
+    if [[ "${_final_message_already_printed}" == "no" && -z "${_collector_final_message:-}" && -n "${exit_code:-}" && "${exit_code}" -ne 0 ]]; then
+        _collector_final_message="${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Execution ended unexpectedly (exit code ${exit_code}) before a run verdict was recorded."
         echo -e "${_collector_final_message}"
         [[ -n "${log_execution_file}" ]] && echo -e "${_collector_final_message}" >> "${log_execution_file}"
     fi
@@ -268,7 +275,14 @@ _collector_hold_for_dashboard(){
     local _pid
     _pid="$(cat "$(app_report_pidfile)" 2>/dev/null)"
     if [[ -n "${_pid}" ]] && kill -0 "${_pid}" 2>/dev/null; then
-        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Dashboard staying up at http://${app_report_host:-127.0.0.1}:${app_report_port:-8000} — collector-docker --report-down (or docker stop) to end."
+        # The "dashboard is up" announcement itself already happened —
+        # start_app_report (functions/app_report.sh) prints it the
+        # moment gunicorn is confirmed alive, using
+        # app_report_advertised_host (the operator-facing address, not
+        # the container-internal bind address). This is just the
+        # "how to stop it" follow-up, kept separate so the two don't
+        # fight over which one is the "real" announcement.
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} collector-docker --report-down (or docker stop) to end."
         while kill -0 "${_pid}" 2>/dev/null; do
             sleep 1 &
             wait $! 2>/dev/null

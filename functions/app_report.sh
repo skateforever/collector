@@ -147,6 +147,11 @@ run_app_report(){
     [[ "${app_dir}" != /* ]] && app_dir="${collector_path:-.}/${app_dir}"
     local host="${app_report_host:-127.0.0.1}"
     local port="${app_report_port:-8000}"
+    # advertised_host is what the OPERATOR types into a browser — never
+    # the same thing as ${host} above when ${host} is 0.0.0.0 (a bind
+    # address, meaningless to open in a browser). See the comment on
+    # app_report_advertised_host in conf.d/operation.conf.
+    local advertised_host="${app_report_advertised_host:-127.0.0.1}"
     local db="${collector_db:-${collector_path}/${app_report_dir:-app-report}/db/${collector_db_name:-collector-results}}"
     mkdir -p "$(app_report_run_dir)" 2>/dev/null
     local pidfile logfile
@@ -183,7 +188,7 @@ run_app_report(){
             # see _app_report_pid_is_live) — clean and move on.
             rm -f "${pidfile}"
         else
-            echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${tag}: already running (pid ${check_pid}) at http://${host}:${port}"
+            echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${tag}: already running (pid ${check_pid}) — access the dashboard at http://${advertised_host}:${port}"
             if [[ "${mode}" == "foreground" ]]; then
                 echo -e "  stop it with ${yellow}collector --report-down${reset} (or ${yellow}collector-docker --report-down${reset}) before starting a new one."
                 return 1
@@ -236,7 +241,7 @@ run_app_report(){
         # image changes. Set up BEFORE the "serving at" announcement so
         # that line lands in the shared log too, not just the terminal.
         exec > >(tee -a "${logfile}") 2>&1
-        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${tag}: serving at http://${host}:${port} (Ctrl-C or --report-down to stop)"
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} The app-report dashboard is up — access it at http://${advertised_host}:${port} (Ctrl-C or --report-down to stop)"
         # Record OUR pid before exec — after exec, $$ is inherited by
         # gunicorn (same PID, different program), so --report-down still
         # targets the right process. Written to a temp path + rename so a
@@ -268,7 +273,7 @@ run_app_report(){
 
     sleep 1
     if [[ -s "${pidfile}" ]] && _app_report_pid_is_live "$(cat "${pidfile}")"; then
-        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${tag}: serving at http://${host}:${port} (pid $(cat "${pidfile}"), log ${logfile})"
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} The app-report dashboard is up — access it at http://${advertised_host}:${port}"
     else
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${tag}: failed to start (see ${logfile})"
         rm -f "${pidfile}"
