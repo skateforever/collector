@@ -13,7 +13,7 @@ Centralized alert templates for sending reconnaissance findings to multiple mess
 ## Directory Structure
 
 ```
-support/templates/alerts/
+support/templates/alerts-notify/
 ├── README.md                    # This file
 ├── discord-provider.yaml         # Discord webhook config
 ├── slack-provider.yaml           # Slack webhook config
@@ -31,19 +31,19 @@ Copy the template(s) you need:
 
 ```bash
 # Discord
-cp support/templates/alerts/discord-provider.yaml ./discord-provider.yaml
+cp support/templates/alerts-notify/discord-provider.yaml ./discord-provider.yaml
 
 # Slack
-cp support/templates/alerts/slack-provider.yaml ./slack-provider.yaml
+cp support/templates/alerts-notify/slack-provider.yaml ./slack-provider.yaml
 
 # Teams
-cp support/templates/alerts/teams-provider.yaml ./teams-provider.yaml
+cp support/templates/alerts-notify/teams-provider.yaml ./teams-provider.yaml
 
 # Telegram
-cp support/templates/alerts/telegram-provider.yaml ./telegram-provider.yaml
+cp support/templates/alerts-notify/telegram-provider.yaml ./telegram-provider.yaml
 
 # Signal
-cp support/templates/alerts/signal-provider.yaml ./signal-provider.yaml
+cp support/templates/alerts-notify/signal-provider.yaml ./signal-provider.yaml
 ```
 
 ### 2. Fill in Webhook URLs / Credentials
@@ -52,23 +52,20 @@ Edit each config file and add your webhook URLs or credentials.
 
 **Never commit these files with real credentials.**
 
-### 3. Bind-Mount into Container
+### 3. Point `collector-docker` at Your Config
 
-#### Using docker compose:
+`collector-docker` mounts the single provider config named by `ALERT_PROVIDER_TYPE`
+automatically — there's no `-v` to pass by hand. Set both environment variables
+before your normal `collector-docker` invocation:
+
 ```bash
-docker compose run --rm \
-  -v $(pwd)/discord-provider.yaml:/opt/collector/support/templates/alerts/discord-provider.yaml \
-  -v $(pwd)/slack-provider.yaml:/opt/collector/support/templates/alerts/slack-provider.yaml \
-  collector -d example.com --recon
+ALERT_PROVIDER_TYPE=discord ALERT_PROVIDER_FILE=./discord-provider.yaml \
+  collector-docker -d example.com --recon
 ```
 
-#### Using collector-docker:
-```bash
-collector-docker \
-  -v $(pwd)/discord-provider.yaml:/opt/collector/support/templates/alerts/discord-provider.yaml \
-  -v $(pwd)/slack-provider.yaml:/opt/collector/support/templates/alerts/slack-provider.yaml \
-  -d example.com --recon
-```
+Only one provider is active per run (whichever `ALERT_PROVIDER_TYPE` names); switch
+providers by changing both variables together. If you don't set them, `collector-docker`
+falls back to `notify_config` in `conf.d/functions.conf`, then to `discord`.
 
 ## Alert Channels
 
@@ -158,46 +155,19 @@ Each provider supports 5 severity levels:
 
 ## Integration with conf.d/functions.conf
 
-Update `conf.d/functions.conf` to use alert providers:
-
-```bash
-# Enable alerts
-use_alerts="yes"
-
-# Specify alert providers (comma-separated)
-alert_providers="discord,slack,teams"
-
-# Optional: Override alert config paths
-alert_config_dir="/etc/collector/alerts"
-```
-
-Then reference in collector execution:
-
-```bash
-# Alert to Discord + Slack
-collector-docker \
-  -v ./discord-provider.yaml:/etc/collector/alerts/discord.yaml \
-  -v ./slack-provider.yaml:/etc/collector/alerts/slack.yaml \
-  -d example.com --recon --webapp-discovery
-```
-
-## Integration with conf.d/functions.conf
-
 The default path in `conf.d/functions.conf` is:
 
 ```bash
-notify_config="/opt/collector/support/templates/alerts/discord-provider.yaml"
+notify_config="/opt/collector/support/templates/alerts-notify/discord-provider.yaml"
 ```
 
-The alert templates are baked into the Docker image at `/opt/collector/support/templates/alerts/`.
+The alert templates are baked into the Docker image at `/opt/collector/support/templates/alerts-notify/`.
 
-To use a custom provider config with your webhook URLs, bind-mount it:
+To use a custom provider config with your webhook URLs, point `collector-docker` at it
+via `ALERT_PROVIDER_FILE` — no manual bind-mount needed:
 
 ```bash
-# Replace the default with your custom config
-docker compose run --rm \
-  -v ./my-discord-config.yaml:/opt/collector/support/templates/alerts/discord-provider.yaml \
-  collector -d example.com --recon
+ALERT_PROVIDER_FILE=./my-discord-config.yaml collector-docker -d example.com --recon
 ```
 
 ## Environment Variables
@@ -220,9 +190,7 @@ discord:
     discord_webhook_url: "${DISCORD_WEBHOOK_CRITICAL}"
 EOF
 
-docker compose run --rm \
-  -v ./discord-provider.yaml:/opt/collector/support/templates/alerts/discord-provider.yaml \
-  collector -d example.com --recon
+ALERT_PROVIDER_FILE=./discord-provider.yaml collector-docker -d example.com --recon
 ```
 
 ## Best Practices

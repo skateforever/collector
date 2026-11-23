@@ -12,7 +12,7 @@ support/templates/notify/
 
 ### New Structure
 ```
-support/templates/alerts/
+support/templates/alerts-notify/
 ├── README.md                  # Main documentation
 ├── MIGRATION.md              # This file
 ├── discord-provider.yaml      # Discord (replaces old notify/)
@@ -35,7 +35,7 @@ cp support/templates/notify/provider-config.yml ./notify-provider-backup.yaml
 The new Discord template is compatible with the old one:
 
 ```bash
-cp support/templates/alerts/discord-provider.yaml ./discord-provider.yaml
+cp support/templates/alerts-notify/discord-provider.yaml ./discord-provider.yaml
 ```
 
 ### Step 3: Transfer Your Webhooks
@@ -52,7 +52,7 @@ nano ./discord-provider.yaml
 
 The format is identical, so you can copy-paste the webhook URLs directly.
 
-### Step 4: Update Docker Compose
+### Step 4: Point collector-docker at Your Config
 
 #### Old Setup
 ```yaml
@@ -64,13 +64,13 @@ services:
 ```
 
 #### New Setup
-```yaml
-# docker-compose.yaml
-services:
-  collector:
-    volumes:
-      - ./discord-provider.yaml:/opt/collector/support/templates/alerts/discord-provider.yaml
-      - ./slack-provider.yaml:/opt/collector/support/templates/alerts/slack-provider.yaml
+
+`collector-docker` mounts the provider config named by `ALERT_PROVIDER_TYPE` /
+`ALERT_PROVIDER_FILE` automatically — no bind-mount to write by hand:
+
+```bash
+ALERT_PROVIDER_TYPE=discord ALERT_PROVIDER_FILE=./discord-provider.yaml \
+  collector-docker -d example.com --recon
 ```
 
 ### Step 5: Update conf.d/functions.conf
@@ -84,9 +84,9 @@ notify_config="/etc/collector/notify-provider.yaml"
 
 #### New
 ```bash
-# Alert providers are now in support/templates/alerts/
+# Alert providers are now in support/templates/alerts-notify/
 # The default config points to the Discord template:
-notify_config="/opt/collector/support/templates/alerts/discord-provider.yaml"
+notify_config="/opt/collector/support/templates/alerts-notify/discord-provider.yaml"
 ```
 
 ### Step 6: Clean Up
@@ -127,21 +127,20 @@ rmdir support/templates/notify/ 2>/dev/null || true
 
 ### Old notify config still being used?
 
-Check if your docker-compose or collector-docker command still references old paths:
+Check if your `conf.d/functions.conf` still references old paths:
 
 ```bash
-# Search for old references
-grep -r "notify-provider" docker-compose.yaml
 grep "notify_config" conf.d/functions.conf
 ```
 
-Update to use new paths:
+Update to use the new path and the `ALERT_PROVIDER_FILE` env var instead of a manual
+bind-mount:
 ```bash
 # OLD
--v ./notify-provider.yaml:/opt/collector/support/templates/alerts/notify-provider.yaml
+notify_config="/etc/collector/notify-provider.yaml"
 
 # NEW
--v ./discord-provider.yaml:/opt/collector/support/templates/alerts/discord-provider.yaml
+ALERT_PROVIDER_FILE=./discord-provider.yaml collector-docker -d example.com --recon
 ```
 
 ### Webhooks not working?
@@ -152,14 +151,16 @@ Update to use new paths:
 
 ### Mixed providers?
 
-You can use multiple providers simultaneously:
+Only one provider is active per run (whichever `ALERT_PROVIDER_TYPE` names). Switch
+providers by changing both `ALERT_PROVIDER_TYPE` and `ALERT_PROVIDER_FILE` together
+between runs:
 
 ```bash
-docker compose run --rm \
-  -v ./discord-provider.yaml:/opt/collector/support/templates/alerts/discord-provider.yaml \
-  -v ./slack-provider.yaml:/opt/collector/support/templates/alerts/slack-provider.yaml \
-  -v ./telegram-provider.yaml:/opt/collector/support/templates/alerts/telegram-provider.yaml \
-  collector -d example.com --recon
+ALERT_PROVIDER_TYPE=discord ALERT_PROVIDER_FILE=./discord-provider.yaml \
+  collector-docker -d example.com --recon
+
+ALERT_PROVIDER_TYPE=slack ALERT_PROVIDER_FILE=./slack-provider.yaml \
+  collector-docker -d example.com --recon
 ```
 
 ## FAQ

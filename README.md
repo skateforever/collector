@@ -16,17 +16,6 @@ docker build --progress=plain -t collector:latest .
 Run a full recon + webapp discovery:
 
 ```bash
-# docker run
-docker run --rm \
-  -v /opt/collector/outputs:/opt/collector/outputs \
-  -v /opt/collector/wordlists:/opt/collector/wordlists \
-  -v /opt/collector/conf.d:/opt/collector/conf.d:ro \
-  collector:latest -d example.com --recon --webapp-discovery --webapp-short-detection
-
-# docker compose (from repo root)
-docker compose run --rm collector -d example.com --recon --webapp-discovery --webapp-short-detection
-
-# collector-docker wrapper
 collector-docker -d example.com --recon --webapp-discovery --webapp-short-detection
 ```
 
@@ -34,46 +23,9 @@ Results are written to `/opt/collector/outputs/example.com/recon_YYYYMMDD/`.
 
 ## Execution methods
 
-There are three equivalent ways to run collector — all produce the same results.
+`collector-docker` is the only documented way to run collector — every example in this README uses it. It's a thin wrapper around `docker run` that injects the right volumes, resolves the dashboard port from `conf.d/operation.conf`, and manages the `--report-up`/`--report-down` container lifecycle for you, so you never have to hand-assemble `-v` flags or remember which port mapping matches your config. **All scripts and configuration are mounted as read-only volumes from the host** (`collector`, `functions/`, `scans/`, `sources/`, `support/runtime/`, `support/templates/alerts-notify/`, `conf.d/`), meaning code changes are instantly available without rebuilding the Docker image. The image only needs rebuilding when binaries or system packages change (Dockerfile or `check_binaries.sh` modifications).
 
-**`docker run`** — explicit, no setup required beyond building the image. You must pass `-v` and optionally `-p` on every invocation.
-
-**`docker compose`** — volumes are pre-configured in `docker-compose.yaml`. Run from the repo root. Useful when overriding build args or pinning the image.
-
-The `ports:` entry in `docker-compose.yaml` only takes effect with `docker compose up` or `-P|--service-ports` — **`docker compose run` (the verb used everywhere below) does not publish it**. This isn't a gap in practice: the dashboard itself only ever starts with `-ru|--report-up` (see [Dashboard control](#dashboard-control)), so nothing needs the port published on a plain recon anyway. For `--report-up` via `docker compose run`, add `-P`:
-
-```bash
-docker compose run --rm -P collector -d example.com --recon --report-up
-```
-
-By default the compose file uses repo-relative paths, so a fresh clone works without `sudo` and without pre-creating directories:
-
-| Mount source (host) | Mount target (container) |
-|---|---|
-| `./outputs` (auto-created on first run) | `/opt/collector/outputs` |
-| `./wordlists` (auto-created on first run) | `/opt/collector/wordlists` |
-| `./app-report/db` (already in the repo) | `/opt/collector/app-report/db` |
-| `./app-report/run` (already in the repo) | `/opt/collector/app-report/run` |
-| `./conf.d` (already in the repo) | `/opt/collector/conf.d` (read-only) |
-
-`app-report/db` and `app-report/run` mount onto themselves — same repo-relative path on both host and container sides (see the comment block in `docker-compose.yaml` for why). Their contents are gitignored (only `.gitkeep` is tracked), so this stays a clean checkout regardless of how much scan history or dashboard state piles up locally.
-
-To redirect any of these to a different host location, drop a `.env` file in the repo root (Docker Compose loads it automatically). Example:
-
-```bash
-# .env at the repo root
-OUTPUTS_DIR=/data/recon/outputs
-WORDLISTS_DIR=/data/wordlists
-APP_REPORT_DB_DIR=/data/app-report/db
-APP_REPORT_RUN_DIR=/data/app-report/run
-CONF_D_DIR=/etc/collector/conf.d
-```
-
-`.env` is git-ignored so your local layout never leaks to the repo.
-
-> **Note:** `docker compose up` is **not** the right verb here. `collector` exits with the usage screen when called without arguments, which Compose would interpret as a service failure. Always use `docker compose run --rm collector <flags>`.
-
-**`collector-docker`** — thin wrapper around `docker run` that injects volumes and the default port mapping automatically. **All scripts and configuration are mounted as read-only volumes from the host** (`collector`, `functions/`, `scans/`, `sources/`, `support/runtime/`, `support/templates/alerts-notify/`, `conf.d/`), meaning code changes are instantly available without rebuilding the Docker image. The image only needs rebuilding when binaries or system packages change (Dockerfile or `check_binaries.sh` modifications).
+Running collector any other way (bare `docker run`, `docker compose`) is possible — `collector` is, underneath, just a container entrypoint — but isn't covered here: those paths need you to hand-manage volumes, the dashboard port, and container naming/lifecycle yourself, exactly the bookkeeping `collector-docker` exists to avoid. Running two of those by hand with mismatched settings is also the most common source of confusion reported with the dashboard, which is why this README no longer shows them as examples.
 
 See [Docker Volume Strategy](support/docker/VOLUME_STRATEGY.md) for detailed documentation on how volumes are mounted and replicated from host to container.
 
@@ -105,11 +57,11 @@ Override defaults via environment variables (`<root>` is the checkout directory 
 | `APP_PORT` | `127.0.0.1:<app_report_port>:<app_report_port>` — derived from `conf.d/operation.conf`, not hardcoded (see below) |
 | `REPORT_CONTAINER_NAME` | `collector-report` |
 
-**The dashboard's port is configured once, in `conf.d/operation.conf`** (`app_report_port`, default `8000`) — not duplicated as a separate setting on the host side. `collector-docker` reads that same file to build its default `APP_PORT`, so changing `app_report_port` alone is enough: the gunicorn process inside the container and the `-p` mapping `collector-docker` publishes always agree. Set the `APP_PORT` environment variable explicitly only if you need the **host** port to differ from the container's internal `app_report_port` (e.g. running two collector instances on one machine, each with its own host port but the same in-container port) — `APP_PORT` always wins over `conf.d/operation.conf` when set.
+**The dashboard's port is configured once, in `conf.d/operation.conf`** (`app_report_port`, default `8000`) — not duplicated as a separate setting on the host side. `collector-docker` reads that same file to build its default `APP_PORT`, so changing `app_report_port` alone is enough: the gunicorn process inside the container and the `-p` mapping `collector-docker` publishes always agree. Set the `APP_PORT` environment variable explicitly only if you need the **host** port to differ from the container's internal `app_report_port` — `APP_PORT` always wins over `conf.d/operation.conf` when set.
 
 `APP_PORT` is only published when `--report-up` is passed — the dashboard itself never starts without it (see [Dashboard control](#dashboard-control) below), so a plain recon run doesn't publish or need the port at all. When `--report-up` is passed and the host port is already bound (by an ongoing `--report-up` session, or any other listener), the wrapper fails fast with a clear message — naming `app_report_port`, not a hardcoded `8000` — instead of silently booting a persistent, unreachable container.
 
-> **Using `docker compose` instead of `collector-docker`?** Compose's YAML can't execute shell logic to read `conf.d/operation.conf`, so `docker-compose.yaml`'s `ports:` mapping uses its own `APP_REPORT_PORT` variable (default `8000`, overridable via `.env`) — if you change `app_report_port`, set `APP_REPORT_PORT` to the same value too. `collector-docker` doesn't have this gap; it derives the port directly from `conf.d/operation.conf` with no second variable to keep in sync.
+> **Running several targets at once?** `--report-up` names a single fixed container (`REPORT_CONTAINER_NAME`, default `collector-report`) and publishes a single fixed port — it isn't meant to run more than once at a time. Recon itself has no such limit: `collector-docker -d <target> --recon` (without `--report-up`) is safe to run in parallel for as many different domains as you want (the per-target lock, anonymous container, and WAL-mode results DB all make that safe — see [Common usage patterns](#common-usage-patterns)). Bring up one shared dashboard afterward (`collector-docker --report-up`, no target) to see all of them.
 
 ## Keeping collector up to date
 
@@ -218,16 +170,6 @@ Via `collector-docker`, `--report-up` also changes how the container itself runs
 Full recon + webapp discovery (short port list, no vhost):
 
 ```bash
-docker run --rm \
-  -v /opt/collector/outputs:/opt/collector/outputs \
-  -v /opt/collector/wordlists:/opt/collector/wordlists \
-  -v /opt/collector/conf.d:/opt/collector/conf.d:ro \
-  collector:latest \
-  -d example.com --recon --webapp-discovery --webapp-short-detection
-
-docker compose run --rm collector \
-  -d example.com --recon --webapp-discovery --webapp-short-detection
-
 collector-docker -d example.com --recon --webapp-discovery --webapp-short-detection
 ```
 
@@ -241,100 +183,49 @@ collector-docker -d example.com --recon --webapp-discovery --webapp-short-detect
 Full recon + webapp discovery + enum + scan in one shot (with vhost):
 
 ```bash
-docker run --rm \
-  -v /opt/collector/outputs:/opt/collector/outputs \
-  -v /opt/collector/wordlists:/opt/collector/wordlists \
-  -v /opt/collector/conf.d:/opt/collector/conf.d:ro \
-  collector:latest \
-  -d example.com --recon --webapp-discovery --webapp-short-detection \
-  --vhost-check --vhost-probe --vhost-probe-wordlist /opt/collector/support/runtime/wordlists/vhost-probe-names.txt \
-  --webapp-enum --webapp-wordlists /opt/collector/wordlists/common.txt --webapp-scan
-
-docker compose run --rm collector \
-  -d example.com --recon --webapp-discovery --webapp-short-detection \
-  --vhost-check --vhost-probe --vhost-probe-wordlist /opt/collector/support/runtime/wordlists/vhost-probe-names.txt \
-  --webapp-enum --webapp-wordlists /opt/collector/wordlists/common.txt --webapp-scan
-
 collector-docker -d example.com --recon --webapp-discovery --webapp-short-detection \
+  --vhost-check --vhost-probe --vhost-probe-wordlist /opt/collector/support/runtime/wordlists/vhost-probe-names.txt \
   --webapp-enum --webapp-wordlists /opt/collector/wordlists/common.txt --webapp-scan
 ```
 
 Standalone webapp enum on a previously recon'd target:
 
 ```bash
-docker run --rm \
-  -v /opt/collector/outputs:/opt/collector/outputs \
-  -v /opt/collector/wordlists:/opt/collector/wordlists \
-  -v /opt/collector/conf.d:/opt/collector/conf.d:ro \
-  collector:latest \
-  -d example.com --webapp-enum --webapp-wordlists /opt/collector/wordlists/common.txt
-
-docker compose run --rm collector \
-  -d example.com --webapp-enum --webapp-wordlists /opt/collector/wordlists/common.txt
-
 collector-docker -d example.com --webapp-enum --webapp-wordlists /opt/collector/wordlists/common.txt
 ```
 
 Standalone webapp scan on a previously recon'd target:
 
 ```bash
-docker run --rm \
-  -v /opt/collector/outputs:/opt/collector/outputs \
-  -v /opt/collector/wordlists:/opt/collector/wordlists \
-  -v /opt/collector/conf.d:/opt/collector/conf.d:ro \
-  collector:latest \
-  -d example.com --webapp-scan
-
-docker compose run --rm collector -d example.com --webapp-scan
-
 collector-docker -d example.com --webapp-scan
 ```
 
 Standalone JS crawler:
 
 ```bash
-docker run --rm \
-  -v /opt/collector/outputs:/opt/collector/outputs \
-  -v /opt/collector/wordlists:/opt/collector/wordlists \
-  -v /opt/collector/conf.d:/opt/collector/conf.d:ro \
-  collector:latest \
-  -d example.com --webapp-crawler
-
-docker compose run --rm collector -d example.com --webapp-crawler
-
 collector-docker -d example.com --webapp-crawler
 ```
 
 List of targets:
 
 ```bash
-docker run --rm \
-  -v /opt/collector/outputs:/opt/collector/outputs \
-  -v /opt/collector/wordlists:/opt/collector/wordlists \
-  -v /opt/collector/conf.d:/opt/collector/conf.d:ro \
-  collector:latest \
-  -dl /opt/collector/outputs/targets.list --recon --webapp-discovery --webapp-short-detection
-
-docker compose run --rm collector \
-  -dl /opt/collector/outputs/targets.list --recon --webapp-discovery --webapp-short-detection
-
 collector-docker -dl /opt/collector/outputs/targets.list --recon --webapp-discovery --webapp-short-detection
 ```
 
 Single URL (no subdomain/infra discovery):
 
 ```bash
-docker run --rm \
-  -v /opt/collector/outputs:/opt/collector/outputs \
-  -v /opt/collector/wordlists:/opt/collector/wordlists \
-  -v /opt/collector/conf.d:/opt/collector/conf.d:ro \
-  collector:latest \
-  -u https://opt/collector.example.com --webapp-wordlists /opt/collector/wordlists/common.txt
-
-docker compose run --rm collector \
-  -u https://opt/collector.example.com --webapp-wordlists /opt/collector/wordlists/common.txt
-
 collector-docker -u https://opt/collector.example.com --webapp-wordlists /opt/collector/wordlists/common.txt
+```
+
+Multiple targets in parallel — safe without `--report-up` (lock is per-domain, each run gets its own anonymous container, and the shared SQLite results DB is WAL-mode, so concurrent writes from different domains don't collide). Only bring up the dashboard once things have run — never add `--report-up` to more than one of these at a time, since it names a single fixed container and publishes a single fixed port:
+
+```bash
+collector-docker -d example-a.com --recon &
+collector-docker -d example-b.com --recon &
+collector-docker -d example-c.com --recon &
+wait
+collector-docker --report-up   # one shared dashboard, shows every domain above once it's ingested
 ```
 
 Pre-flight check (dry run) — validates config and parameters without running anything:
@@ -366,7 +257,7 @@ Drop-in scheduling files are in `support/templates/`:
   
   See `support/templates/alerts-notify/README.md` for detailed setup guides for each provider.
 
-Both use `collector-docker` (or `docker run --rm` directly) — each run fires an ephemeral container. Results persist via the `/opt/collector/outputs` volume. Per-target `flock` prevents overlapping runs for the same domain when triggered by cron or timers.
+Both use `collector-docker` — each run fires an ephemeral container. Results persist via the `/opt/collector/outputs` volume. Per-target `flock` prevents overlapping runs for the same domain when triggered by cron or timers.
 
 ## APIs and tools used
 
@@ -472,22 +363,10 @@ sqlite3 /opt/collector/app-report/db/collector-results \
 
 ## Web UI
 
-Flask + HTMX read-only dashboard at `http://127.0.0.1:8000` — **on-demand only**, via `-ru|--report-up` (see [Dashboard control](#dashboard-control) for the full flag reference). It never starts automatically: a plain recon doesn't publish the port or touch the dashboard at all. Add `--report-up` to any recon invocation to bring it up afterward, in the same container:
+Flask + HTMX read-only dashboard at `http://127.0.0.1:8000` — **on-demand only**, via `-ru|--report-up` (see [Dashboard control](#dashboard-control) for the full flag reference). It never starts automatically: a plain recon doesn't publish the port or touch the dashboard at all. Add `--report-up` to any recon invocation to bring it up afterward, in the same container — `collector-docker` figures out the port mapping for you (derived from `conf.d/operation.conf`, see below):
 
 ```bash
-docker run --rm \
-  -v /opt/collector/outputs:/opt/collector/outputs \
-  -v /opt/collector/wordlists:/opt/collector/wordlists \
-  -v /opt/collector/conf.d:/opt/collector/conf.d:ro \
-  -p 127.0.0.1:8000:8000 \
-  collector:latest \
-  -d example.com --recon --webapp-discovery --webapp-short-detection --report-up
-
-# collector-docker figures out the -p mapping for you when --report-up is present
 collector-docker -d example.com --recon --webapp-discovery --webapp-short-detection --report-up
-
-# docker compose run needs -P explicitly — it never auto-publishes ports (see above)
-docker compose run --rm -P collector -d example.com --recon --webapp-discovery --webapp-short-detection --report-up
 ```
 
 Reopening the dashboard from an earlier scan (no new recon):
