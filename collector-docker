@@ -474,11 +474,24 @@ if [[ "${want_report_down}" == "yes" ]]; then
         echo "collector-docker: -rd|--report-down must be used alone, with no other parameters." >&2
         exit 1
     fi
-    if docker ps --format '{{.Names}}' | grep -qx "${REPORT_CONTAINER_NAME}"; then
-        docker stop "${REPORT_CONTAINER_NAME}" >/dev/null && \
-            echo "collector-docker: stopped ${REPORT_CONTAINER_NAME}"
+    # docker ps -a (not plain `docker ps`): a container that already
+    # exited (crashed, or killed by something outside collector-docker
+    # entirely — e.g. the Docker daemon itself restarting) is invisible
+    # to `docker ps`, so --report-down against it used to report
+    # "no running container" and leave the stopped container (and its
+    # name) sitting there — see the matching note below, same root
+    # cause. `docker rm` on an exited container is a no-op cleanup, not
+    # a stop; only call `docker stop` when it's actually running.
+    if docker ps -a --format '{{.Names}}' | grep -qx "${REPORT_CONTAINER_NAME}"; then
+        if docker ps --format '{{.Names}}' | grep -qx "${REPORT_CONTAINER_NAME}"; then
+            docker stop "${REPORT_CONTAINER_NAME}" >/dev/null && \
+                echo "collector-docker: stopped ${REPORT_CONTAINER_NAME}"
+        else
+            docker rm "${REPORT_CONTAINER_NAME}" >/dev/null && \
+                echo "collector-docker: removed already-exited ${REPORT_CONTAINER_NAME}"
+        fi
     else
-        echo "collector-docker: no running container named ${REPORT_CONTAINER_NAME}"
+        echo "collector-docker: no container named ${REPORT_CONTAINER_NAME}"
     fi
     exit 0
 fi
@@ -555,6 +568,18 @@ if [[ "${want_report_up}" == "yes" ]]; then
         echo "collector-docker: container '${REPORT_CONTAINER_NAME}' is already running." >&2
         echo "  stop it first with: collector-docker --report-down" >&2
         exit 1
+    fi
+    # A container that already EXITED (crashed, or killed by something
+    # outside collector-docker — e.g. the Docker daemon restarting) is
+    # invisible to the `docker ps` check above, but Docker still holds
+    # its name reserved until it's removed — confirmed: `docker run
+    # --name collector-report ...` right after a daemon restart failed
+    # with "Conflict. The container name ... is already in use", even
+    # though nothing was actually running. Clear a stale, stopped
+    # container with that exact name before the real `docker run`
+    # below, so a prior crash doesn't block every future --report-up.
+    if docker ps -a --format '{{.Names}}' | grep -qx "${REPORT_CONTAINER_NAME}"; then
+        docker rm "${REPORT_CONTAINER_NAME}" >/dev/null
     fi
     name_args=(--name "${REPORT_CONTAINER_NAME}")
 fi
