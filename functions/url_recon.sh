@@ -83,8 +83,12 @@ url_recon(){
     build_llm_prompt
     build_llm_json
     db_usage
-    message "${url_domain}" finished
+    # start_app_report before message() — see the ordering note in
+    # functions/domains_recon.sh's "Only web app discovery" branch,
+    # same reasoning: the dashboard's own "is up" line should read
+    # before the run's "finished!" verdict, not after.
     start_app_report
+    message "${url_domain}" finished
     rm "${recon_dir}/url_test.txt" > /dev/null 2>&1) 2>> "${log_execution_file}" | tee -a "${log_execution_file}"
     # See the matching comment in domains_recon.sh: the subshell above is a
     # forked child, so its exit status only reaches the caller via

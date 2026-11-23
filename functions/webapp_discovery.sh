@@ -5,19 +5,14 @@
 # This file is an essential part of collector's execution!                    #
 # And is responsible to get the functions:                                    #
 #                                                                             #
-#   * get_user_agent                                                          #
 #   * webapp_alive                                                            #
 #   * aquatone_screeshot                                                      #
 #                                                                             #
-############################################################################### 
-
-get_user_agent(){
-    local user_agent_file="${collector_user_agents}"
-    # Strip blank lines and # comments before sampling so the wordlist
-    # can carry section headers like "# === Desktop ===" without ever
-    # producing them as a chosen UA.
-    grep -Ev '^[[:space:]]*(#|$)' "${user_agent_file}" | shuf -n 1
-}
+# get_user_agent moved to functions/utils.sh — it's a generic HTTP helper     #
+# used by ~50 files across sources/, scans/ and functions/, not something     #
+# specific to web application discovery.                                     #
+#                                                                             #
+###############################################################################
 
 webapp_alive(){
     local target="$1"

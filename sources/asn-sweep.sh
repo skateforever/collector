@@ -112,24 +112,53 @@ asn_sweep(){
         echo -e "\nAS${asn_number}: ${#asn_prefixes[@]} prefix(es) to sweep: ${asn_prefixes[*]}" >> "${log_execution_file}"
 
         # Step 4: PTR sweep across all prefixes for this ASN.
-        # Enumerate every host address in the CIDR, not just the first /24.
+        # Enumerate every host address in the CIDR, not just the first /24
+        # — a /20 is 4094 addresses, and asn_max_prefixes allows up to 5
+        # of them per ASN, so this was a fully serial `dig` loop that
+        # could run for hours. Parallelized the same way ptr_sweep() is
+        # (sources/ptr-sweep.sh): split the address list into
+        # ptr_sweep_threads chunks, resolve each chunk in its own
+        # background worker, wait for all of them.
+        local asn_num_workers="${ptr_sweep_threads:-50}" asn_worker_dir asn_chunk_id
+        local -a asn_pids
+        local asn_pid asn_w
         for asn_cidr in "${asn_prefixes[@]}"; do
-            echo -e "\nPTR sweep for ${asn_cidr}" >> "${log_execution_file}"
+            echo -e "\nPTR sweep for ${asn_cidr}, ${asn_num_workers} workers" >> "${log_execution_file}"
             asn_base_ip="${asn_cidr%%/*}"
             asn_prefix_len="${asn_cidr##*/}"
             asn_host_bits=$(( 32 - asn_prefix_len ))
             asn_total_ips=$(( 1 << asn_host_bits ))
             IFS='.' read -r asn_o1 asn_o2 asn_o3 asn_o4 <<< "${asn_base_ip}"
             asn_ip_int=$(( (asn_o1 << 24) | (asn_o2 << 16) | (asn_o3 << 8) | asn_o4 ))
+
+            asn_worker_dir="${tmp_dir}/asn_sweep_$$_${asn_cidr//[.\/]/_}"
+            mkdir -p "${asn_worker_dir}"
+            : > "${asn_worker_dir}/all.tmp"
             for (( asn_i=1; asn_i < asn_total_ips - 1; asn_i++ )); do
                 asn_cur=$(( asn_ip_int + asn_i ))
-                asn_a=$(( (asn_cur >> 24) & 255 ))
-                asn_b=$(( (asn_cur >> 16) & 255 ))
-                asn_c=$(( (asn_cur >>  8) & 255 ))
-                asn_d=$(( asn_cur & 255 ))
-                asn_ptr="$(dig +short -x "${asn_a}.${asn_b}.${asn_c}.${asn_d}" 2>/dev/null | sed 's/\.$//' | tr '[:upper:]' '[:lower:]')"
-                [[ -n "${asn_ptr}" ]] && echo "${asn_ptr}" >> "${tmp_dir}/asn_sweep_output.tmp"
+                echo "$(( (asn_cur >> 24) & 255 )).$(( (asn_cur >> 16) & 255 )).$(( (asn_cur >> 8) & 255 )).$(( asn_cur & 255 ))" \
+                    >> "${asn_worker_dir}/all.tmp"
             done
+            split -d -n l/"${asn_num_workers}" "${asn_worker_dir}/all.tmp" "${asn_worker_dir}/chunk_"
+
+            asn_pids=()
+            for (( asn_w=0; asn_w<asn_num_workers; asn_w++ )); do
+                printf -v asn_chunk_id '%02d' "${asn_w}"
+                [[ -s "${asn_worker_dir}/chunk_${asn_chunk_id}" ]] || continue
+                (
+                    while IFS= read -r asn_ip_to_resolve; do
+                        asn_ptr="$(dig_safe PTR "${asn_ip_to_resolve}" | sed 's/\.$//' | tr '[:upper:]' '[:lower:]')"
+                        [[ -n "${asn_ptr}" ]] && echo "${asn_ptr}" >> "${tmp_dir}/asn_sweep_output_${asn_w}.tmp"
+                    done < "${asn_worker_dir}/chunk_${asn_chunk_id}"
+                ) &
+                asn_pids+=($!)
+            done
+            for asn_pid in "${asn_pids[@]}"; do
+                wait "${asn_pid}" 2>/dev/null
+            done
+
+            cat "${tmp_dir}/asn_sweep_output"_*.tmp 2>/dev/null >> "${tmp_dir}/asn_sweep_output.tmp"
+            rm -rf "${asn_worker_dir}" "${tmp_dir}/asn_sweep_output"_*.tmp 2>/dev/null
         done
     done < <(sort -u "${asn_ip_file}")
 

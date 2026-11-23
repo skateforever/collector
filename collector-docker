@@ -661,9 +661,13 @@ if [[ "${want_report_up}" == "yes" ]]; then
     kill "${follower_pid}" 2>/dev/null
     wait "${follower_pid}" 2>/dev/null
 
+    # No success message of our own here — the real collector output
+    # already streamed above (banner, recon progress, and finally
+    # functions/app_report.sh's own "dashboard is up"/"--report-down to
+    # end" lines), so a wrapper-authored "running in the background" /
+    # "stop: ..." echo would just repeat what the operator already read,
+    # in a different voice than the rest of the run's output.
     if [[ "${dashboard_up}" == "yes" ]]; then
-        echo "collector-docker: ${REPORT_CONTAINER_NAME} is running in the background (${container_id:0:12})"
-        echo "  stop: collector-docker --report-down"
         exit 0
     fi
     echo "collector-docker: ${REPORT_CONTAINER_NAME} exited before the dashboard came up." >&2
