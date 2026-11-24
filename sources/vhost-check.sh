@@ -238,7 +238,7 @@ vhost_check(){
     # picked for this run (-wsd/-wcp/-wld).
     local -a vc_ports=("${webapp_port_detect[@]}")
 
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Looking for vhost with dead subdomains... "
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Looking for vhost with dead subdomains... "
     echo -e "\n" >> "${log_execution_file}"
 
     if [[ -s "${vhost_ip_file}" ]]; then
@@ -372,8 +372,9 @@ vhost_check(){
         # It will be called once by domains_recon.sh after vhost_probe also
         # finishes, so that both vhost_check and vhost_probe hits are included
         # in the consolidated URL list in a single pass.
-        echo "Done!"
+        # echo "Done!"
     else
-        echo "Fail!"
+        :
+        # echo "Fail!"
     fi
 }

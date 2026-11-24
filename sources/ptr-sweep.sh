@@ -39,11 +39,11 @@ ptr_sweep_worker(){
 
 ptr_sweep(){
     local ptr_ip_file="$1"
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing PTR sweep... "
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing PTR sweep... "
     : > "${tmp_dir}/ptr_sweep_output.tmp"
 
     if [[ ! -s "${ptr_ip_file}" ]]; then
-        echo "Done!"
+        # echo "Done!"
         return 0
     fi
 
@@ -104,5 +104,5 @@ ptr_sweep(){
     fi
 
     sort -u -o "${tmp_dir}/ptr_sweep_output.tmp" "${tmp_dir}/ptr_sweep_output.tmp" 2>/dev/null
-    echo "Done!"
+    # echo "Done!"
 }

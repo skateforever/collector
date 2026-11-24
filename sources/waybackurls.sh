@@ -9,10 +9,10 @@
 #############################################################            
 
 waybackurls-src(){
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing waybackurls... "
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing waybackurls... "
     echo -e "\necho \"${domain}\" | waybackurls" >> "${log_execution_file}"
     echo "${domain}" | waybackurls > "${tmp_dir}/waybackurls_output.tmp" 2>> "${log_execution_file}"
-    echo "Done!"
+    # echo "Done!"
     sleep 1
 }
 

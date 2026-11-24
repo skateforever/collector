@@ -11,7 +11,7 @@
 
 shodan_scan(){
     if [ "${shodan_use}" == "yes" ] && [ -s "${report_dir}/infra_blocks.txt" ]; then
-        echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing shodan scan on target's IPs... "
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing shodan scan on target's IPs... "
         local shodan_scans
         shodan_scans=$(shodan info | grep "Scan.*:" | awk '{print $4}')
         # conf.d/apis-recon.conf defines `shodan_just_scan_main_domain`; the previous
@@ -28,6 +28,6 @@ shodan_scan(){
             cat "${shodan_dir}"/shodan_scan_*.txt > "${shodan_dir}/shodan_scan.txt" 2>/dev/null
             rm -f "${shodan_dir}"/shodan_scan_*.txt
         fi
-        echo "Done!"
+        # echo "Done!"
     fi
 }

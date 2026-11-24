@@ -21,7 +21,7 @@
 
 censys-src(){
     [[ -z "${censys_platform_api_token}" ]] && return 0
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing censys... "
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing censys... "
     : > "${tmp_dir}/censys_output.json"
     local censys_hits_tmp="${tmp_dir}/censys_hits.tmp"
     : > "${censys_hits_tmp}"
@@ -38,7 +38,7 @@ censys-src(){
 
     if [[ -z "${censys_query}" ]]; then
         echo "censys: query conversion failed, response was: ${censys_convert_result}" >> "${log_execution_file}"
-        echo "Fail!"
+        # echo "Fail!"
         return 0
     fi
 
@@ -68,7 +68,7 @@ censys-src(){
     # doesn't need to know Platform's schema changed underneath it.
     jq -sc '{"result":{"hits": (map(select(.certificate_v1.resource.names)) | map({"parsed":{"names": .certificate_v1.resource.names}}))}}' \
         "${censys_hits_tmp}" > "${tmp_dir}/censys_output.json" 2>/dev/null
-    echo "Done!"
+    # echo "Done!"
 }
 
 censys-src

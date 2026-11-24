@@ -9,7 +9,7 @@
 #############################################################            
 
 zonetransfer-src(){
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Trying to execute zone transfer... "
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Trying to execute zone transfer... "
     for ns in $(dig +short ns "${domain}" 2> /dev/null | sed -e 's/\.$//'); do
         # Capture output once; check for failure indicators in the same pass.
         # Skip empty results too, so a silently-failing NS doesn't append a
@@ -20,7 +20,7 @@ zonetransfer-src(){
         fi
         unset zt_result
     done
-    echo "Done!"
+    # echo "Done!"
 }
 
 zonetransfer-src

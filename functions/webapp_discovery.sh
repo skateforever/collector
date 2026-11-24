@@ -20,7 +20,7 @@ webapp_alive(){
     local subdomain port url line http_status_code https_status_code user_agent batch
     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Initializing the web application discovery..."
     echo -e "\t\t    ${red}Warning:${reset} It can take a long time to execute the this discovery function!"
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Testing subdomains to know if it has a web application... "
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Testing subdomains to know if it has a web application... "
     echo -e "\n" >> "${log_execution_file}"
     if [ -s "${alive_file}" ]; then
 
@@ -83,9 +83,10 @@ webapp_alive(){
         sleep 1
 
         if [ -s "${tmp_dir}/webapp_urls.tmp" ]; then
-            echo "Done!"
+            :
+            # echo "Done!"
         else
-            echo "Fail!"
+            # echo "Fail!"
             echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Something got wrong while checking the status of URLs!"
             echo -e "Something got wrong while checking the status of URLs!" | notify "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
             message "${target}" failed
@@ -106,7 +107,7 @@ webapp_alive(){
 
         # No unalias needed: we no longer create aliases.
 
-        echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Separating infrastructure from web application... "
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Separating infrastructure from web application... "
         if [ -s "${report_dir}/webapp_urls.txt" ]; then
             if cp "${report_dir}/domains_alive.txt" "${report_dir}/domains_infrastructure.txt"; then
                 while IFS= read -r line; do
@@ -118,16 +119,16 @@ webapp_alive(){
                     fi
                     unset subdomain
                 done < "${report_dir}/webapp_urls.txt"
-                echo "Done!"
+                # echo "Done!"
             else
-                echo "Fail!"
+                # echo "Fail!"
                 echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Could not create file for infrastructure domains, something went wrong."
                 echo -e "Could not create file for infrastructure domains, something went wrong." | notify "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
                 message "${target}" failed
                 exit 1
             fi
         else
-            echo "Fail!"
+            # echo "Fail!"
             echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} We probably didn't have any webapp application, something is wrong!"
             echo -e "We probably didn't have any webapp application, something is wrong!" | notify "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
             message "${target}" failed
@@ -144,7 +145,7 @@ webapp_alive(){
                 | notify "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
         fi
     else
-        echo "Fail!"
+        # echo "Fail!"
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} The ${report_dir}/domains_alive.txt does not exist or is empty."
         echo -e "The ${report_dir}/domains_alive.txt does not exist or is empty." | notify "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
         message "${target}" failed
@@ -153,7 +154,7 @@ webapp_alive(){
 }
 
 aquatone_screenshot(){
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Starting aquatone screenshot... "
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Starting aquatone screenshot... "
     local target="$1"
     local urls_file="$2"
     if [ -s "${urls_file}" ]; then
@@ -161,9 +162,9 @@ aquatone_screenshot(){
             if mkdir -p "${aquatone_files_dir}" ; then
                 echo "aquatone -chrome-path ${chromium_bin} -out ${aquatone_files_dir} -threads ${aquatone_threads} < ${urls_file}" >> "${log_execution_file}"
                 aquatone -chrome-path "${chromium_bin}" -out "${aquatone_files_dir}" -threads "${aquatone_threads}" < "${urls_file}" >> "${aquatone_log}" 2>> "${log_execution_file}"
-                echo "Done!"
+                # echo "Done!"
             else
-                echo "Fail!"
+                # echo "Fail!"
                 echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Something got wrong, wasnt possible create directory ${aquatone_files_dir}."
                 echo -e "Something got wrong, wasnt possible create directory ${aquatone_files_dir}.\n\tPlease, look what got wrong and run the script again. Stopping the script!" | notify "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
                 message "${target}" failed
@@ -172,10 +173,10 @@ aquatone_screenshot(){
         else
             echo "aquatone -chrome-path ${chromium_bin} -out ${aquatone_files_dir} -threads ${aquatone_threads} < ${urls_file}" >> "${log_execution_file}"
             aquatone -chrome-path "${chromium_bin}" -out "${aquatone_files_dir}" -threads "${aquatone_threads}" < "${urls_file}" >> "${aquatone_log}" 2>> "${log_execution_file}"
-            echo "Done!"
+            # echo "Done!"
         fi
     else
-        echo "Fail!"
+        # echo "Fail!"
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Make sure the ${urls_file} exist and isn't empty."
         echo -e "Make sure the ${urls_file} exist and isn't empty." | notify "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
         message "${target}" failed

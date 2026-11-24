@@ -28,10 +28,10 @@ emails_recon(){
     local user_agent
     local max_js url js_url js_count js_abs scheme host base
 
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Looking for emails to help during blackbox pentest... "
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Looking for emails to help during blackbox pentest... "
 
     if [[ -z "${domain}" ]] || [[ ! -d "${tmp_dir}" ]] || [[ ! -d "${report_dir}" ]]; then
-        echo "Fail!"
+        # echo "Fail!"
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} emails_recon: missing domain or directories."
         return 1
     fi
@@ -146,5 +146,5 @@ emails_recon(){
         sort -u -o "${emails_out}" "${emails_out}"
     fi
 
-    echo "Done!"
+    # echo "Done!"
 }

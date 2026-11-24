@@ -9,7 +9,7 @@
 #############################################################
 
 fofa-src(){
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing fofa... "
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing fofa... "
     unset user_agent
     user_agent="$(get_user_agent)"
     if [[ -n "${fofa_api_key}" ]]; then
@@ -26,7 +26,7 @@ fofa-src(){
             -H "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8" \
             "https://fofa.so/result?qbase64=${fofa_query}" > "${tmp_dir}/fofa_output.html" 2>> "${log_execution_file}"
     fi
-    echo "Done!"
+    # echo "Done!"
     sleep 1
 }
 

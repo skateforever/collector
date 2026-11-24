@@ -9,10 +9,10 @@
 #############################################################            
 
 tlsx-src(){
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing tlsx... "
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing tlsx... "
     echo -e "\ntlsx ${tlsx_options[@]} -d ${domain}" >> "${log_execution_file}"
     echo "${domain}" | tlsx "${tlsx_options[@]}" > "${tmp_dir}/tlsx_output.json" 2>> "${log_execution_file}"
-    echo "Done!"
+    # echo "Done!"
     sleep 1
 }
 

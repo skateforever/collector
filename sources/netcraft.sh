@@ -15,7 +15,7 @@
 #############################################################
 
 netcraft-src(){
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing netcraft... "
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing netcraft... "
     : > "${tmp_dir}/netcraft_output.tmp"
     unset user_agent
     user_agent="$(get_user_agent)"
@@ -69,7 +69,7 @@ netcraft-src(){
     done
 
     sort -u -o "${tmp_dir}/netcraft_output.tmp" "${tmp_dir}/netcraft_output.tmp" 2>/dev/null
-    echo "Done!"
+    # echo "Done!"
     sleep 1
 }
 

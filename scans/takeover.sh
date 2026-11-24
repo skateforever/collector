@@ -173,30 +173,32 @@ takeover_scan(){
     : > "${output_file}"
 
     # 1) nuclei takeover templates (silent, follows the nuclei.sh pattern)
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Running nuclei takeover templates... "
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Running nuclei takeover templates... "
     if command -v nuclei > /dev/null 2>&1; then
         nuclei -no-color -silent -update-templates > /dev/null 2>&1
         echo "nuclei -l ${input_file} -t http/takeovers/ -severity high,critical -silent -no-color -o ${nuclei_out}" >> "${log_execution_file}"
         nuclei -l "${input_file}" -t http/takeovers/ -severity high,critical \
             -silent -no-color -o "${nuclei_out}" >> "${log_execution_file}" 2>&1 || true
-        echo "Done!"
+        # echo "Done!"
     else
-        echo "Skip (nuclei not installed)"
+        # echo "Skip (nuclei not installed)"
+        :
     fi
 
     # 2) subzy
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Running subzy... "
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Running subzy... "
     if command -v subzy > /dev/null 2>&1; then
         echo "subzy run --targets ${input_file} --hide_fails --output ${subzy_out}" >> "${log_execution_file}"
         subzy run --targets "${input_file}" --hide_fails --output "${subzy_out}" \
             >> "${log_execution_file}" 2>&1 || true
-        echo "Done!"
+        # echo "Done!"
     else
-        echo "Skip (subzy not installed)"
+        # echo "Skip (subzy not installed)"
+        :
     fi
 
     # 3) subjack
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Running subjack... "
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Running subjack... "
     if command -v subjack > /dev/null 2>&1; then
         # subjack's fingerprints.json is embedded into the binary at build
         # time (go:embed, since the subjack/subjack v3.0.0 restructuring) —
@@ -204,13 +206,14 @@ takeover_scan(){
         echo "subjack -w ${input_file} -t 30 -timeout 30 -ssl -o ${subjack_out} -v" >> "${log_execution_file}"
         subjack -w "${input_file}" -t 30 -timeout 30 -ssl \
             -o "${subjack_out}" -v >> "${log_execution_file}" 2>&1 || true
-        echo "Done!"
+        # echo "Done!"
     else
-        echo "Skip (subjack not installed)"
+        # echo "Skip (subjack not installed)"
+        :
     fi
 
     # 4) CNAME chain + provider matching + active confirm (loop principal)
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Resolving CNAME chains and matching providers... "
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Resolving CNAME chains and matching providers... "
     while IFS= read -r fqdn; do
         [[ -z "${fqdn}" ]] && continue
         chain="$(takeover_cname_chain "${fqdn}")"
@@ -264,13 +267,13 @@ takeover_scan(){
             fi
         fi
     done < "${input_file}"
-    echo "Done!"
+    # echo "Done!"
 
     sort -u -o "${output_file}" "${output_file}"
 
     # 5) Notify (same pattern as nuclei.sh)
     if [[ -s "${output_file}" ]]; then
-        echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Sending takeover notifications... "
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Sending takeover notifications... "
         # STRONG -> critical
         grep -P '\tSTRONG\t' "${output_file}" \
             | sed 's/\t/ | /g' \
@@ -281,7 +284,7 @@ takeover_scan(){
             | sed 's/\t/ | /g' \
             | sed "s/^/[takeover-review] ${target} | /" \
             | notify "${notify_options[@]}" -id "${notify_high_channel}" > /dev/null 2>&1
-        echo "Done!"
+        # echo "Done!"
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Takeover scan finished: ${critical_findings} STRONG / ${high_findings} review (see ${output_file})."
     else
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Takeover scan finished: no findings."

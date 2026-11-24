@@ -24,7 +24,7 @@ spider_src(){
     if [[ ! -s "${spider_urls_file}" ]]; then
         return 0
     fi
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing spider... "
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing spider... "
     : > "${tmp_dir}/spider_output.tmp"
     unset user_agent
     user_agent="$(get_user_agent)"
@@ -130,5 +130,5 @@ spider_src(){
     done
 
     sort -u -o "${tmp_dir}/spider_output.tmp" "${tmp_dir}/spider_output.tmp" 2>/dev/null
-    echo "Done!"
+    # echo "Done!"
 }

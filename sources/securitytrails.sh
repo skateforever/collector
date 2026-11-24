@@ -10,7 +10,7 @@
 
 securitytrails-src(){
     if [[ -n "${securitytrails_api_key}" ]]; then
-        echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing security trails... "
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing security trails... "
         unset user_agent
         user_agent="$(get_user_agent)"
         echo -e "\ncurl ${curl_options[@]} -H \"User-agent: ${user_agent}\" -H 'Accept: application/json' -H \"APIKEY: ${securitytrails_api_key}\" \"${securitytrails_api_url}/ping\"" \
@@ -30,10 +30,10 @@ securitytrails-src(){
                 "${securitytrails_api_url}/domain/${domain}/subdomains?children_only=false&include_inactive=true" \
                 >> "${tmp_dir}/securitytrails_output.json" 2>> "${log_execution_file}"
             sleep 1
-            echo "Done!"
+            # echo "Done!"
         else
             echo "securitytrails: /ping check failed, response was: ${securitytrails_ping_response}" >> "${log_execution_file}"
-            echo "Fail!"
+            # echo "Fail!"
         fi
     fi
 }

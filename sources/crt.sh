@@ -9,7 +9,7 @@
 #############################################################            
 
 crt-src(){
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing crt.sh... "
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing crt.sh... "
     unset user_agent
     user_agent="$(get_user_agent)"
     attempt=0
@@ -21,7 +21,7 @@ crt-src(){
         sleep $(( attempt * 10 ))
     done
     head -c 1 "${tmp_dir}/crtsh_output.json" | grep -qE '^\[|\{' || echo "[]" > "${tmp_dir}/crtsh_output.json"
-    echo "Done!"
+    # echo "Done!"
     sleep 1
 }
 

@@ -9,10 +9,10 @@
 #############################################################            
 
 urlfinder-src(){
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing urlfinder... "
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing urlfinder... "
     echo -e "\nurlfinder ${urlfinder_options[@]} -d ${domain}" >> "${log_execution_file}"
     urlfinder "${urlfinder_options[@]}" -d "${domain}" > "${tmp_dir}/urlfinder_output.tmp" 2>> "${log_execution_file}"
-    echo "Done!"
+    # echo "Done!"
     sleep 1
 }
 

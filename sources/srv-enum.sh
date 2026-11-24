@@ -9,7 +9,7 @@
 #############################################################
 
 srv-enum-src(){
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing SRV enum... "
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing SRV enum... "
     : > "${tmp_dir}/srv_enum_output.tmp"
     srv_prefixes=(
         _http._tcp _https._tcp _ftp._tcp _sftp._tcp _ssh._tcp _smtp._tcp
@@ -31,7 +31,7 @@ srv-enum-src(){
         fi
     done
     sort -u -o "${tmp_dir}/srv_enum_output.tmp" "${tmp_dir}/srv_enum_output.tmp" 2>/dev/null
-    echo "Done!"
+    # echo "Done!"
 }
 
 srv-enum-src

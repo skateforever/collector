@@ -16,7 +16,7 @@ bruteforce-src(){
         for list in "${dns_wordlists[@]}"; do
             index=$(printf "%s\n" "${dns_wordlists[@]}" | grep -En "^${list}$" | awk -F":" '{print $1}')
             if [ -s "${list}" ]; then
-                echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Execution number ${index}... "
+                echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Execution number ${index}... "
                 # amass v5's engine rewrite: `enum` only populates a local graph
                 # database under -dir now (-o/-oA are defined but unused). `subs
                 # -names -o` is the separate query step that dumps the names
@@ -34,7 +34,7 @@ bruteforce-src(){
                 dnssearch -consumers 600 -domain "${domain}" -wordlist "${list}" | \
                     grep "${domain}" >> "${tmp_dir}/dnssearch_output_${index}.tmp" 2>> "${log_execution_file}"
 
-                echo "Done!"
+                # echo "Done!"
 
                 #ffuf -c -u https://FUZZ."${domain}" -w "${list}" -mc 200 -rate 100 -v results.txt
 

@@ -19,7 +19,7 @@ ns-brute-src(){
     # ptr-sweep.sh — not paralellized here, since the candidates/transfer
     # attempts aren't independent enough to be worth it, just capped at
     # 2s/1 try each like everywhere else dig_safe/dig_timeout are used).
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing NS brute / zone transfer multi-vector... "
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing NS brute / zone transfer multi-vector... "
     : > "${tmp_dir}/ns_brute_output.tmp"
     ns_brute_candidates=()
     ns_brute_seen_ips=()
@@ -56,7 +56,7 @@ ns-brute-src(){
     done
 
     if [[ ${#ns_brute_candidates[@]} -eq 0 ]]; then
-        echo "Done!"
+        # echo "Done!"
         return 0
     fi
 
@@ -87,7 +87,7 @@ ns-brute-src(){
         done
     done
 
-    echo "Done!"
+    # echo "Done!"
 }
 
 ns-brute-src

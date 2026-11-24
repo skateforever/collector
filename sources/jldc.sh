@@ -9,12 +9,12 @@
 #############################################################
 
 jldc-src(){
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing jldc... "
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing jldc... "
     unset user_agent
     user_agent="$(get_user_agent)"
     echo -e "\ncurl ${curl_options[@]} -H \"User-agent: ${user_agent}\" \"https://jldc.me/anubis/subdomains/${domain}\"" >> "${log_execution_file}"
     curl "${curl_options[@]}" -H "User-agent: ${user_agent}" "https://jldc.me/anubis/subdomains/${domain}" > "${tmp_dir}/jldc_output.json" 2>> "${log_execution_file}"
-    echo "Done!"
+    # echo "Done!"
     sleep 1
 }
 

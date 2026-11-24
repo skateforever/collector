@@ -18,10 +18,10 @@ crawler_js(){
     local user_agent subdomain js_url js_abs js_file_dir js_file_name js_status scheme host base
 
     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Initializing the web application js crawler and this might take a certain time!"
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing js crawler... "
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing js crawler... "
 
     if [ "$#" != 2 ] || [ ! -s "${urls_file}" ]; then
-        echo "Fail!"
+        # echo "Fail!"
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Please, especify just 1 file to get URL from."
         echo -e "Please, especify just 1 file to get URL from." | notify "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
         message "${target}" failed
@@ -29,7 +29,7 @@ crawler_js(){
     fi
 
     if [ ! -d "${report_dir}" ] || [ ! -d "${webapp_js_dir}" ]; then
-        echo "Fail!"
+        # echo "Fail!"
         return 1
     fi
 
@@ -108,7 +108,7 @@ crawler_js(){
         done < <(grep -Eoi 'https?://[^[:space:]"'\''<>]+\.js([?#][^[:space:]"'\''<>]*)?' "${js_files}" | sort -u)
     fi
 
-    echo "Done!"
+    # echo "Done!"
 
     # Post-process: beautify_js_files pretty-prints each downloaded .js and
     # MOVES it to a sibling <name>.beautify.js (kept as an audit artifact,
@@ -132,10 +132,10 @@ crawler_params(){
     local url name file
 
     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Initializing the web application params crawler and this might take a certain time!"
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing params crawler... "
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing params crawler... "
 
     if [ "$#" != 2 ] || [ ! -s "${urls_file}" ]; then
-        echo "Fail!"
+        # echo "Fail!"
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Please, especify just 1 file to get URL from."
         echo -e "Please, especify just 1 file to get URL from." | notify "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
         message "${target}" failed
@@ -143,7 +143,7 @@ crawler_params(){
     fi
 
     if [ ! -d "${webapp_params_dir}" ]; then
-        echo "Fail!"
+        # echo "Fail!"
         return 1
     fi
 
@@ -169,7 +169,7 @@ crawler_params(){
         [[ -s "${file}" ]] && sort -u -o "${file}" "${file}"
     done < "${urls_file}"
 
-    echo "Done!"
+    # echo "Done!"
 
     # Post-process: flag parameter names / DOM sinks in the JS that
     # crawler_js already downloaded — SQLi/XSS/SSRF/XXE/CMD/etc candidates.

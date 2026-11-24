@@ -17,11 +17,11 @@
 
 asn_sweep(){
     local asn_ip_file="$1"
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing ASN sweep... "
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing ASN sweep... "
     : > "${tmp_dir}/asn_sweep_output.tmp"
 
     if [[ ! -s "${asn_ip_file}" ]]; then
-        echo "Done!"
+        # echo "Done!"
         return 0
     fi
 
@@ -167,5 +167,5 @@ asn_sweep(){
     fi
 
     sort -u -o "${tmp_dir}/asn_sweep_output.tmp" "${tmp_dir}/asn_sweep_output.tmp" 2>/dev/null
-    echo "Done!"
+    # echo "Done!"
 }

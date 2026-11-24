@@ -10,7 +10,7 @@
 
 fullhunt-src(){
     [[ -z "${fullhunt_api_key}" ]] && return 0
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing fullhunt... "
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing fullhunt... "
     unset user_agent
     user_agent="$(get_user_agent)"
     echo -e "\ncurl ${curl_options[@]} -H \"X-API-Key: ${fullhunt_api_key}\" -H \"User-agent: ${user_agent}\" \"https://fullhunt.io/api/v1/domain/${domain}/details\"" >> "${log_execution_file}"
@@ -18,7 +18,7 @@ fullhunt-src(){
         -H "X-API-Key: ${fullhunt_api_key}" \
         -H "User-agent: ${user_agent}" \
         "https://fullhunt.io/api/v1/domain/${domain}/details" > "${tmp_dir}/fullhunt_output.json" 2>> "${log_execution_file}"
-    echo "Done!"
+    # echo "Done!"
     sleep 1
 }
 

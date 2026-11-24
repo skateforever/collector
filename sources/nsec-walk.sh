@@ -18,16 +18,16 @@ nsec-walk-src(){
     # the whole walk finishes or a nameserver stops answering. Capped
     # each lookup at 2s/1 try via dig_safe/dig_timeout instead, same as
     # every other dig call fixed this way elsewhere.
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing NSEC walk... "
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing NSEC walk... "
     : > "${tmp_dir}/nsec_walk_output.tmp"
     nsec_ns="$(dig_safe NS "${domain}" | head -1 | sed 's/\.$//')"
     if [[ -z "${nsec_ns}" ]]; then
-        echo "Done!"
+        # echo "Done!"
         return 0
     fi
     nsec_ns_ip="$(dig_safe A "${nsec_ns}" | grep -Eo "${IPv4_regex}" | head -1)"
     if [[ -z "${nsec_ns_ip}" ]]; then
-        echo "Done!"
+        # echo "Done!"
         return 0
     fi
     # Detect NSEC vs NSEC3 — NSEC3 (hashed) cannot be walked
@@ -35,7 +35,7 @@ nsec-walk-src(){
     nsec_type_check="$(dig_timeout +dnssec NSEC3PARAM "${domain}" "@${nsec_ns_ip}" | grep -c 'NSEC3PARAM')"
     if [[ "${nsec_type_check}" -gt 0 ]]; then
         echo -e "\n${domain} uses NSEC3 — zone walking not possible" >> "${log_execution_file}"
-        echo "Done!"
+        # echo "Done!"
         return 0
     fi
     echo -e "\nNSEC walk on ${domain} via ${nsec_ns} (${nsec_ns_ip})" >> "${log_execution_file}"
@@ -57,7 +57,7 @@ nsec-walk-src(){
         nsec_current="${nsec_next}"
     done
     sort -u -o "${tmp_dir}/nsec_walk_output.tmp" "${tmp_dir}/nsec_walk_output.tmp" 2>/dev/null
-    echo "Done!"
+    # echo "Done!"
 }
 
 nsec-walk-src

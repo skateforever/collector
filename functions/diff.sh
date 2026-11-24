@@ -116,20 +116,20 @@ diff_domains(){
         return 1
     fi
 
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Computing subdomain diff vs. previous run... "
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Computing subdomain diff vs. previous run... "
     if [[ ! -s "${report_dir}/domains_found.txt" ]]; then
-        echo "Fail!"
+        # echo "Fail!"
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} File ${report_dir}/domains_found.txt does not exist or is empty!"
         echo "The error occurred in the function diff_domains.sh!" | notify "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
         return 1
     fi
 
     diff_file "subdomains" "${report_dir}/domains_found.txt" "${report_dir}/domains_diff.txt"
-    echo "Done!"
+    # echo "Done!"
 }
 
 diff_artifacts(){
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Computing artifact diffs vs. previous run... "
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Computing artifact diffs vs. previous run... "
 
     [[ -s "${report_dir}/infra_ipv4.txt" ]] && \
         diff_file "ips" "${report_dir}/infra_ipv4.txt" "${report_dir}/infra_ipv4_diff.txt"
@@ -146,7 +146,7 @@ diff_artifacts(){
     [[ -s "${report_dir}/etc_hosts_file.txt" ]] && \
         diff_file "vhosts" "${report_dir}/etc_hosts_file.txt" "${report_dir}/vhost_subdomains_diff.txt"
 
-    echo "Done!"
+    # echo "Done!"
 }
 
 # Append one observability row per execution to the per-domain history CSV.
