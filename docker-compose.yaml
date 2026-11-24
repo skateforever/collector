@@ -46,17 +46,27 @@ services:
     # dashboard itself only ever starts with -ru|--report-up regardless
     # (see README's Dashboard control section).
     #
-    # APP_REPORT_PORT must match app_report_port in conf.d/operation.conf
-    # (the port gunicorn actually binds to INSIDE the container — see
-    # functions/app_report.sh) on BOTH sides of the mapping. Unlike
-    # collector-docker (plain bash, reads operation.conf itself — see its
-    # own header comment), Compose's YAML can't execute shell logic to
-    # read that file, so this has to be kept in sync by hand: if you
-    # change app_report_port, set APP_REPORT_PORT to the same value via
-    # .env (Docker Compose loads it automatically — see "Execution
-    # methods" above).
+    # APP_REPORT_CONTAINER_PORT must match app_report_container_port
+    # in conf.d/operation.conf (the port gunicorn actually binds to
+    # INSIDE the container — see functions/app_report.sh) on BOTH sides
+    # of the mapping. Unlike collector-docker (plain bash, reads
+    # operation.conf itself — see its own header comment), Compose's
+    # YAML can't execute shell logic to read that file, so this has to
+    # be kept in sync by hand: if you change
+    # app_report_container_port, set APP_REPORT_CONTAINER_PORT
+    # to the same value via .env (Docker Compose loads it automatically
+    # — see "Execution methods" above).
+    #
+    # APP_REPORT_HOST_ADDRESS mirrors app_report_host_address in
+    # conf.d/operation.conf (collector-docker reads that file directly;
+    # Compose's YAML can't, same reasoning as APP_REPORT_CONTAINER_PORT
+    # above — keep both in sync by hand via .env). Defaults to 127.0.0.1
+    # (not reachable from other machines) — set it to the machine's
+    # LAN/public IP, or 0.0.0.0 for every interface, to reach the
+    # dashboard from another machine; the printed dashboard URL uses
+    # this same value, so it stays accurate automatically.
     ports:
-      - "127.0.0.1:${APP_REPORT_PORT:-8000}:${APP_REPORT_PORT:-8000}"
+      - "${APP_REPORT_HOST_ADDRESS:-127.0.0.1}:${APP_REPORT_CONTAINER_PORT:-8000}:${APP_REPORT_CONTAINER_PORT:-8000}"
 
 # Usage:
 #   # collector exits with usage() when called without args, so 'up' is

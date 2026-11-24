@@ -54,12 +54,28 @@ Override defaults via environment variables (`<root>` is the checkout directory 
 | `CONF_D_DIR` | `<root>/conf.d` (mounted to `/opt/collector/conf.d`) |
 | `ALERT_PROVIDER_TYPE` | `discord` (discord, slack, teams, telegram, signal) |
 | `ALERT_PROVIDER_FILE` | `<root>/{type}-provider.yaml` (optional; if missing, uses template from image) |
-| `APP_PORT` | `127.0.0.1:<app_report_port>:<app_report_port>` — derived from `conf.d/operation.conf`, not hardcoded (see below) |
+| `APP_REPORT_HOST_ADDRESS` | overrides `app_report_host_address` from `conf.d/operation.conf` for this invocation (see below) |
+| `APP_REPORT_HOST_PORT` | overrides `app_report_host_port` from `conf.d/operation.conf` for this invocation (see below) |
 | `REPORT_CONTAINER_NAME` | `collector-report` |
 
-**The dashboard's port is configured once, in `conf.d/operation.conf`** (`app_report_port`, default `8000`) — not duplicated as a separate setting on the host side. `collector-docker` reads that same file to build its default `APP_PORT`, so changing `app_report_port` alone is enough: the gunicorn process inside the container and the `-p` mapping `collector-docker` publishes always agree. Set the `APP_PORT` environment variable explicitly only if you need the **host** port to differ from the container's internal `app_report_port` — `APP_PORT` always wins over `conf.d/operation.conf` when set.
+**Every setting that changes how the dashboard is exposed lives in `conf.d/operation.conf`** — `collector-docker` reads it rather than hardcoding its own values; `127.0.0.1`/`8000` only kick in as a last-resort fallback if that file is missing or unreadable (see the precedence note below the list):
 
-`APP_PORT` is only published when `--report-up` is passed — the dashboard itself never starts without it (see [Dashboard control](#dashboard-control) below), so a plain recon run doesn't publish or need the port at all. When `--report-up` is passed and the host port is already bound (by an ongoing `--report-up` session, or any other listener), the wrapper fails fast with a clear message — naming `app_report_port`, not a hardcoded `8000` — instead of silently booting a persistent, unreachable container.
+- `app_report_container_port` (default `8000`) — the port gunicorn binds to *inside* the container. `collector-docker` reads this same file to build the `-p` mapping it publishes, so changing `app_report_container_port` alone is enough: the container-internal port and the published port always agree.
+- `app_report_host_address` (default `127.0.0.1`) — the address `collector-docker` publishes the dashboard on, i.e. the host-side half of `-p`, and what the "dashboard is up" message prints. **This is the one setting that controls whether another machine can reach the dashboard.** Leaving it at `127.0.0.1` means only the machine running collector can reach it. Set it to that machine's LAN/public IP, or `0.0.0.0` to publish on every interface:
+
+  ```bash
+  # conf.d/operation.conf
+  app_report_host_address="0.0.0.0"
+  ```
+
+  The printed dashboard URL always uses this same value, so it stays accurate automatically — no second variable to keep in sync. Note that `app_report_container_address` in the same file is a different, container-internal setting (gunicorn's own bind address inside the container's network namespace) and does not need to change for this.
+- `app_report_host_port` (default `8000`, matching `app_report_container_port`) — set only if the externally-published port needs to differ from the container's internal `app_report_container_port`.
+
+`APP_REPORT_HOST_ADDRESS`/`APP_REPORT_HOST_PORT` environment variables exist only to override the above for a single `collector-docker` invocation without editing the config file — they always win over `conf.d/operation.conf` when set, but `conf.d/operation.conf` is where the real default lives.
+
+Full precedence, address and port alike: (1) the environment variable, if set; (2) the matching `conf.d/operation.conf` variable; (3) if `conf.d/operation.conf` can't be found or read, `collector-docker` falls back to a hardcoded `127.0.0.1`/`8000` so it still has something to publish. `docker-compose.yaml` has the same last-resort fallback baked into its `ports:` line (`${APP_REPORT_HOST_ADDRESS:-127.0.0.1}:${APP_REPORT_CONTAINER_PORT:-8000}`), since Compose's YAML can't execute shell logic to read `conf.d/operation.conf` itself — see the comment above that line for why both sides have to be kept in sync by hand via `.env`.
+
+Neither is published unless `--report-up` is passed — the dashboard itself never starts without it (see [Dashboard control](#dashboard-control) below), so a plain recon run doesn't publish or need the port at all. When `--report-up` is passed and the published port is already bound (by an ongoing `--report-up` session, or any other listener), the wrapper fails fast with a clear message — naming `app_report_container_port`, not a hardcoded `8000` — instead of silently booting a persistent, unreachable container.
 
 > **Running several targets at once?** `--report-up` names a single fixed container (`REPORT_CONTAINER_NAME`, default `collector-report`) and publishes a single fixed port — it isn't meant to run more than once at a time. Recon itself has no such limit: `collector-docker -d <target> --recon` (without `--report-up`) is safe to run in parallel for as many different domains as you want (the per-target lock, anonymous container, and WAL-mode results DB all make that safe — see [Common usage patterns](#common-usage-patterns)). Bring up one shared dashboard afterward (`collector-docker --report-up`, no target) to see all of them.
 
@@ -161,7 +177,7 @@ The app-report dashboard **never starts unless you explicitly ask for it** with 
 | `-ru \| --report-up` | Requests the dashboard. **Alone** (no target flag): opens it read-only against the existing `outputs/` directory and exits when stopped — skips recon entirely; requires `collector-results` (in `app-report/db/`) from a previous run, and fails with a clear message if that file doesn't exist yet. **Combined** with a target flag and `--recon` (e.g. `-d target.com --recon --report-up`): runs the recon first, then brings the dashboard up and keeps the container running afterward. Either way, Ctrl-C or `--report-down` (from another shell) stops it. |
 | `-rd \| --report-down` | Stop the dashboard, however it was started — alone via `--report-up`, or combined with a recon. **Must be used alone**: passing any other flag alongside it is rejected with a usage error (checked both by `collector-docker` and by `collector` itself). Sends SIGTERM, waits 5 s, then SIGKILLs if needed. Via `collector-docker` it does the equivalent `docker stop collector-report` on the host. |
 
-Via `collector-docker`, `--report-up` also changes how the container itself runs: it's started detached (`docker run -d`, not attached) and **without** `--rm` (so it persists until stopped), with `APP_PORT` published. Without `--report-up`, nothing changes from a plain recon: attached, `--rm`, no port published. Recon progress isn't streamed to your terminal in the combined `--report-up` case since the container runs detached — follow it with `docker logs -f collector-report` or the run's own log file under `outputs/`.
+Via `collector-docker`, `--report-up` also changes how the container itself runs: it's started detached (`docker run -d`, not attached) and **without** `--rm` (so it persists until stopped), with `app_report_host_address:app_report_host_port` published. Without `--report-up`, nothing changes from a plain recon: attached, `--rm`, no port published. Recon progress isn't streamed to your terminal in the combined `--report-up` case since the container runs detached — follow it with `docker logs -f collector-report` or the run's own log file under `outputs/`.
 
 > **On stopping recon runs:** collector runs in a one-shot container, so the right way to abort an in-flight recon is `docker stop <container>` on the host. To wipe artifacts, `rm -rf` the target's directory under `outputs/`. Per-target `flock` already prevents concurrent runs against the same domain.
 

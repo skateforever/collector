@@ -278,8 +278,9 @@ _collector_hold_for_dashboard(){
         # The "dashboard is up" announcement itself already happened —
         # start_app_report (functions/app_report.sh) prints it the
         # moment gunicorn is confirmed alive, using
-        # app_report_advertised_host (the operator-facing address, not
-        # the container-internal bind address). This is just the
+        # app_report_host_address/app_report_host_port (the
+        # operator-facing address, not the container-internal bind
+        # address). This is just the
         # "how to stop it" follow-up, kept separate so the two don't
         # fight over which one is the "real" announcement.
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} collector-docker --report-down (or docker stop) to end."

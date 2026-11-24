@@ -655,7 +655,7 @@ if __name__ == "__main__":
     # Dev-only entrypoint. Production is gunicorn launched by
     # start_app_report() in functions/utils.sh.
     app.run(
-        host=os.environ.get("APP_REPORT_HOST", "127.0.0.1"),
-        port=int(os.environ.get("APP_REPORT_PORT", "8000")),
+        host=os.environ.get("APP_REPORT_CONTAINER_ADDRESS", "127.0.0.1"),
+        port=int(os.environ.get("APP_REPORT_CONTAINER_PORT", "8000")),
         debug=False,
     )

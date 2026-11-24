@@ -92,7 +92,6 @@ _app_report_pid_is_live(){
 # (called by `collector --report-up` alone, exec-replaces this shell).
 #
 # Everything the two variants used to duplicate lives here:
-#   * enablement gate (app_report_enabled)
 #   * resolution of app_dir / host / port / db
 #   * "already running?" pidfile check with stale-file cleanup
 #   * env-var exports consumed by app.py
@@ -119,16 +118,6 @@ run_app_report(){
         *) echo "run_app_report: unknown mode '${mode}'" >&2; return 2 ;;
     esac
 
-    if [[ "${app_report_enabled:-yes}" != "yes" ]]; then
-        # Background path used to silently return; foreground path now
-        # tells the operator why nothing happened — either way, we bail.
-        if [[ "${mode}" == "foreground" ]]; then
-            echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${tag}: app_report_enabled=no in conf.d/operation.conf, refusing to start."
-            return 1
-        fi
-        return 0
-    fi
-
     # The dashboard used to start unconditionally at the tail of every
     # recon — but collector is the container's PID 1, so the instant it
     # exited afterward, the kernel SIGKILLed the whole PID namespace
@@ -145,13 +134,15 @@ run_app_report(){
 
     local app_dir="${app_report_dir:-app-report}"
     [[ "${app_dir}" != /* ]] && app_dir="${collector_path:-.}/${app_dir}"
-    local host="${app_report_host:-127.0.0.1}"
-    local port="${app_report_port:-8000}"
-    # advertised_host is what the OPERATOR types into a browser — never
-    # the same thing as ${host} above when ${host} is 0.0.0.0 (a bind
-    # address, meaningless to open in a browser). See the comment on
-    # app_report_advertised_host in conf.d/operation.conf.
-    local advertised_host="${app_report_advertised_host:-127.0.0.1}"
+    local bind_address="${app_report_container_address:-127.0.0.1}"
+    local port="${app_report_container_port:-8000}"
+    # host_address/host_port are what the OPERATOR types into a browser —
+    # never the same thing as ${bind_address} above when it's 0.0.0.0 (a
+    # bind address, meaningless to open in a browser). See the comments
+    # on app_report_host_address/app_report_host_port in
+    # conf.d/operation.conf.
+    local host_address="${app_report_host_address:-127.0.0.1}"
+    local host_port="${app_report_host_port:-${port}}"
     local db="${collector_db:-${collector_path}/${app_report_dir:-app-report}/db/${collector_db_name:-collector-results}}"
     mkdir -p "$(app_report_run_dir)" 2>/dev/null
     local pidfile logfile
@@ -188,7 +179,7 @@ run_app_report(){
             # see _app_report_pid_is_live) — clean and move on.
             rm -f "${pidfile}"
         else
-            echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${tag}: already running (pid ${check_pid}) — access the dashboard at http://${advertised_host}:${port}"
+            echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${tag}: already running (pid ${check_pid}) — access the dashboard at http://${host_address}:${host_port}"
             if [[ "${mode}" == "foreground" ]]; then
                 echo -e "  stop it with ${yellow}collector --report-down${reset} (or ${yellow}collector-docker --report-down${reset}) before starting a new one."
                 return 1
@@ -207,7 +198,7 @@ run_app_report(){
         if ss -ltn 2>/dev/null | awk '{print $4}' | grep -qE "[:.]${port}$"; then
             echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${tag}: port ${port} is already bound by another process."
             if [[ "${mode}" == "foreground" ]]; then
-                echo -e "  free the port or set ${yellow}app_report_port${reset} in conf.d/operation.conf to a different value."
+                echo -e "  free the port or set ${yellow}app_report_container_port${reset} in conf.d/operation.conf to a different value."
                 return 1
             fi
             return 0
@@ -229,8 +220,8 @@ run_app_report(){
 
     export COLLECTOR_DB="${db}"
     export COLLECTOR_OUTPUT_DIR="${output_dir}"
-    export APP_REPORT_HOST="${host}"
-    export APP_REPORT_PORT="${port}"
+    export APP_REPORT_CONTAINER_ADDRESS="${bind_address}"
+    export APP_REPORT_CONTAINER_PORT="${port}"
 
     if [[ "${mode}" == "foreground" ]]; then
         cd "${app_dir}" || return 1
@@ -241,14 +232,14 @@ run_app_report(){
         # image changes. Set up BEFORE the "serving at" announcement so
         # that line lands in the shared log too, not just the terminal.
         exec > >(tee -a "${logfile}") 2>&1
-        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} The app-report dashboard is up — access it at http://${advertised_host}:${port} (Ctrl-C or --report-down to stop)"
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} The app-report dashboard is up — access it at http://${host_address}:${host_port} (Ctrl-C or --report-down to stop)"
         # Record OUR pid before exec — after exec, $$ is inherited by
         # gunicorn (same PID, different program), so --report-down still
         # targets the right process. Written to a temp path + rename so a
         # concurrent --report-down never sees a half-written file.
         echo "$$" > "${pidfile}.tmp" && mv "${pidfile}.tmp" "${pidfile}"
         if [[ "${launcher}" == "gunicorn" ]]; then
-            exec gunicorn --workers 1 --bind "${host}:${port}" \
+            exec gunicorn --workers 1 --bind "${bind_address}:${port}" \
                 --access-logfile - --error-logfile - app:app
         else
             exec python3 app.py
@@ -262,7 +253,7 @@ run_app_report(){
     (
         cd "${app_dir}" || exit 1
         if [[ "${launcher}" == "gunicorn" ]]; then
-            nohup gunicorn --workers 1 --bind "${host}:${port}" \
+            nohup gunicorn --workers 1 --bind "${bind_address}:${port}" \
                 --access-logfile - --error-logfile - app:app \
                 >> "${logfile}" 2>&1 &
         else
@@ -273,7 +264,7 @@ run_app_report(){
 
     sleep 1
     if [[ -s "${pidfile}" ]] && _app_report_pid_is_live "$(cat "${pidfile}")"; then
-        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} The app-report dashboard is up — access it at http://${advertised_host}:${port}"
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} The app-report dashboard is up — access it at http://${host_address}:${host_port}"
     else
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${tag}: failed to start (see ${logfile})"
         rm -f "${pidfile}"
