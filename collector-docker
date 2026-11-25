@@ -493,7 +493,7 @@ if ! docker image inspect "${COLLECTOR_IMAGE}" >/dev/null 2>&1; then
 fi
 
 # Detect report/mcp flags in "$@" so we can:
-#   --report-up / --mcp-up    → name the container 'collector-report'
+#   --report-up / --mcp-up    → name the container 'collector-reconnaissance'
 #                    and refuse if another one is already running (Docker's
 #                    --name collision gives a clear error, no port race).
 #                    Applies whether either flag was passed alone or
@@ -525,7 +525,7 @@ fi
 #                    graceful shutdown of whatever is running, not the
 #                    kernel's unconditional PID-namespace SIGKILL.
 # Long/short forms are both accepted, matching the collector CLI.
-REPORT_CONTAINER_NAME="${REPORT_CONTAINER_NAME:-collector-report}"
+COLLECTOR_CONTAINER_NAME="${COLLECTOR_CONTAINER_NAME:-collector-reconnaissance}"
 want_report_up=no
 want_mcp_up=no
 want_shutdown=no
@@ -562,16 +562,16 @@ if [[ "${want_shutdown}" == "yes" ]]; then
     # name) sitting there — see the matching note below, same root
     # cause. `docker rm` on an exited container is a no-op cleanup, not
     # a stop; only call `docker stop` when it's actually running.
-    if docker ps -a --format '{{.Names}}' | grep -qx "${REPORT_CONTAINER_NAME}"; then
-        if docker ps --format '{{.Names}}' | grep -qx "${REPORT_CONTAINER_NAME}"; then
-            docker stop "${REPORT_CONTAINER_NAME}" >/dev/null && \
-                echo "collector-docker: stopped ${REPORT_CONTAINER_NAME}"
+    if docker ps -a --format '{{.Names}}' | grep -qx "${COLLECTOR_CONTAINER_NAME}"; then
+        if docker ps --format '{{.Names}}' | grep -qx "${COLLECTOR_CONTAINER_NAME}"; then
+            docker stop "${COLLECTOR_CONTAINER_NAME}" >/dev/null && \
+                echo "collector-docker: stopped ${COLLECTOR_CONTAINER_NAME}"
         else
-            docker rm "${REPORT_CONTAINER_NAME}" >/dev/null && \
-                echo "collector-docker: removed already-exited ${REPORT_CONTAINER_NAME}"
+            docker rm "${COLLECTOR_CONTAINER_NAME}" >/dev/null && \
+                echo "collector-docker: removed already-exited ${COLLECTOR_CONTAINER_NAME}"
         fi
     else
-        echo "collector-docker: no container named ${REPORT_CONTAINER_NAME}"
+        echo "collector-docker: no container named ${COLLECTOR_CONTAINER_NAME}"
     fi
     exit 0
 fi
@@ -689,8 +689,8 @@ fi
 # want_persistent_container above for why.
 name_args=()
 if [[ "${want_persistent_container}" == "yes" ]]; then
-    if docker ps --format '{{.Names}}' | grep -qx "${REPORT_CONTAINER_NAME}"; then
-        echo "collector-docker: container '${REPORT_CONTAINER_NAME}' is already running." >&2
+    if docker ps --format '{{.Names}}' | grep -qx "${COLLECTOR_CONTAINER_NAME}"; then
+        echo "collector-docker: container '${COLLECTOR_CONTAINER_NAME}' is already running." >&2
         echo "  stop it first with: collector-docker --shutdown" >&2
         exit 1
     fi
@@ -698,15 +698,15 @@ if [[ "${want_persistent_container}" == "yes" ]]; then
     # outside collector-docker — e.g. the Docker daemon restarting) is
     # invisible to the `docker ps` check above, but Docker still holds
     # its name reserved until it's removed — confirmed: `docker run
-    # --name collector-report ...` right after a daemon restart
+    # --name collector-reconnaissance ...` right after a daemon restart
     # failed with "Conflict. The container name ... is already in use", even
     # though nothing was actually running. Clear a stale, stopped
     # container with that exact name before the real `docker run`
     # below, so a prior crash doesn't block every future --report-up/--mcp-up.
-    if docker ps -a --format '{{.Names}}' | grep -qx "${REPORT_CONTAINER_NAME}"; then
-        docker rm "${REPORT_CONTAINER_NAME}" >/dev/null
+    if docker ps -a --format '{{.Names}}' | grep -qx "${COLLECTOR_CONTAINER_NAME}"; then
+        docker rm "${COLLECTOR_CONTAINER_NAME}" >/dev/null
     fi
-    name_args=(--name "${REPORT_CONTAINER_NAME}")
+    name_args=(--name "${COLLECTOR_CONTAINER_NAME}")
 fi
 
 # Mount scripts from the host so the container always uses the latest code
@@ -846,8 +846,8 @@ if [[ "${want_persistent_container}" == "yes" ]]; then
     if [[ "${services_up}" == "yes" ]]; then
         exit 0
     fi
-    echo "collector-docker: ${REPORT_CONTAINER_NAME} exited before the requested service(s) came up." >&2
-    echo "  check what happened: docker logs ${REPORT_CONTAINER_NAME} (the container stays until you remove it)" >&2
+    echo "collector-docker: ${COLLECTOR_CONTAINER_NAME} exited before the requested service(s) came up." >&2
+    echo "  check what happened: docker logs ${COLLECTOR_CONTAINER_NAME} (the container stays until you remove it)" >&2
     exit 1
 fi
 
