@@ -239,6 +239,13 @@ its stdin/stdout. Any client that supports stdio MCP servers works the
 same way; consult that client's own docs for where its server config
 file lives.
 
+If the server is running over `streamable-http` instead (e.g. via
+`-mu|--mcp-up`, see below), the client config shape is different —
+`type`/`url`, not `command`/`args` — see
+[Remote access over HTTP](#remote-access-over-http)'s "Option B —
+HTTP" section below for the exact JSON and a verified `claude mcp add`
+one-liner.
+
 ## Remote access over HTTP
 
 stdio only works when the client can spawn the server as its own
@@ -318,8 +325,32 @@ python3 collector-mcp.py
 
 The server listens on `/mcp` (streamable-http, the current MCP spec's
 HTTP transport) at `http://<that-machine's-IP>:8010/mcp`. Point the
-remote MCP client at that URL — consult that client's own docs for its
-HTTP-server config shape, since it varies more than stdio config does.
+remote MCP client at that URL. Unlike stdio's `command`/`args` shape
+(see [Client setup](#client-setup) above), an HTTP server is
+configured with a `type`/`url` pair instead — no process for the
+client to spawn, it just connects:
+
+```json
+{
+  "mcpServers": {
+    "collector": {
+      "type": "http",
+      "url": "http://<that-machine's-IP>:8010/mcp"
+    }
+  }
+}
+```
+
+For Claude Code specifically, the equivalent one-liner (verified
+against the CLI — this is the exact shape it writes):
+
+```bash
+claude mcp add --transport http collector http://<that-machine's-IP>:8010/mcp
+```
+
+Other clients accept the same `type: "http"` / `url` shape in their
+own config file, but confirm against that client's own docs — this is
+what Claude Code does, not a universal guarantee.
 
 One SDK detail worth knowing: `FastMCP` auto-enables DNS-rebinding
 protection (which would reject any request whose `Host` header isn't
