@@ -26,9 +26,19 @@
     window.tailwind = window.tailwind || {};
     window.tailwind.config = { darkMode: 'class' };
   </script>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <!--
+    defer (not async): these 3 CDN scripts used to block parsing — the
+    browser couldn't paint anything until all three finished downloading,
+    which stalled the whole page open whenever the CDNs were slow to
+    reach. defer lets the HTML parse (and the rest of the page render)
+    while they load in the background, still runs them in document order
+    before DOMContentLoaded — same guarantee async drops — which the
+    inline scripts below rely on (see target.html's own defer-ordering
+    note for its Chart usage).
+  -->
+  <script defer src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     [x-cloak]{display:none}
 
