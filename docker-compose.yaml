@@ -7,24 +7,25 @@ services:
     # Bind-mount paths are relative to the repo so 'docker compose run'
     # works on a fresh clone with no sudo and no pre-created directories.
     # The host-side ./outputs and ./wordlists directories are created
-    # automatically by Docker on first run; ./conf.d, ./app-report/db and
-    # ./app-report/run already exist in the repo (operation.conf/
+    # automatically by Docker on first run; ./conf.d, ./support/web-report/db and
+    # ./support/web-report/run already exist in the repo (operation.conf/
     # functions.conf tracked; apis-recon.conf and apis-emails.conf are
     # gitignored — copy their *.conf.example templates if you want to fill
-    # in real API keys, collector runs fine without them; app-report/db
-    # and app-report/run are tracked as empty dirs via .gitkeep, see
+    # in real API keys, collector runs fine without them; support/web-report/db
+    # and support/web-report/run are tracked as empty dirs via .gitkeep, see
     # .gitignore).
     #
-    # app-report/db and app-report/run are mounted onto themselves — the
-    # SAME repo-relative path on both host and container sides, no
-    # separate/aliased directory name — since app-report is a tool-level,
-    # long-lived process (its DB and pidfile/logfile aren't per-run recon
-    # output), not because it needs a *different* host location. Override
-    # to move them elsewhere via .env if you do want a different host path:
+    # support/web-report/db and support/web-report/run are mounted onto
+    # themselves — the SAME repo-relative path on both host and container
+    # sides, no separate/aliased directory name — since web-report is a
+    # tool-level, long-lived process (its DB and pidfile/logfile aren't
+    # per-run recon output), not because it needs a *different* host
+    # location. Override to move them elsewhere via .env if you do want a
+    # different host path:
     #   OUTPUTS_DIR=/data/recon/outputs
     #   WORDLISTS_DIR=/data/wordlists
-    #   APP_REPORT_DB_DIR=/data/app-report/db
-    #   APP_REPORT_RUN_DIR=/data/app-report/run
+    #   WEB_REPORT_DB_DIR=/data/web-report/db
+    #   WEB_REPORT_RUN_DIR=/data/web-report/run
     #   CONF_D_DIR=/opt/collector/conf.d
     #   ALERT_PROVIDER=/opt/collector/support/templates/alerts-notify/discord-provider.yaml
     #
@@ -35,8 +36,8 @@ services:
     volumes:
       - ${OUTPUTS_DIR:-./outputs}:/opt/collector/outputs
       - ${WORDLISTS_DIR:-./wordlists}:/opt/collector/wordlists
-      - ${APP_REPORT_DB_DIR:-./app-report/db}:/opt/collector/app-report/db
-      - ${APP_REPORT_RUN_DIR:-./app-report/run}:/opt/collector/app-report/run
+      - ${WEB_REPORT_DB_DIR:-./support/web-report/db}:/opt/collector/support/web-report/db
+      - ${WEB_REPORT_RUN_DIR:-./support/web-report/run}:/opt/collector/support/web-report/run
       - ${CONF_D_DIR:-./conf.d}:/opt/collector/conf.d:ro
     # `docker compose run` (the verb this file documents below) does NOT
     # publish this by default — only `-P|--service-ports` or `docker
@@ -46,27 +47,27 @@ services:
     # dashboard itself only ever starts with -ru|--report-up regardless
     # (see README's Dashboard control section).
     #
-    # APP_REPORT_CONTAINER_PORT must match app_report_container_port
+    # WEB_REPORT_CONTAINER_PORT must match web_report_container_port
     # in conf.d/operation.conf (the port gunicorn actually binds to
-    # INSIDE the container — see functions/app_report.sh) on BOTH sides
+    # INSIDE the container — see functions/web_report.sh) on BOTH sides
     # of the mapping. Unlike collector-docker (plain bash, reads
     # operation.conf itself — see its own header comment), Compose's
     # YAML can't execute shell logic to read that file, so this has to
     # be kept in sync by hand: if you change
-    # app_report_container_port, set APP_REPORT_CONTAINER_PORT
+    # web_report_container_port, set WEB_REPORT_CONTAINER_PORT
     # to the same value via .env (Docker Compose loads it automatically
     # — see "Execution methods" above).
     #
-    # APP_REPORT_HOST_ADDRESS mirrors app_report_host_address in
+    # WEB_REPORT_HOST_ADDRESS mirrors web_report_host_address in
     # conf.d/operation.conf (collector-docker reads that file directly;
-    # Compose's YAML can't, same reasoning as APP_REPORT_CONTAINER_PORT
+    # Compose's YAML can't, same reasoning as WEB_REPORT_CONTAINER_PORT
     # above — keep both in sync by hand via .env). Defaults to 127.0.0.1
     # (not reachable from other machines) — set it to the machine's
     # LAN/public IP, or 0.0.0.0 for every interface, to reach the
     # dashboard from another machine; the printed dashboard URL uses
     # this same value, so it stays accurate automatically.
     ports:
-      - "${APP_REPORT_HOST_ADDRESS:-127.0.0.1}:${APP_REPORT_CONTAINER_PORT:-8000}:${APP_REPORT_CONTAINER_PORT:-8000}"
+      - "${WEB_REPORT_HOST_ADDRESS:-127.0.0.1}:${WEB_REPORT_CONTAINER_PORT:-8000}:${WEB_REPORT_CONTAINER_PORT:-8000}"
 
 # Usage:
 #   # collector exits with usage() when called without args, so 'up' is
@@ -81,5 +82,5 @@ services:
 #   # subcommand). plain logs every step as it starts instead of an
 #   # interactive spinner — makes a stuck build diagnosable.
 #   # ./outputs and ./wordlists are created automatically on first run;
-#   # ./app-report/db and ./app-report/run already exist in the repo.
+#   # ./support/web-report/db and ./support/web-report/run already exist in the repo.
 #   # Drop your wordlists into ./wordlists before passing -ww/--webapp-wordlists.

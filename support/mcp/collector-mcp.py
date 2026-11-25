@@ -19,7 +19,7 @@ Configuration precedence, for every setting below: (1) an environment
 variable, if set; (2) the matching value in conf.d/operation.conf,
 read by _read_operation_conf_var() — a deliberately dumb grep/sed
 reader (same approach collector-docker's own
-_read_operation_conf_var() uses for app_report_*), not a shell parser,
+_read_operation_conf_var() uses for web_report_*), not a shell parser,
 so operation.conf's own ${...}-expansions aren't resolved in general —
 the one exception is "${collector_path}" specifically, substituted
 directly with REPO_ROOT (see _read_operation_conf_var() below) since
@@ -29,9 +29,9 @@ the single source of truth for an installed, unattended deployment;
 environment variables remain for a one-off override without editing
 that file (e.g. a quick debugging session).
 
-Unlike app.py, this file lives under support/mcp/ (two levels below
-the repo root, not sibling to app-report/db/ or outputs/) — see
-REPO_ROOT below for how its path fallbacks account for that.
+This file lives under support/mcp/ (two levels below the repo root,
+not sibling to support/web-report/db/ or outputs/) — see REPO_ROOT
+below for how its path fallbacks account for that.
 
 COLLECTOR_CONTAINER_OUTPUT_DIR / collector_mcp_output_dir exist only
 because this server (unlike app.py) is meant to run on the HOST while
@@ -61,8 +61,8 @@ from typing import Optional
 from mcp.server.fastmcp import FastMCP
 
 # This file sits at ${collector_path}/support/mcp/collector-mcp.py —
-# two levels below ${collector_path}, unlike app.py's one
-# (${collector_path}/app-report/). REPO_ROOT is this file's own,
+# two levels below ${collector_path}, same depth as app.py's own
+# (${collector_path}/support/web-report/). REPO_ROOT is this file's own,
 # Python-computed equivalent of collector_path (see
 # _read_operation_conf_var() below for why that equivalence matters).
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -100,22 +100,22 @@ def _config(env_name: str, conf_name: str, default: str) -> str:
 
 # Same anchoring rationale as app.py: these fallbacks only matter when
 # the server is run without operation.conf readable and without the
-# env vars collector-docker/start_app_report normally export, and
+# env vars collector-docker/start_web_report normally export, and
 # should still point at the real locations rather than wherever the
 # caller happened to `cd` from.
 #
-# collector_db in operation.conf is itself "${collector_path}/${app_report_dir}/db/${collector_db_name}"
+# collector_db in operation.conf is itself "${collector_path}/${web_report_dir}/db/${collector_db_name}"
 # — an expression _read_operation_conf_var() can't resolve (no
-# ${collector_path} in this Python process). app_report_dir and
+# ${collector_path} in this Python process). web_report_dir and
 # collector_db_name are plain literals though, so COLLECTOR_DB is
 # rebuilt from those two instead of trying to read collector_db
 # itself. COLLECTOR_OUTPUT_DIR has no such equivalent in
 # operation.conf (output_dir there is always the CONTAINER path, see
 # CONTAINER_OUTPUT_DIR below) — collector_mcp_output_dir is this file's
 # own, HOST-side counterpart.
-_app_report_dir = _config("", "app_report_dir", "app-report")
+_web_report_dir = _config("", "web_report_dir", "support/web-report")
 _collector_db_name = _config("", "collector_db_name", "collector-results")
-DB_PATH = Path(os.environ.get("COLLECTOR_DB") or (REPO_ROOT / _app_report_dir / "db" / _collector_db_name)).resolve()
+DB_PATH = Path(os.environ.get("COLLECTOR_DB") or (REPO_ROOT / _web_report_dir / "db" / _collector_db_name)).resolve()
 OUTPUT_DIR = Path(_config("COLLECTOR_OUTPUT_DIR", "collector_mcp_output_dir", "") or (REPO_ROOT / "outputs")).resolve()
 
 # report_dir, as stored in recon_runs, is ALWAYS the CONTAINER-side path
@@ -154,8 +154,8 @@ def to_host_path(container_report_dir: str) -> str:
 # other than 127.0.0.1 — this server ships NO AUTHENTICATION over
 # HTTP, by design, for now (early-stage, same-network testing only).
 TRANSPORT = _config("COLLECTOR_MCP_TRANSPORT", "collector_mcp_transport", "stdio")
-# Same split as app.py's APP_REPORT_CONTAINER_ADDRESS vs.
-# app_report_host_address: BIND_HOST is what uvicorn actually binds to
+# Same split as app.py's WEB_REPORT_CONTAINER_ADDRESS vs.
+# web_report_host_address: BIND_HOST is what uvicorn actually binds to
 # INSIDE this process's own network namespace (0.0.0.0 when launched
 # via -mu|--mcp-up in a container — see conf.d/operation.conf's own
 # comment on collector_mcp_container_address for why 127.0.0.1 there
@@ -168,7 +168,7 @@ TRANSPORT = _config("COLLECTOR_MCP_TRANSPORT", "collector_mcp_transport", "stdio
 BIND_HOST = _config("COLLECTOR_MCP_CONTAINER_ADDRESS", "collector_mcp_container_address", "127.0.0.1")
 HTTP_PORT = int(_config("COLLECTOR_MCP_PORT", "collector_mcp_port", "8010"))
 
-# Refuse to start over HTTP on the same port as the app-report
+# Refuse to start over HTTP on the same port as the web-report
 # dashboard — they're two unrelated services that can both be running
 # at once (collector-mcp.py doesn't need the dashboard up, and vice
 # versa — see this file's own module docstring), so a silent collision
@@ -176,14 +176,14 @@ HTTP_PORT = int(_config("COLLECTOR_MCP_PORT", "collector_mcp_port", "8010"))
 # gunicorn (or vice versa) depending on start order. Only checked for
 # the HTTP transport: stdio never binds a port at all.
 if TRANSPORT != "stdio":
-    _app_report_container_port = _config("", "app_report_container_port", "8000")
-    _app_report_host_port = _config("", "app_report_host_port", "8001")
-    _conflicting = {_app_report_container_port, _app_report_host_port} & {str(HTTP_PORT)}
+    _web_report_container_port = _config("", "web_report_container_port", "8000")
+    _web_report_host_port = _config("", "web_report_host_port", "8001")
+    _conflicting = {_web_report_container_port, _web_report_host_port} & {str(HTTP_PORT)}
     if _conflicting:
         sys.exit(
-            f"collector-mcp: port {HTTP_PORT} collides with the app-report dashboard "
-            f"(app_report_container_port={_app_report_container_port}, "
-            f"app_report_host_port={_app_report_host_port} in conf.d/operation.conf). "
+            f"collector-mcp: port {HTTP_PORT} collides with the web-report dashboard "
+            f"(web_report_container_port={_web_report_container_port}, "
+            f"web_report_host_port={_web_report_host_port} in conf.d/operation.conf). "
             "Set a different collector_mcp_port there, or COLLECTOR_MCP_PORT in the "
             "environment, before using the HTTP transport."
         )

@@ -20,7 +20,7 @@ message(){
         # Printed HERE, immediately — no longer deferred to cleanup_global.
         # It used to be deferred so it would land as the LAST line, after
         # cleanup_global's own shutdown steps — but with -ru|--report-up,
-        # start_app_report (called right after this in domains_recon.sh/
+        # start_web_report (called right after this in domains_recon.sh/
         # url_recon.sh) can be followed by _collector_hold_for_dashboard
         # blocking for as long as the dashboard stays up (minutes to
         # hours). Deferring meant "finished!" only appeared once the

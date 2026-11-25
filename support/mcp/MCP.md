@@ -26,15 +26,16 @@ artifact whitelist, nuclei parser) by design — see
 [Keeping this in sync with app.py](#keeping-this-in-sync-with-apppy)
 below.
 
-It lives under `support/mcp/` rather than `app-report/` for the same
-reason: `app-report/` is gunicorn's own working directory (`cd
-app-report && gunicorn app:app`, see `functions/app_report.sh`) — this
-script sitting next to `app.py` there was never a functional
-dependency, gunicorn never looks at any other file in that directory.
-`support/` is where the rest of collector's auxiliary, non-scan
-tooling already lives (`support/docker/`, `support/runtime/`,
-`support/templates/`), so `support/mcp/` keeps this script out of the
-dashboard's own directory without changing how either one runs.
+It lives under `support/mcp/` rather than `support/web-report/` for the
+same reason: `support/web-report/` is gunicorn's own working directory
+(`cd support/web-report && gunicorn app:app`, see
+`functions/web_report.sh`) — this script sitting next to `app.py`
+there was never a functional dependency, gunicorn never looks at any
+other file in that directory. `support/` is where the rest of
+collector's auxiliary, non-scan tooling already lives
+(`support/docker/`, `support/runtime/`, `support/templates/`), so
+`support/mcp/` keeps this script out of the dashboard's own directory
+without changing how either one runs.
 
 ## The container/host path problem (read this before anything else)
 
@@ -78,7 +79,7 @@ editing that file.
 
 `conf.d/operation.conf` is read with a **deliberately dumb grep/sed
 reader** (`_read_operation_conf_var()`, same approach
-`collector-docker`'s own reader already uses for `app_report_*`) — not
+`collector-docker`'s own reader already uses for `web_report_*`) — not
 a shell parser, so it doesn't resolve arbitrary `${...}`/`$(...)`
 shell expressions. The one exception is the literal substring
 `"${collector_path}"` specifically: it's substituted directly with
@@ -93,19 +94,19 @@ through as a literal string, unresolved — don't introduce one.
 
 | Variable | conf.d/operation.conf | Default | Meaning |
 |----------|------------------------|---------|---------|
-| `COLLECTOR_DB` | *(rebuilt from `app_report_dir` + `collector_db_name`, both literals)* | `${collector_path}/app-report/db/collector-results` | Path to the SQLite results DB, opened `mode=ro`. |
+| `COLLECTOR_DB` | *(rebuilt from `web_report_dir` + `collector_db_name`, both literals)* | `${collector_path}/support/web-report/db/collector-results` | Path to the SQLite results DB, opened `mode=ro`. |
 | `COLLECTOR_OUTPUT_DIR` | `collector_mcp_output_dir` | `${collector_path}/outputs` | Host-side path corresponding to the container's `outputs/` — i.e. the same directory `collector-docker`'s `OUTPUTS_DIR` bind-mounts from. Ships as `"${collector_path}/outputs"` — correct out of the box for any checkout; only change it if `OUTPUTS_DIR` points somewhere else. |
 | `COLLECTOR_CONTAINER_OUTPUT_DIR` | `output_dir` *(reused directly)* | `/opt/collector/outputs` | The container-side prefix stored in `report_dir` — this is `operation.conf`'s own `output_dir`, the exact value collector itself writes to the DB. Only set the env var if `operation.conf` genuinely isn't reachable from wherever this server runs. |
 | `COLLECTOR_MCP_TRANSPORT` | `collector_mcp_transport` | `stdio` | `stdio` (local subprocess) or `streamable-http` (plain HTTP server — see the dedicated section and its security warning below). Ships as `streamable-http` so `-mu|--mcp-up` works out of the box; set back to `stdio` if you only ever launch this script directly from an MCP client. |
-| `COLLECTOR_MCP_CONTAINER_ADDRESS` | `collector_mcp_container_address` | `0.0.0.0` | The actual bind address `FastMCP(host=...)` uses, only relevant for `streamable-http`. Same split as `app.py`'s `APP_REPORT_CONTAINER_ADDRESS`: this is the CONTAINER-internal address — `functions/mcp_server.sh` (the `-mu|--mcp-up`/`-sd|--shutdown` lifecycle) reads `collector_mcp_container_address` from `conf.d/operation.conf` and exports it for you, ships at `0.0.0.0` so `-mu` works out of the box through `docker run -p`; `127.0.0.1` here is unreachable through `-p` no matter how correctly the port is published. |
-| `COLLECTOR_MCP_HOST` | `collector_mcp_host` | `127.0.0.1` | The operator-facing address — what you type into your client, and what `collector-docker` publishes `-mu|--mcp-up` on (the `-p` flag's host-side half). Deliberately **not** the bind address above, same reason `app_report_host_address` isn't `app_report_container_address`. |
-| `COLLECTOR_MCP_PORT` | `collector_mcp_port` | `8010` | Bind port, only used when the transport is `streamable-http`. **Must not collide with `app_report_container_port`/`app_report_host_port`** — see the next section. |
+| `COLLECTOR_MCP_CONTAINER_ADDRESS` | `collector_mcp_container_address` | `0.0.0.0` | The actual bind address `FastMCP(host=...)` uses, only relevant for `streamable-http`. Same split as `app.py`'s `WEB_REPORT_CONTAINER_ADDRESS`: this is the CONTAINER-internal address — `functions/mcp_server.sh` (the `-mu|--mcp-up`/`-sd|--shutdown` lifecycle) reads `collector_mcp_container_address` from `conf.d/operation.conf` and exports it for you, ships at `0.0.0.0` so `-mu` works out of the box through `docker run -p`; `127.0.0.1` here is unreachable through `-p` no matter how correctly the port is published. |
+| `COLLECTOR_MCP_HOST` | `collector_mcp_host` | `127.0.0.1` | The operator-facing address — what you type into your client, and what `collector-docker` publishes `-mu|--mcp-up` on (the `-p` flag's host-side half). Deliberately **not** the bind address above, same reason `web_report_host_address` isn't `web_report_container_address`. |
+| `COLLECTOR_MCP_PORT` | `collector_mcp_port` | `8010` | Bind port, only used when the transport is `streamable-http`. **Must not collide with `web_report_container_port`/`web_report_host_port`** — see the next section. |
 
 `COLLECTOR_DB`'s conf-file path is special: `operation.conf`'s own
-`collector_db` variable is itself `${collector_path}/${app_report_dir}/db/${collector_db_name}`
-— `${app_report_dir}` isn't handled by the `${collector_path}`
+`collector_db` variable is itself `${collector_path}/${web_report_dir}/db/${collector_db_name}`
+— `${web_report_dir}` isn't handled by the `${collector_path}`
 substitution above, so this one expression as a whole still can't be
-read directly. `app_report_dir` and `collector_db_name` are plain
+read directly. `web_report_dir` and `collector_db_name` are plain
 literals on their own though, so `COLLECTOR_DB`'s default is rebuilt
 from those two directly instead of trying to read `collector_db`
 itself.
@@ -119,19 +120,19 @@ one-level-up resolution.
 
 If you're running this checkout exactly as documented in the main
 [README](../../README.md) (`collector-docker` with its default
-`OUTPUTS_DIR`/`APP_REPORT_DB_DIR`), the defaults above already point at
+`OUTPUTS_DIR`/`WEB_REPORT_DB_DIR`), the defaults above already point at
 the right place — **no configuration is required**, just point your
 MCP client at the script (see below).
 
-### Port conflict with the app-report dashboard
+### Port conflict with the web-report dashboard
 
 `collector_mcp_port` (default `8010`) is deliberately **not**
-`app_report_container_port`/`app_report_host_port` (`8000`/`8001` by
+`web_report_container_port`/`web_report_host_port` (`8000`/`8001` by
 default) — the dashboard and this server are two independent
 processes that can both be running at the same time (neither depends
 on the other being up), so they need two different ports. If
 `collector_mcp_port` (or `COLLECTOR_MCP_PORT`) is ever set to the same
-value as either app-report port, **the server refuses to start** over
+value as either web-report port, **the server refuses to start** over
 the HTTP transport with a clear error naming both conflicting values —
 rather than silently failing to bind, or binding and quietly stealing
 traffic from whichever process started second. This check only runs
@@ -148,7 +149,7 @@ below.
 As an alternative — for a client on another machine, or just to keep
 the server running independently of any one client's lifecycle —
 `collector`'s own CLI can manage it as a long-lived `streamable-http`
-service, the same way `-ru|--report-up` already manages the app-report
+service, the same way `-ru|--report-up` already manages the web-report
 dashboard, stopped the same unified way via `-sd|--shutdown`:
 
 ```bash
@@ -180,12 +181,12 @@ programs at once, so running both requires this shape regardless of
 how `--shutdown` stops them later.
 
 The implementation is `functions/mcp_server.sh`, deliberately mirroring
-`functions/app_report.sh`'s shared-pidfile, dual background/foreground
+`functions/web_report.sh`'s shared-pidfile, dual background/foreground
 design — see that file's own header comment for the full rationale
 (stale-pidfile detection across container restarts, PID-namespace
 caveats, etc.), which applies here unchanged. `collector-docker
 --shutdown` always stops the WHOLE container — both this server and an
-app-report dashboard, if also running there — equivalent to `docker
+web-report dashboard, if also running there — equivalent to `docker
 stop` on the container; there is no narrower "stop just the MCP server"
 mode anymore.
 
@@ -307,7 +308,7 @@ Either set it permanently in `conf.d/operation.conf`:
 collector_mcp_transport="streamable-http"
 collector_mcp_container_address="0.0.0.0"   # the actual bind address
 collector_mcp_host="<that machine's LAN/public IP>"   # what you'll type into the client
-collector_mcp_port="8010"   # keep this different from app_report_container_port/app_report_host_port
+collector_mcp_port="8010"   # keep this different from web_report_container_port/web_report_host_port
 ```
 
 or override it for one invocation via the environment, without
@@ -394,7 +395,7 @@ Everything below was run against this server (SDK version
 
 ```bash
 cd support/mcp
-MCP_PORT=8011   # anything free and != app_report_container_port/app_report_host_port
+MCP_PORT=8011   # anything free and != web_report_container_port/web_report_host_port
 COLLECTOR_MCP_TRANSPORT=streamable-http COLLECTOR_MCP_CONTAINER_ADDRESS=127.0.0.1 COLLECTOR_MCP_PORT=$MCP_PORT \
 python3 collector-mcp.py &
 ```
@@ -492,7 +493,7 @@ curl -s -X POST "http://127.0.0.1:${MCP_PORT}/mcp" \
 The JSON-RPC `result` looks like:
 
 ```json
-{"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"{\n  \"ok\": true,\n  \"targets\": 3,\n  \"db\": \"/path/to/collector/app-report/db/collector-results\",\n  \"output_dir\": \"/path/to/collector/outputs\"\n}"}],"isError":false}}
+{"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"{\n  \"ok\": true,\n  \"targets\": 3,\n  \"db\": \"/path/to/collector/support/web-report/db/collector-results\",\n  \"output_dir\": \"/path/to/collector/outputs\"\n}"}],"isError":false}}
 ```
 
 Two layers to read here, and this is the part that trips people up:
@@ -513,9 +514,9 @@ the `event:`/`data:` SSE framing) to get at `ok`/`targets`/`db`/
   (check `collector_mcp_transport`/`COLLECTOR_MCP_TRANSPORT`), or you
   used the wrong port.
 - **The process exits immediately on startup**, printing something
-  like `collector-mcp: port 8000 collides with the app-report
-  dashboard (app_report_container_port=8000,
-  app_report_host_port=8001 in conf.d/operation.conf)...` — you picked
+  like `collector-mcp: port 8000 collides with the web-report
+  dashboard (web_report_container_port=8000,
+  web_report_host_port=8001 in conf.d/operation.conf)...` — you picked
   a `collector_mcp_port`/`COLLECTOR_MCP_PORT` that matches the
   dashboard's port. This is `sys.exit()`, not a crash; there's no HTTP
   response to curl at all, because the port is never bound. Pick a
@@ -629,7 +630,7 @@ a manual step, flagged here so it isn't missed.
 ## Requirements
 
 `support/mcp/requirements.txt` has the one dependency this file needs
-— `mcp<2` — kept separate from `app-report/requirements.txt`
+— `mcp<2` — kept separate from `support/web-report/requirements.txt`
 (flask/gunicorn, for `app.py`): the two run as entirely different
 processes and don't need each other's dependencies installed. Pinned
 below 2.x because `FastMCP` was renamed/restructured in the SDK's 2.x

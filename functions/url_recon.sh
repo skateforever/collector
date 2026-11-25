@@ -83,11 +83,11 @@ url_recon(){
     build_llm_prompt
     build_llm_json
     db_usage
-    # start_app_report before message() — see the ordering note in
+    # start_web_report before message() — see the ordering note in
     # functions/domains_recon.sh's "Only web app discovery" branch,
     # same reasoning: the dashboard's own "is up" line should read
     # before the run's "finished!" verdict, not after.
-    start_app_report
+    start_web_report
     start_mcp_server
     message "${url_domain}" finished
     rm "${recon_dir}/url_test.txt" > /dev/null 2>&1) 2>> "${log_execution_file}" | tee -a "${log_execution_file}"

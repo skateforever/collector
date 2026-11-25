@@ -4,7 +4,7 @@
 # collector-mcp.py lifecycle.                               #
 #                                                           #
 # Same two-launch-mode/one-shared-pidfile shape as           #
-# functions/app_report.sh — see that file's own header for   #
+# functions/web_report.sh — see that file's own header for   #
 # the full rationale, which applies here unchanged:          #
 #                                                           #
 #   * background — spawned at the tail of a recon run so    #
@@ -17,7 +17,7 @@
 # One pidfile/logfile under support/mcp/run/ (sibling to     #
 # support/mcp/collector-mcp.py itself) — a shared identity   #
 # so --shutdown can stop EITHER launch mode, same as         #
-# it does for app-report.                                     #
+# it does for web-report.                                     #
 #                                                           #
 # Only the streamable-http transport is supported here —    #
 # stdio is a per-MCP-client subprocess with no network port  #
@@ -39,7 +39,7 @@
 
 # mcp_server_run_dir — support/mcp/run, sibling to collector-mcp.py itself.
 # mkdir -p defensively; also tracked in git via a .gitkeep (same pattern as
-# app-report/run) so a fresh checkout/image already has it.
+# support/web-report/run) so a fresh checkout/image already has it.
 mcp_server_run_dir(){
     local mcp_dir="${collector_path:-.}/support/mcp"
     echo "${mcp_dir}/run"
@@ -47,7 +47,7 @@ mcp_server_run_dir(){
 
 # mcp_server_pidfile / mcp_server_logfile — path resolvers shared by every
 # start/stop path (background AND foreground alike), same reasoning as
-# app_report_pidfile/app_report_logfile.
+# web_report_pidfile/web_report_logfile.
 mcp_server_pidfile(){
     echo "${mcp_server_pidfile_path:-$(mcp_server_run_dir)/${mcp_server_pidfile_name:-collector-mcp.pid}}"
 }
@@ -57,7 +57,7 @@ mcp_server_logfile(){
 
 # _mcp_server_pid_is_live — is this PID actually OUR collector-mcp.py
 # process, not merely a live PID? Same /proc/<pid>/cmdline disambiguation
-# as _app_report_pid_is_live, and for the exact same reason: a pidfile
+# as _web_report_pid_is_live, and for the exact same reason: a pidfile
 # written by a foreground run (where collector-mcp.py exec'd into PID 1)
 # reads back as "pid 1, alive" in the NEXT container too, where PID 1 is
 # `collector` itself — without this check, start_mcp_server would
@@ -75,9 +75,9 @@ _mcp_server_pid_is_live(){
 # run_mcp_server — single implementation behind start_mcp_server (called at
 # the tail of a recon run, backgrounded) and start_mcp_server_foreground
 # (called by `collector --mcp-up` alone, exec-replaces this shell). Mirrors
-# run_app_report's structure (functions/app_report.sh) point for point.
+# run_web_report's structure (functions/web_report.sh) point for point.
 #
-# Mode-dependent behavior is fenced by "$1", same meaning as run_app_report:
+# Mode-dependent behavior is fenced by "$1", same meaning as run_web_report:
 #   background  — nohup + &, returns after confirming the child is alive.
 #                 A failed preflight is a soft skip (return 0) so a recon
 #                 run isn't aborted by a missing/misconfigured MCP server.
@@ -93,7 +93,7 @@ run_mcp_server(){
         *) echo "run_mcp_server: unknown mode '${mode}'" >&2; return 2 ;;
     esac
 
-    # Same reasoning as run_app_report's report_up_check gate: background
+    # Same reasoning as run_web_report's report_up_check gate: background
     # mode only ever fires when the operator explicitly asked for it via
     # -mu|--mcp-up. Foreground mode needs no such gate — it's only ever
     # reached via the --mcp-up-alone dispatch in collector, where
@@ -116,13 +116,13 @@ run_mcp_server(){
     fi
 
     local mcp_script="${collector_path:-.}/support/mcp/collector-mcp.py"
-    # Same bind-vs-announce split as run_app_report's bind_address/
+    # Same bind-vs-announce split as run_web_report's bind_address/
     # host_address: bind_address is the CONTAINER-internal address
     # collector-mcp.py's own FastMCP(host=...) actually binds to (must be
     # 0.0.0.0 for -mu|--mcp-up's published port to reach it — a 127.0.0.1
     # bind here is unreachable through `docker run -p` no matter how
     # correctly the port is published, same confirmed failure mode as
-    # app_report_container_address's own comment). host/port are what the
+    # web_report_container_address's own comment). host/port are what the
     # OPERATOR types into their client — never bound directly, only
     # printed and handed to collector-docker's -p mapping.
     local bind_address="${collector_mcp_container_address:-127.0.0.1}"
@@ -160,7 +160,7 @@ run_mcp_server(){
     fi
 
     # Even without a matching pidfile, the TCP port may already be taken —
-    # same rationale and same tool-availability fallback as run_app_report's
+    # same rationale and same tool-availability fallback as run_web_report's
     # own port-busy check.
     if command -v ss >/dev/null 2>&1; then
         if ss -ltn 2>/dev/null | awk '{print $4}' | grep -qE "[:.]${port}$"; then
@@ -187,19 +187,19 @@ run_mcp_server(){
     # through collector-docker's -p mapping (uvicorn only ever bound
     # 127.0.0.1 inside the container, confirmed via `docker exec ...
     # curl` succeeding while curl from outside got "Empty reply from
-    # server" — same failure mode app_report_container_address's own
+    # server" — same failure mode web_report_container_address's own
     # comment documents).
     export COLLECTOR_MCP_CONTAINER_ADDRESS="${bind_address}"
     export COLLECTOR_MCP_PORT="${port}"
     # Not strictly required — collector-mcp.py already resolves both from
     # conf.d/operation.conf on its own when it can read that file — but
-    # exported anyway for the same belt-and-suspenders reason run_app_report
+    # exported anyway for the same belt-and-suspenders reason run_web_report
     # exports COLLECTOR_DB/COLLECTOR_OUTPUT_DIR for app.py.
-    export COLLECTOR_DB="${collector_db:-${collector_path}/${app_report_dir:-app-report}/db/${collector_db_name:-collector-results}}"
+    export COLLECTOR_DB="${collector_db:-${collector_path}/${web_report_dir:-support/web-report}/db/${collector_db_name:-collector-results}}"
     export COLLECTOR_OUTPUT_DIR="${output_dir}"
 
     if [[ "${mode}" == "foreground" ]]; then
-        # Same tee-before-exec trick as run_app_report's foreground path —
+        # Same tee-before-exec trick as run_web_report's foreground path —
         # see its own comment for why this has to happen before the
         # "is up" announcement and why it survives the exec below.
         exec > >(tee -a "${logfile}") 2>&1
@@ -227,14 +227,14 @@ run_mcp_server(){
     fi
 }
 
-# Thin wrappers preserve the same call-site shape as app_report.sh's own
-# start_app_report/start_app_report_foreground.
+# Thin wrappers preserve the same call-site shape as web_report.sh's own
+# start_web_report/start_web_report_foreground.
 start_mcp_server(){ run_mcp_server background; }
 start_mcp_server_foreground(){ run_mcp_server foreground; }
 
 # stop_mcp_server — counterpart of BOTH start_mcp_server and
 # start_mcp_server_foreground, now that they share one pidfile. Identical
-# SIGTERM→wait 5s→SIGKILL escalation as stop_app_report — see that
+# SIGTERM→wait 5s→SIGKILL escalation as stop_web_report — see that
 # function's own comments for the full rationale (container PID-namespace
 # caveats included). Returns 0 on success or when there was nothing to
 # stop, 1 only if the kill escalation failed.

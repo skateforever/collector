@@ -1,12 +1,12 @@
 """
-collector app-report — Flask + HTMX UI over collector-results.
+collector web-report — Flask + HTMX UI over collector-results.
 
 Read-only by design: the recon flow is the only writer (via db_usage),
 this app just renders. Single-process gunicorn worker is enough for the
 expected audience (operator + a couple of viewers).
 
 Configuration is taken from environment variables populated by
-start_app_report() in functions/app_report.sh, which itself sources
+start_web_report() in functions/web_report.sh, which itself sources
 conf.d/*.conf. Keeping the contract that simple means there's no second
 config file to maintain.
 
@@ -31,14 +31,19 @@ from flask import Flask, abort, g, render_template, request
 # Fallbacks are anchored to this file's own location, not the process's
 # CWD — "collector-results" / "." used to resolve relative to wherever
 # the caller happened to `cd` before running `python3 app.py` (e.g. the
-# repo root instead of app-report/), silently creating/reading a stray
-# DB at <repo>/collector-results instead of the real
-# app-report/db/collector-results. start_app_report() always exports
-# both env vars correctly; these defaults only matter when app.py is run
-# by hand without them, and should still point at the real locations.
+# repo root instead of support/web-report/), silently creating/reading a
+# stray DB at <repo>/collector-results instead of the real
+# support/web-report/db/collector-results. start_web_report() always
+# exports both env vars correctly; these defaults only matter when
+# app.py is run by hand without them, and should still point at the
+# real locations. APP_DIR is support/web-report/ — two levels below the
+# repo root (same depth as collector-mcp.py's own REPO_ROOT, see that
+# file's comment on why that equivalence matters), so OUTPUT_DIR's
+# fallback needs .parent.parent, not .parent, to land back at the repo
+# root's outputs/.
 APP_DIR = Path(__file__).resolve().parent
 DB_PATH = Path(os.environ.get("COLLECTOR_DB") or (APP_DIR / "db" / "collector-results")).resolve()
-OUTPUT_DIR = Path(os.environ.get("COLLECTOR_OUTPUT_DIR") or (APP_DIR.parent / "outputs")).resolve()
+OUTPUT_DIR = Path(os.environ.get("COLLECTOR_OUTPUT_DIR") or (APP_DIR.parent.parent / "outputs")).resolve()
 
 app = Flask(__name__)
 
@@ -653,9 +658,9 @@ def unavailable(err):
 
 if __name__ == "__main__":
     # Dev-only entrypoint. Production is gunicorn launched by
-    # start_app_report() in functions/utils.sh.
+    # start_web_report() in functions/utils.sh.
     app.run(
-        host=os.environ.get("APP_REPORT_CONTAINER_ADDRESS", "127.0.0.1"),
-        port=int(os.environ.get("APP_REPORT_CONTAINER_PORT", "8000")),
+        host=os.environ.get("WEB_REPORT_CONTAINER_ADDRESS", "127.0.0.1"),
+        port=int(os.environ.get("WEB_REPORT_CONTAINER_PORT", "8000")),
         debug=False,
     )

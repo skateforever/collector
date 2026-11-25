@@ -70,7 +70,7 @@ reset_vars(){
 # db_usage moved to functions/db_usage.sh.
 
 
-# app-report lifecycle moved to functions/app_report.sh.
+# web-report lifecycle moved to functions/web_report.sh.
 # start_cloudflare_tunnel moved to functions/cloudflare_tunnel.sh.
 
 wait_with_timeout(){

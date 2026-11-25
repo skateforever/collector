@@ -171,7 +171,7 @@ menu(){
                 shift
                 ;;
             -ru|--report-up)
-                # Requests the app-report dashboard. Alone (no target flag),
+                # Requests the web-report dashboard. Alone (no target flag),
                 # opens it read-only against the existing outputs/ directory
                 # without triggering recon — handled early in collector
                 # (right after menu) so target/lock/validation blocks are
@@ -212,7 +212,7 @@ menu(){
                 shift 2
                 ;;
             -sd|--shutdown)
-                # Unconditionally tears down this container — app-report
+                # Unconditionally tears down this container — web-report
                 # and/or the MCP server, whichever (if any) are running.
                 # Replaces the old --report-down/--mcp-down split: there's
                 # no cirurgical "stop just one service" mode anymore, this

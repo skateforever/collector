@@ -60,11 +60,11 @@ HOST                                      CONTAINER
 ├── conf.d/                            → conf.d/ (live from host)
 ├── outputs/ (rw)                      → outputs/ (writable for results)
 ├── wordlists/ (rw)                    → wordlists/ (writable for data)
-├── app-report/db/ (rw)                → app-report/db/ (writable, SQLite results DB)
-└── app-report/run/ (rw)               → app-report/run/ (writable, dashboard pidfile/logfile)
+├── support/web-report/db/ (rw)         → support/web-report/db/ (writable, SQLite results DB)
+└── support/web-report/run/ (rw)       → support/web-report/run/ (writable, dashboard pidfile/logfile)
 ```
 
-`app-report/db` and `app-report/run` mount onto the SAME path on both sides — unlike `outputs`/`wordlists`, there's no separate host-side directory name to alias. Both already exist in the repo (tracked as empty dirs via `.gitkeep`; their actual contents are gitignored), since the dashboard is a tool-level, long-lived process, not per-run recon output.
+`support/web-report/db` and `support/web-report/run` mount onto the SAME path on both sides — unlike `outputs`/`wordlists`, there's no separate host-side directory name to alias. Both already exist in the repo (tracked as empty dirs via `.gitkeep`; their actual contents are gitignored), since the dashboard is a tool-level, long-lived process, not per-run recon output.
 
 ## Practical Impact
 
@@ -148,10 +148,12 @@ $ /usr/local/bin/collector-docker -d example.com --recon
 # Custom root directory
 $ OUTPUTS_DIR=/data/outputs \
   WORDLISTS_DIR=/data/wordlists \
-  APP_REPORT_DB_DIR=/data/app-report/db \
-  APP_REPORT_RUN_DIR=/data/app-report/run \
+  WEB_REPORT_DB_DIR=/data/web-report/db \
+  WEB_REPORT_RUN_DIR=/data/web-report/run \
   collector-docker -d example.com --recon
-# Uses: /data/outputs, /data/wordlists, /data/app-report/db and /data/app-report/run
+# Uses: /data/outputs, /data/wordlists, /data/web-report/db and /data/web-report/run
+# (these point wherever you want on the host — the repo-relative default is
+# support/web-report/db and support/web-report/run, see above)
 ```
 
 ## File Synchronization During Execution
@@ -214,7 +216,7 @@ git commit -m "fix: ..."
 sudo install -m 0755 collector-docker /usr/local/bin/collector-docker
 
 # 2. Setup directories
-sudo mkdir -p /opt/collector/{outputs,wordlists,app-report/db,app-report/run}
+sudo mkdir -p /opt/collector/{outputs,wordlists,support/web-report/db,support/web-report/run}
 sudo cp -r conf.d /opt/collector/conf.d
 
 # 3. Update code from git
@@ -290,7 +292,7 @@ cd /opt/collector && git pull
 | System packages | Image layer | At container startup | ✅ Yes (Dockerfile change) |
 | Alert templates | Host volumes | Every execution | ❌ No |
 | Results (outputs/) | Host volumes | Persistent | — |
-| Results DB (app-report/db/) | Host volumes (mounted onto itself) | Persistent | — |
-| Dashboard pidfile/log (app-report/run/) | Host volumes (mounted onto itself) | Persistent | — |
+| Results DB (support/web-report/db/) | Host volumes (mounted onto itself) | Persistent | — |
+| Dashboard pidfile/log (support/web-report/run/) | Host volumes (mounted onto itself) | Persistent | — |
 
 **TL;DR:** Code changes are immediate; only Dockerfile changes require rebuild.

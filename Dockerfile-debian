@@ -162,22 +162,22 @@ RUN sed -i 's|^output_dir=.*|output_dir="/opt/collector/outputs"|' conf.d/operat
 # into the image. No pre-creation needed — they're part of the COPY . .
 # that brings in the entire repository structure at /opt/collector.
 
-# Expose the app-report (Flask/gunicorn) dashboard port and the
+# Expose the web-report (Flask/gunicorn) dashboard port and the
 # collector-mcp.py (streamable-http) port — both only actually bound
-# when -ru|--report-up / -mu|--mcp-up are passed, see functions/app_report.sh
+# when -ru|--report-up / -mu|--mcp-up are passed, see functions/web_report.sh
 # and functions/mcp_server.sh.
 EXPOSE 8000 8010
 
 # Volumes: outputs persists recon results across runs; wordlists holds the
-# dirsearch/gobuster wordlists mounted from the host; app-report/db holds
-# the SQLite results DB (collector_db in conf.d/operation.conf), and
-# app-report/run holds its pidfile/logfile (see functions/app_report.sh)
+# dirsearch/gobuster wordlists mounted from the host; support/web-report/db
+# holds the SQLite results DB (collector_db in conf.d/operation.conf), and
+# support/web-report/run holds its pidfile/logfile (see functions/web_report.sh)
 # — both on their own volume so they survive `docker run --rm`
 # independently of outputs/; support/mcp/run holds collector-mcp.py's own
 # pidfile/logfile, same reasoning (see functions/mcp_server.sh); conf.d/
 # allows overriding operation/functions/API-key config at runtime without
 # rebuilding.
-VOLUME ["/opt/collector/outputs", "/opt/collector/wordlists", "/opt/collector/app-report/db", "/opt/collector/app-report/run", "/opt/collector/support/mcp/run"]
+VOLUME ["/opt/collector/outputs", "/opt/collector/wordlists", "/opt/collector/support/web-report/db", "/opt/collector/support/web-report/run", "/opt/collector/support/mcp/run"]
 
 # collector is the only entry point — parameters are passed directly:
 #   docker run --rm -v $(pwd)/outputs:/opt/collector/outputs collector-image \

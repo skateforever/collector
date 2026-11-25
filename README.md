@@ -38,7 +38,7 @@ Install it once and use it like a native command:
 
 ```bash
 sudo install -m 0755 /opt/collector/collector-docker /usr/local/bin/collector-docker
-sudo mkdir -p /opt/collector/{outputs,wordlists,app-report/db,app-report/run,support/mcp/run}
+sudo mkdir -p /opt/collector/{outputs,wordlists,support/web-report/db,support/web-report/run,support/mcp/run}
 sudo cp -r /opt/collector/conf.d /opt/collector/conf.d
 ```
 
@@ -49,36 +49,36 @@ Override defaults via environment variables (`<root>` is the checkout directory 
 | `COLLECTOR_IMAGE` | `collector:latest` |
 | `OUTPUTS_DIR` | `<root>/outputs` (mounted to `/opt/collector/outputs`) |
 | `WORDLISTS_DIR` | `<root>/wordlists` (mounted to `/opt/collector/wordlists`) |
-| `APP_REPORT_DB_DIR` | `<root>/app-report/db` (mounted onto itself, `/opt/collector/app-report/db`) |
-| `APP_REPORT_RUN_DIR` | `<root>/app-report/run` (mounted onto itself, `/opt/collector/app-report/run`) |
+| `WEB_REPORT_DB_DIR` | `<root>/support/web-report/db` (mounted onto itself, `/opt/collector/support/web-report/db`) |
+| `WEB_REPORT_RUN_DIR` | `<root>/support/web-report/run` (mounted onto itself, `/opt/collector/support/web-report/run`) |
 | `MCP_RUN_DIR` | `<root>/support/mcp/run` (mounted onto itself, `/opt/collector/support/mcp/run`) |
 | `CONF_D_DIR` | `<root>/conf.d` (mounted to `/opt/collector/conf.d`) |
 | `ALERT_PROVIDER_TYPE` | `discord` (discord, slack, teams, telegram, signal) |
 | `ALERT_PROVIDER_FILE` | `<root>/{type}-provider.yaml` (optional; if missing, uses template from image) |
-| `APP_REPORT_HOST_ADDRESS` | overrides `app_report_host_address` from `conf.d/operation.conf` for this invocation (see below) |
-| `APP_REPORT_HOST_PORT` | overrides `app_report_host_port` from `conf.d/operation.conf` for this invocation (see below) |
+| `WEB_REPORT_HOST_ADDRESS` | overrides `web_report_host_address` from `conf.d/operation.conf` for this invocation (see below) |
+| `WEB_REPORT_HOST_PORT` | overrides `web_report_host_port` from `conf.d/operation.conf` for this invocation (see below) |
 | `MCP_HOST_ADDRESS` | overrides `collector_mcp_host` from `conf.d/operation.conf` for this invocation — only takes effect with `-mu\|--mcp-up` |
 | `MCP_HOST_PORT` | overrides `collector_mcp_port` from `conf.d/operation.conf` for this invocation — only takes effect with `-mu\|--mcp-up` |
 | `COLLECTOR_CONTAINER_NAME` | `collector-reconnaissance` (shared by `--report-up` and `--mcp-up` alike) |
 
 **Every setting that changes how the dashboard is exposed lives in `conf.d/operation.conf`** — `collector-docker` reads it rather than hardcoding its own values; `127.0.0.1`/`8000` only kick in as a last-resort fallback if that file is missing or unreadable (see the precedence note below the list):
 
-- `app_report_container_port` (default `8000`) — the port gunicorn binds to *inside* the container. `collector-docker` reads this same file to build the `-p` mapping it publishes, so changing `app_report_container_port` alone is enough: the container-internal port and the published port always agree.
-- `app_report_host_address` (default `127.0.0.1`) — the address `collector-docker` publishes the dashboard on, i.e. the host-side half of `-p`, and what the "dashboard is up" message prints. **This is the one setting that controls whether another machine can reach the dashboard.** Leaving it at `127.0.0.1` means only the machine running collector can reach it. Set it to that machine's LAN/public IP, or `0.0.0.0` to publish on every interface:
+- `web_report_container_port` (default `8000`) — the port gunicorn binds to *inside* the container. `collector-docker` reads this same file to build the `-p` mapping it publishes, so changing `web_report_container_port` alone is enough: the container-internal port and the published port always agree.
+- `web_report_host_address` (default `127.0.0.1`) — the address `collector-docker` publishes the dashboard on, i.e. the host-side half of `-p`, and what the "dashboard is up" message prints. **This is the one setting that controls whether another machine can reach the dashboard.** Leaving it at `127.0.0.1` means only the machine running collector can reach it. Set it to that machine's LAN/public IP, or `0.0.0.0` to publish on every interface:
 
   ```bash
   # conf.d/operation.conf
-  app_report_host_address="0.0.0.0"
+  web_report_host_address="0.0.0.0"
   ```
 
-  The printed dashboard URL always uses this same value, so it stays accurate automatically — no second variable to keep in sync. Note that `app_report_container_address` in the same file is a different, container-internal setting (gunicorn's own bind address inside the container's network namespace) and does not need to change for this.
-- `app_report_host_port` (default `8000`, matching `app_report_container_port`) — set only if the externally-published port needs to differ from the container's internal `app_report_container_port`.
+  The printed dashboard URL always uses this same value, so it stays accurate automatically — no second variable to keep in sync. Note that `web_report_container_address` in the same file is a different, container-internal setting (gunicorn's own bind address inside the container's network namespace) and does not need to change for this.
+- `web_report_host_port` (default `8000`, matching `web_report_container_port`) — set only if the externally-published port needs to differ from the container's internal `web_report_container_port`.
 
-`APP_REPORT_HOST_ADDRESS`/`APP_REPORT_HOST_PORT` environment variables exist only to override the above for a single `collector-docker` invocation without editing the config file — they always win over `conf.d/operation.conf` when set, but `conf.d/operation.conf` is where the real default lives.
+`WEB_REPORT_HOST_ADDRESS`/`WEB_REPORT_HOST_PORT` environment variables exist only to override the above for a single `collector-docker` invocation without editing the config file — they always win over `conf.d/operation.conf` when set, but `conf.d/operation.conf` is where the real default lives.
 
-Full precedence, address and port alike: (1) the environment variable, if set; (2) the matching `conf.d/operation.conf` variable; (3) if `conf.d/operation.conf` can't be found or read, `collector-docker` falls back to a hardcoded `127.0.0.1`/`8000` so it still has something to publish. `docker-compose.yaml` has the same last-resort fallback baked into its `ports:` line (`${APP_REPORT_HOST_ADDRESS:-127.0.0.1}:${APP_REPORT_CONTAINER_PORT:-8000}`), since Compose's YAML can't execute shell logic to read `conf.d/operation.conf` itself — see the comment above that line for why both sides have to be kept in sync by hand via `.env`.
+Full precedence, address and port alike: (1) the environment variable, if set; (2) the matching `conf.d/operation.conf` variable; (3) if `conf.d/operation.conf` can't be found or read, `collector-docker` falls back to a hardcoded `127.0.0.1`/`8000` so it still has something to publish. `docker-compose.yaml` has the same last-resort fallback baked into its `ports:` line (`${WEB_REPORT_HOST_ADDRESS:-127.0.0.1}:${WEB_REPORT_CONTAINER_PORT:-8000}`), since Compose's YAML can't execute shell logic to read `conf.d/operation.conf` itself — see the comment above that line for why both sides have to be kept in sync by hand via `.env`.
 
-Neither is published unless `--report-up` is passed — the dashboard itself never starts without it (see [Dashboard control](#dashboard-control) below), so a plain recon run doesn't publish or need the port at all. When `--report-up` is passed and the published port is already bound (by an ongoing `--report-up` session, or any other listener), the wrapper fails fast with a clear message — naming `app_report_container_port`, not a hardcoded `8000` — instead of silently booting a persistent, unreachable container.
+Neither is published unless `--report-up` is passed — the dashboard itself never starts without it (see [Dashboard control](#dashboard-control) below), so a plain recon run doesn't publish or need the port at all. When `--report-up` is passed and the published port is already bound (by an ongoing `--report-up` session, or any other listener), the wrapper fails fast with a clear message — naming `web_report_container_port`, not a hardcoded `8000` — instead of silently booting a persistent, unreachable container.
 
 > **Running several targets at once?** `--report-up` names a single fixed container (`COLLECTOR_CONTAINER_NAME`, default `collector-reconnaissance`) and publishes a single fixed port — it isn't meant to run more than once at a time. Recon itself has no such limit: `collector-docker -d <target> --recon` (without `--report-up`) is safe to run in parallel for as many different domains as you want (the per-target lock, anonymous container, and WAL-mode results DB all make that safe — see [Common usage patterns](#common-usage-patterns)). Bring up one shared dashboard afterward (`collector-docker --report-up`, no target) to see all of them.
 
@@ -173,15 +173,15 @@ The hook calls `collector-docker --image build-only` internally.
 
 ### Dashboard control
 
-The app-report dashboard **never starts unless you explicitly ask for it** with `-ru|--report-up`. It is not automatic at the end of a recon — `collector` runs as the container's PID 1, so a dashboard left running in the background would be killed the instant the recon finishes and PID 1 exits (the kernel tears down the whole PID namespace the moment its init process dies). `--report-up` keeps the container itself alive for exactly as long as the dashboard should stay up.
+The web-report dashboard **never starts unless you explicitly ask for it** with `-ru|--report-up`. It is not automatic at the end of a recon — `collector` runs as the container's PID 1, so a dashboard left running in the background would be killed the instant the recon finishes and PID 1 exits (the kernel tears down the whole PID namespace the moment its init process dies). `--report-up` keeps the container itself alive for exactly as long as the dashboard should stay up.
 
 | Flag | Description |
 |------|-------------|
-| `-ru \| --report-up` | Requests the dashboard. **Alone** (no target flag): opens it read-only against the existing `outputs/` directory and exits when stopped — skips recon entirely; requires `collector-results` (in `app-report/db/`) from a previous run, and fails with a clear message if that file doesn't exist yet. **Combined** with a target flag and `--recon` (e.g. `-d target.com --recon --report-up`): runs the recon first, then brings the dashboard up and keeps the container running afterward. Either way, Ctrl-C or `--shutdown` (from another shell) stops it. |
+| `-ru \| --report-up` | Requests the dashboard. **Alone** (no target flag): opens it read-only against the existing `outputs/` directory and exits when stopped — skips recon entirely; requires `collector-results` (in `support/web-report/db/`) from a previous run, and fails with a clear message if that file doesn't exist yet. **Combined** with a target flag and `--recon` (e.g. `-d target.com --recon --report-up`): runs the recon first, then brings the dashboard up and keeps the container running afterward. Either way, Ctrl-C or `--shutdown` (from another shell) stops it. |
 | `-mu \| --mcp-up` | Requests the [MCP server](support/mcp/MCP.md) (`collector-mcp.py`) as a long-lived `streamable-http` service, managed the same way as the dashboard above. **Alone** (no target flag): starts it and keeps the process alive until stopped. **Combined** with a target flag and `--recon`: runs the recon first, then starts the server (after `--report-up`'s own dashboard, if both are passed) and keeps the container running afterward. Requires `collector_mcp_transport="streamable-http"` in `conf.d/operation.conf` — fails with a clear message otherwise (the default `stdio` transport has no network port for a background/foreground service to bind). |
 | `-sd \| --shutdown` | Stop **everything** running in the container — the dashboard and/or the MCP server, whichever (if either) were started, however they were started (alone or combined with a recon). **Must be used alone**: passing any other flag alongside it is rejected with a usage error (checked both by `collector-docker` and by `collector` itself). Sends SIGTERM to each running service, waits 5 s, then SIGKILLs if needed; no-op for a service that wasn't running. Via `collector-docker` it does the equivalent `docker stop collector-reconnaissance` on the host — the whole container, not a per-service stop. |
 
-Via `collector-docker`, `--report-up`/`--mcp-up` also change how the container itself runs: it's started detached (`docker run -d`, not attached) and **without** `--rm` (so it persists until stopped), with whichever port(s) were requested published (`app_report_host_address:app_report_host_port` and/or `collector_mcp_host:collector_mcp_port`). Both flags share the same persistent container (named `collector-reconnaissance`, like a plain `--report-up`) when passed together — one container, both ports. Without either flag, nothing changes from a plain recon: attached, `--rm`, no port published. Recon progress isn't streamed to your terminal in the detached case since the container runs detached — follow it with `docker logs -f collector-reconnaissance` or the run's own log file under `outputs/`.
+Via `collector-docker`, `--report-up`/`--mcp-up` also change how the container itself runs: it's started detached (`docker run -d`, not attached) and **without** `--rm` (so it persists until stopped), with whichever port(s) were requested published (`web_report_host_address:web_report_host_port` and/or `collector_mcp_host:collector_mcp_port`). Both flags share the same persistent container (named `collector-reconnaissance`, like a plain `--report-up`) when passed together — one container, both ports. Without either flag, nothing changes from a plain recon: attached, `--rm`, no port published. Recon progress isn't streamed to your terminal in the detached case since the container runs detached — follow it with `docker logs -f collector-reconnaissance` or the run's own log file under `outputs/`.
 
 > **On stopping recon runs:** collector runs in a one-shot container, so the right way to abort an in-flight recon is `docker stop <container>` on the host. To wipe artifacts, `rm -rf` the target's directory under `outputs/`. Per-target `flock` already prevents concurrent runs against the same domain.
 
@@ -370,14 +370,14 @@ Both use `collector-docker` — each run fires an ephemeral container. Results p
 
 ## Results database (SQLite)
 
-After every run, `db_usage()` upserts the latest row into `app-report/db/collector-results` (path resolved from `collector_db` in `conf.d/operation.conf`; lives on its own volume — `APP_REPORT_DB_DIR` — independent of `outputs/`, since it isn't per-run recon output). Schema: `targets(domain PK)` + `recon_runs(domain, run_id, ...)` with composite PK, `latest_run` view. Ingestion is idempotent — re-importing the same `run_id` only writes on payload change.
+After every run, `db_usage()` upserts the latest row into `support/web-report/db/collector-results` (path resolved from `collector_db` in `conf.d/operation.conf`; lives on its own volume — `WEB_REPORT_DB_DIR` — independent of `outputs/`, since it isn't per-run recon output). Schema: `targets(domain PK)` + `recon_runs(domain, run_id, ...)` with composite PK, `latest_run` view. Ingestion is idempotent — re-importing the same `run_id` only writes on payload change.
 
 ```bash
 # Access from outside the container
-sqlite3 /opt/collector/app-report/db/collector-results \
+sqlite3 /opt/collector/support/web-report/db/collector-results \
   "SELECT domain, run_date, findings_critical, findings_high, js_secrets FROM latest_run ORDER BY findings_critical DESC;"
 
-sqlite3 /opt/collector/app-report/db/collector-results \
+sqlite3 /opt/collector/support/web-report/db/collector-results \
   "SELECT run_date, subdomains, webapp_consolidated, findings_critical FROM recon_runs WHERE domain='example.com' ORDER BY run_date DESC LIMIT 10;"
 ```
 
@@ -403,7 +403,7 @@ collector-docker -d example.com --recon --report-up
 collector-docker --shutdown            # stop when done
 ```
 
-`--report-up` names its container `collector-reconnaissance` (override with `COLLECTOR_CONTAINER_NAME=<name>`) and refuses to start when one is already running. Passed alone, it requires `collector-results` to exist in the `app-report/db/` directory — otherwise it aborts with a clear message rather than serving an empty dashboard.
+`--report-up` names its container `collector-reconnaissance` (override with `COLLECTOR_CONTAINER_NAME=<name>`) and refuses to start when one is already running. Passed alone, it requires `collector-results` to exist in the `support/web-report/db/` directory — otherwise it aborts with a clear message rather than serving an empty dashboard.
 
 Or set `cloudflare_tunnel="yes"` in `conf.d/operation.conf` for an ephemeral `https://*.trycloudflare.com` URL (only meaningful when `--report-up` is combined with a recon, since that's the only background-dashboard case; `--report-up` alone doesn't publish a tunnel).
 

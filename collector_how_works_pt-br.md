@@ -37,7 +37,7 @@ collector/
 ├── collector-docker                    wrapper de host: injeta -v sempre, -p só com --report-up,
 │                                        além dos subcomandos `-i|--image` (update/pull/build-only/create/rm)
 ├── conf.d/                             configuração, dividida por assunto:
-│   ├── operation.conf                  funcionamento interno (cores, paths, DB, app-report)
+│   ├── operation.conf                  funcionamento interno (cores, paths, DB, support/web-report)
 │   ├── functions.conf                  parâmetros por ferramenta (timeouts, threads, portas)
 │   ├── apis-recon.conf.example         chaves de API de recon de subdomínio (template, versionado)
 │   ├── apis-recon.conf                 idem, com chaves reais (gitignored)
@@ -63,8 +63,8 @@ collector/
 │   ├── webapp_enum.sh                  gobuster + dirsearch + aquatone + robots/sitemap
 │   ├── webapp_crawler.sh               katana + waybackurls + extração de JS e parâmetros
 │   ├── git.sh                          git-dumper para repositórios .git expostos
-│   ├── app_report.sh                   ciclo de vida do dashboard Flask/gunicorn (sob demanda via --report-up, background ou foreground)
-│   ├── mcp_server.sh                   ciclo de vida do collector-mcp.py (sob demanda via --mcp-up/--shutdown, mesmo formato background/foreground do app_report.sh)
+│   ├── web_report.sh                   ciclo de vida do dashboard Flask/gunicorn (sob demanda via --report-up, background ou foreground)
+│   ├── mcp_server.sh                   ciclo de vida do collector-mcp.py (sob demanda via --mcp-up/--shutdown, mesmo formato background/foreground do web_report.sh)
 │   ├── cloudflare_tunnel.sh            quick-tunnel do cloudflared para o dashboard (opt-in)
 │   ├── db_usage.sh                     ingestão SQLite idempotente do CSV de histórico por run
 │   └── llm_prompt.sh                   build_llm_prompt + llm_emit_artifact (montador do bundle LLM)
@@ -104,6 +104,11 @@ collector/
 │   │   ├── collector-mcp.py            tools read-only: targets, runs, artifacts, findings, diffs
 │   │   ├── MCP.md                      setup, referência de tools, reescrita de path container/host
 │   │   └── requirements.txt            SDK mcp (<2, FastMCP)
+│   ├── web-report/                     dashboard read-only (Flask + HTMX + gunicorn)
+│   │   ├── app.py                      rotas, leitura do collector-results
+│   │   ├── db/                         volume (WEB_REPORT_DB_DIR) — collector-results (SQLite)
+│   │   ├── requirements.txt            flask, gunicorn
+│   │   └── templates/                  index, target, runs, findings, diff, artifact, raw
 │   └── templates/                      drop-ins para automação
 │       ├── cron/collector              cron diário/semanal
 │       ├── systemd/collector@          systemd timer template
@@ -116,12 +121,6 @@ collector/
 │           ├── README.md               guia de setup para cada provedor
 │           └── MIGRATION.md            guia de migração do sistema antigo
 │
-├── app-report/                         dashboard read-only (Flask + HTMX + gunicorn)
-│   ├── app.py                          rotas, leitura do collector-results
-│   ├── db/                             volume (APP_REPORT_DB_DIR) — collector-results (SQLite)
-│   ├── requirements.txt                flask, gunicorn
-│   └── templates/                      index, target, runs, findings, diff, artifact, raw
-│
 └── demo/                               screenshots de divulgação
 ```
 
@@ -130,7 +129,7 @@ collector/
 O entrypoint do container é o script `collector`. Resumidamente o fluxo é:
 
 1. **Bootstrap.** `collector` carrega `functions/utils.sh` (banner, helpers, reset de variáveis globais) e depois faz `source` de `conf.d/operation.conf` e `conf.d/functions.conf` (obrigatórios), seguido de `conf.d/apis-recon.conf` e `conf.d/apis-emails.conf` — caindo para seus templates `.example` se os arquivos reais (gitignored) não existirem — pra herdar timeouts, threads, listas de portas curta/longa e chaves de API.
-2. **Carga de módulos.** Em sequência são feitos `source` em todos os arquivos de `functions/` essenciais (`menu.sh`, `usage.sh`, `check_*`, `domains_*`, `url_recon.sh`, `webapp_*`, `emails_recon.sh`, `git.sh`, `diff.sh`, `files.sh`, `infra.sh`, além dos módulos do dashboard `cloudflare_tunnel.sh`, `app_report.sh`, `mcp_server.sh`, `db_usage.sh`, `llm_prompt.sh`) e em `scans/` (`acunetix.sh`, `nmap.sh`, `nuclei.sh`, `shodan.sh`, `js_scans.sh`).
+2. **Carga de módulos.** Em sequência são feitos `source` em todos os arquivos de `functions/` essenciais (`menu.sh`, `usage.sh`, `check_*`, `domains_*`, `url_recon.sh`, `webapp_*`, `emails_recon.sh`, `git.sh`, `diff.sh`, `files.sh`, `infra.sh`, além dos módulos do dashboard `cloudflare_tunnel.sh`, `web_report.sh`, `mcp_server.sh`, `db_usage.sh`, `llm_prompt.sh`) e em `scans/` (`acunetix.sh`, `nmap.sh`, `nuclei.sh`, `shodan.sh`, `js_scans.sh`).
 3. **Validações.** `check_container` confirma que está rodando dentro do Docker (o script aborta fora dele); `check_binaries` valida a presença das ferramentas no PATH.
 4. **Parse de CLI.** `menu "$@"` processa as flags (`-d`, `-dl`, `-u`, `-r`, `-wd`, `-we`, `-ws`, `-wc`, `-vc`, `-dr`, etc.). `validate_domain` aplica regex estrita a cada alvo. Sem argumentos, `usage` é exibido.
 5. **Coerência.** `check_execution` valida combinações de flags inválidas, `check_parameter_conflicts` impede combinações mutuamente exclusivas, `check_directory_permission` testa se `/opt/collector/outputs` é gravável.
@@ -157,7 +156,7 @@ O entrypoint do container é o script `collector`. Resumidamente o fluxo é:
    17. `build_llm_prompt` — concatena todos os artefatos em `llm-prompt.txt` com cabeçalho de instruções;
    18. `record_history` — anexa uma linha ao `<domain>_history.csv` (CSV de tendência);
    19. `db_usage` — upsert idempotente da run no `collector-results` (SQLite, WAL, FKs);
-   20. `start_app_report` — inicia (ou reaproveita) o gunicorn na porta 8000; opcionalmente sobe um tunnel Cloudflare se `cloudflare_tunnel="yes"`;
+   20. `start_web_report` — inicia (ou reaproveita) o gunicorn na porta 8000; opcionalmente sobe um tunnel Cloudflare se `cloudflare_tunnel="yes"`;
    21. `message "${domain}" finished` — envia notificação final via `notify` (Slack/Discord/Telegram/etc., conforme `provider-config.yaml`).
 
 Para `-u <url>`, o pipeline é reduzido a webapp_enum + robots + sitemap + crawler + nuclei + aquatone — sem recon de subdomínios, infraestrutura ou nmap.
@@ -220,7 +219,7 @@ Todos os artefatos finais vivem em `outputs/<domain>/recon_YYYYMMDD/`:
 ### Síntese e persistência
 `report/llm-prompt.txt` — bundle único com todos os artefatos acima e cabeçalho de instruções; pronto para colar em qualquer LLM e seguir com análise.
 `<domain>_history.csv` (dentro deste `report/`) — uma linha por run, alimenta tendência no dashboard.
-`app-report/db/collector-results` (volume próprio, `APP_REPORT_DB_DIR`) — SQLite com `targets(domain PK)` + `recon_runs(domain, run_id, ...)` + view `latest_run`. Idempotente: re-rodar o mesmo `run_id` só grava se o payload mudou.
+`support/web-report/db/collector-results` (volume próprio, `WEB_REPORT_DB_DIR`) — SQLite com `targets(domain PK)` + `recon_runs(domain, run_id, ...)` + view `latest_run`. Idempotente: re-rodar o mesmo `run_id` só grava se o payload mudou.
 
 ## 5. Comandos para executar o collector
 
@@ -366,13 +365,13 @@ collector-docker -d example.com --recon --report-up
 collector-docker --shutdown           # encerra quando terminar
 ```
 
-`--report-up` isolado exige um `collector-results` dentro de `app-report/db/` (aborta com mensagem clara caso contrário, antes mesmo de iniciar um container); combinado com um recon, é esse recon que cria o DB, então essa verificação não se aplica. De qualquer forma, recusa iniciar quando outra instância já estiver rodando (via colisão de nome de container + pidfile), e o dashboard em si é estritamente read-only — o Flask abre o SQLite com `mode=ro`. O wrapper nomeia o container como `collector-reconnaissance` (sobrescreva via `COLLECTOR_CONTAINER_NAME=<nome>` no ambiente), que é o alvo de `--shutdown` no host independente de qual das duas formas acima o iniciou (e independente de o servidor MCP também estar rodando ali — veja 5.7 abaixo).
+`--report-up` isolado exige um `collector-results` dentro de `support/web-report/db/` (aborta com mensagem clara caso contrário, antes mesmo de iniciar um container); combinado com um recon, é esse recon que cria o DB, então essa verificação não se aplica. De qualquer forma, recusa iniciar quando outra instância já estiver rodando (via colisão de nome de container + pidfile), e o dashboard em si é estritamente read-only — o Flask abre o SQLite com `mode=ro`. O wrapper nomeia o container como `collector-reconnaissance` (sobrescreva via `COLLECTOR_CONTAINER_NAME=<nome>` no ambiente), que é o alvo de `--shutdown` no host independente de qual das duas formas acima o iniciou (e independente de o servidor MCP também estar rodando ali — veja 5.7 abaixo).
 
 `--shutdown` tem que ser usado isolado — passar qualquer outra flag junto (uma flag de alvo, `--report-up`, qualquer uma) é rejeitado com erro de uso em vez de ser silenciosamente ignorado. Isso é verificado duas vezes: pelo `collector-docker` no host (antes de tocar no Docker) e pelo próprio `collector` dentro do container (então a regra vale mesmo chamando o `collector` direto, sem passar pelo wrapper).
 
 Sem `--report-up`, nada muda em relação a um recon simples: o container roda em foreground, usa `--rm`, e a porta do dashboard nunca é publicada — não há dashboard para alcançar de qualquer forma, então publicar a porta seria inútil. Quando `--report-up` *é* passado e a porta host já está ocupada, o `collector-docker` agora falha rápido com uma mensagem clara em vez de omitir silenciosamente o `-p` — um container persistente, sem `--rm`, que nunca publicou de fato sua porta ficaria ali sem utilidade.
 
-Toda configuração que afeta a exposição do dashboard mora em `conf.d/operation.conf` — o `collector-docker` lê esse arquivo em vez de fixar seus próprios valores, recorrendo a um fallback fixo de `127.0.0.1`/`8000` só como último recurso, se esse arquivo não existir ou não puder ser lido. A porta em si é configurada uma única vez, via `app_report_container_port` (default `8000`) — o `collector-docker` lê esse mesmo arquivo pra montar o `-p` que ele publica, então mudar `app_report_container_port` já basta: o gunicorn dentro do container e a porta publicada sempre concordam. O endereço publicado é uma variável separada, `app_report_host_address` (default `127.0.0.1`, ou seja, não acessível de outras máquinas) — essa é a ÚNICA variável que controla se outra máquina consegue acessar o dashboard; defina pra o IP de LAN/público da máquina, ou `0.0.0.0` pra todas as interfaces, pra acessar de outro lugar — a URL impressa sempre usa esse mesmo valor, então ela já fica acessível automaticamente de onde você está acessando. `app_report_container_address` no mesmo arquivo é uma configuração diferente, interna ao container (o próprio endereço de bind do gunicorn dentro do namespace de rede do container), e não precisa mudar pra isso. As variáveis de ambiente `APP_REPORT_HOST_ADDRESS`/`APP_REPORT_HOST_PORT` existem só pra sobrescrever isso numa única invocação do `collector-docker`, tendo prioridade sobre `conf.d/operation.conf` quando definidas. O `docker-compose.yaml` não consegue executar lógica de shell pra ler o `conf.d/operation.conf`, então a linha `ports:` carrega o mesmo fallback `127.0.0.1`/`8000` fixado direto no YAML (`${APP_REPORT_HOST_ADDRESS:-127.0.0.1}:${APP_REPORT_CONTAINER_PORT:-8000}`) — mantido em sincronia com o `operation.conf` manualmente via `.env`, não lido dele.
+Toda configuração que afeta a exposição do dashboard mora em `conf.d/operation.conf` — o `collector-docker` lê esse arquivo em vez de fixar seus próprios valores, recorrendo a um fallback fixo de `127.0.0.1`/`8000` só como último recurso, se esse arquivo não existir ou não puder ser lido. A porta em si é configurada uma única vez, via `web_report_container_port` (default `8000`) — o `collector-docker` lê esse mesmo arquivo pra montar o `-p` que ele publica, então mudar `web_report_container_port` já basta: o gunicorn dentro do container e a porta publicada sempre concordam. O endereço publicado é uma variável separada, `web_report_host_address` (default `127.0.0.1`, ou seja, não acessível de outras máquinas) — essa é a ÚNICA variável que controla se outra máquina consegue acessar o dashboard; defina pra o IP de LAN/público da máquina, ou `0.0.0.0` pra todas as interfaces, pra acessar de outro lugar — a URL impressa sempre usa esse mesmo valor, então ela já fica acessível automaticamente de onde você está acessando. `web_report_container_address` no mesmo arquivo é uma configuração diferente, interna ao container (o próprio endereço de bind do gunicorn dentro do namespace de rede do container), e não precisa mudar pra isso. As variáveis de ambiente `WEB_REPORT_HOST_ADDRESS`/`WEB_REPORT_HOST_PORT` existem só pra sobrescrever isso numa única invocação do `collector-docker`, tendo prioridade sobre `conf.d/operation.conf` quando definidas. O `docker-compose.yaml` não consegue executar lógica de shell pra ler o `conf.d/operation.conf`, então a linha `ports:` carrega o mesmo fallback `127.0.0.1`/`8000` fixado direto no YAML (`${WEB_REPORT_HOST_ADDRESS:-127.0.0.1}:${WEB_REPORT_CONTAINER_PORT:-8000}`) — mantido em sincronia com o `operation.conf` manualmente via `.env`, não lido dele.
 
 Vale notar que `--report-up` nomeia um único container fixo (`COLLECTOR_CONTAINER_NAME`, default `collector-reconnaissance`) e publica uma única porta fixa — é feito pra rodar uma vez, não várias em paralelo. Rodar vários recons ao mesmo tempo contra domínios diferentes funciona bem sem `--report-up` (lock por alvo + containers anônimos + banco de resultados em modo WAL tornam isso seguro); suba um único dashboard compartilhado depois pra ver todos juntos.
 
@@ -380,7 +379,7 @@ Vale notar que `--report-up` nomeia um único container fixo (`COLLECTOR_CONTAIN
 
 `support/mcp/collector-mcp.py` (veja `support/mcp/MCP.md`) expõe os resultados do collector como tools MCP pra um cliente de agente. Normalmente um cliente MCP (Claude Desktop/Code) sobe esse script sozinho via stdio — nada no CLI do `collector` entra nessa jogada. `-mu|--mcp-up` acrescenta uma segunda forma de rodá-lo: como um serviço `streamable-http` de longa duração, gerenciado exatamente como o dashboard, útil pra um cliente em outra máquina ou só pra manter o servidor no ar independente do ciclo de vida de um cliente específico.
 
-`functions/mcp_server.sh` espelha `functions/app_report.sh` ponto a ponto — o mesmo `run_mcp_server()` de modo duplo background/foreground, o mesmo pidfile compartilhado (`support/mcp/run/collector-mcp.pid`, montado via `MCP_RUN_DIR`) pra que `--shutdown` consiga parar qualquer um dos dois modos de início, a mesma desambiguação via `/proc/<pid>/cmdline` pra evitar confundir o PID 1 do container com o processo de um pidfile obsoleto, e o mesmo SIGTERM→espera de 5s→SIGKILL pra parar:
+`functions/mcp_server.sh` espelha `functions/web_report.sh` ponto a ponto — o mesmo `run_mcp_server()` de modo duplo background/foreground, o mesmo pidfile compartilhado (`support/mcp/run/collector-mcp.pid`, montado via `MCP_RUN_DIR`) pra que `--shutdown` consiga parar qualquer um dos dois modos de início, a mesma desambiguação via `/proc/<pid>/cmdline` pra evitar confundir o PID 1 do container com o processo de um pidfile obsoleto, e o mesmo SIGTERM→espera de 5s→SIGKILL pra parar:
 
 ```bash
 # Servidor MCP isolado:
@@ -394,9 +393,9 @@ collector-docker --shutdown           # encerra o container inteiro (os dois ser
 
 Um requisito obrigatório só do `--mcp-up`: `collector_mcp_transport` em `conf.d/operation.conf` já precisa estar como `"streamable-http"`, não o default `"stdio"` — stdio é um subprocesso por cliente, sem porta de rede, não há o que um serviço em background/foreground vincule. `--mcp-up` recusa iniciar com uma mensagem clara nomeando a correção, verificado tanto pelo `collector-docker` no host (antes de tocar no Docker) quanto pelo próprio `collector` dentro do container (`run_mcp_server()` em `functions/mcp_server.sh`).
 
-`--mcp-up` e `--report-up` compartilham o MESMO container persistente e o mesmo nome (`COLLECTOR_CONTAINER_NAME`) quando ambos são passados — um único container publicando as duas portas, não dois containers. `--shutdown` sempre encerra o container inteiro, os dois serviços inclusos, seja qual for a combinação rodando ali — não existe mais um modo restrito de "parar só um serviço" (um design anterior tinha um `--mcp-down` que entrava no container via `docker exec` cirurgicamente, deixando o app-report intocado; essa assimetria foi removida em favor de uma única flag "encerra tudo", igual ao que `docker stop` já faz). A própria trap SIGTERM do `collector` chama `stop_app_report` e `stop_mcp_server` antes de sair, então isso é gracioso, não um SIGKILL do kernel.
+`--mcp-up` e `--report-up` compartilham o MESMO container persistente e o mesmo nome (`COLLECTOR_CONTAINER_NAME`) quando ambos são passados — um único container publicando as duas portas, não dois containers. `--shutdown` sempre encerra o container inteiro, os dois serviços inclusos, seja qual for a combinação rodando ali — não existe mais um modo restrito de "parar só um serviço" (um design anterior tinha um `--mcp-down` que entrava no container via `docker exec` cirurgicamente, deixando o web-report intocado; essa assimetria foi removida em favor de uma única flag "encerra tudo", igual ao que `docker stop` já faz). A própria trap SIGTERM do `collector` chama `stop_web_report` e `stop_mcp_server` antes de sair, então isso é gracioso, não um SIGKILL do kernel.
 
-Quando combinado com um alvo de recon, a ordem importa: `start_app_report` sempre roda antes de `start_mcp_server` no final de `domains_recon`/`url_recon` (veja `functions/domains_recon.sh`/`functions/url_recon.sh`), então a linha "está no ar" do dashboard aparece antes da do servidor MCP, independente de qual flag foi digitada primeiro na linha de comando.
+Quando combinado com um alvo de recon, a ordem importa: `start_web_report` sempre roda antes de `start_mcp_server` no final de `domains_recon`/`url_recon` (veja `functions/domains_recon.sh`/`functions/url_recon.sh`), então a linha "está no ar" do dashboard aparece antes da do servidor MCP, independente de qual flag foi digitada primeiro na linha de comando.
 
 `--report-up --mcp-up` passados juntos sem nenhuma flag de alvo é tratado como caso especial dentro do `collector`: os dois serviços sobem em BACKGROUND, e o `collector` mantém o processo aberto depois (`_collector_hold_for_dashboard` + `_collector_hold_for_mcp_server`) em vez de fazer `exec` substituindo a si mesmo por um dos dois serviços em foreground — não existe forma de fazer `exec` do PID 1 por dois programas ao mesmo tempo, então rodar os dois exige esse formato background+hold, independente de como `--shutdown` vá pará-los depois.
 
@@ -429,6 +428,6 @@ Comportamentos chave controlados por essas variáveis:
 
 ## 6. Mais detalhes
 
-Para a referência completa de todas as flags, variáveis de ambiente do wrapper (`COLLECTOR_IMAGE`, `OUTPUTS_DIR`, `WORDLISTS_DIR`, `APP_REPORT_DB_DIR`, `CONF_D_DIR`, `APP_REPORT_HOST_ADDRESS`, `APP_REPORT_HOST_PORT`, `NOTIFY_CONFIG`), parâmetros do `conf.d/*.conf` (timeouts, threads, listas de portas, chaves de API, opções do Cloudflare quick-tunnel), templates de cron/systemd, integração com o `projectdiscovery/notify`, schema do banco SQLite e consultas prontas, **consulte o `README.md` do repositório do collector**.
+Para a referência completa de todas as flags, variáveis de ambiente do wrapper (`COLLECTOR_IMAGE`, `OUTPUTS_DIR`, `WORDLISTS_DIR`, `WEB_REPORT_DB_DIR`, `CONF_D_DIR`, `WEB_REPORT_HOST_ADDRESS`, `WEB_REPORT_HOST_PORT`, `NOTIFY_CONFIG`), parâmetros do `conf.d/*.conf` (timeouts, threads, listas de portas, chaves de API, opções do Cloudflare quick-tunnel), templates de cron/systemd, integração com o `projectdiscovery/notify`, schema do banco SQLite e consultas prontas, **consulte o `README.md` do repositório do collector**.
 
 > **Aviso:** o collector gera um volume significativo de tráfego. Use apenas contra alvos para os quais você tenha autorização explícita.

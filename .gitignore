@@ -4,7 +4,7 @@ collector.orig
 
 # Ignore some old and third scripts
 ./functions/externo/
-app-report/__pycache__/
+support/web-report/__pycache__/
 support/mcp/__pycache__/
 
 # Ignore workspace directory
@@ -26,31 +26,32 @@ collector_simulation_report*.md
 /wordlists/
 
 # The SQLite results DB (collector_db in conf.d/operation.conf) and the
-# app-report pidfile/logfile (see functions/app_report.sh) — both can
+# web-report pidfile/logfile (see functions/web_report.sh) — both can
 # contain host-specific runtime state (the DB spans every target ever
-# scanned on this host). Docker mounts the host's own app-report/db and
-# app-report/run onto themselves in the container — same path on both
-# sides, no separate host-side directory name to alias (see
+# scanned on this host). Docker mounts the host's own support/web-report/db
+# and support/web-report/run onto themselves in the container — same path
+# on both sides, no separate host-side directory name to alias (see
 # docker-compose.yaml / collector-docker) — so their contents are
 # gitignored directly here instead of via a distinct top-level dir. The
 # .gitkeep files stay tracked so both directories are static — always
 # present after a checkout, never created by code at runtime.
-app-report/db/*
-!app-report/db/.gitkeep
-app-report/run/*
-!app-report/run/.gitkeep
+support/web-report/db/*
+!support/web-report/db/.gitkeep
+support/web-report/run/*
+!support/web-report/run/.gitkeep
 
 # collector-mcp.py's own pidfile/logfile (see functions/mcp_server.sh) —
-# same host-specific-runtime-state reasoning as app-report/run/ above,
-# just under support/mcp/ instead since that's where collector-mcp.py
-# itself lives (not a sibling of app-report/db, no DB of its own to be
-# sibling to). The .gitkeep stays tracked so the directory is always
-# present after a checkout, never created by code at runtime.
+# same host-specific-runtime-state reasoning as support/web-report/run/
+# above, just under support/mcp/ instead since that's where
+# collector-mcp.py itself lives (not a sibling of support/web-report/db,
+# no DB of its own to be sibling to). The .gitkeep stays tracked so the
+# directory is always present after a checkout, never created by code
+# at runtime.
 support/mcp/run/*
 !support/mcp/run/.gitkeep
 
 # Local override for compose: lets the user point OUTPUTS_DIR / WORDLISTS_DIR
-# / APP_REPORT_DB_DIR / CONF_D_DIR elsewhere without modifying the YAML.
+# / WEB_REPORT_DB_DIR / CONF_D_DIR elsewhere without modifying the YAML.
 .env
 
 # Real API key files — carry live credentials (Shodan, SecurityTrails,

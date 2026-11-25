@@ -1,9 +1,9 @@
 #!/bin/bash
 #############################################################
 #                                                           #
-# Cloudflare quick-tunnel for the app-report dashboard.     #
+# Cloudflare quick-tunnel for the web-report dashboard.     #
 # Opt-in via cloudflare_tunnel="yes" in conf.d/operation.conf, #
-# only meaningful when app-report is up (background mode).  #
+# only meaningful when web-report is up (background mode).  #
 # The tunnel gives the local gunicorn an ephemeral           #
 # https://*.trycloudflare.com URL so the dashboard is        #
 # reachable without exposing the VPS IP/port directly.       #
@@ -13,8 +13,8 @@
 #                                                           #
 #############################################################
 
-# Launch a cloudflared quick-tunnel pointing at the local app-report
-# port. Same PID-file discipline as start_app_report so concurrent recon
+# Launch a cloudflared quick-tunnel pointing at the local web-report
+# port. Same PID-file discipline as start_web_report so concurrent recon
 # runs share a single tunnel. The trycloudflare URL is parsed back out of
 # cloudflared's log and echoed for the operator. Failure is non-fatal:
 # the run finishes whether or not the tunnel comes up — the local
