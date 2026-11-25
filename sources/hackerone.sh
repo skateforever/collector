@@ -8,7 +8,7 @@
 #############################################################
 
 hackerone-src(){
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing hackerone... "
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing hackerone... "
     unset user_agent
     user_agent="$(get_user_agent)"
     # Creates the JSON payload using the GraphQL query.
@@ -16,7 +16,7 @@ hackerone-src(){
     echo -e "\ncurl ${curl_options[@]} -H \"User-agent: ${user_agent}\" -H \"Content-Type: application/json\" -d '${payload}' -X POST \"https://hackerone.com/graphql\" -o ${tmp_dir}/hackerone_output.json" >> "${log_execution_file}"
     # Make the POST requ est using curl.
     curl "${curl_options[@]}" -H "User-agent: ${user_agent}" -H "Content-Type: application/json" -d "${payload}" -X POST "https://hackerone.com/graphql" -o "${tmp_dir}/hackerone_output.json" 2>> "${log_execution_file}"
-    echo "Done!"
+    # echo "Done!"
 }
 
 hackerone-src

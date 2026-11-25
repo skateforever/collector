@@ -1,7 +1,7 @@
 #!/bin/bash
 #############################################################
 #                                                           #
-# app-report dashboard lifecycle.                           #
+# web-report dashboard lifecycle.                           #
 #                                                           #
 # The dashboard (Flask+HTMX under gunicorn) is read-only    #
 # and can be launched two ways:                              #
@@ -9,63 +9,90 @@
 #   * background — spawned at the tail of a recon run so    #
 #                  the operator can browse results the      #
 #                  moment the run finishes.                 #
-#   * foreground — spawned by `collector --report-only`,    #
+#   * foreground — spawned by `collector --report-up` alone, #
 #                  exec-replacing the collector process so  #
 #                  Ctrl-C reaches gunicorn cleanly.         #
 #                                                           #
 # Both are the SAME service identity, though — one shared    #
-# pidfile/logfile under app-report/run/, sibling to           #
-# app-report/db/ (the cross-run, cross-domain SQLite results   #
-# DB). app-report isn't a per-scan artifact; it's a tool-level  #
-# long-lived process, so its own runtime state lives with the    #
-# tool, not scattered into whichever outputs/${domain}/           #
-# recon_${date}/ happened to spawn it. One shared identity        #
-# also means --report-stop can stop EITHER launch mode, not        #
-# just a foreground one.                                            #
+# pidfile/logfile under support/web-report/run/, sibling to  #
+# support/web-report/db/ (the cross-run, cross-domain SQLite #
+# results DB). web-report isn't a per-scan artifact; it's a  #
+# tool-level long-lived process, so its own runtime state    #
+# lives with the tool, not scattered into whichever           #
+# outputs/${domain}/recon_${date}/ happened to spawn it.       #
+# One shared identity also means --shutdown can stop EITHER    #
+# launch mode, not just a foreground one.                       #
 #                                                           #
-# One implementation (run_app_report) handles both; the     #
+# One implementation (run_web_report) handles both; the     #
 # public wrappers below are the historical entry points.    #
 #                                                           #
 # Exposes:                                                  #
-#   * app_report_run_dir               (path helper)         #
-#   * app_report_pidfile               (path helper)         #
-#   * app_report_logfile               (path helper)         #
-#   * run_app_report                   (mode-parameterized)  #
-#   * start_app_report                 (background wrapper)  #
-#   * start_app_report_foreground      (foreground wrapper)  #
-#   * stop_app_report                  (SIGTERM→SIGKILL)     #
+#   * web_report_run_dir               (path helper)         #
+#   * web_report_pidfile               (path helper)         #
+#   * web_report_logfile               (path helper)         #
+#   * run_web_report                   (mode-parameterized)  #
+#   * start_web_report                 (background wrapper)  #
+#   * start_web_report_foreground      (foreground wrapper)  #
+#   * stop_web_report                  (SIGTERM→SIGKILL)     #
 #                                                           #
 # Depends on start_cloudflare_tunnel from                   #
 # functions/cloudflare_tunnel.sh (optional add-on).         #
 #                                                           #
 #############################################################
 
-# app_report_run_dir — app-report/run, sibling to app-report/db. Same
-# tool-level lifecycle as the DB, not scoped to any one scan — see file
-# header. mkdir -p defensively; also tracked in git via a .gitkeep (same
-# pattern as app-report/db) so a fresh checkout/image already has it.
-app_report_run_dir(){
-    local app_dir="${app_report_dir:-app-report}"
+# web_report_run_dir — support/web-report/run, sibling to
+# support/web-report/db. Same tool-level lifecycle as the DB, not scoped
+# to any one scan — see file header. mkdir -p defensively; also tracked
+# in git via a .gitkeep (same pattern as support/web-report/db) so a
+# fresh checkout/image already has it.
+web_report_run_dir(){
+    local app_dir="${web_report_dir:-support/web-report}"
     [[ "${app_dir}" != /* ]] && app_dir="${collector_path:-.}/${app_dir}"
     echo "${app_dir}/run"
 }
 
-# app_report_pidfile / app_report_logfile — path resolvers shared by every
+# web_report_pidfile / web_report_logfile — path resolvers shared by every
 # start/stop path (background AND foreground alike, per the file header).
 # Kept as helpers so nothing drifts out of sync between them.
-app_report_pidfile(){
-    echo "${app_report_pidfile_path:-$(app_report_run_dir)/${app_report_pidfile_name:-app-report.pid}}"
+web_report_pidfile(){
+    echo "${web_report_pidfile_path:-$(web_report_run_dir)/${web_report_pidfile_name:-web-report.pid}}"
 }
-app_report_logfile(){
-    echo "${app_report_logfile_path:-$(app_report_run_dir)/${app_report_logfile_name:-app-report.log}}"
+web_report_logfile(){
+    echo "${web_report_logfile_path:-$(web_report_run_dir)/${web_report_logfile_name:-web-report.log}}"
 }
 
-# run_app_report — single implementation behind start_app_report (called
-# at the tail of a recon run, backgrounded) and start_app_report_foreground
-# (called by `collector --report-only`, exec-replaces this shell).
+# _web_report_pid_is_live — is this PID actually OUR dashboard process,
+# not merely a live PID?
+#
+# support/web-report/run/ (where the pidfile lives) is bind-mounted from the host
+# (WEB_REPORT_RUN_DIR), so the SAME pidfile is visible across DIFFERENT
+# containers/PID-namespaces that mount it — but a PID number only means
+# something within the namespace that assigned it. `kill -0 "$pid"` alone
+# answers "does a process with this number exist in MY namespace", not
+# "is it the gunicorn/python3 I started" — and PID 1 ALWAYS exists (it's
+# each container's own init process), so a pidfile left over from a
+# foreground `--report-up` run (where gunicorn exec'd into PID 1) reads
+# back as "pid 1, alive" in the NEXT container too, where PID 1 is
+# `collector` itself. Confirmed: this caused start_web_report to
+# false-positive "already running (pid 1)" and skip starting the real
+# dashboard, and later made its SIGTERM-based stop target collector's
+# own PID 1 — i.e. itself — recursing through the SIGTERM trap.
+# /proc/<pid>/cmdline disambiguates: only a real gunicorn or `python3
+# app.py` process matches.
+_web_report_pid_is_live(){
+    local _pid="$1"
+    [[ -n "${_pid}" ]] || return 1
+    kill -0 "${_pid}" 2>/dev/null || return 1
+    local _cmdline
+    _cmdline="$(tr '\0' ' ' < "/proc/${_pid}/cmdline" 2>/dev/null)"
+    [[ "${_cmdline}" == *gunicorn* || "${_cmdline}" == *app.py* ]]
+}
+
+# run_web_report — single implementation behind start_web_report (called
+# at the tail of a recon run, backgrounded) and start_web_report_foreground
+# (called by `collector --report-up` alone, exec-replaces this shell).
 #
 # Everything the two variants used to duplicate lives here:
-#   * enablement gate (app_report_enabled)
 #   * resolution of app_dir / host / port / db
 #   * "already running?" pidfile check with stale-file cleanup
 #   * env-var exports consumed by app.py
@@ -83,34 +110,45 @@ app_report_logfile(){
 # Both modes write the SAME logfile now — foreground also tees its
 # stdout/stderr there in addition to the live terminal, so the shared log
 # has a continuous history regardless of how the dashboard was started.
-run_app_report(){
+run_web_report(){
     local mode="$1"
     local tag                    # log-line prefix and pidfile lookup key
     case "${mode}" in
-        background) tag="start_app_report" ;;
-        foreground) tag="start_app_report_foreground" ;;
-        *) echo "run_app_report: unknown mode '${mode}'" >&2; return 2 ;;
+        background) tag="start_web_report" ;;
+        foreground) tag="start_web_report_foreground" ;;
+        *) echo "run_web_report: unknown mode '${mode}'" >&2; return 2 ;;
     esac
 
-    if [[ "${app_report_enabled:-yes}" != "yes" ]]; then
-        # Background path used to silently return; foreground path now
-        # tells the operator why nothing happened — either way, we bail.
-        if [[ "${mode}" == "foreground" ]]; then
-            echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${tag}: app_report_enabled=no in conf.d/operation.conf, refusing to start."
-            return 1
-        fi
+    # The dashboard used to start unconditionally at the tail of every
+    # recon — but collector is the container's PID 1, so the instant it
+    # exited afterward, the kernel SIGKILLed the whole PID namespace
+    # (dashboard included), regardless of docker run --rm. Rather than
+    # keep every recon's container alive "just in case", the dashboard
+    # now only ever starts when the operator explicitly asked for it via
+    # -ru|--report-up — background mode is a silent no-op otherwise.
+    # Foreground mode needs no such gate: it's only ever reached via the
+    # --report-up-alone dispatch in collector, so report_up_check is
+    # already implied.
+    if [[ "${mode}" == "background" && "${report_up_check:-}" != "yes" ]]; then
         return 0
     fi
 
-    local app_dir="${app_report_dir:-app-report}"
+    local app_dir="${web_report_dir:-support/web-report}"
     [[ "${app_dir}" != /* ]] && app_dir="${collector_path:-.}/${app_dir}"
-    local host="${app_report_host:-127.0.0.1}"
-    local port="${app_report_port:-8000}"
-    local db="${collector_db:-${collector_path}/${app_report_dir:-app-report}/db/${collector_db_name:-collector-results}}"
-    mkdir -p "$(app_report_run_dir)" 2>/dev/null
+    local bind_address="${web_report_container_address:-127.0.0.1}"
+    local port="${web_report_container_port:-8000}"
+    # host_address/host_port are what the OPERATOR types into a browser —
+    # never the same thing as ${bind_address} above when it's 0.0.0.0 (a
+    # bind address, meaningless to open in a browser). See the comments
+    # on web_report_host_address/web_report_host_port in
+    # conf.d/operation.conf.
+    local host_address="${web_report_host_address:-127.0.0.1}"
+    local host_port="${web_report_host_port:-${port}}"
+    local db="${collector_db:-${collector_path}/${web_report_dir:-support/web-report}/db/${collector_db_name:-collector-results}}"
+    mkdir -p "$(web_report_run_dir)" 2>/dev/null
     local pidfile logfile
-    pidfile="$(app_report_pidfile)"
-    logfile="$(app_report_logfile)"
+    pidfile="$(web_report_pidfile)"
+    logfile="$(web_report_logfile)"
 
     if [[ ! -d "${app_dir}" ]]; then
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${tag}: ${app_dir} not found."
@@ -137,13 +175,14 @@ run_app_report(){
     if [[ -s "${pidfile}" ]]; then
         local check_pid
         check_pid="$(cat "${pidfile}" 2>/dev/null)"
-        if [[ -z "${check_pid}" ]] || ! kill -0 "${check_pid}" 2>/dev/null; then
-            # Stale pidfile from a previous run — clean and move on.
+        if ! _web_report_pid_is_live "${check_pid}"; then
+            # Stale pidfile from a previous run (or a previous CONTAINER —
+            # see _web_report_pid_is_live) — clean and move on.
             rm -f "${pidfile}"
         else
-            echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${tag}: already running (pid ${check_pid}) at http://${host}:${port}"
+            echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${tag}: already running (pid ${check_pid}) — access the dashboard at http://${host_address}:${host_port}"
             if [[ "${mode}" == "foreground" ]]; then
-                echo -e "  stop it with ${yellow}collector --report-stop${reset} (or ${yellow}collector-docker --report-stop${reset}) before starting a new one."
+                echo -e "  stop it with ${yellow}collector --shutdown${reset} (or ${yellow}collector-docker --shutdown${reset}) before starting a new one."
                 return 1
             fi
             return 0
@@ -160,7 +199,7 @@ run_app_report(){
         if ss -ltn 2>/dev/null | awk '{print $4}' | grep -qE "[:.]${port}$"; then
             echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${tag}: port ${port} is already bound by another process."
             if [[ "${mode}" == "foreground" ]]; then
-                echo -e "  free the port or set ${yellow}app_report_port${reset} in conf.d/operation.conf to a different value."
+                echo -e "  free the port or set ${yellow}web_report_container_port${reset} in conf.d/operation.conf to a different value."
                 return 1
             fi
             return 0
@@ -182,8 +221,8 @@ run_app_report(){
 
     export COLLECTOR_DB="${db}"
     export COLLECTOR_OUTPUT_DIR="${output_dir}"
-    export APP_REPORT_HOST="${host}"
-    export APP_REPORT_PORT="${port}"
+    export WEB_REPORT_CONTAINER_ADDRESS="${bind_address}"
+    export WEB_REPORT_CONTAINER_PORT="${port}"
 
     if [[ "${mode}" == "foreground" ]]; then
         cd "${app_dir}" || return 1
@@ -194,14 +233,14 @@ run_app_report(){
         # image changes. Set up BEFORE the "serving at" announcement so
         # that line lands in the shared log too, not just the terminal.
         exec > >(tee -a "${logfile}") 2>&1
-        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${tag}: serving at http://${host}:${port} (Ctrl-C or --report-stop to stop)"
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} The web-report dashboard is up — access it at http://${host_address}:${host_port} (Ctrl-C or --shutdown to stop)"
         # Record OUR pid before exec — after exec, $$ is inherited by
-        # gunicorn (same PID, different program), so --report-stop still
+        # gunicorn (same PID, different program), so --shutdown still
         # targets the right process. Written to a temp path + rename so a
-        # concurrent --report-stop never sees a half-written file.
+        # concurrent --shutdown never sees a half-written file.
         echo "$$" > "${pidfile}.tmp" && mv "${pidfile}.tmp" "${pidfile}"
         if [[ "${launcher}" == "gunicorn" ]]; then
-            exec gunicorn --workers 1 --bind "${host}:${port}" \
+            exec gunicorn --workers 1 --bind "${bind_address}:${port}" \
                 --access-logfile - --error-logfile - app:app
         else
             exec python3 app.py
@@ -215,7 +254,7 @@ run_app_report(){
     (
         cd "${app_dir}" || exit 1
         if [[ "${launcher}" == "gunicorn" ]]; then
-            nohup gunicorn --workers 1 --bind "${host}:${port}" \
+            nohup gunicorn --workers 1 --bind "${bind_address}:${port}" \
                 --access-logfile - --error-logfile - app:app \
                 >> "${logfile}" 2>&1 &
         else
@@ -225,8 +264,8 @@ run_app_report(){
     )
 
     sleep 1
-    if [[ -s "${pidfile}" ]] && kill -0 "$(cat "${pidfile}")" 2>/dev/null; then
-        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${tag}: serving at http://${host}:${port} (pid $(cat "${pidfile}"), log ${logfile})"
+    if [[ -s "${pidfile}" ]] && _web_report_pid_is_live "$(cat "${pidfile}")"; then
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} The web-report dashboard is up — access it at http://${host_address}:${host_port}"
     else
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${tag}: failed to start (see ${logfile})"
         rm -f "${pidfile}"
@@ -244,11 +283,11 @@ run_app_report(){
 
 # Thin wrappers preserve the historical call-sites (domains_recon.sh,
 # url_recon.sh, collector) — no other file had to change for the refactor.
-start_app_report(){ run_app_report background; }
-start_app_report_foreground(){ run_app_report foreground; }
+start_web_report(){ run_web_report background; }
+start_web_report_foreground(){ run_web_report foreground; }
 
-# stop_app_report — counterpart of BOTH start_app_report and
-# start_app_report_foreground, now that they share one pidfile (see file
+# stop_web_report — counterpart of BOTH start_web_report and
+# start_web_report_foreground, now that they share one pidfile (see file
 # header). Signals the gunicorn master recorded in the pidfile with
 # SIGTERM (which gunicorn handles gracefully), waits up to 5 seconds, then
 # escalates to SIGKILL. Also cleans up stale pidfiles. Returns 0 on
@@ -256,37 +295,40 @@ start_app_report_foreground(){ run_app_report foreground; }
 # escalation failed.
 #
 # Note on containers: when the dashboard was started via `collector-docker
-# --report-only`, the gunicorn PID lives inside that container's PID
-# namespace, not the host's. `collector-docker --report-stop` handles that
+# --report-up`, the gunicorn PID lives inside that container's PID
+# namespace, not the host's. `collector-docker --shutdown` handles that
 # case by running `docker stop` from the host; this function is the
 # in-container half, invoked when the operator hits `collector
-# --report-stop` inside the same container (or runs the collector
-# natively on the host).
-stop_app_report(){
+# --shutdown` inside the same container (or runs the collector
+# natively on the host), or when collector's own SIGINT/SIGTERM traps
+# call it before exiting so a combined recon+--report-up container
+# shuts gunicorn down gracefully instead of relying on the kernel's
+# unconditional PID-namespace SIGKILL on PID 1 exit.
+stop_web_report(){
     local pidfile
-    pidfile="$(app_report_pidfile)"
+    pidfile="$(web_report_pidfile)"
 
     if [[ ! -s "${pidfile}" ]]; then
-        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} stop_app_report: no pidfile at ${pidfile} — nothing to stop."
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} stop_web_report: no pidfile at ${pidfile} — nothing to stop."
         return 0
     fi
 
     local pid
     pid="$(cat "${pidfile}" 2>/dev/null)"
-    if [[ -z "${pid}" ]] || ! kill -0 "${pid}" 2>/dev/null; then
-        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} stop_app_report: stale pidfile (pid ${pid:-?} not alive), removing."
+    if ! _web_report_pid_is_live "${pid}"; then
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} stop_web_report: stale pidfile (pid ${pid:-?} not alive, or not our dashboard — see this container's own namespace), removing."
         rm -f "${pidfile}"
         return 0
     fi
 
-    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} stop_app_report: sending SIGTERM to gunicorn (pid ${pid})"
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} stop_web_report: sending SIGTERM to gunicorn (pid ${pid})"
     kill -TERM "${pid}" 2>/dev/null
 
     local waited=0
     while [[ "${waited}" -lt 5 ]]; do
         if ! kill -0 "${pid}" 2>/dev/null; then
             rm -f "${pidfile}"
-            echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} stop_app_report: stopped."
+            echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} stop_web_report: stopped."
             return 0
         fi
         sleep 1
@@ -294,11 +336,11 @@ stop_app_report(){
     done
 
     # Didn't exit within 5s — force it.
-    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} stop_app_report: SIGTERM ignored after 5s, escalating to SIGKILL."
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} stop_web_report: SIGTERM ignored after 5s, escalating to SIGKILL."
     if kill -KILL "${pid}" 2>/dev/null; then
         rm -f "${pidfile}"
         return 0
     fi
-    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} stop_app_report: SIGKILL failed for pid ${pid}."
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} stop_web_report: SIGKILL failed for pid ${pid}."
     return 1
 }

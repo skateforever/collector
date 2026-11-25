@@ -9,7 +9,7 @@
 #############################################################            
 
 commoncrawl-src(){
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing commoncrawl... "
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing commoncrawl... "
     unset user_agent
     user_agent="$(get_user_agent)"
     echo -e "\ncurl ${curl_options_slow[@]} -H \"User-agent: ${user_agent}\" \"${commoncrawl_url}\" | jq --raw-output .[0]'.\"cdx-api\"'" >> "${log_execution_file}"
@@ -22,7 +22,7 @@ commoncrawl-src(){
     fi
     echo "curl ${curl_options_slow[@]} -H \"User-agent: ${user_agent}\" \"${commoncrawl_db}?url=*.${domain}/&output=json\"" >> "${log_execution_file}"
     curl "${curl_options_slow[@]}" -H "User-agent: ${user_agent}" "${commoncrawl_db}?url=*.${domain}/&output=json" > "${tmp_dir}/commoncrawl_output.json" 2>> "${log_execution_file}"
-    echo "Done!"
+    # echo "Done!"
     sleep 1
 }
 

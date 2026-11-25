@@ -9,7 +9,7 @@
 #############################################################
 
 robots-sitemap-src(){
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing robots/sitemap mining... "
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing robots/sitemap mining... "
     : > "${tmp_dir}/robots_sitemap_output.tmp"
     unset user_agent
     user_agent="$(get_user_agent)"
@@ -77,7 +77,7 @@ robots-sitemap-src(){
     done
 
     sort -u -o "${tmp_dir}/robots_sitemap_output.tmp" "${tmp_dir}/robots_sitemap_output.tmp" 2>/dev/null
-    echo "Done!"
+    # echo "Done!"
 }
 
 robots-sitemap-src

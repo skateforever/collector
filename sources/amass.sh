@@ -9,7 +9,7 @@
 #############################################################            
 
 amass-src(){
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing amass... "
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing amass... "
     local amass_out="${tmp_dir}/amass_output.tmp"
     local amass_dir="${tmp_dir}/amass_db"
     : > "${amass_out}"
@@ -27,7 +27,7 @@ amass-src(){
 
     echo "amass subs -d ${domain} -dir ${amass_dir} -names -nocolor -silent -o ${amass_out}" >> "${log_execution_file}"
     amass subs -d "${domain}" -dir "${amass_dir}" -names -nocolor -silent -o "${amass_out}" 2>> "${log_execution_file}"
-    echo "Done!"
+    # echo "Done!"
     sleep 1
 }
 

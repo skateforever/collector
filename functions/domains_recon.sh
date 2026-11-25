@@ -143,8 +143,24 @@ domains_recon(){
           record_history
           db_usage
           run_summary "${domain}"
+          # start_web_report before message(): the dashboard's own
+          # "is up" line should read before the run's "finished!"
+          # verdict, not after — see the matching note at this
+          # function's tail (around diff_artifacts/build_llm_prompt/...)
+          # for why this ordering doesn't reintroduce the delay a
+          # prior fix addressed (start_web_report returns synchronously
+          # once gunicorn is confirmed alive; the dashboard's own
+          # "accept connections, then block" phase only begins later,
+          # in collector's _collector_hold_for_dashboard, after this
+          # whole exit 0 has already returned control there).
+          start_web_report
+          # start_mcp_server AFTER start_web_report: when both -ru and -mu
+          # accompany a recon, the dashboard's own "is up" line is meant
+          # to read first (see this function's --mcp-up sibling note
+          # above, for web-report) — same reasoning extends to the MCP
+          # server's own announcement.
+          start_mcp_server
           message "${domain}" finished
-          start_app_report
           exit 0
     fi
 
@@ -166,8 +182,11 @@ domains_recon(){
           record_history
           db_usage
           run_summary "${domain}"
+          # See the ordering note in the "Only web app discovery" branch
+          # above — same reasoning.
+          start_web_report
+          start_mcp_server
           message "${domain}" finished
-          start_app_report
           exit 0
     fi
 
@@ -184,8 +203,11 @@ domains_recon(){
           record_history
           db_usage
           run_summary "${domain}"
+          # See the ordering note in the "Only web app discovery" branch
+          # above — same reasoning.
+          start_web_report
+          start_mcp_server
           message "${domain}" finished
-          start_app_report
           exit 0
     fi
 
@@ -386,8 +408,10 @@ domains_recon(){
             nuclei_scan "${domain}" "${report_dir}/webapp_consolidated.txt"
             #acunetix_scan "${domain}" "${report_dir}/webapp_consolidated.txt"
         fi
+        # start_web_report before message() — see the ordering note in
+        # the "Only web app discovery" branch above, same reasoning.
         [[ "${recon_check}" == "yes" && "${webapp_enum_check}" != "yes" ]] && \
-            { diff_artifacts; build_llm_prompt; build_llm_json; record_history; db_usage; run_summary "${domain}"; message "${domain}" finished; start_app_report; exit 0; }
+            { diff_artifacts; build_llm_prompt; build_llm_json; record_history; db_usage; run_summary "${domain}"; start_web_report; start_mcp_server; message "${domain}" finished; exit 0; }
     fi
 
     if [[ "${webapp_enum_check}" == "yes" ]]; then
@@ -430,8 +454,11 @@ domains_recon(){
     record_history
     db_usage
     run_summary "${domain}"
-    message "${domain}" finished
-    start_app_report) 2>> "${log_execution_file}" | tee -a "${log_execution_file}"
+    # start_web_report before message() — see the ordering note in the
+    # "Only web app discovery" branch above, same reasoning.
+    start_web_report
+    start_mcp_server
+    message "${domain}" finished) 2>> "${log_execution_file}" | tee -a "${log_execution_file}"
     # The subshell above is a forked child — its own `exit 0`/`exit 1`
     # calls (early-return branches throughout this function) only ever
     # ended IT, not domains_recon() itself, so the caller in `collector`

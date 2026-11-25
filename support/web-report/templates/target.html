@@ -136,13 +136,38 @@
 <script>
   // Read theme at chart-init time so axis/tick/legend colors look right in
   // both palettes. Toggling theme requires a page reload to redraw the chart.
-  (function () {
+  //
+  // Wrapped in DOMContentLoaded: base.html now loads chart.js with `defer`,
+  // which only runs after the whole document is parsed — this inline
+  // script, without the wait, would otherwise execute immediately as the
+  // parser reaches it (before `defer`red chart.js has run), calling
+  // `Chart` before it exists.
+  //
+  // The `typeof Chart === 'undefined'` guard below covers a DIFFERENT
+  // case: chart.js is served from a CDN (cdn.jsdelivr.net), so a network
+  // that can't reach it (corporate proxy, restricted egress on a pentest
+  // VPS, offline) leaves `Chart` undefined even after DOMContentLoaded —
+  // defer only promises ordering relative to other deferred/inline
+  // scripts, not that the resource actually loaded. Without this guard
+  // that surfaces as an uncaught ReferenceError in the console; the rest
+  // of the page (which doesn't depend on chart.js) still renders fine
+  // either way, so failing soft here is strictly better than failing loud.
+  document.addEventListener('DOMContentLoaded', function () {
+    var trendEl = document.getElementById('trend');
+    if (typeof Chart === 'undefined') {
+      if (trendEl) {
+        trendEl.insertAdjacentHTML('afterend',
+          '<p class="text-xs text-slate-500 dark:text-slate-400 mt-2">' +
+          'Trend chart unavailable — chart.js could not be loaded from the CDN.</p>');
+      }
+      return;
+    }
     var chartData = {{ chart|tojson }};
     var isDark = document.documentElement.classList.contains('dark');
     var gridColor = isDark ? 'rgba(148, 163, 184, .15)' : 'rgba(100, 116, 139, .15)';
     var tickColor = isDark ? '#cbd5e1' : '#475569';
 
-    new Chart(document.getElementById('trend'), {
+    new Chart(trendEl, {
       type: 'line',
       data: {
         labels: chartData.labels,
@@ -163,7 +188,7 @@
         }
       }
     });
-  })();
+  });
 
   // Diff selector: limit to two checked rows, build the form's `from`/`to`
   // hidden inputs from the picks (oldest first, since the run history

@@ -9,12 +9,12 @@
 #############################################################
 
 circl-src(){
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing circl... "
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing circl... "
     unset user_agent
     user_agent="$(get_user_agent)"
     echo -e "\ncurl ${curl_options[@]} -H \"User-agent: ${user_agent}\" \"https://www.circl.lu/pdns/query/${domain}\"" >> "${log_execution_file}"
     curl "${curl_options[@]}" -H "User-agent: ${user_agent}" "https://www.circl.lu/pdns/query/${domain}" > "${tmp_dir}/circl_output.tmp" 2>> "${log_execution_file}"
-    echo "Done!"
+    # echo "Done!"
     sleep 1
 }
 

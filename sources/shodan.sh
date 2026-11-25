@@ -19,12 +19,12 @@ shodan-src(){
                 shodan init "${shodan_apikey}" > /dev/null
             fi
         fi
-        echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing shodan... "
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing shodan... "
         echo -e "\nshodan search --no-color --fields hostnames hostname:${domain}" >> "${log_execution_file}"
         shodan search --no-color --fields hostnames hostname:"${domain}" \
             > "${tmp_dir}/shodan_output.tmp" \
             2>> "${log_execution_file}"
-        echo "Done!"
+        # echo "Done!"
         sleep 1
     fi
 }

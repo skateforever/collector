@@ -30,13 +30,13 @@ git_rebuild(){
                     [[ $(grep -Eq  "^\[core\]|^\[remote.*\]|^\[branch.*\]" "${git_config_tmp}"; echo "$?") -eq "0" ]]; then
                     rm -f "${git_config_tmp}"
                     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Found .git on ${green}${git_target}${reset}!"
-                    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Creating the .git directory structure for ${green}${git_target}${reset}... "
-                    echo "Done!"
-                    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Downloading the static and objects files from repository... "
+                    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Creating the .git directory structure for ${green}${git_target}${reset}... "
+                    # echo "Done!"
+                    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Downloading the static and objects files from repository... "
                     echo "git-dumper --proxy \"http://${proxy_ip}\" ${git_target} \"${target_dir}\"" >> "${log_execution_file}"
                     git-dumper --proxy "http://${proxy_ip}" "${git_target}" "${target_dir}" >> "${log_execution_file}" 2>&1
-                    echo "Done!"
-                    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Downloading files from repository... "
+                    # echo "Done!"
+                    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Downloading files from repository... "
                     (
                     cd "${target_dir}" || exit 1
                     for repo_file in $(git ls-files); do
@@ -50,7 +50,7 @@ git_rebuild(){
                     while pgrep -f "curl.*${git_target}" > /dev/null; do
                        sleep 1
                     done
-                    echo "Done!"
+                    # echo "Done!"
                     )
                 fi
             else
@@ -59,13 +59,13 @@ git_rebuild(){
                     [[ $(grep -Eq "^\[core\]|^\[remote.*\]|^\[branch.*\]" "${git_config_tmp}"; echo "$?") -eq "0" ]]; then
                     rm -f "${git_config_tmp}"
                     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Found .git on ${green}${git_target}${reset}!"
-                    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Creating the .git directory structure for ${green}${git_target}${reset}... "
-                    echo "Done!"
+                    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Creating the .git directory structure for ${green}${git_target}${reset}... "
+                    # echo "Done!"
                     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Downloading the static and objects files from repository... "
                     echo "git-dumper ${git_target} \"${target_dir}\"" >> "${log_execution_file}" 2>&1
                     git-dumper "${git_target}" "${target_dir}" >> "${log_execution_file}" 2>&1
-                    echo "Done!"
-                    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Downloading files from repository... "
+                    # echo "Done!"
+                    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Downloading files from repository... "
                     (
                     cd "${target_dir}" || exit 1
                     for repo_file in $(git ls-files); do
@@ -79,7 +79,7 @@ git_rebuild(){
                     while pgrep -f "curl.*${git_target}" > /dev/null; do
                         sleep 1
                     done
-                    echo "Done!"
+                    # echo "Done!"
                     )
                 fi
             fi

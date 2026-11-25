@@ -9,7 +9,7 @@
 #############################################################
 
 dns-mining-src(){
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing DNS mining (SPF/DMARC/MX)... "
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing DNS mining (SPF/DMARC/MX)... "
     : > "${tmp_dir}/dns_mining_output.tmp"
 
     # TXT / SPF records — include: and redirect= leak internal domain names
@@ -32,7 +32,7 @@ dns-mining-src(){
     done
 
     sort -u -o "${tmp_dir}/dns_mining_output.tmp" "${tmp_dir}/dns_mining_output.tmp" 2>/dev/null
-    echo "Done!"
+    # echo "Done!"
 }
 
 dns-mining-src

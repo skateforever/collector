@@ -16,7 +16,7 @@ webapp_enum(){
     local urls_file="$2"
     local list index urls_tested url name file_gobuster file_dirsearch file_ffuf ffuf_ext_param
     echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Initializing the web application enumeration and this might take a certain time!"
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing web application files and dirs enumeration... "
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing web application files and dirs enumeration... "
     if [ -s "${urls_file}" ]; then
         if [ -d "${report_dir}" ]  && [ -d "${webapp_enum_dir}" ] ; then
             echo -e "${red}Warning:${reset} It can take a long time to execute the enumeration!"
@@ -85,15 +85,15 @@ webapp_enum(){
                         continue
                     fi
                 done
-                echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Waiting the dirsearch, gobuster and ffuf finish... "
+                echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Waiting the dirsearch, gobuster and ffuf finish... "
                 while pgrep -af "[d]irsearch.*${target}" > /dev/null \
                     || pgrep -af "[g]obuster.*${target}" > /dev/null \
                     || pgrep -af "[f]fuf.*${target}" > /dev/null; do
                     sleep 1
                 done
-                echo "Done!"
+                # echo "Done!"
 
-                echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Cleaning up dirsearch files... "
+                echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Cleaning up dirsearch files... "
                 # Use find -exec instead of `sed -i ... "${dir}/*.dirsearch*"`:
                 # double-quoted strings are not glob-expanded, so the previous
                 # sed received a literal "/path/*.dirsearch*" filename and
@@ -101,19 +101,19 @@ webapp_enum(){
                 find "${webapp_enum_dir}" -maxdepth 1 -type f -name '*.dirsearch*' -exec \
                     sed -i -e 's/.\[4.m//g' -e 's/.\[3.m//g' -e 's/.\[1K.\[0G/\n/g' \
                         -e 's/.\[1m//g' -e 's/.\[0m//g' -e '/Last request to/d' {} + 2> /dev/null
-                echo "Done!"
+                # echo "Done!"
 
-                echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Cleaning up gobuster files... "
+                echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Cleaning up gobuster files... "
                 find "${webapp_enum_dir}" -maxdepth 1 -type f -name '*.gobuster*' -exec \
                     sed -i "s/^..\[2K//" {} + 2> /dev/null
-                echo "Done!"
+                # echo "Done!"
 
                 # ffuf CSV files: keep them as-is (they're already clean +
                 # parseable). No sed pass needed. Header line is dropped by
                 # the grep filters below.
 
                 # Notifying the finds
-                echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Sending files search notification... "
+                echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Sending files search notification... "
                 grep --color=never -Ehr "^\[.*\] 200 -" "${webapp_enum_dir}/" | awk '{print $6}' | grep -E "($(echo ${webapp_file_extensions} | sed 's/,/|/g'))$" | notify "${notify_options[@]}" -id "${notify_files_channel}" > /dev/null 2>&1
                 grep --color=never -Ehr "\(Status: 200\)" "${webapp_enum_dir}/" | awk '{print $1}' | grep -E "($(echo ${webapp_file_extensions} | sed 's/,/|/g'))$" | notify "${notify_options[@]}" -id "${notify_files_channel}" > /dev/null 2>&1
                 # ffuf csv: FUZZ,url,redirectlocation,position,status_code,content_length,content_words,content_lines,content_type,duration,resultfile
@@ -122,7 +122,7 @@ webapp_enum(){
                     awk -F',' 'NR>1 && $5=="200" {print $2}' {} + 2>/dev/null \
                     | grep -E "($(echo ${webapp_file_extensions} | sed 's/,/|/g'))$" \
                     | notify "${notify_options[@]}" -id "${notify_files_channel}" > /dev/null 2>&1
-                echo "Done!"
+                # echo "Done!"
             else
                 echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Array of wordlists is empty. Stopping the script!"
                 echo -e "Array of wordlists is empty. Stopping the script!" | notify "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
@@ -136,7 +136,7 @@ webapp_enum(){
             exit 1
         fi
     else
-        echo "Fail!"
+        # echo "Fail!"
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Make sure the ${urls_file} exist and isn't empty. You probably forgot to add --webapp-discovery option to execute, or really, we have a problem with script execution."
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} You probably forgot to add --webapp-discovery option to execute, or really, we have a problem with script execution."
         echo -e "Make sure the ${urls_file} exist and isn't empty. \nYou probably forgot to add --webapp-discovery option to execute, or really, we have a problem with script execution." | notify "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
@@ -150,7 +150,7 @@ webapp_tech(){
     local target="$1"
     local urls_file="$2"
     local url name file_tech_by_headers
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing web application technology enumeration... "
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing web application technology enumeration... "
     if [ -s "${urls_file}" ]; then
         if [ -d "${report_dir}" ] && [ -d "${webapp_tech_dir}" ] ; then
             # Explicit proxy arg arrays (the previous alias-based approach
@@ -178,10 +178,10 @@ webapp_tech(){
                 unset name
                 unset url
             done < "${urls_file}"
-            echo "Done!"
+            # echo "Done!"
         fi
     else
-        echo "Fail!"
+        # echo "Fail!"
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Make sure the ${urls_file} exist and isn't empty."
         echo -e "Make sure the ${urls_file} exist and isn't empty." | notify "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
         message "${target}" failed
@@ -191,7 +191,7 @@ webapp_tech(){
 
 robots_txt(){
     local robots_target url user_agent file
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Looking for new URLs on robots.txt... "
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Looking for new URLs on robots.txt... "
     while IFS= read -r -d '' file; do
         file="$(basename "${file}")"
         [[ ! -s "${webapp_enum_dir}/${file}" ]] && continue
@@ -210,7 +210,7 @@ robots_txt(){
         fi
     done < <(find "${webapp_enum_dir}" -maxdepth 1 -type f -print0)
     [[ -s "${report_dir}/robots_urls.txt" ]] && sort -u -o "${report_dir}/robots_urls.txt" "${report_dir}/robots_urls.txt"
-    echo "Done!"
+    # echo "Done!"
 }
 
 # Mirror of robots_txt for sitemap.xml: pulls /sitemap.xml from each live URL
@@ -237,7 +237,7 @@ sitemap_xml(){
     max_depth="${SITEMAP_MAX_DEPTH:-3}"
     max_index="${SITEMAP_MAX_INDEX:-50}"
 
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Looking for new URLs on sitemap.xml... "
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Looking for new URLs on sitemap.xml... "
 
     if [[ ! -s "${urls_file}" ]]; then
         echo "Skip (no URL list)."
@@ -345,8 +345,9 @@ sitemap_xml(){
 
     if [[ -s "${out_file}" ]]; then
         sort -u -o "${out_file}" "${out_file}"
-        echo "Done! ($(wc -l < "${out_file}") URLs)"
+        # echo "Done! ($(wc -l < "${out_file}") URLs)"
     else
-        echo "Done! (no URLs extracted)"
+        :
+        # echo "Done! (no URLs extracted)"
     fi
 }

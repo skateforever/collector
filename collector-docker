@@ -61,17 +61,17 @@
 #                           interactive TTY UI back)
 #   OUTPUTS_DIR           — outputs directory (default: <root>/outputs)
 #   WORDLISTS_DIR         — wordlists directory (default: <root>/wordlists)
-#   APP_REPORT_DB_DIR     — app-report results DB directory (default: <root>/app-report/db,
+#   WEB_REPORT_DB_DIR     — web-report results DB directory (default: <root>/support/web-report/db,
 #                           i.e. mounted onto itself — same path host and container side) —
-#                           persists app-report/db/collector-results across
+#                           persists support/web-report/db/collector-results across
 #                           `docker run --rm` invocations; separate from OUTPUTS_DIR
 #                           since the DB isn't per-run recon output (see collector_db
 #                           in conf.d/operation.conf).
-#   APP_REPORT_RUN_DIR    — app-report runtime directory (default: <root>/app-report/run,
-#                           mounted onto itself, same as APP_REPORT_DB_DIR above) —
-#                           persists app-report/run/app-report.{pid,log} across
+#   WEB_REPORT_RUN_DIR    — web-report runtime directory (default: <root>/support/web-report/run,
+#                           mounted onto itself, same as WEB_REPORT_DB_DIR above) —
+#                           persists support/web-report/run/web-report.{pid,log} across
 #                           `docker run --rm` invocations, same reasoning as
-#                           APP_REPORT_DB_DIR (see functions/app_report.sh).
+#                           WEB_REPORT_DB_DIR (see functions/web_report.sh).
 #   CONF_D_DIR            — path to the conf.d/ directory (default: <root>/conf.d),
 #                           mounted whole so operation.conf, functions.conf,
 #                           and whichever of apis-recon.conf/apis-emails.conf
@@ -82,7 +82,39 @@
 #   ALERT_PROVIDER_FILE   — path to alert provider config file
 #                           (default: <root>/{type}-provider.yaml — optional;
 #                           if missing, uses template baked into image)
-#   APP_PORT              — dashboard port mapping (default: 127.0.0.1:8000:8000)
+#   WEB_REPORT_HOST_ADDRESS — overrides web_report_host_address from
+#                           conf.d/operation.conf for this invocation only
+#                           (that file is the actual source of truth — see
+#                           its own comment on the variable). Set to the
+#                           machine's LAN/public IP, or 0.0.0.0 for every
+#                           interface, to reach the dashboard from another
+#                           machine. Only takes effect with -ru|--report-up.
+#   WEB_REPORT_HOST_PORT  — overrides web_report_host_port from
+#                           conf.d/operation.conf for this invocation only.
+#                           Set only if you need the externally-published
+#                           port to differ from the container's internal
+#                           web_report_container_port. Only takes
+#                           effect with -ru|--report-up.
+#   MCP_HOST_ADDRESS      — overrides collector_mcp_host from
+#                           conf.d/operation.conf for this invocation only
+#                           — same override pattern as WEB_REPORT_HOST_ADDRESS
+#                           above. Set to the machine's LAN/public IP, or
+#                           0.0.0.0 for every interface, to reach the MCP
+#                           server from another machine. Only takes effect
+#                           with -mu|--mcp-up.
+#   MCP_HOST_PORT         — overrides collector_mcp_port from
+#                           conf.d/operation.conf for this invocation only.
+#                           Unlike WEB_REPORT_HOST_PORT there is no separate
+#                           container-internal port to keep in sync — this
+#                           is the one port collector-mcp.py binds to AND
+#                           the one this wrapper publishes. Only takes
+#                           effect with -mu|--mcp-up.
+#   MCP_RUN_DIR           — collector-mcp.py runtime directory (default:
+#                           <root>/support/mcp/run, mounted onto itself) —
+#                           persists support/mcp/run/collector-mcp.{pid,log}
+#                           across `docker run --rm` invocations, same
+#                           reasoning as WEB_REPORT_RUN_DIR (see
+#                           functions/mcp_server.sh).
 #   TZ                    — timezone for every timestamp collector logs/prints
 #                           (default: auto-detected from the host's
 #                           /etc/localtime; falls back to the image's own
@@ -92,6 +124,19 @@
 #   1. ALERT_PROVIDER_TYPE environment variable (if set)
 #   2. conf.d/functions.conf notify_config value (if available)
 #   3. Default: discord
+#
+# Configuration precedence (dashboard host address/port):
+#   1. WEB_REPORT_HOST_ADDRESS / WEB_REPORT_HOST_PORT environment
+#      variables (if set) — e.g. WEB_REPORT_HOST_ADDRESS=0.0.0.0 to
+#      publish on every interface
+#   2. web_report_host_address / web_report_host_port in
+#      conf.d/operation.conf — THE source of truth; every variable that
+#      changes collector's behavior belongs there, not hardcoded in this
+#      wrapper (this script only reads it, same as
+#      web_report_container_port below). An empty
+#      web_report_host_port falls back to web_report_container_port
+#      (same port, container and published side).
+#   3. Fallback if operation.conf can't be read: 127.0.0.1, port 8000
 #
 # Installation:
 #   sudo install -m 0755 collector-docker /usr/local/bin/collector-docker
@@ -325,10 +370,10 @@ fi
 COLLECTOR_IMAGE="${COLLECTOR_IMAGE:-collector:latest}"
 OUTPUTS_DIR="${OUTPUTS_DIR:-${DEFAULT_ROOT}/outputs}"
 WORDLISTS_DIR="${WORDLISTS_DIR:-${DEFAULT_ROOT}/wordlists}"
-APP_REPORT_DB_DIR="${APP_REPORT_DB_DIR:-${DEFAULT_ROOT}/app-report/db}"
-APP_REPORT_RUN_DIR="${APP_REPORT_RUN_DIR:-${DEFAULT_ROOT}/app-report/run}"
+WEB_REPORT_DB_DIR="${WEB_REPORT_DB_DIR:-${DEFAULT_ROOT}/support/web-report/db}"
+WEB_REPORT_RUN_DIR="${WEB_REPORT_RUN_DIR:-${DEFAULT_ROOT}/support/web-report/run}"
+MCP_RUN_DIR="${MCP_RUN_DIR:-${DEFAULT_ROOT}/support/mcp/run}"
 CONF_D_DIR="${CONF_D_DIR:-${DEFAULT_ROOT}/conf.d}"
-APP_PORT="${APP_PORT:-127.0.0.1:8000:8000}"
 
 # Without this, every timestamp collector logs/prints (log_execution_file
 # lines, the history CSV, the dashboard) is in the container's default
@@ -361,10 +406,59 @@ get_alert_provider_type() {
 ALERT_PROVIDER_TYPE="$(get_alert_provider_type)"
 ALERT_PROVIDER_FILE="${ALERT_PROVIDER_FILE:-${DEFAULT_ROOT}/${ALERT_PROVIDER_TYPE}-provider.yaml}"
 
+# Read a single conf.d/operation.conf variable (plain NAME="value" or
+# NAME=value lines only — this is a deliberately dumb grep/sed reader,
+# not a shell parser). Every variable that changes collector's own
+# behavior lives in operation.conf (the single source of truth collector
+# itself sources); this wrapper only ever READS it, never hardcodes its
+# own default out of sync with that file. Same pattern already used for
+# notify_config above.
+_read_operation_conf_var() {
+    local name="$1" operation_conf="${CONF_D_DIR}/operation.conf"
+    [[ -f "${operation_conf}" ]] || return 0
+    grep -E "^${name}=" "${operation_conf}" | tail -1 | sed -E "s/^${name}=\"?([^\"]*)\"?\$/\1/"
+}
+
+# Container-internal port gunicorn binds to
+# (web_report_container_port). Needed even when nothing is
+# published (the container-side half of -p always has to match what's
+# actually listening inside).
+WEB_REPORT_CONTAINER_PORT="$(_read_operation_conf_var web_report_container_port)"
+WEB_REPORT_CONTAINER_PORT="${WEB_REPORT_CONTAINER_PORT:-8000}"
+
+# Address/port the dashboard is PUBLISHED on — i.e. the `-p` flag's
+# host-side half. conf.d/operation.conf's web_report_host_address/
+# web_report_host_port are the source of truth (see that file's own
+# comment on why reachability from other machines is controlled there,
+# not here); the WEB_REPORT_HOST_ADDRESS/WEB_REPORT_HOST_PORT
+# environment variables override them for a single invocation only, same
+# precedence pattern as ALERT_PROVIDER_TYPE above.
+WEB_REPORT_HOST_ADDRESS="${WEB_REPORT_HOST_ADDRESS:-$(_read_operation_conf_var web_report_host_address)}"
+WEB_REPORT_HOST_ADDRESS="${WEB_REPORT_HOST_ADDRESS:-127.0.0.1}"
+WEB_REPORT_HOST_PORT="${WEB_REPORT_HOST_PORT:-$(_read_operation_conf_var web_report_host_port)}"
+WEB_REPORT_HOST_PORT="${WEB_REPORT_HOST_PORT:-${WEB_REPORT_CONTAINER_PORT}}"
+WEB_REPORT_PORT_MAPPING="${WEB_REPORT_HOST_ADDRESS}:${WEB_REPORT_HOST_PORT}:${WEB_REPORT_CONTAINER_PORT}"
+
+# Address/port collector-mcp.py binds to AND is published on — unlike
+# web-report there's no separate container-internal vs. published-port
+# pair here (see functions/mcp_server.sh: COLLECTOR_MCP_HOST is exported
+# as-is, no forced 0.0.0.0 rewrite), so one pair of variables covers
+# both sides of the `-p` mapping. conf.d/operation.conf's
+# collector_mcp_host/collector_mcp_port are the source of truth; the
+# MCP_HOST_ADDRESS/MCP_HOST_PORT environment variables override them for
+# a single invocation only, same precedence pattern as
+# WEB_REPORT_HOST_ADDRESS/WEB_REPORT_HOST_PORT above.
+MCP_CONTAINER_PORT="$(_read_operation_conf_var collector_mcp_port)"
+MCP_CONTAINER_PORT="${MCP_CONTAINER_PORT:-8010}"
+MCP_HOST_ADDRESS="${MCP_HOST_ADDRESS:-$(_read_operation_conf_var collector_mcp_host)}"
+MCP_HOST_ADDRESS="${MCP_HOST_ADDRESS:-127.0.0.1}"
+MCP_HOST_PORT="${MCP_HOST_PORT:-${MCP_CONTAINER_PORT}}"
+MCP_PORT_MAPPING="${MCP_HOST_ADDRESS}:${MCP_HOST_PORT}:${MCP_CONTAINER_PORT}"
+
 # Pre-create the host directories that Docker would otherwise auto-create
 # as root when mounting them as volumes (which then breaks ownership of
 # the outputs produced inside the container).
-mkdir -p "${OUTPUTS_DIR}" "${WORDLISTS_DIR}" "${APP_REPORT_DB_DIR}" "${APP_REPORT_RUN_DIR}" 2>/dev/null || true
+mkdir -p "${OUTPUTS_DIR}" "${WORDLISTS_DIR}" "${WEB_REPORT_DB_DIR}" "${WEB_REPORT_RUN_DIR}" "${MCP_RUN_DIR}" 2>/dev/null || true
 
 # Sanity check: if CONF_D_DIR (or its two required files) doesn't exist,
 # abort with a clear message — otherwise Docker would create an empty
@@ -398,75 +492,184 @@ if ! docker image inspect "${COLLECTOR_IMAGE}" >/dev/null 2>&1; then
     exit 1
 fi
 
-# Detect report flags in "$@" so we can:
-#   --report-only  → name the container 'collector-report' and refuse if
-#                    another one is already running (Docker's --name
-#                    collision gives a clear error, no port race).
-#   --report-stop  → do NOT spawn a new container; call `docker stop`
-#                    on the running one from the host. The in-container
-#                    stop_app_report path is unreachable when the caller
-#                    is only the host wrapper (no other container is
-#                    running the collector binary), so dispatching from
-#                    here is the only way that works.
+# Detect report/mcp flags in "$@" so we can:
+#   --report-up / --mcp-up    → name the container 'collector-reconnaissance'
+#                    and refuse if another one is already running (Docker's
+#                    --name collision gives a clear error, no port race).
+#                    Applies whether either flag was passed alone or
+#                    combined with a target flag — either way the
+#                    container needs to persist (no --rm) and publish
+#                    whichever service's port was requested. Both flags
+#                    share the SAME container name/lifecycle — web-report
+#                    and the MCP server are two independent services that
+#                    can both run inside one persistent container (see
+#                    want_persistent_container below), not two containers,
+#                    mirroring how they already share one container when
+#                    combined with a recon target (collector itself is
+#                    PID 1 either way).
+#   --shutdown        → do NOT spawn a new container; call `docker stop`
+#                    on the running one from the host, unconditionally.
+#                    The in-container stop_web_report/stop_mcp_server path
+#                    is unreachable when the caller is only the host
+#                    wrapper (no other container is running the collector
+#                    binary), so dispatching from here is the only way
+#                    that works. Keyed purely on the container name, so
+#                    it stops it regardless of which --report-up/--mcp-up
+#                    combination started it — this is a WHOLE-container
+#                    stop, taking down web-report AND the MCP server
+#                    together, whichever of the two (or both) happen to
+#                    be running there. There is no narrower "stop just
+#                    one service" mode anymore — collector's own SIGTERM
+#                    trap in `collector` calls stop_web_report AND
+#                    stop_mcp_server before exiting, so this is still a
+#                    graceful shutdown of whatever is running, not the
+#                    kernel's unconditional PID-namespace SIGKILL.
 # Long/short forms are both accepted, matching the collector CLI.
-REPORT_CONTAINER_NAME="${REPORT_CONTAINER_NAME:-collector-report}"
-want_report_only=no
-want_report_stop=no
+COLLECTOR_CONTAINER_NAME="${COLLECTOR_CONTAINER_NAME:-collector-reconnaissance}"
+want_report_up=no
+want_mcp_up=no
+want_shutdown=no
+has_target_flag=no
 for arg in "$@"; do
     case "${arg}" in
-        -ro|--report-only) want_report_only=yes ;;
-        -rs|--report-stop) want_report_stop=yes ;;
+        -ru|--report-up) want_report_up=yes ;;
+        -mu|--mcp-up)    want_mcp_up=yes ;;
+        -sd|--shutdown)  want_shutdown=yes ;;
+        -d|--domain|-dl|--domain-list|-u|--url) has_target_flag=yes ;;
     esac
 done
 
-# --report-stop wins over --report-only (mirrors the ordering inside
-# collector so `--report-only --report-stop` means "stop").
-if [[ "${want_report_stop}" == "yes" ]]; then
-    if docker ps --format '{{.Names}}' | grep -qx "${REPORT_CONTAINER_NAME}"; then
-        docker stop "${REPORT_CONTAINER_NAME}" >/dev/null && \
-            echo "collector-docker: stopped ${REPORT_CONTAINER_NAME}"
+# --shutdown — unconditional `docker stop` on the whole container,
+# replacing the old separate --report-down (already a full `docker stop`)
+# and --mcp-down (a surgical `docker exec ... collector --mcp-down` that
+# left the rest of the container running) flags. There's no narrower mode
+# anymore: whatever is running in there (web-report, the MCP server, or
+# both) goes down together, same as a plain `docker stop` would do.
+if [[ "${want_shutdown}" == "yes" ]]; then
+    # Doesn't make sense combined with any other flag, so reject rather
+    # than silently ignore them (matches the same check inside collector,
+    # which this wrapper's own container never gets a chance to run since
+    # we exit here first).
+    if [[ $# -ne 1 ]]; then
+        echo "collector-docker: -sd|--shutdown must be used alone, with no other parameters." >&2
+        exit 1
+    fi
+    # docker ps -a (not plain `docker ps`): a container that already
+    # exited (crashed, or killed by something outside collector-docker
+    # entirely — e.g. the Docker daemon itself restarting) is invisible
+    # to `docker ps`, so --shutdown against it used to report
+    # "no running container" and leave the stopped container (and its
+    # name) sitting there — see the matching note below, same root
+    # cause. `docker rm` on an exited container is a no-op cleanup, not
+    # a stop; only call `docker stop` when it's actually running.
+    if docker ps -a --format '{{.Names}}' | grep -qx "${COLLECTOR_CONTAINER_NAME}"; then
+        if docker ps --format '{{.Names}}' | grep -qx "${COLLECTOR_CONTAINER_NAME}"; then
+            docker stop "${COLLECTOR_CONTAINER_NAME}" >/dev/null && \
+                echo "collector-docker: stopped ${COLLECTOR_CONTAINER_NAME}"
+        else
+            docker rm "${COLLECTOR_CONTAINER_NAME}" >/dev/null && \
+                echo "collector-docker: removed already-exited ${COLLECTOR_CONTAINER_NAME}"
+        fi
     else
-        echo "collector-docker: no running container named ${REPORT_CONTAINER_NAME}"
+        echo "collector-docker: no container named ${COLLECTOR_CONTAINER_NAME}"
     fi
     exit 0
 fi
 
-# Host-side port preflight — decides whether to publish APP_PORT.
-#
-# Three outcomes, all silent about the "why" so the recon path stays
-# quiet on happy runs:
-#   1. Host port is free → pass -p normally (default behavior).
-#   2. Host port is bound by anything at all → omit -p. The recon still
-#      completes; if the port is held by a sibling collector container,
-#      its dashboard already renders this run's results (shared outputs
-#      volume). If it's held by something unrelated, the operator sees
-#      no dashboard from this container — a conscious trade-off: never
-#      fail a recon over a busy port.
-#
-# Tool preference: ss > lsof > netstat. If none are present we skip the
-# check and let Docker itself decide (which usually means it fails, but
-# only in the rare case where the port is genuinely taken and no tool
-# is available to detect it beforehand).
-host_port=""
-if [[ "${APP_PORT}" =~ ^[0-9.]+:([0-9]+):[0-9]+$ ]]; then
-    host_port="${BASH_REMATCH[1]}"
-elif [[ "${APP_PORT}" =~ ^([0-9]+):[0-9]+$ ]]; then
-    host_port="${BASH_REMATCH[1]}"
+# --report-up alone (no target flag) needs the DB to already exist — the
+# in-container preflight (functions/web_report.sh) would catch this too,
+# but failing here on the host avoids booting a persistent, --rm-less
+# container only to have it immediately report "nothing to render" and
+# sit there anyway. Combined with a target flag, the recon about to run
+# will create the DB, so this check doesn't apply.
+if [[ "${want_report_up}" == "yes" && "${has_target_flag}" == "no" ]]; then
+    if [[ ! -s "${WEB_REPORT_DB_DIR}/collector-results" ]]; then
+        echo "collector-docker: no collector-results DB found at ${WEB_REPORT_DB_DIR}/collector-results" >&2
+        echo "  run at least one recon first, e.g.: collector-docker -d <target> --recon" >&2
+        exit 1
+    fi
 fi
 
-port_args=(-p "${APP_PORT}")
-if [[ -n "${host_port}" ]]; then
-    port_busy=no
-    if command -v ss >/dev/null 2>&1; then
-        ss -H -ltn "sport = :${host_port}" 2>/dev/null | grep -q . && port_busy=yes
-    elif command -v lsof >/dev/null 2>&1; then
-        lsof -iTCP:"${host_port}" -sTCP:LISTEN -Pn 2>/dev/null | grep -q . && port_busy=yes
-    elif command -v netstat >/dev/null 2>&1; then
-        netstat -ltn 2>/dev/null | awk '{print $4}' | grep -qE "[:.]${host_port}$" && port_busy=yes
+# --mcp-up (alone OR combined) needs collector_mcp_transport=streamable-http
+# in conf.d/operation.conf — the in-container preflight
+# (functions/mcp_server.sh's run_mcp_server) would catch this too, but
+# failing here on the host avoids booting a persistent, --rm-less
+# container only to have it immediately refuse and sit there anyway. Same
+# rationale as the DB preflight above, just a config check instead of a
+# file-existence check.
+if [[ "${want_mcp_up}" == "yes" ]]; then
+    _mcp_transport="$(_read_operation_conf_var collector_mcp_transport)"
+    if [[ "${_mcp_transport:-stdio}" != "streamable-http" ]]; then
+        echo "collector-docker: collector_mcp_transport is '${_mcp_transport:-stdio}', not 'streamable-http', in ${CONF_D_DIR}/operation.conf" >&2
+        echo "  set collector_mcp_transport=\"streamable-http\" there before using -mu|--mcp-up — stdio has no network port for a background/foreground service to bind." >&2
+        exit 1
     fi
-    if [[ "${port_busy}" == "yes" ]]; then
-        port_args=()
+fi
+
+# want_persistent_container — true whenever EITHER service needs the
+# container to survive past this invocation (so it keeps serving). Used
+# below for naming/detach/no-rm/stale-container cleanup, which are
+# identical regardless of which one (or both) of the two services asked
+# for it — only the port(s) actually published and the DB/transport
+# preflights above are service-specific.
+want_persistent_container=no
+[[ "${want_report_up}" == "yes" || "${want_mcp_up}" == "yes" ]] && want_persistent_container=yes
+
+# Port publishing — only for whichever service was actually requested.
+# Without --report-up/--mcp-up: no port args at all (today's plain-recon
+# behavior — neither service starts in-container either, per the
+# report_up_check/mcp_up_check gates in functions/web_report.sh and
+# functions/mcp_server.sh, so publishing a port nothing listens on would
+# be pointless).
+# With either flag: publishing ITS port is a hard requirement, not a
+# best-effort — a persistent, --rm-less container that silently never
+# published a requested port would be a trap (unlike the old transient-
+# dashboard case, there's no "recon still completes fine either way"
+# consolation here). The two checks are independent — passing both flags
+# together publishes both ports, each checked and appended on its own.
+#
+# Tool preference: ss > lsof > netstat. If none are present we skip the
+# busy-port check and let `docker run` itself fail with its own error.
+port_args=()
+if [[ "${want_report_up}" == "yes" ]]; then
+    publish_port="${WEB_REPORT_HOST_PORT}"
+    if [[ -n "${publish_port}" ]]; then
+        port_busy=no
+        if command -v ss >/dev/null 2>&1; then
+            ss -H -ltn "sport = :${publish_port}" 2>/dev/null | grep -q . && port_busy=yes
+        elif command -v lsof >/dev/null 2>&1; then
+            lsof -iTCP:"${publish_port}" -sTCP:LISTEN -Pn 2>/dev/null | grep -q . && port_busy=yes
+        elif command -v netstat >/dev/null 2>&1; then
+            netstat -ltn 2>/dev/null | awk '{print $4}' | grep -qE "[:.]${publish_port}$" && port_busy=yes
+        fi
+        if [[ "${port_busy}" == "yes" ]]; then
+            echo "collector-docker: port ${publish_port} is already in use — the dashboard needs it published." >&2
+            echo "  free the port, change web_report_host_port in conf.d/operation.conf, or override just this run:" >&2
+            echo "  WEB_REPORT_HOST_PORT=<free-port> collector-docker ..." >&2
+            exit 1
+        fi
     fi
+    port_args+=(-p "${WEB_REPORT_PORT_MAPPING}")
+fi
+if [[ "${want_mcp_up}" == "yes" ]]; then
+    publish_port="${MCP_HOST_PORT}"
+    if [[ -n "${publish_port}" ]]; then
+        port_busy=no
+        if command -v ss >/dev/null 2>&1; then
+            ss -H -ltn "sport = :${publish_port}" 2>/dev/null | grep -q . && port_busy=yes
+        elif command -v lsof >/dev/null 2>&1; then
+            lsof -iTCP:"${publish_port}" -sTCP:LISTEN -Pn 2>/dev/null | grep -q . && port_busy=yes
+        elif command -v netstat >/dev/null 2>&1; then
+            netstat -ltn 2>/dev/null | awk '{print $4}' | grep -qE "[:.]${publish_port}$" && port_busy=yes
+        fi
+        if [[ "${port_busy}" == "yes" ]]; then
+            echo "collector-docker: port ${publish_port} is already in use — the MCP server needs it published." >&2
+            echo "  free the port, change collector_mcp_port in conf.d/operation.conf, or override just this run:" >&2
+            echo "  MCP_HOST_PORT=<free-port> collector-docker ..." >&2
+            exit 1
+        fi
+    fi
+    port_args+=(-p "${MCP_PORT_MAPPING}")
 fi
 
 # The alert provider mount is OPT-IN — only injected when the host file exists.
@@ -478,16 +681,32 @@ if [[ -s "${ALERT_PROVIDER_FILE}" ]]; then
     alert_mount_args=(-v "${ALERT_PROVIDER_FILE}:/opt/collector/support/templates/alerts-notify/${ALERT_PROVIDER_TYPE}-provider.yaml:ro")
 fi
 
-# Only the report-only container needs a stable name (so --report-stop
-# from another shell can find it). Recon containers stay anonymous.
+# A persistent container (either service) needs a stable name (so
+# --shutdown from another shell can find it) — applies whether requested
+# alone or combined with a target flag, since either way the container
+# persists afterward. Plain recon containers stay anonymous. Both
+# services share the SAME name/container — see the comment on
+# want_persistent_container above for why.
 name_args=()
-if [[ "${want_report_only}" == "yes" ]]; then
-    if docker ps --format '{{.Names}}' | grep -qx "${REPORT_CONTAINER_NAME}"; then
-        echo "collector-docker: container '${REPORT_CONTAINER_NAME}' is already running." >&2
-        echo "  stop it first with: collector-docker --report-stop" >&2
+if [[ "${want_persistent_container}" == "yes" ]]; then
+    if docker ps --format '{{.Names}}' | grep -qx "${COLLECTOR_CONTAINER_NAME}"; then
+        echo "collector-docker: container '${COLLECTOR_CONTAINER_NAME}' is already running." >&2
+        echo "  stop it first with: collector-docker --shutdown" >&2
         exit 1
     fi
-    name_args=(--name "${REPORT_CONTAINER_NAME}")
+    # A container that already EXITED (crashed, or killed by something
+    # outside collector-docker — e.g. the Docker daemon restarting) is
+    # invisible to the `docker ps` check above, but Docker still holds
+    # its name reserved until it's removed — confirmed: `docker run
+    # --name collector-reconnaissance ...` right after a daemon restart
+    # failed with "Conflict. The container name ... is already in use", even
+    # though nothing was actually running. Clear a stale, stopped
+    # container with that exact name before the real `docker run`
+    # below, so a prior crash doesn't block every future --report-up/--mcp-up.
+    if docker ps -a --format '{{.Names}}' | grep -qx "${COLLECTOR_CONTAINER_NAME}"; then
+        docker rm "${COLLECTOR_CONTAINER_NAME}" >/dev/null
+    fi
+    name_args=(--name "${COLLECTOR_CONTAINER_NAME}")
 fi
 
 # Mount scripts from the host so the container always uses the latest code
@@ -516,16 +735,120 @@ fi
 tz_args=()
 [[ -n "${TZ}" ]] && tz_args=(-e "TZ=${TZ}")
 
-exec docker run --rm "${name_args[@]}" \
-    -e "TERM=${TERM:-dumb}" \
-    "${tz_args[@]}" \
-    -v "${OUTPUTS_DIR}:/opt/collector/outputs" \
-    -v "${WORDLISTS_DIR}:/opt/collector/wordlists" \
-    -v "${APP_REPORT_DB_DIR}:/opt/collector/app-report/db" \
-    -v "${APP_REPORT_RUN_DIR}:/opt/collector/app-report/run" \
-    -v "${CONF_D_DIR}:/opt/collector/conf.d:ro" \
-    "${script_mount_args[@]}" \
-    "${alert_mount_args[@]}" \
-    "${port_args[@]}" \
-    "${COLLECTOR_IMAGE}" \
-    "$@"
+docker_common_args=(
+    -e "TERM=${TERM:-dumb}"
+    "${tz_args[@]}"
+    -v "${OUTPUTS_DIR}:/opt/collector/outputs"
+    -v "${WORDLISTS_DIR}:/opt/collector/wordlists"
+    -v "${WEB_REPORT_DB_DIR}:/opt/collector/support/web-report/db"
+    -v "${WEB_REPORT_RUN_DIR}:/opt/collector/support/web-report/run"
+    -v "${CONF_D_DIR}:/opt/collector/conf.d:ro"
+    "${script_mount_args[@]}"
+    # MCP_RUN_DIR mounts AFTER script_mount_args, specifically after the
+    # whole-support/ read-only mount it injects above — support/mcp/run is
+    # a SUBDIRECTORY of that same support/ mount, so this has to come
+    # later in the mount list to layer on top of (not get hidden by) the
+    # parent read-only mount. Unlike WEB_REPORT_DB_DIR/WEB_REPORT_RUN_DIR
+    # above (an unrelated top-level path, order-independent), this one
+    # genuinely nests inside support/ — same reasoning collector-mcp.py's
+    # own location under support/mcp/ already established (see
+    # functions/mcp_server.sh), just with a mount-order consequence here.
+    -v "${MCP_RUN_DIR}:/opt/collector/support/mcp/run"
+    "${alert_mount_args[@]}"
+)
+
+# A persistent container (either service) means it must survive past
+# this invocation (so whichever service keeps serving) — that needs `-d`
+# (detached from the DOCKER DAEMON's point of view, so the container
+# survives this wrapper exiting and this terminal closing) and NOT
+# `--rm` (so `docker run`'s own cleanup doesn't remove the container the
+# moment collector's PID 1 would otherwise exit; collector itself now
+# also holds PID 1 open via _collector_hold_for_dashboard/
+# _collector_hold_for_mcp_server for exactly this reason).
+#
+# Detached does NOT mean silent, though: the operator's terminal must
+# show the real collector output (banner, recon progress, and finally
+# the real "is up" line(s) printed from inside by functions/web_report.sh
+# and/or functions/mcp_server.sh) as it happens — not a guess printed by
+# this wrapper the instant `docker run -d` returns, before the container
+# has done anything at all (that was the bug: the old message claimed
+# the dashboard was already up when the container had barely started).
+#
+# `docker logs -f` (backgrounded, its OWN process — never the
+# container) streams the container's real stdout/stderr live to this
+# terminal. A separate poll loop watches a SNAPSHOT of the log
+# (`docker logs`, no -f) for the real confirmation line(s), then kills
+# just the log-follower. Piping `docker logs -f` into `sed '/pat/q'`
+# directly was considered and rejected: sed stops READING the moment
+# it matches, but `docker logs -f` only notices (via SIGPIPE) on its
+# NEXT write — if the container goes quiet right after printing the
+# confirmation line (which it does; nothing else follows), that next
+# write may never come, and this wrapper would hang forever waiting
+# for a pipe that's already done its job. The poll loop below has no
+# such blind spot: it re-checks the log directly, not through the
+# live-streaming pipe.
+#
+# required_patterns holds one grep -E pattern per requested service —
+# when BOTH --report-up and --mcp-up are passed, the wrapper waits for
+# BOTH confirmation lines (collector itself starts web-report before the
+# MCP server when combined — see functions/domains_recon.sh/url_recon.sh
+# — but this loop doesn't rely on that ordering, it just waits for
+# whichever patterns are actually relevant here).
+if [[ "${want_persistent_container}" == "yes" ]]; then
+    required_patterns=()
+    [[ "${want_report_up}" == "yes" ]] && required_patterns+=('web-report dashboard is up|access the dashboard at')
+    [[ "${want_mcp_up}" == "yes" ]] && required_patterns+=('collector MCP server is up')
+
+    container_id="$(docker run -d "${name_args[@]}" "${docker_common_args[@]}" "${port_args[@]}" "${COLLECTOR_IMAGE}" "$@")" || exit 1
+    docker logs -f "${container_id}" 2>&1 &
+    follower_pid=$!
+    services_up=no
+    container_exited=no
+    while true; do
+        snapshot="$(docker logs "${container_id}" 2>/dev/null)"
+        all_found=yes
+        for pattern in "${required_patterns[@]}"; do
+            grep -qE "${pattern}" <<< "${snapshot}" || { all_found=no; break; }
+        done
+        if [[ "${all_found}" == "yes" ]]; then
+            services_up=yes
+            break
+        fi
+        # docker inspect's exit code is the reliable signal here — a
+        # transient Docker daemon hiccup (confirmed to happen: a 500 from
+        # the API mid-poll) makes `docker ps`/`docker logs` print an error
+        # instead of the real container list, and `grep -q` against THAT
+        # looks identical to "container not found" even though the
+        # container is still running fine. `docker inspect`'s own exit
+        # status (0 = container exists, regardless of running/exited;
+        # non-zero = truly gone or the daemon call itself failed) doesn't
+        # have that ambiguity — only trust it as "container exited" when
+        # it succeeds AND reports a non-running state.
+        if docker inspect -f '{{.State.Running}}' "${container_id}" 2>/dev/null | grep -qx "false"; then
+            container_exited=yes
+            break
+        fi
+        sleep 1
+    done
+    # Give the follower a moment to flush the confirmation line(s) itself
+    # (so the operator sees them come from the real container output, not
+    # just this wrapper's own echo below) before cutting it off.
+    sleep 1
+    kill "${follower_pid}" 2>/dev/null
+    wait "${follower_pid}" 2>/dev/null
+
+    # No success message of our own here — the real collector output
+    # already streamed above (banner, recon progress, and finally each
+    # service's own "is up"/"--*-down to end" lines), so a wrapper-
+    # authored "running in the background" / "stop: ..." echo would just
+    # repeat what the operator already read, in a different voice than
+    # the rest of the run's output.
+    if [[ "${services_up}" == "yes" ]]; then
+        exit 0
+    fi
+    echo "collector-docker: ${COLLECTOR_CONTAINER_NAME} exited before the requested service(s) came up." >&2
+    echo "  check what happened: docker logs ${COLLECTOR_CONTAINER_NAME} (the container stays until you remove it)" >&2
+    exit 1
+fi
+
+exec docker run --rm "${name_args[@]}" "${docker_common_args[@]}" "${COLLECTOR_IMAGE}" "$@"

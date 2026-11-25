@@ -1,0 +1,6 @@
+# collector-mcp.py only — see MCP.md.
+#
+# Pinned below 2.x: FastMCP was renamed/restructured in the SDK's 2.x
+# line (see https://py.sdk.modelcontextprotocol.io/v2/migration/), and
+# 1.x is what every current MCP client (Claude Desktop/Code) targets.
+mcp>=1.0,<2

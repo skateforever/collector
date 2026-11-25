@@ -9,7 +9,7 @@
 #############################################################
 
 caa-enum-src(){
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing CAA enum... "
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing CAA enum... "
     : > "${tmp_dir}/caa_enum_output.tmp"
     echo -e "\ndig +short CAA \"${domain}\"" >> "${log_execution_file}"
     dig +short CAA "${domain}" 2>/dev/null | while IFS= read -r caa_record; do
@@ -25,7 +25,7 @@ caa-enum-src(){
         fi
     done
     sort -u -o "${tmp_dir}/caa_enum_output.tmp" "${tmp_dir}/caa_enum_output.tmp" 2>/dev/null
-    echo "Done!"
+    # echo "Done!"
 }
 
 caa-enum-src

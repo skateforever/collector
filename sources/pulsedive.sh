@@ -9,7 +9,7 @@
 #############################################################
 
 pulsedive-src(){
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing pulsedive... "
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing pulsedive... "
     unset user_agent
     user_agent="$(get_user_agent)"
     if [[ -n "${pulsedive_api_key}" ]]; then
@@ -23,7 +23,7 @@ pulsedive-src(){
             -H "User-agent: ${user_agent}" \
             "https://pulsedive.com/api/explore.php?q=domain%3D${domain}&limit=1000&pretty=1" > "${tmp_dir}/pulsedive_output.json" 2>> "${log_execution_file}"
     fi
-    echo "Done!"
+    # echo "Done!"
     sleep 1
 }
 

@@ -9,12 +9,12 @@
 #############################################################
 
 urlhaus-src(){
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing urlhaus... "
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing urlhaus... "
     unset user_agent
     user_agent="$(get_user_agent)"
     echo -e "\ncurl ${curl_options[@]} -H \"User-agent: ${user_agent}\" -X POST -d \"host=${domain}\" \"https://urlhaus-api.abuse.ch/v1/host/\"" >> "${log_execution_file}"
     curl "${curl_options[@]}" -H "User-agent: ${user_agent}" -X POST -d "host=${domain}" "https://urlhaus-api.abuse.ch/v1/host/" > "${tmp_dir}/urlhaus_output.json" 2>> "${log_execution_file}"
-    echo "Done!"
+    # echo "Done!"
     sleep 1
 }
 

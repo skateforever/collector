@@ -14,7 +14,7 @@
 
 joining_subdomains(){
     local subdomain chaos_root f file files_amass files_gobuster_dns files_dnssearch excluded_domain
-    echo -en "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Putting all domain search results in one file... "
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Putting all domain search results in one file... "
     if [ -d "${tmp_dir}" ] && [ -d "${report_dir}" ]; then
         if [ -s "${tmp_dir}/alienvault_output.json" ]; then
             echo "Parsing alivenvault" >> "${log_execution_file}"
@@ -509,8 +509,8 @@ joining_subdomains(){
         fi
 
         if [ -s "${tmp_dir}/domains_found.tmp" ]; then
-            echo "Done!"
-            echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Joining the subdomains and removing duplicates... "
+            # echo "Done!"
+            echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Joining the subdomains and removing duplicates... "
             # Removing duplicated subdomains
             cp "${tmp_dir}/domains_found.tmp" "${tmp_dir}/domains_found.tmp.old"
             sed -E -i 's/^null$//g ; s/^\*//g ; s/^@//g ; s/^\.//g ; s/\.$//g ; s/^-//g ; s/^\://g' "${tmp_dir}/domains_found.tmp"
@@ -526,11 +526,11 @@ joining_subdomains(){
                 | grep -vE "@" \
                 | sort -u > "${report_dir}/domains_found.txt" ; then
                 sed -i '/owasp.*nonce/d ; /_/d ; /\*/d ; /^[[:blank:]]/d ; /</d ; />/d' "${report_dir}/domains_found.txt"
-                echo "Done!"
+                # echo "Done!"
             fi
 
             if [ ${#excluded_domains[@]} -gt 0 ] && [ -s "${report_dir}/domains_found.txt" ]; then
-                echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Excluding the subdomains from command line option... "
+                echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Excluding the subdomains from command line option... "
                 for subdomain in "${excluded_domains[@]}"; do
                     local ed_escaped="${subdomain//./\\.}"
                     sed -i "/^${ed_escaped}$/d" "${report_dir}/domains_found.txt"
@@ -538,11 +538,11 @@ joining_subdomains(){
                 unset subdomain
                 # Fixing blank lines after excluding domains
                 sed -i '/^$/d' "${report_dir}/domains_found.txt"
-                echo "Done!"
+                # echo "Done!"
             fi
 
             if [ -s "${excludedomain_list}" ] && [ -s "${report_dir}/domains_found.txt" ]; then
-                echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Excluding the subdomains from file list option... "
+                echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Excluding the subdomains from file list option... "
                 cp "${excludedomain_list}" "${report_dir}/domains_excluded.txt"
                 while IFS= read -r excluded_domain; do
                     [[ -z "${excluded_domain}" || "${excluded_domain}" =~ ^[[:space:]]*# ]] && continue
@@ -550,27 +550,27 @@ joining_subdomains(){
                     ed_escaped="${ed_escaped//\//\\/}"
                     sed -i "/^${ed_escaped}$/d" "${report_dir}/domains_found.txt"
                 done < "${excludedomain_list}"
-                echo "Done!"
+                # echo "Done!"
             fi
         else
-            echo "Fail!"
+            # echo "Fail!"
             echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Make sure all necessary files exist to get all the found domains. Stopping the script."
             echo -e "Make sure all necessary files exist to get all the found domains. Stopping the script." | notify "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
             message "${domain}" failed
             exit 1
         fi
 
-        echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Looking for Zone Transfer... "
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Looking for Zone Transfer... "
         if [ -s "${tmp_dir}/zone_transfer.tmp" ]; then
             cp "${tmp_dir}/zone_transfer.tmp" "${report_dir}/zone_transfer.txt"
-            echo "Done!"
+            # echo "Done!"
         else
-            echo "Fail!"
+            # echo "Fail!"
             echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Does not possible perfom zone transfer!"
         fi
 
     else
-        echo "Fail!"
+        # echo "Fail!"
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Make sure the directories structure was created. Stopping the script."
         echo -e "Make sure the directories structure was created. Stopping the script." | notify "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
         message "${domain}" failed
@@ -582,7 +582,7 @@ organizing_subdomains(){
     local subdomains_file="$1"
     local d file_resolution
     if [ -s "${subdomains_file}" ]; then
-        echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Getting the IPs and aliases of the domain and subdomains... "
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Getting the IPs and aliases of the domain and subdomains... "
         if [ -s "${massdns_resolvers_file}" ]; then
             "massdns" -q -r "${massdns_resolvers_file}" -t A -o S \
                 -w "${tmp_dir}/resolution_massdns.tmp" "${subdomains_file}" > /dev/null 2>&1
@@ -606,9 +606,9 @@ organizing_subdomains(){
         cat "${resolve_dir}"/dig_*.tmp > "${tmp_dir}/resolution_dig.tmp" 2>/dev/null
         cat "${resolve_dir}"/host_*.tmp > "${tmp_dir}/resolution_host.tmp" 2>/dev/null
         rm -rf "${resolve_dir}"
-        echo "Done!"
+        # echo "Done!"
 
-        echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Organizing and handling domain files... "
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Organizing and handling domain files... "
         for file_resolution in "${tmp_dir}/resolution_massdns.tmp" "${tmp_dir}/resolution_dig.tmp" "${tmp_dir}/resolution_host.tmp"; do
             if [[ -s "${file_resolution}" ]];  then
                 # Only subdomain owned by domain with IPv4
@@ -630,16 +630,16 @@ organizing_subdomains(){
                     | sort -u >> "${tmp_dir}/domains_thirdpart.tmp"
             fi
         done
-        echo "Done!"
+        # echo "Done!"
 
         # Removing private IPs
-        echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Separating internal and external IPs... "
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Separating internal and external IPs... "
         if  [ -s "${tmp_dir}/domains_external_ipv4.tmp" ]; then
             grep -E '(^\S+\s+\b10\.\b([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])\..*|^\S+\s+(127\..*)\b|^\S+\s+172\.1[6789]\..*|^\S+\s+172\.2[0-9]\..*|^\S+\s+172\.3[01]\..*|^\S+\s+192\.168\..*)'$ "${tmp_dir}/domains_external_ipv4.tmp" >> "${tmp_dir}/domains_internal_ipv4.tmp"
             sed -i -E '/\b10\.\b([01]?[0-9][0-9]?|2[0-4][0-9]|25[0-5])\..*$/d ; /^\S+\s+(127\..*)\b$/d; /172\.1[6789]\..*$/d ; /172\.2[0-9]\..*$/d ; /172\.3[01]\..*$/d ; /192\.168\..*$/d' "${tmp_dir}/domains_external_ipv4.tmp"
-            echo "Done!"
+            # echo "Done!"
         else
-            echo "Fail!"
+            # echo "Fail!"
             echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Error organizing and handling subdomain IP files!"
             echo "Error organizing and handling subdomain IP files!" | notify "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
             message "${domain}" failed
@@ -647,12 +647,12 @@ organizing_subdomains(){
         fi
 
         # Getting sudomain aliases
-        echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Separating subdomain aliases... "
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Separating subdomain aliases... "
         if sort -u -o "${report_dir}/domains_aliases.txt" "${tmp_dir}/domains_aliases.tmp"; then
             awk '{print $1}' "${report_dir}/domains_aliases.txt" | sort -u | grep -E "${domain}$" >> "${tmp_dir}/domains_alive.tmp"
-            echo "Done!"
+            # echo "Done!"
         else
-            echo "Fail!"
+            # echo "Fail!"
             echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Error organizing and handling subdomain aliases file!"
             echo "Error organizing and handling subdomain aliases file!" | notify "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
             message "${domain}" failed
@@ -660,16 +660,16 @@ organizing_subdomains(){
         fi
 
         # Getting alive subdomains
-        echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Separating live subdomains... "
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Separating live subdomains... "
         if [ -s "${tmp_dir}/domains_external_ipv4.tmp" ] || \
             [ -s "${tmp_dir}/domains_external_ipv6.tmp" ] || \
             [ -s "${tmp_dir}/domains_aliases.tmp" ]; then
             awk '{print $1}' "${tmp_dir}/domains_external_ipv4.tmp" \
                 "${tmp_dir}/domains_external_ipv6.tmp" \
                 "${tmp_dir}/domains_aliases.tmp" | sort -u >> "${tmp_dir}/domains_alive.tmp"
-            echo "Done!"
+            # echo "Done!"
         else
-            echo "Fail!"
+            # echo "Fail!"
             echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Error organizing and handling subdomain alive file!"
             echo "Error organizing and handling subdomain alive file!" | notify "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
             message "${domain}" failed
@@ -677,7 +677,7 @@ organizing_subdomains(){
         fi
 
         # Getting unavailable domains
-        echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Separating unresponsive subdomains... "
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Separating unresponsive subdomains... "
         if [ -s "${tmp_dir}/domains_alive.tmp" ]; then
             if cp "${subdomains_file}" "${tmp_dir}/domains_without_resolution.tmp"; then
                 if [ -s "${tmp_dir}/domains_without_resolution.tmp" ]; then
@@ -686,16 +686,16 @@ organizing_subdomains(){
                         > "${tmp_dir}/domains_without_resolution.tmp.new" \
                         && mv "${tmp_dir}/domains_without_resolution.tmp.new" "${tmp_dir}/domains_without_resolution.tmp"
                     rm -f "${tmp_dir}/alive_sorted.tmp"
-                    echo "Done!"
+                    # echo "Done!"
                 else
-                    echo "Fail!"
+                    # echo "Fail!"
                     echo "Error separating unresponsive subdomains." | notify "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
                     message "${domain}" failed
                     exit 1
                 fi
             fi
         else
-            echo "Fail!"
+            # echo "Fail!"
             echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Error organizing and handling subdomain unresponsive file!"
             echo "Error organizing and handling subdomain unresponsive file!" | notify "${notify_options[@]}" -id "${notify_recon_channel}" > /dev/null 2>&1
             message "${domain}" failed
@@ -703,7 +703,7 @@ organizing_subdomains(){
         fi
  
         # Sorting out...
-        echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Removing duplicate subdomains... "
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Removing duplicate subdomains... "
         sort -u -o "${report_dir}/domains_aliases.txt" "${tmp_dir}/domains_aliases.tmp" 2> /dev/null
         sort -u -o "${report_dir}/domains_alive.txt" "${tmp_dir}/domains_alive.tmp" 2> /dev/null
         sort -u -o "${report_dir}/domains_internal_ipv4.txt" "${tmp_dir}/domains_internal_ipv4.tmp" 2> /dev/null
@@ -711,7 +711,7 @@ organizing_subdomains(){
         sort -u -o "${report_dir}/domains_external_ipv6.txt" "${tmp_dir}/domains_external_ipv6.tmp" 2> /dev/null
         sort -u "${tmp_dir}/domains_without_resolution.tmp" | grep -E "${domain}$" > "${report_dir}/domains_without_resolution.txt" 2> /dev/null
         sort -u -o "${report_dir}/domains_thirdpart.txt" "${tmp_dir}/domains_thirdpart.tmp" 2> /dev/null
-        echo "Done!"
+        # echo "Done!"
 
     else
         echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} The file with all domains from initial recon does not exist or is empty."
@@ -736,11 +736,11 @@ cleanup_etc_hosts(){
 # getent (and by extension every downstream tool) can resolve vhosts.
 # URLs that don't resolve after the injection are logged and dropped.
 build_consolidated_urls(){
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Building consolidated URL list... "
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Building consolidated URL list... "
     : > "${tmp_dir}/webapp_consolidated.tmp"
     [[ -s "${report_dir}/webapp_urls.txt" ]] && cat "${report_dir}/webapp_urls.txt" >> "${tmp_dir}/webapp_consolidated.tmp"
     [[ -s "${report_dir}/vhost_urls.txt" ]]  && cat "${report_dir}/vhost_urls.txt"  >> "${tmp_dir}/webapp_consolidated.tmp"
-    [[ ! -s "${tmp_dir}/webapp_consolidated.tmp" ]] && { echo "Fail!"; return 0; }
+    [[ ! -s "${tmp_dir}/webapp_consolidated.tmp" ]] && { :; return 0; } # echo "Fail!"
     if [[ -s "${report_dir}/etc_hosts_file.txt" ]]; then
         cleanup_etc_hosts
         if [[ -w "/etc/hosts" ]]; then
@@ -781,7 +781,7 @@ build_consolidated_urls(){
     sort -u -o "${report_dir}/webapp_consolidated.txt" "${tmp_dir}/webapp_consolidated_validated.tmp"
     mv "${report_dir}/webapp_urls.txt" "${tmp_dir}/webapp_urls.old" 2>/dev/null
     mv "${report_dir}/vhost_urls.txt"  "${tmp_dir}/vhost_urls.old"  2>/dev/null
-    [[ ! -s "${report_dir}/webapp_consolidated.txt" ]] && { echo "Fail! (no resolvable hosts)"; return 0; }
-    echo "Done!"
+    [[ ! -s "${report_dir}/webapp_consolidated.txt" ]] && { :; return 0; } # echo "Fail! (no resolvable hosts)"
+    # echo "Done!"
     #($(wc -l < "${report_dir}/webapp_consolidated.txt") URLs)
 }

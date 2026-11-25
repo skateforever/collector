@@ -9,13 +9,13 @@
 #############################################################            
 
 webarchive-src(){
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing webarchive... "
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing webarchive... "
     unset user_agent
     user_agent="$(get_user_agent)"
     echo -e "\ncurl ${curl_options_slow[@]} -H \"User-agent: ${user_agent}\" \"http://web.archive.org/cdx/search/cdx?url=*.${domain}/*&output=text&fl=original&collapse=urlkey\"" >> "${log_execution_file}"
     curl "${curl_options_slow[@]}" -H "User-agent: ${user_agent}" "http://web.archive.org/cdx/search/cdx?url=*.${domain}/*&output=text&fl=original&collapse=urlkey" \
         > "${tmp_dir}/webarchive_output.tmp" 2>> "${log_execution_file}" 
-    echo "Done!"
+    # echo "Done!"
     sleep 1
 }
 

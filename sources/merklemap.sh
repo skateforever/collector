@@ -10,7 +10,7 @@
 
 merklemap-src(){
     [[ -z "${merklemap_api_key}" ]] && return 0
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing merklemap... "
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing merklemap... "
     : > "${tmp_dir}/merklemap_output.json"
     for merklemap_page in $(seq 0 9); do
         echo -e "\ncurl ${curl_options[@]} -H \"Authorization: Bearer ${merklemap_api_key}\" \"https://api.merklemap.com/v1/search?query=${domain}&page=${merklemap_page}&type=distance\"" >> "${log_execution_file}"
@@ -23,7 +23,7 @@ merklemap-src(){
         [[ "${merklemap_has_more}" == "false" || -z "${merklemap_count}" || "${merklemap_count}" -eq 0 ]] && break
         sleep 1
     done
-    echo "Done!"
+    # echo "Done!"
 }
 
 merklemap-src

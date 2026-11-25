@@ -28,15 +28,16 @@ collector/
 ├── Dockerfile                          symlink → Dockerfile-debian (imagem padrão)
 ├── Dockerfile-debian                   imagem oficial (python:3.12-slim + Go + Chromium)
 ├── Dockerfile-archlinux                imagem alternativa baseada em Arch
-├── docker-compose.yaml                  serviço pronto: volumes e -p já configurados
+├── docker-compose.yaml                  serviço pronto: volumes já configurados,
+│                                        -p exige -P|--service-ports com `run` (nunca automático)
 ├── README.md                           documentação completa
 ├── TODO.md                             roadmap interno
 │
 ├── collector                           script Bash principal (entrypoint do container)
-├── collector-docker                    wrapper de host: injeta -v e -p e chama docker run,
+├── collector-docker                    wrapper de host: injeta -v sempre, -p só com --report-up,
 │                                        além dos subcomandos `-i|--image` (update/pull/build-only/create/rm)
 ├── conf.d/                             configuração, dividida por assunto:
-│   ├── operation.conf                  funcionamento interno (cores, paths, DB, app-report)
+│   ├── operation.conf                  funcionamento interno (cores, paths, DB, support/web-report)
 │   ├── functions.conf                  parâmetros por ferramenta (timeouts, threads, portas)
 │   ├── apis-recon.conf.example         chaves de API de recon de subdomínio (template, versionado)
 │   ├── apis-recon.conf                 idem, com chaves reais (gitignored)
@@ -62,7 +63,8 @@ collector/
 │   ├── webapp_enum.sh                  gobuster + dirsearch + aquatone + robots/sitemap
 │   ├── webapp_crawler.sh               katana + waybackurls + extração de JS e parâmetros
 │   ├── git.sh                          git-dumper para repositórios .git expostos
-│   ├── app_report.sh                   ciclo de vida do dashboard Flask/gunicorn (background + foreground via --report-only)
+│   ├── web_report.sh                   ciclo de vida do dashboard Flask/gunicorn (sob demanda via --report-up, background ou foreground)
+│   ├── mcp_server.sh                   ciclo de vida do collector-mcp.py (sob demanda via --mcp-up/--shutdown, mesmo formato background/foreground do web_report.sh)
 │   ├── cloudflare_tunnel.sh            quick-tunnel do cloudflared para o dashboard (opt-in)
 │   ├── db_usage.sh                     ingestão SQLite idempotente do CSV de histórico por run
 │   └── llm_prompt.sh                   build_llm_prompt + llm_emit_artifact (montador do bundle LLM)
@@ -98,6 +100,15 @@ collector/
 │   ├── docker/                         configuração Docker e volume strategy
 │   │   ├── docker.env.template         template de variáveis de ambiente (Docker Compose)
 │   │   └── VOLUME_STRATEGY.md          documentação detalhada sobre volumes (code replication)
+│   ├── mcp/                            servidor MCP sobre o collector-results — ver MCP.md
+│   │   ├── collector-mcp.py            tools read-only: targets, runs, artifacts, findings, diffs
+│   │   ├── MCP.md                      setup, referência de tools, reescrita de path container/host
+│   │   └── requirements.txt            SDK mcp (<2, FastMCP)
+│   ├── web-report/                     dashboard read-only (Flask + HTMX + gunicorn)
+│   │   ├── app.py                      rotas, leitura do collector-results
+│   │   ├── db/                         volume (WEB_REPORT_DB_DIR) — collector-results (SQLite)
+│   │   ├── requirements.txt            flask, gunicorn
+│   │   └── templates/                  index, target, runs, findings, diff, artifact, raw
 │   └── templates/                      drop-ins para automação
 │       ├── cron/collector              cron diário/semanal
 │       ├── systemd/collector@          systemd timer template
@@ -110,12 +121,6 @@ collector/
 │           ├── README.md               guia de setup para cada provedor
 │           └── MIGRATION.md            guia de migração do sistema antigo
 │
-├── app-report/                         dashboard read-only (Flask + HTMX + gunicorn)
-│   ├── app.py                          rotas, leitura do collector-results
-│   ├── db/                             volume (APP_REPORT_DB_DIR) — collector-results (SQLite)
-│   ├── requirements.txt
-│   └── templates/                      index, target, runs, findings, diff, artifact, raw
-│
 └── demo/                               screenshots de divulgação
 ```
 
@@ -124,7 +129,7 @@ collector/
 O entrypoint do container é o script `collector`. Resumidamente o fluxo é:
 
 1. **Bootstrap.** `collector` carrega `functions/utils.sh` (banner, helpers, reset de variáveis globais) e depois faz `source` de `conf.d/operation.conf` e `conf.d/functions.conf` (obrigatórios), seguido de `conf.d/apis-recon.conf` e `conf.d/apis-emails.conf` — caindo para seus templates `.example` se os arquivos reais (gitignored) não existirem — pra herdar timeouts, threads, listas de portas curta/longa e chaves de API.
-2. **Carga de módulos.** Em sequência são feitos `source` em todos os arquivos de `functions/` essenciais (`menu.sh`, `usage.sh`, `check_*`, `domains_*`, `url_recon.sh`, `webapp_*`, `emails_recon.sh`, `git.sh`, `diff.sh`, `files.sh`, `infra.sh`, além dos módulos do dashboard `cloudflare_tunnel.sh`, `app_report.sh`, `db_usage.sh`, `llm_prompt.sh`) e em `scans/` (`acunetix.sh`, `nmap.sh`, `nuclei.sh`, `shodan.sh`, `js_scans.sh`).
+2. **Carga de módulos.** Em sequência são feitos `source` em todos os arquivos de `functions/` essenciais (`menu.sh`, `usage.sh`, `check_*`, `domains_*`, `url_recon.sh`, `webapp_*`, `emails_recon.sh`, `git.sh`, `diff.sh`, `files.sh`, `infra.sh`, além dos módulos do dashboard `cloudflare_tunnel.sh`, `web_report.sh`, `mcp_server.sh`, `db_usage.sh`, `llm_prompt.sh`) e em `scans/` (`acunetix.sh`, `nmap.sh`, `nuclei.sh`, `shodan.sh`, `js_scans.sh`).
 3. **Validações.** `check_container` confirma que está rodando dentro do Docker (o script aborta fora dele); `check_binaries` valida a presença das ferramentas no PATH.
 4. **Parse de CLI.** `menu "$@"` processa as flags (`-d`, `-dl`, `-u`, `-r`, `-wd`, `-we`, `-ws`, `-wc`, `-vc`, `-dr`, etc.). `validate_domain` aplica regex estrita a cada alvo. Sem argumentos, `usage` é exibido.
 5. **Coerência.** `check_execution` valida combinações de flags inválidas, `check_parameter_conflicts` impede combinações mutuamente exclusivas, `check_directory_permission` testa se `/opt/collector/outputs` é gravável.
@@ -151,7 +156,7 @@ O entrypoint do container é o script `collector`. Resumidamente o fluxo é:
    17. `build_llm_prompt` — concatena todos os artefatos em `llm-prompt.txt` com cabeçalho de instruções;
    18. `record_history` — anexa uma linha ao `<domain>_history.csv` (CSV de tendência);
    19. `db_usage` — upsert idempotente da run no `collector-results` (SQLite, WAL, FKs);
-   20. `start_app_report` — inicia (ou reaproveita) o gunicorn na porta 8000; opcionalmente sobe um tunnel Cloudflare se `cloudflare_tunnel="yes"`;
+   20. `start_web_report` — inicia (ou reaproveita) o gunicorn na porta 8000; opcionalmente sobe um tunnel Cloudflare se `cloudflare_tunnel="yes"`;
    21. `message "${domain}" finished` — envia notificação final via `notify` (Slack/Discord/Telegram/etc., conforme `provider-config.yaml`).
 
 Para `-u <url>`, o pipeline é reduzido a webapp_enum + robots + sitemap + crawler + nuclei + aquatone — sem recon de subdomínios, infraestrutura ou nmap.
@@ -214,7 +219,7 @@ Todos os artefatos finais vivem em `outputs/<domain>/recon_YYYYMMDD/`:
 ### Síntese e persistência
 `report/llm-prompt.txt` — bundle único com todos os artefatos acima e cabeçalho de instruções; pronto para colar em qualquer LLM e seguir com análise.
 `<domain>_history.csv` (dentro deste `report/`) — uma linha por run, alimenta tendência no dashboard.
-`app-report/db/collector-results` (volume próprio, `APP_REPORT_DB_DIR`) — SQLite com `targets(domain PK)` + `recon_runs(domain, run_id, ...)` + view `latest_run`. Idempotente: re-rodar o mesmo `run_id` só grava se o payload mudou.
+`support/web-report/db/collector-results` (volume próprio, `WEB_REPORT_DB_DIR`) — SQLite com `targets(domain PK)` + `recon_runs(domain, run_id, ...)` + view `latest_run`. Idempotente: re-rodar o mesmo `run_id` só grava se o payload mudou.
 
 ## 5. Comandos para executar o collector
 
@@ -253,7 +258,7 @@ collector-docker -d example.com --recon --webapp-discovery --webapp-short-detect
 
 Isso executa todas as validações pré-voo (parse de CLI, validação de domínio, criação de diretórios, aquisição de lock) e imprime um resumo dos parâmetros resolvidos. Termina com exit 0 sem gerar tráfego.
 
-Os exemplos abaixo usam o wrapper `collector-docker`, que injeta automaticamente os volumes (`outputs`, `wordlists`, `conf.d/`) e o `-p 127.0.0.1:8000:8000`. Os mesmos comandos funcionam diretamente com `docker run --rm -v … collector:latest <flags>` ou `docker compose run --rm collector <flags>`.
+Os exemplos abaixo usam exclusivamente o wrapper `collector-docker`, que injeta automaticamente os volumes (`outputs`, `wordlists`, `conf.d/`) — e o `-p 127.0.0.1:8000:8000`, mas **apenas** quando `-ru|--report-up` está presente (o dashboard nunca sobe de outra forma, veja a seção 5.6). Rodar o collector via `docker run`/`docker compose` direto também é possível — `collector` é, por baixo, só um entrypoint de container — mas significa gerenciar manualmente cada volume, a porta do dashboard e o nome/ciclo de vida do container, exatamente a burocracia que o `collector-docker` existe pra eliminar; este guia não mostra mais esse caminho, já que flags montadas manualmente de forma inconsistente eram a causa mais comum de confusão relatada com o dashboard.
 
 ### 5.3. Comandos básicos de reconhecimento
 
@@ -344,22 +349,57 @@ collector-docker -d example.com \
   --webapp-scan
 ```
 
-O que entrega: **todos** os artefatos descritos na seção 4, incluindo `llm-prompt.txt`, `<domain>_history.csv` atualizado, ingestão no `collector-results` e dashboard subindo em `http://127.0.0.1:8000`. Tipicamente é o comando agendado em cron/systemd (semanal) — o diff por artefato garante que apenas as mudanças vão para o canal de notificação.
+O que entrega: **todos** os artefatos descritos na seção 4, incluindo `llm-prompt.txt`, `<domain>_history.csv` atualizado e ingestão no `collector-results`. Adicione `--report-up` a esse comando se também quiser o dashboard no ar depois (veja abaixo) — normalmente fica de fora na invocação agendada em cron/systemd (semanal), onde só o diff por artefato precisa chegar ao canal de notificação.
 
-### 5.6. Reabrir o dashboard sem rodar um novo recon
+### 5.6. O dashboard — sob demanda, via `--report-up`
 
-Ao final de cada recon, `start_app_report` sobe o dashboard Flask/gunicorn em background para que o operador tenha uma interface pronta para navegar nos resultados. Quando aquele container termina (ou o processo é derrubado), o dashboard vai junto — mas os dados continuam preservados: os artefatos em `outputs/` e o SQLite em `app-report/db/` (volume próprio, `APP_REPORT_DB_DIR`). Para consultá-los de novo sem disparar outro scan, use `--report-only`:
+O dashboard nunca sobe por conta própria. O `collector` roda como PID 1 do container, então um dashboard apenas deixado em background seria derrubado no instante em que o recon termina e o PID 1 sai — o kernel destrói todo o namespace de PIDs no momento em que seu processo init morre, independente de `docker run --rm`. Por isso o dashboard só sobe quando `-ru|--report-up` é explicitamente passado, e quando isso ocorre, o próprio container permanece vivo (em background, sem `--rm`, porta publicada) por exatamente o tempo que o dashboard deve continuar servindo:
 
 ```bash
-collector-docker --report-only        # gunicorn em foreground em 127.0.0.1:8000, Ctrl-C encerra
-collector-docker --report-stop        # encerra a partir de outro shell
+# Dashboard isolado, lendo resultados de um scan anterior (sem novo recon):
+collector-docker --report-up          # background, http://127.0.0.1:8000, persiste até ser parado
+collector-docker --shutdown           # encerra a partir de outro shell
+
+# Ou combinado com um recon novo, no mesmo container:
+collector-docker -d example.com --recon --report-up
+collector-docker --shutdown           # encerra quando terminar
 ```
 
-`--report-only` exige um `collector-results` dentro de `app-report/db/` (aborta com mensagem clara caso contrário), recusa iniciar quando outra instância já estiver rodando (via pidfile + sondagem de porta no host) e é estritamente read-only — o Flask abre o SQLite com `mode=ro`. O wrapper nomeia esse container como `collector-report` (sobrescreva via `REPORT_CONTAINER_NAME=<nome>` no ambiente), que é o alvo de `--report-stop` no host.
+`--report-up` isolado exige um `collector-results` dentro de `support/web-report/db/` (aborta com mensagem clara caso contrário, antes mesmo de iniciar um container); combinado com um recon, é esse recon que cria o DB, então essa verificação não se aplica. De qualquer forma, recusa iniciar quando outra instância já estiver rodando (via colisão de nome de container + pidfile), e o dashboard em si é estritamente read-only — o Flask abre o SQLite com `mode=ro`. O wrapper nomeia o container como `collector-reconnaissance` (sobrescreva via `COLLECTOR_CONTAINER_NAME=<nome>` no ambiente), que é o alvo de `--shutdown` no host independente de qual das duas formas acima o iniciou (e independente de o servidor MCP também estar rodando ali — veja 5.7 abaixo).
 
-Quando a porta host de `APP_PORT` (default `127.0.0.1:8000:8000`) já está ocupada — por exemplo porque um recon anterior deixou um dashboard em background rodando, ou outro container publica ali —, o `collector-docker` silenciosamente omite o `-p` do `docker run` em vez de abortar com "port already allocated". O recon continua e o dashboard já em execução renderiza os dados do novo run porque `outputs/` é compartilhado.
+`--shutdown` tem que ser usado isolado — passar qualquer outra flag junto (uma flag de alvo, `--report-up`, qualquer uma) é rejeitado com erro de uso em vez de ser silenciosamente ignorado. Isso é verificado duas vezes: pelo `collector-docker` no host (antes de tocar no Docker) e pelo próprio `collector` dentro do container (então a regra vale mesmo chamando o `collector` direto, sem passar pelo wrapper).
 
-### 5.7. Configuração específica de vhost (conf.d/functions.conf)
+Sem `--report-up`, nada muda em relação a um recon simples: o container roda em foreground, usa `--rm`, e a porta do dashboard nunca é publicada — não há dashboard para alcançar de qualquer forma, então publicar a porta seria inútil. Quando `--report-up` *é* passado e a porta host já está ocupada, o `collector-docker` agora falha rápido com uma mensagem clara em vez de omitir silenciosamente o `-p` — um container persistente, sem `--rm`, que nunca publicou de fato sua porta ficaria ali sem utilidade.
+
+Toda configuração que afeta a exposição do dashboard mora em `conf.d/operation.conf` — o `collector-docker` lê esse arquivo em vez de fixar seus próprios valores, recorrendo a um fallback fixo de `127.0.0.1`/`8000` só como último recurso, se esse arquivo não existir ou não puder ser lido. A porta em si é configurada uma única vez, via `web_report_container_port` (default `8000`) — o `collector-docker` lê esse mesmo arquivo pra montar o `-p` que ele publica, então mudar `web_report_container_port` já basta: o gunicorn dentro do container e a porta publicada sempre concordam. O endereço publicado é uma variável separada, `web_report_host_address` (default `127.0.0.1`, ou seja, não acessível de outras máquinas) — essa é a ÚNICA variável que controla se outra máquina consegue acessar o dashboard; defina pra o IP de LAN/público da máquina, ou `0.0.0.0` pra todas as interfaces, pra acessar de outro lugar — a URL impressa sempre usa esse mesmo valor, então ela já fica acessível automaticamente de onde você está acessando. `web_report_container_address` no mesmo arquivo é uma configuração diferente, interna ao container (o próprio endereço de bind do gunicorn dentro do namespace de rede do container), e não precisa mudar pra isso. As variáveis de ambiente `WEB_REPORT_HOST_ADDRESS`/`WEB_REPORT_HOST_PORT` existem só pra sobrescrever isso numa única invocação do `collector-docker`, tendo prioridade sobre `conf.d/operation.conf` quando definidas. O `docker-compose.yaml` não consegue executar lógica de shell pra ler o `conf.d/operation.conf`, então a linha `ports:` carrega o mesmo fallback `127.0.0.1`/`8000` fixado direto no YAML (`${WEB_REPORT_HOST_ADDRESS:-127.0.0.1}:${WEB_REPORT_CONTAINER_PORT:-8000}`) — mantido em sincronia com o `operation.conf` manualmente via `.env`, não lido dele.
+
+Vale notar que `--report-up` nomeia um único container fixo (`COLLECTOR_CONTAINER_NAME`, default `collector-reconnaissance`) e publica uma única porta fixa — é feito pra rodar uma vez, não várias em paralelo. Rodar vários recons ao mesmo tempo contra domínios diferentes funciona bem sem `--report-up` (lock por alvo + containers anônimos + banco de resultados em modo WAL tornam isso seguro); suba um único dashboard compartilhado depois pra ver todos juntos.
+
+### 5.7. O servidor MCP — sob demanda, via `--mcp-up`
+
+`support/mcp/collector-mcp.py` (veja `support/mcp/MCP.md`) expõe os resultados do collector como tools MCP pra um cliente de agente. Normalmente um cliente MCP (Claude Desktop/Code) sobe esse script sozinho via stdio — nada no CLI do `collector` entra nessa jogada. `-mu|--mcp-up` acrescenta uma segunda forma de rodá-lo: como um serviço `streamable-http` de longa duração, gerenciado exatamente como o dashboard, útil pra um cliente em outra máquina ou só pra manter o servidor no ar independente do ciclo de vida de um cliente específico.
+
+`functions/mcp_server.sh` espelha `functions/web_report.sh` ponto a ponto — o mesmo `run_mcp_server()` de modo duplo background/foreground, o mesmo pidfile compartilhado (`support/mcp/run/collector-mcp.pid`, montado via `MCP_RUN_DIR`) pra que `--shutdown` consiga parar qualquer um dos dois modos de início, a mesma desambiguação via `/proc/<pid>/cmdline` pra evitar confundir o PID 1 do container com o processo de um pidfile obsoleto, e o mesmo SIGTERM→espera de 5s→SIGKILL pra parar:
+
+```bash
+# Servidor MCP isolado:
+collector-docker --mcp-up             # background, http://127.0.0.1:8010, persiste até ser parado
+collector-docker --shutdown           # encerra a partir de outro shell
+
+# Ou combinado com um recon novo, no mesmo container, depois do próprio dashboard de --report-up se ambos forem passados:
+collector-docker -d example.com --recon --report-up --mcp-up
+collector-docker --shutdown           # encerra o container inteiro (os dois serviços)
+```
+
+Um requisito obrigatório só do `--mcp-up`: `collector_mcp_transport` em `conf.d/operation.conf` já precisa estar como `"streamable-http"`, não o default `"stdio"` — stdio é um subprocesso por cliente, sem porta de rede, não há o que um serviço em background/foreground vincule. `--mcp-up` recusa iniciar com uma mensagem clara nomeando a correção, verificado tanto pelo `collector-docker` no host (antes de tocar no Docker) quanto pelo próprio `collector` dentro do container (`run_mcp_server()` em `functions/mcp_server.sh`).
+
+`--mcp-up` e `--report-up` compartilham o MESMO container persistente e o mesmo nome (`COLLECTOR_CONTAINER_NAME`) quando ambos são passados — um único container publicando as duas portas, não dois containers. `--shutdown` sempre encerra o container inteiro, os dois serviços inclusos, seja qual for a combinação rodando ali — não existe mais um modo restrito de "parar só um serviço" (um design anterior tinha um `--mcp-down` que entrava no container via `docker exec` cirurgicamente, deixando o web-report intocado; essa assimetria foi removida em favor de uma única flag "encerra tudo", igual ao que `docker stop` já faz). A própria trap SIGTERM do `collector` chama `stop_web_report` e `stop_mcp_server` antes de sair, então isso é gracioso, não um SIGKILL do kernel.
+
+Quando combinado com um alvo de recon, a ordem importa: `start_web_report` sempre roda antes de `start_mcp_server` no final de `domains_recon`/`url_recon` (veja `functions/domains_recon.sh`/`functions/url_recon.sh`), então a linha "está no ar" do dashboard aparece antes da do servidor MCP, independente de qual flag foi digitada primeiro na linha de comando.
+
+`--report-up --mcp-up` passados juntos sem nenhuma flag de alvo é tratado como caso especial dentro do `collector`: os dois serviços sobem em BACKGROUND, e o `collector` mantém o processo aberto depois (`_collector_hold_for_dashboard` + `_collector_hold_for_mcp_server`) em vez de fazer `exec` substituindo a si mesmo por um dos dois serviços em foreground — não existe forma de fazer `exec` do PID 1 por dois programas ao mesmo tempo, então rodar os dois exige esse formato background+hold, independente de como `--shutdown` vá pará-los depois.
+
+### 5.8. Configuração específica de vhost (conf.d/functions.conf)
 
 A descoberta de vhosts tem sua própria seção de tuning no `conf.d/functions.conf`. `vhost_baseline_samples`/`vhost_connect_timeout`/`vhost_max_time`/`vhost_prefilter_timeout` são compartilhadas pelas duas ferramentas; `vhost_check_*` só importa com `-vc|--vhost-check`, `vhost_probe_*`/`vhost_use_ffuf` só com `-vp|--vhost-probe`:
 
@@ -388,6 +428,6 @@ Comportamentos chave controlados por essas variáveis:
 
 ## 6. Mais detalhes
 
-Para a referência completa de todas as flags, variáveis de ambiente do wrapper (`COLLECTOR_IMAGE`, `OUTPUTS_DIR`, `WORDLISTS_DIR`, `APP_REPORT_DB_DIR`, `CONF_D_DIR`, `APP_PORT`, `NOTIFY_CONFIG`), parâmetros do `conf.d/*.conf` (timeouts, threads, listas de portas, chaves de API, opções do Cloudflare quick-tunnel), templates de cron/systemd, integração com o `projectdiscovery/notify`, schema do banco SQLite e consultas prontas, **consulte o `README.md` do repositório do collector**.
+Para a referência completa de todas as flags, variáveis de ambiente do wrapper (`COLLECTOR_IMAGE`, `OUTPUTS_DIR`, `WORDLISTS_DIR`, `WEB_REPORT_DB_DIR`, `CONF_D_DIR`, `WEB_REPORT_HOST_ADDRESS`, `WEB_REPORT_HOST_PORT`, `NOTIFY_CONFIG`), parâmetros do `conf.d/*.conf` (timeouts, threads, listas de portas, chaves de API, opções do Cloudflare quick-tunnel), templates de cron/systemd, integração com o `projectdiscovery/notify`, schema do banco SQLite e consultas prontas, **consulte o `README.md` do repositório do collector**.
 
 > **Aviso:** o collector gera um volume significativo de tráfego. Use apenas contra alvos para os quais você tenha autorização explícita.

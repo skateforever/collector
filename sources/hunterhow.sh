@@ -10,7 +10,7 @@
 
 hunterhow-src(){
     [[ -z "${hunterhow_api_key}" ]] && return 0
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing hunterhow... "
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing hunterhow... "
     : > "${tmp_dir}/hunterhow_output.json"
     for hunterhow_page in $(seq 1 10); do
         echo -e "\ncurl ${curl_options[@]} \"https://api.hunter.how/search?query=domain%3A%22${domain}%22&page=${hunterhow_page}&page_size=100&api-key=${hunterhow_api_key}\"" >> "${log_execution_file}"
@@ -21,7 +21,7 @@ hunterhow-src(){
         [[ -z "${hunterhow_assets}" || "${hunterhow_assets}" -eq 0 ]] && break
         sleep 1
     done
-    echo "Done!"
+    # echo "Done!"
 }
 
 hunterhow-src

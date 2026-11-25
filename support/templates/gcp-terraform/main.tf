@@ -280,7 +280,7 @@ resource "google_compute_firewall" "collector_iap_dashboard" {
     ports    = ["8000"]
   }
 
-  description = "Acesso ao app-report Flask via IAP TCP forwarding."
+  description = "Acesso ao web-report Flask via IAP TCP forwarding."
 }
 
 # Regra opcional: SSH direto de IPs especificos (escritorio/VPN).

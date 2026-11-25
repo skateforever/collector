@@ -9,12 +9,12 @@
 #############################################################            
 
 urlscan-src(){
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing urlscan... "
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing urlscan... "
     unset user_agent
     user_agent="$(get_user_agent)"
     echo -e "\ncurl ${curl_options[@]} -H \"User-agent: ${user_agent}\" \"https://urlscan.io/api/v1/search/?q=domain:${domain}\"" >> "${log_execution_file}"
     curl "${curl_options[@]}" -H "User-agent: ${user_agent}" "https://urlscan.io/api/v1/search/?q=domain:${domain}" -o "${tmp_dir}/urlscan_output.json" 2>> "${log_execution_file}"
-    echo "Done!"
+    # echo "Done!"
     sleep 1
 }
 

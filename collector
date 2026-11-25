@@ -14,7 +14,7 @@ banner
 reset_vars
 
 # Configuration lives in conf.d/, split by concern:
-#   operation.conf      — runtime plumbing (colors, paths, DB, app-report)
+#   operation.conf      — runtime plumbing (colors, paths, DB, web-report)
 #   functions.conf      — per-tool parameters (timeouts, threads, CLI options)
 #   apis-recon.conf     — subdomain-discovery API keys (real, gitignored)
 #   apis-emails.conf    — email-recon API keys (real, gitignored)
@@ -60,7 +60,7 @@ unset _cfg_area _cfg_file _cfg_example
 for file in check_binaries.sh usage.sh message.sh menu.sh check_structure.sh \
     check_execution.sh domains_sources.sh files.sh diff.sh infra.sh webapp_crawler.sh \
     webapp_discovery.sh webapp_enum.sh git.sh emails_recon.sh \
-    cloudflare_tunnel.sh app_report.sh db_usage.sh llm_prompt.sh llm_json.sh \
+    cloudflare_tunnel.sh web_report.sh mcp_server.sh db_usage.sh llm_prompt.sh llm_json.sh \
     domains_recon.sh url_recon.sh; do
     function="${collector_path}/functions/${file}"
     if [ -s "${function}" ]; then
@@ -120,22 +120,38 @@ cleanup_global(){
     # reflect that a shutdown happened.
     [[ -n "${log_execution_file}" && -f "${log_execution_file}" ]] && sync "${log_execution_file}" 2>/dev/null
 
-    # start_app_report leaves a gunicorn/python3 dashboard running after
+    # start_web_report leaves a gunicorn/python3 dashboard running after
     # this run finishes — that's the point (browse results the moment the
     # run ends). Inside Docker, collector is the container's PID 1, so the
-    # instant start_app_report's subshell exits, the dashboard's orphaned
+    # instant start_web_report's subshell exits, the dashboard's orphaned
     # process gets reparented right back to $$ — a blind `pkill -P $$`
     # here then kills the dashboard we just started, seconds after it was
     # confirmed alive (reproduced: gunicorn's own log shows "Handling
     # signal: term" moments after "Starting gunicorn", every run). Skip
-    # its pid explicitly.
-    local _app_report_pidfile="${app_report_pidfile:-${output_dir}/${app_report_pidfile_name:-.app-report.pid}}"
-    local _app_report_live_pid=""
-    [[ -s "${_app_report_pidfile}" ]] && _app_report_live_pid="$(cat "${_app_report_pidfile}" 2>/dev/null)"
+    # its pid explicitly. Same reasoning, same fix, for start_mcp_server's
+    # collector-mcp.py process.
+    #
+    # web_report_pidfile()/mcp_server_pidfile() (functions/web_report.sh,
+    # functions/mcp_server.sh) are the resolvers used by their own
+    # start_*/stop_* functions, under support/web-report/run/ and
+    # support/mcp/run/ respectively — calling them here instead of
+    # re-deriving the paths from a stale fallback keeps this check in
+    # sync with wherever each service actually wrote its pidfile
+    # (previously the web-report fallback always missed, so
+    # _web_report_live_pid stayed empty and the dashboard got killed
+    # along with everything else below — the exact bug this comment block
+    # describes guarding against).
+    local _web_report_pidfile="$(web_report_pidfile)"
+    local _web_report_live_pid=""
+    [[ -s "${_web_report_pidfile}" ]] && _web_report_live_pid="$(cat "${_web_report_pidfile}" 2>/dev/null)"
+    local _mcp_server_pidfile="$(mcp_server_pidfile)"
+    local _mcp_server_live_pid=""
+    [[ -s "${_mcp_server_pidfile}" ]] && _mcp_server_live_pid="$(cat "${_mcp_server_pidfile}" 2>/dev/null)"
     local _child
     local -a _signaled=()
     for _child in $(pgrep -P $$ 2>/dev/null); do
-        [[ -n "${_app_report_live_pid}" && "${_child}" == "${_app_report_live_pid}" ]] && continue
+        [[ -n "${_web_report_live_pid}" && "${_child}" == "${_web_report_live_pid}" ]] && continue
+        [[ -n "${_mcp_server_live_pid}" && "${_child}" == "${_mcp_server_live_pid}" ]] && continue
         kill -TERM "${_child}" 2>/dev/null
         _signaled+=("${_child}")
     done
@@ -143,7 +159,7 @@ cleanup_global(){
 
     # A signaled process that does its own graceful shutdown (as gunicorn
     # did here — "Handling signal: term" then "Worker exiting" a moment
-    # later, confirmed in outputs/.app-report.log) can still be alive when
+    # later, confirmed in outputs/.web-report.log) can still be alive when
     # the `wait` above returns. Its eventual death then gets reaped by
     # bash's own SIGCHLD bookkeeping at some later point that this
     # redirect no longer covers, leaking a bare "Terminated" straight to
@@ -176,35 +192,42 @@ cleanup_global(){
         echo "$(date +"%d/%m/%Y %H:%M") GRACEFUL SHUTDOWN - exit code: ${exit_code}" >> "${log_execution_file}"
     fi
 
-    # message() usually runs inside domains_recon()/url_recon()'s own
-    # subshell (their body is wrapped in one so cleanup_on_exit/tee scope
-    # correctly there) — a subshell is a forked child, so the
-    # _collector_final_message assignment it made never reaches this
-    # process's own variables. message() also drops the same text into a
-    # $$-scoped file for exactly this case ($$ stays the same across that
-    # subshell boundary), so recover it from there when the variable
-    # itself is empty.
-    if [[ -z "${_collector_final_message:-}" && -n "${output_dir:-}" ]]; then
+    # message()'s finished/failed branches now print
+    # _collector_final_message themselves, immediately, instead of
+    # deferring it to be printed here last (see functions/message.sh for
+    # why — short version: deferring it meant "finished!" only appeared
+    # once --report-up's dashboard was stopped, possibly minutes/hours
+    # after the run actually finished). message() usually runs inside
+    # domains_recon()/url_recon()'s own subshell (their body is wrapped
+    # in one so cleanup_on_exit/tee scope correctly there), so that
+    # immediate print already reached the live terminal AND
+    # log_execution_file via the `| tee -a` wrapping that subshell — this
+    # process just never saw the variable assignment itself (subshells
+    # don't propagate variables to their parent). The $$-scoped file
+    # below exists only so this cleanup can find out THAT a final message
+    # was already printed (to skip the no-message-at-all fallback right
+    # below) — reprinting its contents here would duplicate output that's
+    # already in the terminal/log.
+    local _final_message_already_printed=no
+    if [[ -n "${output_dir:-}" ]]; then
         local _final_message_file="${output_dir}/.final_message.$$"
-        [[ -s "${_final_message_file}" ]] && _collector_final_message="$(cat "${_final_message_file}" 2>/dev/null)"
+        [[ -s "${_final_message_file}" ]] && _final_message_already_printed=yes
         rm -f "${_final_message_file}" 2>/dev/null
     fi
 
-    # Printed LAST, after every shutdown step above, so the run's verdict
-    # reads as the final word instead of appearing before the cleanup
-    # sequence. cleanup_global runs as the top-level script's own EXIT
-    # trap, outside the `| tee -a "${log_execution_file}"` pipe that wraps
-    # domains_recon()/url_recon()'s body — so unlike every other progress
-    # line, this one needs an explicit append or it never reaches the log
-    # at all.
-    if [[ -n "${_collector_final_message:-}" ]]; then
+    # Fallback ONLY: a crash/exit somewhere before message() ever got
+    # called (so there's no final verdict line at all yet, in the
+    # terminal or the log) prints a generic one here instead of leaving
+    # the run with no verdict whatsoever.
+    if [[ "${_final_message_already_printed}" == "no" && -z "${_collector_final_message:-}" && -n "${exit_code:-}" && "${exit_code}" -ne 0 ]]; then
+        _collector_final_message="${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Execution ended unexpectedly (exit code ${exit_code}) before a run verdict was recorded."
         echo -e "${_collector_final_message}"
         [[ -n "${log_execution_file}" ]] && echo -e "${_collector_final_message}" >> "${log_execution_file}"
     fi
 
     # Inside Docker, collector is the container's PID 1 — the instant it
     # exits, the kernel SIGKILLs every other process left in that PID
-    # namespace (including start_app_report's dashboard), unconditionally,
+    # namespace (including start_web_report's dashboard), unconditionally,
     # regardless of anything the settle loop above already reaped. stderr
     # is already redirected (see the top of this function), so that
     # teardown's own "Terminated"/"Killed" has nowhere to leak to.
@@ -220,26 +243,197 @@ cleanup_global(){
 # "exit code: N" line accurate for a signal-triggered shutdown, instead of
 # reporting the exit code of whatever unrelated command last ran before
 # the signal arrived.
-trap 'echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Execution terminated."; exit 130' SIGINT
-trap 'echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Execution terminated."; exit 143' SIGTERM
+# stop_web_report() is safe to call unconditionally (it no-ops when
+# nothing is running), so both signal traps call it before exiting — this
+# gives gunicorn a graceful SIGTERM/wait/SIGKILL-escalation shutdown
+# (functions/web_report.sh) instead of leaving it to the kernel's
+# unconditional PID-namespace SIGKILL that fires the instant this PID 1
+# process exits (see _collector_hold_for_dashboard below for the other
+# half of this — keeping PID 1 alive at all while the dashboard should
+# still be serving).
+trap 'echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Execution terminated."; stop_web_report; stop_mcp_server; exit 130' SIGINT
+trap 'echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Execution terminated."; stop_web_report; stop_mcp_server; exit 143' SIGTERM
 trap cleanup_global EXIT
 
-# --report-stop / --report-only short-circuit every step below (target
-# validation, lock acquisition, directory creation, recon). The app-report
-# Flask app is strictly read-only over the existing outputs/, so there's
-# nothing to validate here beyond what start_app_report_foreground already
-# checks (DB present, app-report dir present). exec inside that function
-# replaces this shell with gunicorn — Ctrl-C then reaches gunicorn directly.
+# _collector_hold_for_dashboard — only relevant when -ru|--report-up
+# accompanied a recon flag (the alone case exec's into gunicorn via
+# start_web_report_foreground below and never reaches this). The recon's
+# own tail already backgrounded the dashboard (start_web_report, gated in
+# web_report.sh's run_web_report() to only fire when report_up_check=yes).
+# Without this, this script would `exit` immediately after recon and the
+# kernel would SIGKILL the whole PID namespace — dashboard included — the
+# instant PID 1 dies (pid_namespaces(7)), regardless of docker run --rm.
+# Blocking here on the dashboard's own pid keeps the container up exactly
+# as long as the dashboard should stay up.
 #
-# --report-stop is checked FIRST so `collector --report-only --report-stop`
-# means "stop, don't start" instead of racing on the pidfile.
-if [[ "${report_stop_check}" == "yes" ]]; then
-    stop_app_report
+# Can't just `wait "${_pid}"` — bash's wait builtin only works on PIDs it
+# forked itself as a tracked job; the dashboard was forked inside
+# start_web_report's own subshell (already exited), so by the time we get
+# here it's merely a reparented process, not a job of THIS shell — bash
+# refuses with "pid N is not a child of this shell" (verified). Poll
+# instead, in a sleep-1-second-at-a-time loop: `sleep 1 &` backgrounds a
+# job this shell DID fork, so `wait $!` on THAT is valid and — critically
+# — still gets interrupted promptly by the SIGTERM/SIGINT traps above,
+# same as a real `wait` would (confirmed: a trapped signal interrupts an
+# in-progress `wait` immediately, it doesn't wait out the full sleep).
+# _collector_shutdown_hint — both hold functions below need to tell the
+# operator how to stop things, and since --shutdown unification that's the
+# EXACT same line regardless of which service (dashboard, MCP server, or
+# both) is actually up. Printing it twice when both --report-up and
+# --mcp-up are running (the two holds run back-to-back, right below) would
+# just be the same sentence repeated for no reason — this guard makes it
+# print once per collector invocation no matter how many services are
+# being held open. $$-scoped (not a plain global) so it can't leak across
+# recon-list iterations, which each run domains_recon in their own subshell
+# (see the domain-list loop below) — a subshell's copy of the variable
+# never propagates back to this top-level process anyway, so each
+# iteration still gets its own hint exactly once.
+_collector_shutdown_hint(){
+    [[ "${_collector_shutdown_hint_printed:-}" == "yes" ]] && return 0
+    _collector_shutdown_hint_printed="yes"
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} collector-docker --shutdown (or docker stop) to end."
+}
+
+# _collector_hold_for_dashboard — only relevant when -ru|--report-up
+# accompanied a recon flag (the alone case exec's into gunicorn via
+# start_web_report_foreground below and never reaches this). The recon's
+# own tail already backgrounded the dashboard (start_web_report, gated in
+# web_report.sh's run_web_report() to only fire when report_up_check=yes).
+# Without this, this script would `exit` immediately after recon and the
+# kernel would SIGKILL the whole PID namespace — dashboard included — the
+# instant PID 1 dies (pid_namespaces(7)), regardless of docker run --rm.
+# Blocking here on the dashboard's own pid keeps the container up exactly
+# as long as the dashboard should stay up.
+#
+# Can't just `wait "${_pid}"` — bash's wait builtin only works on PIDs it
+# forked itself as a tracked job; the dashboard was forked inside
+# start_web_report's own subshell (already exited), so by the time we get
+# here it's merely a reparented process, not a job of THIS shell — bash
+# refuses with "pid N is not a child of this shell" (verified). Poll
+# instead, in a sleep-1-second-at-a-time loop: `sleep 1 &` backgrounds a
+# job this shell DID fork, so `wait $!` on THAT is valid and — critically
+# — still gets interrupted promptly by the SIGTERM/SIGINT traps above,
+# same as a real `wait` would (confirmed: a trapped signal interrupts an
+# in-progress `wait` immediately, it doesn't wait out the full sleep).
+_collector_hold_for_dashboard(){
+    [[ "${report_up_check:-}" == "yes" ]] || return 0
+    local _pid
+    _pid="$(cat "$(web_report_pidfile)" 2>/dev/null)"
+    if [[ -n "${_pid}" ]] && kill -0 "${_pid}" 2>/dev/null; then
+        # The "dashboard is up" announcement itself already happened —
+        # start_web_report (functions/web_report.sh) prints it the
+        # moment gunicorn is confirmed alive, using
+        # web_report_host_address/web_report_host_port (the
+        # operator-facing address, not the container-internal bind
+        # address). This is just the
+        # "how to stop it" follow-up, kept separate so the two don't
+        # fight over which one is the "real" announcement.
+        _collector_shutdown_hint
+        while kill -0 "${_pid}" 2>/dev/null; do
+            sleep 1 &
+            wait $! 2>/dev/null
+        done
+    fi
+}
+
+# _collector_hold_for_mcp_server — sibling of _collector_hold_for_dashboard
+# above, same rationale, for -mu|--mcp-up accompanying a recon flag instead
+# of the dashboard. Kept as its own function rather than folded into the
+# other one so each service's hold is independent: a run combining
+# --report-up and --mcp-up needs to block on BOTH pids, not just whichever
+# one happened to be checked first, and both collector's own target
+# branches below already call them one after the other.
+_collector_hold_for_mcp_server(){
+    [[ "${mcp_up_check:-}" == "yes" ]] || return 0
+    local _pid
+    _pid="$(cat "$(mcp_server_pidfile)" 2>/dev/null)"
+    if [[ -n "${_pid}" ]] && kill -0 "${_pid}" 2>/dev/null; then
+        # The "server is up" announcement itself already happened —
+        # start_mcp_server (functions/mcp_server.sh) prints it the moment
+        # collector-mcp.py is confirmed alive. This is just the "how to
+        # stop it" follow-up, same split as _collector_hold_for_dashboard —
+        # deduped via _collector_shutdown_hint when both holds fire.
+        _collector_shutdown_hint
+        while kill -0 "${_pid}" 2>/dev/null; do
+            sleep 1 &
+            wait $! 2>/dev/null
+        done
+    fi
+}
+
+# --shutdown / --report-up (alone) short-circuit every step below
+# (target validation, lock acquisition, directory creation, recon). The
+# web-report Flask app is strictly read-only over the existing outputs/,
+# so there's nothing to validate here beyond what start_web_report_foreground
+# already checks (DB present, web-report dir present). exec inside that
+# function replaces this shell with gunicorn — Ctrl-C then reaches
+# gunicorn directly.
+#
+# --shutdown is checked FIRST so `collector --report-up --shutdown`
+# means "stop, don't start" instead of racing on the pidfile. The
+# --report-up branch only fires here when NO target flag was also given —
+# combined with a target flag, --report-up instead falls through to the
+# normal recon dispatch below, and the dashboard comes up at the tail of
+# that recon (see the <recon>; _collector_hold_for_dashboard pattern in
+# each target branch).
+#
+# --shutdown replaces the old separate --report-down/--mcp-down flags:
+# there's no longer a "stop just one service" mode — this single flag
+# always tears down the WHOLE container's worth of services, mirroring
+# what `docker stop` on the container does from the host (see
+# collector-docker's want_shutdown dispatch for that half). Calling both
+# stop_web_report and stop_mcp_server unconditionally is safe either way —
+# each is already a documented no-op when its own service isn't running
+# (see their own headers in functions/web_report.sh / functions/mcp_server.sh).
+if [[ "${shutdown_check}" == "yes" ]]; then
+    # Doesn't make sense combined with ANY other flag (target, recon
+    # options, etc.), so reject that combination outright instead of
+    # silently ignoring the extra flags (args_count is the raw CLI token
+    # count set by menu(), so args_count -ne 1 means something besides
+    # -sd|--shutdown itself was passed).
+    if [[ "${args_count}" -ne 1 ]]; then
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} -sd|--shutdown must be used alone, with no other parameters."
+        usage
+    fi
+    stop_web_report
+    _stop_web_report_exit=$?
+    stop_mcp_server
+    _stop_mcp_server_exit=$?
+    # Combine the two exit codes: 0 only when BOTH stops succeeded (or had
+    # nothing to stop — stop_web_report/stop_mcp_server already return 0
+    # for that case); 1 if EITHER one actually failed to stop a live
+    # process. Neither sub-exit code carries more information than
+    # success/failure here, so there's no richer way to combine them.
+    if [[ "${_stop_web_report_exit}" -ne 0 || "${_stop_mcp_server_exit}" -ne 0 ]]; then
+        exit 1
+    fi
+    exit 0
+fi
+
+if [[ "${report_up_check}" == "yes" && "${mcp_up_check}" == "yes" && -z "${domain_check}${domainlist_check}${url_check}" ]]; then
+    # Both alone, no target: start BOTH in the background (never exec
+    # either one into PID 1 here) and hold this shell open until both are
+    # stopped — same pattern the combined-with-recon dispatch already
+    # uses below (<recon>; _collector_hold_for_dashboard;
+    # _collector_hold_for_mcp_server). Foreground/exec only works for a
+    # SINGLE service owning PID 1 (see start_web_report_foreground/
+    # start_mcp_server_foreground below) — there's no way to exec two
+    # programs into the same PID, so running both requires the
+    # background+hold shape regardless of how --shutdown stops them later.
+    start_web_report
+    start_mcp_server
+    _collector_hold_for_dashboard
+    _collector_hold_for_mcp_server
+    exit 0
+fi
+
+if [[ "${report_up_check}" == "yes" && -z "${domain_check}${domainlist_check}${url_check}" ]]; then
+    start_web_report_foreground
     exit $?
 fi
 
-if [[ "${report_only_check}" == "yes" ]]; then
-    start_app_report_foreground
+if [[ "${mcp_up_check}" == "yes" && -z "${domain_check}${domainlist_check}${url_check}" ]]; then
+    start_mcp_server_foreground
     exit $?
 fi
 
@@ -278,7 +472,10 @@ if [[ "${domain_check}" == "yes" && -n "${domain}" ]]; then
     create_directory_structure
     check_parameter_dependency
     domains_recon
-    exit $?
+    _domains_recon_exit=$?
+    _collector_hold_for_dashboard
+    _collector_hold_for_mcp_server
+    exit "${_domains_recon_exit}"
 fi
 
 if  [[ "${domainlist_check}" == "yes" && -s "${domain_list}" ]]; then
@@ -343,6 +540,15 @@ if  [[ "${domainlist_check}" == "yes" && -s "${domain_list}" ]]; then
     echo -e "  Skipped:        ${yellow}${skipped_runs}${reset}"
     echo -e "${yellow}════════════════════════════════════════════════════════════${reset}"
 
+    # Dashboard (if --report-up accompanied this run) was (re)started by
+    # each successful target's domains_recon tail call inside its own
+    # subshell above — a subshell exiting doesn't kill it (it's not PID 1,
+    # just a forked child of this top-level process), so one hold here
+    # after the whole list finishes is enough to keep this process (and
+    # thus the container) alive for it. Same reasoning for --mcp-up.
+    _collector_hold_for_dashboard
+    _collector_hold_for_mcp_server
+
     # Exit com código apropriado
     if [[ "${failed_runs}" -gt 0 ]]; then
         exit 1
@@ -364,5 +570,8 @@ if [[ "${url_check}" == "yes" && -n "${url_verify}" ]]; then
     create_directory_structure
     check_parameter_dependency
     url_recon
-    exit $?
+    _url_recon_exit=$?
+    _collector_hold_for_dashboard
+    _collector_hold_for_mcp_server
+    exit "${_url_recon_exit}"
 fi

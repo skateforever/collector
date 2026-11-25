@@ -6,7 +6,7 @@
 # The recon flow appends a row to ${target}_history.csv     #
 # (inside this run's report/ dir) at the end of each run;   #
 # db_usage takes that row and mirrors it into               #
-# app-report/db/collector-results so the app-report         #
+# support/web-report/db/collector-results so the web-report #
 # dashboard has a single, queryable source of truth         #
 # across targets.                                           #
 #                                                           #
@@ -16,7 +16,7 @@
 #############################################################
 
 # Ingest the current run's row from ${domain}_history.csv into a local
-# SQLite database. The DB lives at app-report/db/collector-results (see
+# SQLite database. The DB lives at support/web-report/db/collector-results (see
 # collector_db in conf.d/operation.conf) so every target on this host
 # writes to a single canonical store; ingestion is idempotent on
 # (domain, run_id) — re-running collector for the same run_id replaces
@@ -31,7 +31,7 @@
 db_usage(){
     local target="${domain:-${url_domain}}"
     local hist="${report_dir}/${target}_history.csv"
-    local db="${collector_db:-${collector_path}/${app_report_dir:-app-report}/db/${collector_db_name:-collector-results}}"
+    local db="${collector_db:-${collector_path}/${web_report_dir:-support/web-report}/db/${collector_db_name:-collector-results}}"
     local schema="${collector_db_schema}"
     local fresh=0
 

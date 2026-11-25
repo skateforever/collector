@@ -6,6 +6,9 @@
 #                                                           #
 #   * banner                                                #
 #   * reset_vars                                            #
+#   * get_user_agent                                        #
+#   * dig_safe                                              #
+#   * dig_timeout                                           #
 #                                                           #
 #############################################################
 
@@ -50,8 +53,9 @@ reset_vars(){
     unset webapp_scan_check
     unset webapp_port_detect
     unset webapp_wordlists
-    unset report_only_check
-    unset report_stop_check
+    unset report_up_check
+    unset mcp_up_check
+    unset shutdown_check
     unset dry_run_check
     unset vhost_check_check
     unset args_count
@@ -66,7 +70,7 @@ reset_vars(){
 # db_usage moved to functions/db_usage.sh.
 
 
-# app-report lifecycle moved to functions/app_report.sh.
+# web-report lifecycle moved to functions/web_report.sh.
 # start_cloudflare_tunnel moved to functions/cloudflare_tunnel.sh.
 
 wait_with_timeout(){
@@ -211,18 +215,63 @@ vhost_dedupe_fingerprint_clusters(){
     ' "${in_file}"
 }
 
+# get_user_agent — picks one random User-Agent string from the shared
+# wordlist, used to rotate UAs across requests (curl/httpx/dig-adjacent
+# HTTP calls) in sources/*.sh, scans/*.sh and several functions/*.sh.
+# Moved here from functions/webapp_discovery.sh: despite living there, it
+# was never specific to web application discovery — it's a generic HTTP
+# helper reused by ~50 files across the whole codebase.
+get_user_agent(){
+    local user_agent_file="${collector_user_agents}"
+    # Strip blank lines and # comments before sampling so the wordlist
+    # can carry section headers like "# === Desktop ===" without ever
+    # producing them as a chosen UA.
+    grep -Ev '^[[:space:]]*(#|$)' "${user_agent_file}" | shuf -n 1
+}
+
 # Safe wrapper for dig with timeout
 dig_safe(){
     # Usage: dig_safe <record_type> <hostname>
     # Example: dig_safe A example.com
     # Example: dig_safe CNAME www.example.com
+    # Example: dig_safe PTR 1.2.3.4   (reverse lookup — becomes `dig -x`)
     local record_type="${1:-A}"
     local hostname="$2"
 
     [[ -z "${hostname}" ]] && return 1
 
+    local -a dig_type_args=("${record_type}" "${hostname}")
+    [[ "${record_type^^}" == "PTR" ]] && dig_type_args=(-x "${hostname}")
+
     # +time=2: 2-second timeout
     # +tries=1: single attempt (no retry)
     # +short: clean output format
-    dig +short +time=2 +tries=1 "${record_type}" "${hostname}" 2>/dev/null
+    #
+    # dig prints its OWN connectivity errors ("communications error to
+    # X#53: timed out", "no servers could be reached") to STDOUT, not
+    # stderr — confirmed: `2>/dev/null` alone does not suppress them, so
+    # every caller piping dig_safe's output straight into a result file
+    # was at risk of writing a literal error string as if it were a
+    # resolved value (reproduced against a flaky resolver: a timed-out
+    # reverse lookup landed in ptr_sweep_output.tmp as if it were a real
+    # PTR record). Every such line starts with `;;` (dig's own
+    # diagnostic-line prefix) and a real answer never does, so filtering
+    # it out here — once, centrally — protects every caller instead of
+    # requiring each one to remember to do it.
+    dig +short +time=2 +tries=1 "${dig_type_args[@]}" 2>/dev/null | grep -vE '^;;'
+}
+
+# dig_timeout — same two fixes as dig_safe (2s/1-try timeout instead of
+# dig's own multi-retry default; strip dig's own "communications error"/
+# "no servers could be reached" diagnostic lines, which it prints to
+# STDOUT, not stderr, so plain `2>/dev/null` never catches them), but as
+# a plain passthrough — every argument goes straight to dig untouched.
+# dig_safe can't cover queries that need a specific nameserver (@ip),
+# extra flags (+dnssec), a non-+short query type (AXFR/IXFR), or more
+# than one record/hostname pair; dig_timeout takes whatever args the
+# caller already had instead of reshaping them. Usage: dig_timeout
+# <args...> — e.g. dig_timeout +dnssec NSEC "${name}" "@${ns_ip}" or
+# dig_timeout AXFR "${domain}" "@${ns_ip}".
+dig_timeout(){
+    dig +time=2 +tries=1 "$@" 2>/dev/null | grep -vE '^;;'
 }

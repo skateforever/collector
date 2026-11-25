@@ -9,7 +9,7 @@
 #############################################################
 
 bing-src(){
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing bing... "
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing bing... "
     unset user_agent
     : > "${tmp_dir}/bing_output.tmp"
     bing_templates=(
@@ -33,7 +33,7 @@ bing-src(){
             "${bing_url}" >> "${tmp_dir}/bing_output.tmp" 2>> "${log_execution_file}"
         sleep 2
     done
-    echo "Done!"
+    # echo "Done!"
 }
 
 bing-src

@@ -149,7 +149,7 @@ vhost_probe_ffuf(){
     local ffuf_wordlist="${collector_vhost_probe_words}"
 
     if [[ ! -s "${ffuf_wordlist}" ]]; then
-        echo "Fail! (wordlist missing: ${ffuf_wordlist})"
+        # echo "Fail! (wordlist missing: ${ffuf_wordlist})"
         return 0
     fi
 
@@ -356,13 +356,13 @@ vhost_probe(){
     if [[ ! -s "${vhost_probe_ip_file}" ]]; then
         return 0
     fi
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing vhost probe... "
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing vhost probe... "
     : > "${tmp_dir}/vhost_probe_output.tmp"
 
     # Fast path: use ffuf if available and enabled.
     if [[ "${vhost_use_ffuf}" == "yes" ]] && command -v ffuf &>/dev/null; then
         vhost_probe_ffuf "${vhost_probe_ip_file}"
-        echo "Done! (ffuf mode)"
+        # echo "Done! (ffuf mode)"
         return 0
     fi
 
@@ -375,7 +375,7 @@ vhost_probe(){
         mapfile -t vhost_probe_words < <(grep -Ev '^[[:space:]]*(#|$)' "${collector_vhost_probe_words}")
     fi
     if [[ "${#vhost_probe_words[@]}" -eq 0 ]]; then
-        echo "Fail! (wordlist missing or empty: ${collector_vhost_probe_words})"
+        # echo "Fail! (wordlist missing or empty: ${collector_vhost_probe_words})"
         return 0
     fi
     local vhost_probe_max_workers="${vhost_probe_processes:-50}"
@@ -547,5 +547,5 @@ vhost_probe(){
     rm -f "${tmp_dir}"/vhost_probe_worker_*.tmp
     sort -u -o "${tmp_dir}/vhost_probe_output.tmp" "${tmp_dir}/vhost_probe_output.tmp" 2>/dev/null
     vhost_probe_persist_hits
-    echo "Done!"
+    # echo "Done!"
 }

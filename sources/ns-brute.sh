@@ -9,7 +9,17 @@
 #############################################################
 
 ns-brute-src(){
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing NS brute / zone transfer multi-vector... "
+    # Every dig below (NS/SOA lookups via dig_safe, AXFR/IXFR zone
+    # transfers via dig_timeout) used to run with no explicit timeout —
+    # dig's own multi-retry default, which on a real run against many
+    # NS candidates and two transfer types each (AXFR+IXFR) could leave
+    # this whole function running for several minutes with nothing on
+    # stdout but the "Executing..." line until it finally finished
+    # (looked hung, same mechanism already fixed in sources/asn-sweep.sh/
+    # ptr-sweep.sh — not paralellized here, since the candidates/transfer
+    # attempts aren't independent enough to be worth it, just capped at
+    # 2s/1 try each like everywhere else dig_safe/dig_timeout are used).
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing NS brute / zone transfer multi-vector... "
     : > "${tmp_dir}/ns_brute_output.tmp"
     ns_brute_candidates=()
     ns_brute_seen_ips=()
@@ -19,7 +29,7 @@ ns-brute-src(){
         local ns_ip
         ns_host="$(echo "${ns_host}" | sed 's/\.$//')"
         [[ -z "${ns_host}" ]] && return
-        ns_ip="$(dig +short A "${ns_host}" 2>/dev/null | grep -Eo "${IPv4_regex}" | head -1)"
+        ns_ip="$(dig_safe A "${ns_host}" | grep -Eo "${IPv4_regex}" | head -1)"
         [[ -z "${ns_ip}" ]] && return
         if [[ ! " ${ns_brute_seen_ips[*]} " =~ " ${ns_ip} " ]]; then
             ns_brute_seen_ips+=("${ns_ip}")
@@ -32,11 +42,11 @@ ns-brute-src(){
     while IFS= read -r ns_brute_ns; do
         [[ -z "${ns_brute_ns}" ]] && continue
         ns_brute_add_candidate "${ns_brute_ns}"
-    done < <(dig +short NS "${domain}" 2>/dev/null)
+    done < <(dig_safe NS "${domain}")
 
     # SOA MNAME — the real primary, often differs from published NS
     echo -e "\ndig +short SOA \"${domain}\" (MNAME)" >> "${log_execution_file}"
-    ns_brute_mname="$(dig +short SOA "${domain}" 2>/dev/null | awk '{print $1}')"
+    ns_brute_mname="$(dig_safe SOA "${domain}" | awk '{print $1}')"
     [[ -n "${ns_brute_mname}" ]] && ns_brute_add_candidate "${ns_brute_mname}"
 
     # Brute-force common NS naming patterns
@@ -46,7 +56,7 @@ ns-brute-src(){
     done
 
     if [[ ${#ns_brute_candidates[@]} -eq 0 ]]; then
-        echo "Done!"
+        # echo "Done!"
         return 0
     fi
 
@@ -57,7 +67,7 @@ ns-brute-src(){
     for ns_brute_entry in "${ns_brute_candidates[@]}"; do
         ns_brute_ip="${ns_brute_entry%%|*}"
         ns_brute_host="${ns_brute_entry##*|}"
-        ns_brute_serial="$(dig +short SOA "${domain}" "@${ns_brute_ip}" 2>/dev/null | awk '{print $3}')"
+        ns_brute_serial="$(dig_timeout +short SOA "${domain}" "@${ns_brute_ip}" | awk '{print $3}')"
         [[ -n "${ns_brute_serial}" ]] && ns_brute_serials+=("${ns_brute_host}=${ns_brute_serial}")
     done
     [[ ${#ns_brute_serials[@]} -gt 1 ]] && echo -e "\nSOA serials: ${ns_brute_serials[*]}" >> "${log_execution_file}"
@@ -68,7 +78,7 @@ ns-brute-src(){
         ns_brute_host="${ns_brute_entry##*|}"
         for ns_brute_xfr_type in AXFR IXFR; do
             echo -e "\ndig ${ns_brute_xfr_type} \"${domain}\" \"@${ns_brute_ip}\" (${ns_brute_host})" >> "${log_execution_file}"
-            ns_brute_xfr="$(dig "${ns_brute_xfr_type}" "${domain}" "@${ns_brute_ip}" 2>/dev/null)"
+            ns_brute_xfr="$(dig_timeout "${ns_brute_xfr_type}" "${domain}" "@${ns_brute_ip}")"
             if echo "${ns_brute_xfr}" | grep -qE "[[:space:]]IN[[:space:]]+[A-Z]"; then
                 echo "${ns_brute_xfr}" >> "${tmp_dir}/ns_brute_output.tmp"
                 echo -e "\n${ns_brute_xfr_type} SUCCESS on ${ns_brute_host} (${ns_brute_ip})" >> "${log_execution_file}"
@@ -77,7 +87,7 @@ ns-brute-src(){
         done
     done
 
-    echo "Done!"
+    # echo "Done!"
 }
 
 ns-brute-src

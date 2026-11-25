@@ -9,7 +9,7 @@
 #############################################################
 
 leakix-src(){
-    echo -ne "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing leakix... "
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Executing leakix... "
     unset user_agent
     user_agent="$(get_user_agent)"
     if [[ -n "${leakix_api_key}" ]]; then
@@ -26,7 +26,7 @@ leakix-src(){
             -H "User-agent: ${user_agent}" \
             "https://leakix.net/api/subdomains/${domain}" > "${tmp_dir}/leakix_output.json" 2>> "${log_execution_file}"
     fi
-    echo "Done!"
+    # echo "Done!"
     sleep 1
 }
 
