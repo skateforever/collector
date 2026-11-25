@@ -54,9 +54,8 @@ reset_vars(){
     unset webapp_port_detect
     unset webapp_wordlists
     unset report_up_check
-    unset report_down_check
     unset mcp_up_check
-    unset mcp_down_check
+    unset shutdown_check
     unset dry_run_check
     unset vhost_check_check
     unset args_count

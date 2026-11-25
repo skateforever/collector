@@ -276,6 +276,45 @@ trap cleanup_global EXIT
 # — still gets interrupted promptly by the SIGTERM/SIGINT traps above,
 # same as a real `wait` would (confirmed: a trapped signal interrupts an
 # in-progress `wait` immediately, it doesn't wait out the full sleep).
+# _collector_shutdown_hint — both hold functions below need to tell the
+# operator how to stop things, and since --shutdown unification that's the
+# EXACT same line regardless of which service (dashboard, MCP server, or
+# both) is actually up. Printing it twice when both --report-up and
+# --mcp-up are running (the two holds run back-to-back, right below) would
+# just be the same sentence repeated for no reason — this guard makes it
+# print once per collector invocation no matter how many services are
+# being held open. $$-scoped (not a plain global) so it can't leak across
+# recon-list iterations, which each run domains_recon in their own subshell
+# (see the domain-list loop below) — a subshell's copy of the variable
+# never propagates back to this top-level process anyway, so each
+# iteration still gets its own hint exactly once.
+_collector_shutdown_hint(){
+    [[ "${_collector_shutdown_hint_printed:-}" == "yes" ]] && return 0
+    _collector_shutdown_hint_printed="yes"
+    echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} collector-docker --shutdown (or docker stop) to end."
+}
+
+# _collector_hold_for_dashboard — only relevant when -ru|--report-up
+# accompanied a recon flag (the alone case exec's into gunicorn via
+# start_app_report_foreground below and never reaches this). The recon's
+# own tail already backgrounded the dashboard (start_app_report, gated in
+# app_report.sh's run_app_report() to only fire when report_up_check=yes).
+# Without this, this script would `exit` immediately after recon and the
+# kernel would SIGKILL the whole PID namespace — dashboard included — the
+# instant PID 1 dies (pid_namespaces(7)), regardless of docker run --rm.
+# Blocking here on the dashboard's own pid keeps the container up exactly
+# as long as the dashboard should stay up.
+#
+# Can't just `wait "${_pid}"` — bash's wait builtin only works on PIDs it
+# forked itself as a tracked job; the dashboard was forked inside
+# start_app_report's own subshell (already exited), so by the time we get
+# here it's merely a reparented process, not a job of THIS shell — bash
+# refuses with "pid N is not a child of this shell" (verified). Poll
+# instead, in a sleep-1-second-at-a-time loop: `sleep 1 &` backgrounds a
+# job this shell DID fork, so `wait $!` on THAT is valid and — critically
+# — still gets interrupted promptly by the SIGTERM/SIGINT traps above,
+# same as a real `wait` would (confirmed: a trapped signal interrupts an
+# in-progress `wait` immediately, it doesn't wait out the full sleep).
 _collector_hold_for_dashboard(){
     [[ "${report_up_check:-}" == "yes" ]] || return 0
     local _pid
@@ -289,7 +328,7 @@ _collector_hold_for_dashboard(){
         # address). This is just the
         # "how to stop it" follow-up, kept separate so the two don't
         # fight over which one is the "real" announcement.
-        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} collector-docker --report-down (or docker stop) to end."
+        _collector_shutdown_hint
         while kill -0 "${_pid}" 2>/dev/null; do
             sleep 1 &
             wait $! 2>/dev/null
@@ -312,8 +351,9 @@ _collector_hold_for_mcp_server(){
         # The "server is up" announcement itself already happened —
         # start_mcp_server (functions/mcp_server.sh) prints it the moment
         # collector-mcp.py is confirmed alive. This is just the "how to
-        # stop it" follow-up, same split as _collector_hold_for_dashboard.
-        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} collector-docker --mcp-down (or docker stop) to end."
+        # stop it" follow-up, same split as _collector_hold_for_dashboard —
+        # deduped via _collector_shutdown_hint when both holds fire.
+        _collector_shutdown_hint
         while kill -0 "${_pid}" 2>/dev/null; do
             sleep 1 &
             wait $! 2>/dev/null
@@ -321,7 +361,7 @@ _collector_hold_for_mcp_server(){
     fi
 }
 
-# --report-down / --report-up (alone) short-circuit every step below
+# --shutdown / --report-up (alone) short-circuit every step below
 # (target validation, lock acquisition, directory creation, recon). The
 # app-report Flask app is strictly read-only over the existing outputs/,
 # so there's nothing to validate here beyond what start_app_report_foreground
@@ -329,39 +369,45 @@ _collector_hold_for_mcp_server(){
 # function replaces this shell with gunicorn — Ctrl-C then reaches
 # gunicorn directly.
 #
-# --report-down is checked FIRST so `collector --report-up --report-down`
+# --shutdown is checked FIRST so `collector --report-up --shutdown`
 # means "stop, don't start" instead of racing on the pidfile. The
 # --report-up branch only fires here when NO target flag was also given —
 # combined with a target flag, --report-up instead falls through to the
 # normal recon dispatch below, and the dashboard comes up at the tail of
 # that recon (see the <recon>; _collector_hold_for_dashboard pattern in
 # each target branch).
-if [[ "${report_down_check}" == "yes" ]]; then
-    # --report-down stops the dashboard unconditionally — it doesn't make
-    # sense combined with ANY other flag (target, recon options, etc.),
-    # so reject that combination outright instead of silently ignoring
-    # the extra flags (args_count is the raw CLI token count set by
-    # menu(), so args_count -ne 1 means something besides -rd|--report-down
-    # itself was passed).
+#
+# --shutdown replaces the old separate --report-down/--mcp-down flags:
+# there's no longer a "stop just one service" mode — this single flag
+# always tears down the WHOLE container's worth of services, mirroring
+# what `docker stop` on the container does from the host (see
+# collector-docker's want_shutdown dispatch for that half). Calling both
+# stop_app_report and stop_mcp_server unconditionally is safe either way —
+# each is already a documented no-op when its own service isn't running
+# (see their own headers in functions/app_report.sh / functions/mcp_server.sh).
+if [[ "${shutdown_check}" == "yes" ]]; then
+    # Doesn't make sense combined with ANY other flag (target, recon
+    # options, etc.), so reject that combination outright instead of
+    # silently ignoring the extra flags (args_count is the raw CLI token
+    # count set by menu(), so args_count -ne 1 means something besides
+    # -sd|--shutdown itself was passed).
     if [[ "${args_count}" -ne 1 ]]; then
-        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} -rd|--report-down must be used alone, with no other parameters."
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} -sd|--shutdown must be used alone, with no other parameters."
         usage
     fi
     stop_app_report
-    exit $?
-fi
-
-# --mcp-down, same "must be used alone" rule as --report-down above, for
-# the exact same reason — checked as its own independent block (not
-# combined with report_down_check) so `collector --mcp-down` alone still
-# rejects any OTHER flag, including --report-up/--report-down themselves.
-if [[ "${mcp_down_check}" == "yes" ]]; then
-    if [[ "${args_count}" -ne 1 ]]; then
-        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} -md|--mcp-down must be used alone, with no other parameters."
-        usage
-    fi
+    _stop_app_report_exit=$?
     stop_mcp_server
-    exit $?
+    _stop_mcp_server_exit=$?
+    # Combine the two exit codes: 0 only when BOTH stops succeeded (or had
+    # nothing to stop — stop_app_report/stop_mcp_server already return 0
+    # for that case); 1 if EITHER one actually failed to stop a live
+    # process. Neither sub-exit code carries more information than
+    # success/failure here, so there's no richer way to combine them.
+    if [[ "${_stop_app_report_exit}" -ne 0 || "${_stop_mcp_server_exit}" -ne 0 ]]; then
+        exit 1
+    fi
+    exit 0
 fi
 
 if [[ "${report_up_check}" == "yes" && "${mcp_up_check}" == "yes" && -z "${domain_check}${domainlist_check}${url_check}" ]]; then
@@ -371,12 +417,9 @@ if [[ "${report_up_check}" == "yes" && "${mcp_up_check}" == "yes" && -z "${domai
     # uses below (<recon>; _collector_hold_for_dashboard;
     # _collector_hold_for_mcp_server). Foreground/exec only works for a
     # SINGLE service owning PID 1 (see start_app_report_foreground/
-    # start_mcp_server_foreground below) — exec'ing one of the two here
-    # would make --mcp-down (or --report-down) against whichever service
-    # landed on PID 1 take the WHOLE container down with it, instead of
-    # just that one service (confirmed: collector-docker --mcp-down
-    # against a foreground-MCP PID 1 killed the dashboard too, since
-    # SIGTERM to PID 1 is SIGTERM to the whole container's init).
+    # start_mcp_server_foreground below) — there's no way to exec two
+    # programs into the same PID, so running both requires the
+    # background+hold shape regardless of how --shutdown stops them later.
     start_app_report
     start_mcp_server
     _collector_hold_for_dashboard

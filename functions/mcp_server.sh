@@ -16,13 +16,13 @@
 #                                                           #
 # One pidfile/logfile under support/mcp/run/ (sibling to     #
 # support/mcp/collector-mcp.py itself) — a shared identity   #
-# so --mcp-down can stop EITHER launch mode, same as         #
-# --report-down does for app-report.                         #
+# so --shutdown can stop EITHER launch mode, same as         #
+# it does for app-report.                                     #
 #                                                           #
 # Only the streamable-http transport is supported here —    #
 # stdio is a per-MCP-client subprocess with no network port  #
 # and no long-lived identity of its own to track via a       #
-# pidfile, so it's out of scope for --mcp-up/--mcp-down      #
+# pidfile, so it's out of scope for --mcp-up/--shutdown      #
 # entirely (an MCP client still launches it directly, per    #
 # support/mcp/MCP.md, completely independent of this file).  #
 #                                                           #
@@ -105,7 +105,7 @@ run_mcp_server(){
     # streamable-http is the only transport with a network port and a
     # long-lived process identity to track via a pidfile — stdio is a
     # per-client subprocess an MCP client spawns itself (see support/mcp/
-    # MCP.md), there is nothing here for --mcp-up to start or --mcp-down
+    # MCP.md), there is nothing here for --mcp-up to start or --shutdown
     # to stop. Reject clearly up front rather than let collector-mcp.py
     # start on stdio, immediately block reading an empty stdin, and look
     # like a hang with no explanation.
@@ -152,7 +152,7 @@ run_mcp_server(){
         else
             echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${tag}: already running (pid ${check_pid}) — access it at http://${host}:${port}"
             if [[ "${mode}" == "foreground" ]]; then
-                echo -e "  stop it with ${yellow}collector --mcp-down${reset} (or ${yellow}collector-docker --mcp-down${reset}) before starting a new one."
+                echo -e "  stop it with ${yellow}collector --shutdown${reset} (or ${yellow}collector-docker --shutdown${reset}) before starting a new one."
                 return 1
             fi
             return 0
@@ -203,7 +203,7 @@ run_mcp_server(){
         # see its own comment for why this has to happen before the
         # "is up" announcement and why it survives the exec below.
         exec > >(tee -a "${logfile}") 2>&1
-        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} The collector MCP server is up — access it at http://${host}:${port} (Ctrl-C or --mcp-down to stop)"
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} The collector MCP server is up — access it at http://${host}:${port} (Ctrl-C or --shutdown to stop)"
         echo "$$" > "${pidfile}.tmp" && mv "${pidfile}.tmp" "${pidfile}"
         exec python3 "${mcp_script}"
         # exec should have replaced us. If we reach here, exec itself failed.

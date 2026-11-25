@@ -20,7 +20,7 @@
 # long-lived process, so its own runtime state lives with the    #
 # tool, not scattered into whichever outputs/${domain}/           #
 # recon_${date}/ happened to spawn it. One shared identity        #
-# also means --report-down can stop EITHER launch mode, not        #
+# also means --shutdown can stop EITHER launch mode, not            #
 # just a foreground one.                                            #
 #                                                           #
 # One implementation (run_app_report) handles both; the     #
@@ -181,7 +181,7 @@ run_app_report(){
         else
             echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} ${tag}: already running (pid ${check_pid}) — access the dashboard at http://${host_address}:${host_port}"
             if [[ "${mode}" == "foreground" ]]; then
-                echo -e "  stop it with ${yellow}collector --report-down${reset} (or ${yellow}collector-docker --report-down${reset}) before starting a new one."
+                echo -e "  stop it with ${yellow}collector --shutdown${reset} (or ${yellow}collector-docker --shutdown${reset}) before starting a new one."
                 return 1
             fi
             return 0
@@ -232,11 +232,11 @@ run_app_report(){
         # image changes. Set up BEFORE the "serving at" announcement so
         # that line lands in the shared log too, not just the terminal.
         exec > >(tee -a "${logfile}") 2>&1
-        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} The app-report dashboard is up — access it at http://${host_address}:${host_port} (Ctrl-C or --report-down to stop)"
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} The app-report dashboard is up — access it at http://${host_address}:${host_port} (Ctrl-C or --shutdown to stop)"
         # Record OUR pid before exec — after exec, $$ is inherited by
-        # gunicorn (same PID, different program), so --report-down still
+        # gunicorn (same PID, different program), so --shutdown still
         # targets the right process. Written to a temp path + rename so a
-        # concurrent --report-down never sees a half-written file.
+        # concurrent --shutdown never sees a half-written file.
         echo "$$" > "${pidfile}.tmp" && mv "${pidfile}.tmp" "${pidfile}"
         if [[ "${launcher}" == "gunicorn" ]]; then
             exec gunicorn --workers 1 --bind "${bind_address}:${port}" \
@@ -295,10 +295,10 @@ start_app_report_foreground(){ run_app_report foreground; }
 #
 # Note on containers: when the dashboard was started via `collector-docker
 # --report-up`, the gunicorn PID lives inside that container's PID
-# namespace, not the host's. `collector-docker --report-down` handles that
+# namespace, not the host's. `collector-docker --shutdown` handles that
 # case by running `docker stop` from the host; this function is the
 # in-container half, invoked when the operator hits `collector
-# --report-down` inside the same container (or runs the collector
+# --shutdown` inside the same container (or runs the collector
 # natively on the host), or when collector's own SIGINT/SIGTERM traps
 # call it before exiting so a combined recon+--report-up container
 # shuts gunicorn down gracefully instead of relying on the kernel's

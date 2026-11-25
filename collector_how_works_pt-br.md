@@ -64,7 +64,7 @@ collector/
 │   ├── webapp_crawler.sh               katana + waybackurls + extração de JS e parâmetros
 │   ├── git.sh                          git-dumper para repositórios .git expostos
 │   ├── app_report.sh                   ciclo de vida do dashboard Flask/gunicorn (sob demanda via --report-up, background ou foreground)
-│   ├── mcp_server.sh                   ciclo de vida do collector-mcp.py (sob demanda via --mcp-up/--mcp-down, mesmo formato background/foreground do app_report.sh)
+│   ├── mcp_server.sh                   ciclo de vida do collector-mcp.py (sob demanda via --mcp-up/--shutdown, mesmo formato background/foreground do app_report.sh)
 │   ├── cloudflare_tunnel.sh            quick-tunnel do cloudflared para o dashboard (opt-in)
 │   ├── db_usage.sh                     ingestão SQLite idempotente do CSV de histórico por run
 │   └── llm_prompt.sh                   build_llm_prompt + llm_emit_artifact (montador do bundle LLM)
@@ -359,16 +359,16 @@ O dashboard nunca sobe por conta própria. O `collector` roda como PID 1 do cont
 ```bash
 # Dashboard isolado, lendo resultados de um scan anterior (sem novo recon):
 collector-docker --report-up          # background, http://127.0.0.1:8000, persiste até ser parado
-collector-docker --report-down        # encerra a partir de outro shell
+collector-docker --shutdown           # encerra a partir de outro shell
 
 # Ou combinado com um recon novo, no mesmo container:
 collector-docker -d example.com --recon --report-up
-collector-docker --report-down        # encerra quando terminar
+collector-docker --shutdown           # encerra quando terminar
 ```
 
-`--report-up` isolado exige um `collector-results` dentro de `app-report/db/` (aborta com mensagem clara caso contrário, antes mesmo de iniciar um container); combinado com um recon, é esse recon que cria o DB, então essa verificação não se aplica. De qualquer forma, recusa iniciar quando outra instância já estiver rodando (via colisão de nome de container + pidfile), e o dashboard em si é estritamente read-only — o Flask abre o SQLite com `mode=ro`. O wrapper nomeia o container como `collector-report` (sobrescreva via `REPORT_CONTAINER_NAME=<nome>` no ambiente), que é o alvo de `--report-down` no host independente de qual das duas formas acima o iniciou.
+`--report-up` isolado exige um `collector-results` dentro de `app-report/db/` (aborta com mensagem clara caso contrário, antes mesmo de iniciar um container); combinado com um recon, é esse recon que cria o DB, então essa verificação não se aplica. De qualquer forma, recusa iniciar quando outra instância já estiver rodando (via colisão de nome de container + pidfile), e o dashboard em si é estritamente read-only — o Flask abre o SQLite com `mode=ro`. O wrapper nomeia o container como `collector-report` (sobrescreva via `REPORT_CONTAINER_NAME=<nome>` no ambiente), que é o alvo de `--shutdown` no host independente de qual das duas formas acima o iniciou (e independente de o servidor MCP também estar rodando ali — veja 5.7 abaixo).
 
-`--report-down` tem que ser usado isolado — passar qualquer outra flag junto (uma flag de alvo, `--report-up`, qualquer uma) é rejeitado com erro de uso em vez de ser silenciosamente ignorado. Isso é verificado duas vezes: pelo `collector-docker` no host (antes de tocar no Docker) e pelo próprio `collector` dentro do container (então a regra vale mesmo chamando o `collector` direto, sem passar pelo wrapper).
+`--shutdown` tem que ser usado isolado — passar qualquer outra flag junto (uma flag de alvo, `--report-up`, qualquer uma) é rejeitado com erro de uso em vez de ser silenciosamente ignorado. Isso é verificado duas vezes: pelo `collector-docker` no host (antes de tocar no Docker) e pelo próprio `collector` dentro do container (então a regra vale mesmo chamando o `collector` direto, sem passar pelo wrapper).
 
 Sem `--report-up`, nada muda em relação a um recon simples: o container roda em foreground, usa `--rm`, e a porta do dashboard nunca é publicada — não há dashboard para alcançar de qualquer forma, então publicar a porta seria inútil. Quando `--report-up` *é* passado e a porta host já está ocupada, o `collector-docker` agora falha rápido com uma mensagem clara em vez de omitir silenciosamente o `-p` — um container persistente, sem `--rm`, que nunca publicou de fato sua porta ficaria ali sem utilidade.
 
@@ -378,28 +378,27 @@ Vale notar que `--report-up` nomeia um único container fixo (`REPORT_CONTAINER_
 
 ### 5.7. O servidor MCP — sob demanda, via `--mcp-up`
 
-`support/mcp/collector-mcp.py` (veja `support/mcp/MCP.md`) expõe os resultados do collector como tools MCP pra um cliente de agente. Normalmente um cliente MCP (Claude Desktop/Code) sobe esse script sozinho via stdio — nada no CLI do `collector` entra nessa jogada. `-mu|--mcp-up`/`-md|--mcp-down` acrescentam uma segunda forma de rodá-lo: como um serviço `streamable-http` de longa duração, gerenciado exatamente como o dashboard, útil pra um cliente em outra máquina ou só pra manter o servidor no ar independente do ciclo de vida de um cliente específico.
+`support/mcp/collector-mcp.py` (veja `support/mcp/MCP.md`) expõe os resultados do collector como tools MCP pra um cliente de agente. Normalmente um cliente MCP (Claude Desktop/Code) sobe esse script sozinho via stdio — nada no CLI do `collector` entra nessa jogada. `-mu|--mcp-up` acrescenta uma segunda forma de rodá-lo: como um serviço `streamable-http` de longa duração, gerenciado exatamente como o dashboard, útil pra um cliente em outra máquina ou só pra manter o servidor no ar independente do ciclo de vida de um cliente específico.
 
-`functions/mcp_server.sh` espelha `functions/app_report.sh` ponto a ponto — o mesmo `run_mcp_server()` de modo duplo background/foreground, o mesmo pidfile compartilhado (`support/mcp/run/collector-mcp.pid`, montado via `MCP_RUN_DIR`) pra que `--mcp-down` consiga parar qualquer um dos dois modos de início, a mesma desambiguação via `/proc/<pid>/cmdline` pra evitar confundir o PID 1 do container com o processo de um pidfile obsoleto, e o mesmo SIGTERM→espera de 5s→SIGKILL pra parar:
+`functions/mcp_server.sh` espelha `functions/app_report.sh` ponto a ponto — o mesmo `run_mcp_server()` de modo duplo background/foreground, o mesmo pidfile compartilhado (`support/mcp/run/collector-mcp.pid`, montado via `MCP_RUN_DIR`) pra que `--shutdown` consiga parar qualquer um dos dois modos de início, a mesma desambiguação via `/proc/<pid>/cmdline` pra evitar confundir o PID 1 do container com o processo de um pidfile obsoleto, e o mesmo SIGTERM→espera de 5s→SIGKILL pra parar:
 
 ```bash
 # Servidor MCP isolado:
 collector-docker --mcp-up             # background, http://127.0.0.1:8010, persiste até ser parado
-collector-docker --mcp-down           # encerra a partir de outro shell
+collector-docker --shutdown           # encerra a partir de outro shell
 
 # Ou combinado com um recon novo, no mesmo container, depois do próprio dashboard de --report-up se ambos forem passados:
 collector-docker -d example.com --recon --report-up --mcp-up
-collector-docker --report-down        # encerra o container inteiro (os dois serviços)
-collector-docker --mcp-down           # ou só o servidor MCP, deixando o app-report no ar
+collector-docker --shutdown           # encerra o container inteiro (os dois serviços)
 ```
 
 Um requisito obrigatório só do `--mcp-up`: `collector_mcp_transport` em `conf.d/operation.conf` já precisa estar como `"streamable-http"`, não o default `"stdio"` — stdio é um subprocesso por cliente, sem porta de rede, não há o que um serviço em background/foreground vincule. `--mcp-up` recusa iniciar com uma mensagem clara nomeando a correção, verificado tanto pelo `collector-docker` no host (antes de tocar no Docker) quanto pelo próprio `collector` dentro do container (`run_mcp_server()` em `functions/mcp_server.sh`).
 
-`--mcp-up` e `--report-up` compartilham o MESMO container persistente e o mesmo nome (`REPORT_CONTAINER_NAME`) quando ambos são passados — um único container publicando as duas portas, não dois containers. Já `--mcp-down` é mais restrito que `--report-down`: ele faz `docker exec` de `collector --mcp-down` dentro do container em execução (parando só o pid do próprio `collector-mcp.py`), em vez de parar o container inteiro, então o app-report (se também estiver rodando ali) fica intocado. `--report-down` continua parando o container inteiro, os dois serviços inclusos — a própria trap SIGTERM do `collector` chama `stop_app_report` e `stop_mcp_server` antes de sair, então isso é gracioso, não um SIGKILL do kernel.
+`--mcp-up` e `--report-up` compartilham o MESMO container persistente e o mesmo nome (`REPORT_CONTAINER_NAME`) quando ambos são passados — um único container publicando as duas portas, não dois containers. `--shutdown` sempre encerra o container inteiro, os dois serviços inclusos, seja qual for a combinação rodando ali — não existe mais um modo restrito de "parar só um serviço" (um design anterior tinha um `--mcp-down` que entrava no container via `docker exec` cirurgicamente, deixando o app-report intocado; essa assimetria foi removida em favor de uma única flag "encerra tudo", igual ao que `docker stop` já faz). A própria trap SIGTERM do `collector` chama `stop_app_report` e `stop_mcp_server` antes de sair, então isso é gracioso, não um SIGKILL do kernel.
 
 Quando combinado com um alvo de recon, a ordem importa: `start_app_report` sempre roda antes de `start_mcp_server` no final de `domains_recon`/`url_recon` (veja `functions/domains_recon.sh`/`functions/url_recon.sh`), então a linha "está no ar" do dashboard aparece antes da do servidor MCP, independente de qual flag foi digitada primeiro na linha de comando.
 
-`--report-up --mcp-up` passados juntos sem nenhuma flag de alvo é tratado como caso especial dentro do `collector`: os dois serviços sobem em BACKGROUND, e o `collector` mantém o processo aberto depois (`_collector_hold_for_dashboard` + `_collector_hold_for_mcp_server`) em vez de fazer `exec` substituindo a si mesmo por um dos dois serviços em foreground. Isso importa especificamente pra que `--mcp-down` consiga parar só o pid do servidor MCP sem derrubar o container inteiro junto — fazer `exec` do PID 1 por um dos dois serviços individualmente faria um SIGTERM simples contra aquele serviço equivaler a um SIGTERM contra o próprio processo init do container.
+`--report-up --mcp-up` passados juntos sem nenhuma flag de alvo é tratado como caso especial dentro do `collector`: os dois serviços sobem em BACKGROUND, e o `collector` mantém o processo aberto depois (`_collector_hold_for_dashboard` + `_collector_hold_for_mcp_server`) em vez de fazer `exec` substituindo a si mesmo por um dos dois serviços em foreground — não existe forma de fazer `exec` do PID 1 por dois programas ao mesmo tempo, então rodar os dois exige esse formato background+hold, independente de como `--shutdown` vá pará-los depois.
 
 ### 5.8. Configuração específica de vhost (conf.d/functions.conf)
 

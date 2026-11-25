@@ -23,7 +23,7 @@ Results are written to `/opt/collector/outputs/example.com/recon_YYYYMMDD/`.
 
 ## Execution methods
 
-`collector-docker` is the only documented way to run collector — every example in this README uses it. It's a thin wrapper around `docker run` that injects the right volumes, resolves the dashboard port from `conf.d/operation.conf`, and manages the `--report-up`/`--report-down` container lifecycle for you, so you never have to hand-assemble `-v` flags or remember which port mapping matches your config. **All scripts and configuration are mounted as read-only volumes from the host** (`collector`, `functions/`, `scans/`, `sources/`, `support/runtime/`, `support/templates/alerts-notify/`, `conf.d/`), meaning code changes are instantly available without rebuilding the Docker image. The image only needs rebuilding when binaries or system packages change (Dockerfile or `check_binaries.sh` modifications).
+`collector-docker` is the only documented way to run collector — every example in this README uses it. It's a thin wrapper around `docker run` that injects the right volumes, resolves the dashboard port from `conf.d/operation.conf`, and manages the `--report-up`/`--shutdown` container lifecycle for you, so you never have to hand-assemble `-v` flags or remember which port mapping matches your config. **All scripts and configuration are mounted as read-only volumes from the host** (`collector`, `functions/`, `scans/`, `sources/`, `support/runtime/`, `support/templates/alerts-notify/`, `conf.d/`), meaning code changes are instantly available without rebuilding the Docker image. The image only needs rebuilding when binaries or system packages change (Dockerfile or `check_binaries.sh` modifications).
 
 Running collector any other way (bare `docker run`, `docker compose`) is possible — `collector` is, underneath, just a container entrypoint — but isn't covered here: those paths need you to hand-manage volumes, the dashboard port, and container naming/lifecycle yourself, exactly the bookkeeping `collector-docker` exists to avoid. Running two of those by hand with mismatched settings is also the most common source of confusion reported with the dashboard, which is why this README no longer shows them as examples.
 
@@ -177,10 +177,9 @@ The app-report dashboard **never starts unless you explicitly ask for it** with 
 
 | Flag | Description |
 |------|-------------|
-| `-ru \| --report-up` | Requests the dashboard. **Alone** (no target flag): opens it read-only against the existing `outputs/` directory and exits when stopped — skips recon entirely; requires `collector-results` (in `app-report/db/`) from a previous run, and fails with a clear message if that file doesn't exist yet. **Combined** with a target flag and `--recon` (e.g. `-d target.com --recon --report-up`): runs the recon first, then brings the dashboard up and keeps the container running afterward. Either way, Ctrl-C or `--report-down` (from another shell) stops it. |
-| `-rd \| --report-down` | Stop the dashboard, however it was started — alone via `--report-up`, or combined with a recon. **Must be used alone**: passing any other flag alongside it is rejected with a usage error (checked both by `collector-docker` and by `collector` itself). Sends SIGTERM, waits 5 s, then SIGKILLs if needed. Via `collector-docker` it does the equivalent `docker stop collector-report` on the host. |
+| `-ru \| --report-up` | Requests the dashboard. **Alone** (no target flag): opens it read-only against the existing `outputs/` directory and exits when stopped — skips recon entirely; requires `collector-results` (in `app-report/db/`) from a previous run, and fails with a clear message if that file doesn't exist yet. **Combined** with a target flag and `--recon` (e.g. `-d target.com --recon --report-up`): runs the recon first, then brings the dashboard up and keeps the container running afterward. Either way, Ctrl-C or `--shutdown` (from another shell) stops it. |
 | `-mu \| --mcp-up` | Requests the [MCP server](support/mcp/MCP.md) (`collector-mcp.py`) as a long-lived `streamable-http` service, managed the same way as the dashboard above. **Alone** (no target flag): starts it and keeps the process alive until stopped. **Combined** with a target flag and `--recon`: runs the recon first, then starts the server (after `--report-up`'s own dashboard, if both are passed) and keeps the container running afterward. Requires `collector_mcp_transport="streamable-http"` in `conf.d/operation.conf` — fails with a clear message otherwise (the default `stdio` transport has no network port for a background/foreground service to bind). |
-| `-md \| --mcp-down` | Stop the MCP server, however it was started. **Must be used alone**, same rule as `--report-down`. Sends SIGTERM, waits 5 s, then SIGKILLs if needed. Via `collector-docker` this only reaches into the running container to stop `collector-mcp.py` (`docker exec ... collector --mcp-down`) — it does **not** stop the whole container, so a dashboard also running there (`--report-up`) is left untouched. |
+| `-sd \| --shutdown` | Stop **everything** running in the container — the dashboard and/or the MCP server, whichever (if either) were started, however they were started (alone or combined with a recon). **Must be used alone**: passing any other flag alongside it is rejected with a usage error (checked both by `collector-docker` and by `collector` itself). Sends SIGTERM to each running service, waits 5 s, then SIGKILLs if needed; no-op for a service that wasn't running. Via `collector-docker` it does the equivalent `docker stop collector-report` on the host — the whole container, not a per-service stop. |
 
 Via `collector-docker`, `--report-up`/`--mcp-up` also change how the container itself runs: it's started detached (`docker run -d`, not attached) and **without** `--rm` (so it persists until stopped), with whichever port(s) were requested published (`app_report_host_address:app_report_host_port` and/or `collector_mcp_host:collector_mcp_port`). Both flags share the same persistent container (named `collector-report`, like a plain `--report-up`) when passed together — one container, both ports. Without either flag, nothing changes from a plain recon: attached, `--rm`, no port published. Recon progress isn't streamed to your terminal in the detached case since the container runs detached — follow it with `docker logs -f collector-report` or the run's own log file under `outputs/`.
 
@@ -394,14 +393,14 @@ Reopening the dashboard from an earlier scan (no new recon):
 
 ```bash
 collector-docker --report-up           # detached, port published, persists until stopped
-collector-docker --report-down         # stop from another shell
+collector-docker --shutdown            # stop from another shell
 ```
 
 Or bring it up at the end of a fresh recon, same container:
 
 ```bash
 collector-docker -d example.com --recon --report-up
-collector-docker --report-down         # stop when done
+collector-docker --shutdown            # stop when done
 ```
 
 `--report-up` names its container `collector-report` (override with `REPORT_CONTAINER_NAME=<name>`) and refuses to start when one is already running. Passed alone, it requires `collector-results` to exist in the `app-report/db/` directory — otherwise it aborts with a clear message rather than serving an empty dashboard.

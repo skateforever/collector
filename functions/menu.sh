@@ -37,7 +37,7 @@ check_argument(){
     # on the accumulation).
     local options=()
     options+=(-d --domain -dl --domain-list -ed --exclude-domains -el --exclude-domain-list -h --help)
-    options+=(-l --limit-urls -mu --mcp-up -md --mcp-down -p --proxy -r --recon -ru --report-up -rd --report-down -s --subdomain-brute -u --url)
+    options+=(-l --limit-urls -mu --mcp-up -p --proxy -r --recon -ru --report-up -s --subdomain-brute -sd --shutdown -u --url)
     options+=(-vc --vhost-check -vp --vhost-probe -vpw --vhost-probe-wordlist -wc --webapp-crawler -wd --webapp-discovery -we --webapp-enum -ws --webapp-scan)
     options+=(-wcp --webapp-common-ports -wld --webapp-long-detection -wsd --webapp-short-detection -ww --webapp-wordlists -dr --dry-run)
     local argument=$2
@@ -170,14 +170,6 @@ menu(){
                 mcp_up_check="yes"
                 shift
                 ;;
-            -md|--mcp-down)
-                # Stops the collector-mcp.py server, however it was
-                # started (--mcp-up alone, or --recon ... --mcp-up
-                # combined). Also handled early in collector; no target
-                # needed.
-                mcp_down_check="yes"
-                shift
-                ;;
             -ru|--report-up)
                 # Requests the app-report dashboard. Alone (no target flag),
                 # opens it read-only against the existing outputs/ directory
@@ -189,13 +181,6 @@ menu(){
                 # blocks (holding the container open) until stopped — see
                 # _collector_hold_for_dashboard in collector.
                 report_up_check="yes"
-                shift
-                ;;
-            -rd|--report-down)
-                # Stops the app-report dashboard, however it was started
-                # (--report-up alone, or --recon ... --report-up combined).
-                # Also handled early in collector; no target needed.
-                report_down_check="yes"
                 shift
                 ;;
             -s|--subdomain-brute)
@@ -225,6 +210,18 @@ menu(){
                 done
                 subdomainbrute_check="yes"
                 shift 2
+                ;;
+            -sd|--shutdown)
+                # Unconditionally tears down this container — app-report
+                # and/or the MCP server, whichever (if any) are running.
+                # Replaces the old --report-down/--mcp-down split: there's
+                # no cirurgical "stop just one service" mode anymore, this
+                # always calls both stop_* functions (see collector, where
+                # shutdown_check is handled — they're no-ops when their
+                # service isn't running). Also handled early in collector;
+                # no target needed.
+                shutdown_check="yes"
+                shift
                 ;;
             -u|--url)
                 check_argument "$1" "$2"

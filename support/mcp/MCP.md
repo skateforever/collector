@@ -97,7 +97,7 @@ through as a literal string, unresolved — don't introduce one.
 | `COLLECTOR_OUTPUT_DIR` | `collector_mcp_output_dir` | `${collector_path}/outputs` | Host-side path corresponding to the container's `outputs/` — i.e. the same directory `collector-docker`'s `OUTPUTS_DIR` bind-mounts from. Ships as `"${collector_path}/outputs"` — correct out of the box for any checkout; only change it if `OUTPUTS_DIR` points somewhere else. |
 | `COLLECTOR_CONTAINER_OUTPUT_DIR` | `output_dir` *(reused directly)* | `/opt/collector/outputs` | The container-side prefix stored in `report_dir` — this is `operation.conf`'s own `output_dir`, the exact value collector itself writes to the DB. Only set the env var if `operation.conf` genuinely isn't reachable from wherever this server runs. |
 | `COLLECTOR_MCP_TRANSPORT` | `collector_mcp_transport` | `stdio` | `stdio` (local subprocess) or `streamable-http` (plain HTTP server — see the dedicated section and its security warning below). Ships as `streamable-http` so `-mu|--mcp-up` works out of the box; set back to `stdio` if you only ever launch this script directly from an MCP client. |
-| `COLLECTOR_MCP_CONTAINER_ADDRESS` | `collector_mcp_container_address` | `0.0.0.0` | The actual bind address `FastMCP(host=...)` uses, only relevant for `streamable-http`. Same split as `app.py`'s `APP_REPORT_CONTAINER_ADDRESS`: this is the CONTAINER-internal address — `functions/mcp_server.sh` (the `-mu|--mcp-up`/`-md|--mcp-down` lifecycle) reads `collector_mcp_container_address` from `conf.d/operation.conf` and exports it for you, ships at `0.0.0.0` so `-mu` works out of the box through `docker run -p`; `127.0.0.1` here is unreachable through `-p` no matter how correctly the port is published. |
+| `COLLECTOR_MCP_CONTAINER_ADDRESS` | `collector_mcp_container_address` | `0.0.0.0` | The actual bind address `FastMCP(host=...)` uses, only relevant for `streamable-http`. Same split as `app.py`'s `APP_REPORT_CONTAINER_ADDRESS`: this is the CONTAINER-internal address — `functions/mcp_server.sh` (the `-mu|--mcp-up`/`-sd|--shutdown` lifecycle) reads `collector_mcp_container_address` from `conf.d/operation.conf` and exports it for you, ships at `0.0.0.0` so `-mu` works out of the box through `docker run -p`; `127.0.0.1` here is unreachable through `-p` no matter how correctly the port is published. |
 | `COLLECTOR_MCP_HOST` | `collector_mcp_host` | `127.0.0.1` | The operator-facing address — what you type into your client, and what `collector-docker` publishes `-mu|--mcp-up` on (the `-p` flag's host-side half). Deliberately **not** the bind address above, same reason `app_report_host_address` isn't `app_report_container_address`. |
 | `COLLECTOR_MCP_PORT` | `collector_mcp_port` | `8010` | Bind port, only used when the transport is `streamable-http`. **Must not collide with `app_report_container_port`/`app_report_host_port`** — see the next section. |
 
@@ -138,7 +138,7 @@ traffic from whichever process started second. This check only runs
 for `streamable-http`; `stdio` never binds a port, so it's unaffected
 no matter what `collector_mcp_port` is set to.
 
-## Running it as a managed service via `collector --mcp-up`/`--mcp-down`
+## Running it as a managed service via `collector --mcp-up`/`--shutdown`
 
 Everything above describes the *stdio* model: an MCP client (Claude
 Desktop/Code) spawns `collector-mcp.py` itself, as its own subprocess,
@@ -148,17 +148,17 @@ below.
 As an alternative — for a client on another machine, or just to keep
 the server running independently of any one client's lifecycle —
 `collector`'s own CLI can manage it as a long-lived `streamable-http`
-service, the same way `-ru|--report-up`/`-rd|--report-down` already
-manage the app-report dashboard:
+service, the same way `-ru|--report-up` already manages the app-report
+dashboard, stopped the same unified way via `-sd|--shutdown`:
 
 ```bash
 # Native collector (inside the container, or run directly on a host checkout):
 collector --mcp-up       # starts collector-mcp.py, keeps the process alive
-collector --mcp-down     # stops it (SIGTERM, wait 5s, SIGKILL if needed)
+collector --shutdown     # stops it (SIGTERM, wait 5s, SIGKILL if needed)
 
 # Or via collector-docker, same container/lifecycle as --report-up:
 collector-docker --mcp-up
-collector-docker --mcp-down
+collector-docker --shutdown
 collector-docker -d example.com --recon --report-up --mcp-up   # both services, one container
 ```
 
@@ -175,21 +175,19 @@ same pattern as the dashboard's own `_collector_hold_for_dashboard`
 --mcp-up` passed together with NO target flag is a special case of
 that same "alone" dispatch: both services start in the BACKGROUND
 (neither one `exec`s into PID 1) and `collector` just holds the
-process open, specifically so `--mcp-down` can stop only the MCP
-server's own pid afterward without taking the whole container (and the
-dashboard) down with it — `exec`-replacing PID 1 with either service
-individually would make a SIGTERM to that service equivalent to a
-SIGTERM to the container's init.
+process open — there's no way to `exec`-replace PID 1 with two
+programs at once, so running both requires this shape regardless of
+how `--shutdown` stops them later.
 
 The implementation is `functions/mcp_server.sh`, deliberately mirroring
 `functions/app_report.sh`'s shared-pidfile, dual background/foreground
 design — see that file's own header comment for the full rationale
 (stale-pidfile detection across container restarts, PID-namespace
 caveats, etc.), which applies here unchanged. `collector-docker
---mcp-down` is narrower than `--report-down`: it `docker exec`s
-`collector --mcp-down` into the running container (stopping only this
-server's own pid) instead of stopping the whole container, so an
-app-report dashboard also running there is left untouched.
+--shutdown` always stops the WHOLE container — both this server and an
+app-report dashboard, if also running there — equivalent to `docker
+stop` on the container; there is no narrower "stop just the MCP server"
+mode anymore.
 
 ## Client setup
 
