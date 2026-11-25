@@ -154,6 +154,12 @@ domains_recon(){
           # in collector's _collector_hold_for_dashboard, after this
           # whole exit 0 has already returned control there).
           start_app_report
+          # start_mcp_server AFTER start_app_report: when both -ru and -mu
+          # accompany a recon, the dashboard's own "is up" line is meant
+          # to read first (see this function's --mcp-up sibling note
+          # above, for app-report) — same reasoning extends to the MCP
+          # server's own announcement.
+          start_mcp_server
           message "${domain}" finished
           exit 0
     fi
@@ -179,6 +185,7 @@ domains_recon(){
           # See the ordering note in the "Only web app discovery" branch
           # above — same reasoning.
           start_app_report
+          start_mcp_server
           message "${domain}" finished
           exit 0
     fi
@@ -199,6 +206,7 @@ domains_recon(){
           # See the ordering note in the "Only web app discovery" branch
           # above — same reasoning.
           start_app_report
+          start_mcp_server
           message "${domain}" finished
           exit 0
     fi
@@ -403,7 +411,7 @@ domains_recon(){
         # start_app_report before message() — see the ordering note in
         # the "Only web app discovery" branch above, same reasoning.
         [[ "${recon_check}" == "yes" && "${webapp_enum_check}" != "yes" ]] && \
-            { diff_artifacts; build_llm_prompt; build_llm_json; record_history; db_usage; run_summary "${domain}"; start_app_report; message "${domain}" finished; exit 0; }
+            { diff_artifacts; build_llm_prompt; build_llm_json; record_history; db_usage; run_summary "${domain}"; start_app_report; start_mcp_server; message "${domain}" finished; exit 0; }
     fi
 
     if [[ "${webapp_enum_check}" == "yes" ]]; then
@@ -449,6 +457,7 @@ domains_recon(){
     # start_app_report before message() — see the ordering note in the
     # "Only web app discovery" branch above, same reasoning.
     start_app_report
+    start_mcp_server
     message "${domain}" finished) 2>> "${log_execution_file}" | tee -a "${log_execution_file}"
     # The subshell above is a forked child — its own `exit 0`/`exit 1`
     # calls (early-return branches throughout this function) only ever

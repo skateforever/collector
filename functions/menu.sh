@@ -37,7 +37,7 @@ check_argument(){
     # on the accumulation).
     local options=()
     options+=(-d --domain -dl --domain-list -ed --exclude-domains -el --exclude-domain-list -h --help)
-    options+=(-l --limit-urls -p --proxy -r --recon -ru --report-up -rd --report-down -s --subdomain-brute -u --url)
+    options+=(-l --limit-urls -mu --mcp-up -md --mcp-down -p --proxy -r --recon -ru --report-up -rd --report-down -s --subdomain-brute -u --url)
     options+=(-vc --vhost-check -vp --vhost-probe -vpw --vhost-probe-wordlist -wc --webapp-crawler -wd --webapp-discovery -we --webapp-enum -ws --webapp-scan)
     options+=(-wcp --webapp-common-ports -wld --webapp-long-detection -wsd --webapp-short-detection -ww --webapp-wordlists -dr --dry-run)
     local argument=$2
@@ -152,6 +152,31 @@ menu(){
                     echo -e "  Or set ${yellow}WORDLISTS_DIR=<dir-that-contains-your-file>${reset} when running collector-docker.\n"
                     usage
                 fi
+                ;;
+            -mu|--mcp-up)
+                # Requests the collector-mcp.py server. Alone (no target
+                # flag), starts it and keeps the process alive — handled
+                # early in collector (right after menu) so target/lock/
+                # validation blocks are skipped entirely, exec-replacing
+                # this shell with collector-mcp.py. Combined with a target
+                # flag + --recon, the server comes up in the background
+                # after recon finishes (AFTER --report-up's own dashboard,
+                # if that was passed too) and collector blocks (holding
+                # the container open) until stopped — see
+                # _collector_hold_for_mcp_server in collector. Requires
+                # collector_mcp_transport="streamable-http" in
+                # conf.d/operation.conf — see run_mcp_server in
+                # functions/mcp_server.sh for why stdio can't serve this.
+                mcp_up_check="yes"
+                shift
+                ;;
+            -md|--mcp-down)
+                # Stops the collector-mcp.py server, however it was
+                # started (--mcp-up alone, or --recon ... --mcp-up
+                # combined). Also handled early in collector; no target
+                # needed.
+                mcp_down_check="yes"
+                shift
                 ;;
             -ru|--report-up)
                 # Requests the app-report dashboard. Alone (no target flag),

@@ -64,6 +64,7 @@ collector/
 │   ├── webapp_crawler.sh               katana + waybackurls + JS and parameter extraction
 │   ├── git.sh                          git-dumper for exposed .git/ repositories
 │   ├── app_report.sh                   Flask/gunicorn dashboard lifecycle (on-demand via --report-up, background or foreground)
+│   ├── mcp_server.sh                   collector-mcp.py lifecycle (on-demand via --mcp-up/--mcp-down, same background/foreground shape as app_report.sh)
 │   ├── cloudflare_tunnel.sh            cloudflared quick-tunnel for the dashboard (opt-in)
 │   ├── db_usage.sh                     idempotent SQLite ingestion of the per-run history CSV
 │   └── llm_prompt.sh                   build_llm_prompt + llm_emit_artifact (LLM bundle builder)
@@ -99,6 +100,10 @@ collector/
 │   ├── docker/                         Docker configuration and volume strategy
 │   │   ├── docker.env.template         template for environment variables (Docker Compose)
 │   │   └── VOLUME_STRATEGY.md          detailed documentation on volumes (code replication)
+│   ├── mcp/                            MCP server over collector-results — see MCP.md
+│   │   ├── collector-mcp.py            read-only tools: targets, runs, artifacts, findings, diffs
+│   │   ├── MCP.md                      setup, tool reference, container/host path rewrite
+│   │   └── requirements.txt            mcp SDK (<2, FastMCP)
 │   └── templates/                      drop-ins for automation
 │       ├── cron/collector              daily/weekly cron
 │       ├── systemd/collector@          systemd timer template
@@ -114,7 +119,7 @@ collector/
 ├── app-report/                         read-only dashboard (Flask + HTMX + gunicorn)
 │   ├── app.py                          routes, reads collector-results
 │   ├── db/                             volume (APP_REPORT_DB_DIR) — collector-results (SQLite)
-│   ├── requirements.txt
+│   ├── requirements.txt                flask, gunicorn
 │   └── templates/                      index, target, runs, findings, diff, artifact, raw
 │
 └── demo/                               promo screenshots
@@ -125,7 +130,7 @@ collector/
 The container entrypoint is the `collector` script. The flow is, in short:
 
 1. **Bootstrap.** `collector` loads `functions/utils.sh` (banner, helpers, global-variable reset) and then `source`s `conf.d/operation.conf` and `conf.d/functions.conf` (required) followed by `conf.d/apis-recon.conf` and `conf.d/apis-emails.conf` — falling back to their `.example` templates if the real, gitignored files don't exist — to inherit timeouts, threads, short/long port lists and API keys.
-2. **Module loading.** Every essential file under `functions/` (`menu.sh`, `usage.sh`, `check_*`, `domains_*`, `url_recon.sh`, `webapp_*`, `emails_recon.sh`, `git.sh`, `diff.sh`, `files.sh`, `infra.sh`, plus the app-report/dashboard modules `cloudflare_tunnel.sh`, `app_report.sh`, `db_usage.sh`, `llm_prompt.sh`) and `scans/` (`acunetix.sh`, `nmap.sh`, `nuclei.sh`, `shodan.sh`, `js_scans.sh`) is sourced in sequence.
+2. **Module loading.** Every essential file under `functions/` (`menu.sh`, `usage.sh`, `check_*`, `domains_*`, `url_recon.sh`, `webapp_*`, `emails_recon.sh`, `git.sh`, `diff.sh`, `files.sh`, `infra.sh`, plus the app-report/dashboard modules `cloudflare_tunnel.sh`, `app_report.sh`, `mcp_server.sh`, `db_usage.sh`, `llm_prompt.sh`) and `scans/` (`acunetix.sh`, `nmap.sh`, `nuclei.sh`, `shodan.sh`, `js_scans.sh`) is sourced in sequence.
 3. **Validation.** `check_container` confirms execution is happening inside Docker (the script aborts otherwise); `check_binaries` validates the presence of the required tools in PATH.
 4. **CLI parsing.** `menu "$@"` processes the flags (`-d`, `-dl`, `-u`, `-r`, `-wd`, `-we`, `-ws`, `-wc`, `-vc`, `-dr`, etc.). `validate_domain` applies a strict regex to each target. With no arguments, `usage` is shown.
 5. **Coherence.** `check_execution` validates invalid flag combinations, `check_parameter_conflicts` rejects mutually exclusive ones, `check_directory_permission` ensures `/opt/collector/outputs` is writable.
@@ -254,7 +259,7 @@ collector-docker -d example.com --recon --webapp-discovery --webapp-short-detect
 
 This executes every pre-flight check (CLI parsing, domain validation, directory creation, lock acquisition) and prints a summary of resolved parameters. It exits 0 on success without generating any traffic.
 
-The examples below use the `collector-docker` wrapper exclusively, which automatically injects the volumes (`outputs`, `wordlists`, `conf.d/`) — and `-p 127.0.0.1:8000:8000`, but **only** when `-ru|--report-up` is present (the dashboard never starts otherwise, see §5.6). Running collector via a bare `docker run`/`docker compose` instead is possible — `collector` is, underneath, just a container entrypoint — but means hand-managing every volume, the dashboard port, and container naming/lifecycle yourself, which is exactly the bookkeeping `collector-docker` exists to remove; this guide no longer shows that path, since mismatched hand-assembled flags were the most common source of dashboard confusion reported.
+The examples below use the `collector-docker` wrapper exclusively, which automatically injects the volumes (`outputs`, `wordlists`, `conf.d/`) — and `-p 127.0.0.1:8000:8000`, but **only** when `-ru|--report-up` is present (the dashboard never starts otherwise, see §5.5). Running collector via a bare `docker run`/`docker compose` instead is possible — `collector` is, underneath, just a container entrypoint — but means hand-managing every volume, the dashboard port, and container naming/lifecycle yourself, which is exactly the bookkeeping `collector-docker` exists to remove; this guide no longer shows that path, since mismatched hand-assembled flags were the most common source of dashboard confusion reported.
 
 ### 5.2. Basic reconnaissance commands
 
@@ -371,7 +376,32 @@ Every setting that affects dashboard exposure lives in `conf.d/operation.conf` �
 
 Note that `--report-up` names a single fixed container (`REPORT_CONTAINER_NAME`, default `collector-report`) and publishes a single fixed port — it's meant to run once, not multiple times in parallel. Running several recons at once against different domains is fine without `--report-up` (per-target lock + anonymous containers + a WAL-mode results DB make that safe); bring up one shared dashboard afterward to see all of them together.
 
-### 5.6. Vhost-specific configuration (conf.d/functions.conf)
+### 5.6. The MCP server — on-demand only, via `--mcp-up`
+
+`support/mcp/collector-mcp.py` (see `support/mcp/MCP.md`) exposes collector's results as MCP tools for an agent client. Normally an MCP client (Claude Desktop/Code) launches it itself over stdio — nothing in `collector`'s own CLI is involved. `-mu|--mcp-up`/`-md|--mcp-down` add a second way to run it: as a long-lived `streamable-http` service managed exactly like the dashboard, for a client on another machine or just to keep it running independently of any one client's lifecycle.
+
+`functions/mcp_server.sh` mirrors `functions/app_report.sh` point for point — same background/foreground dual-mode `run_mcp_server()`, same shared pidfile (`support/mcp/run/collector-mcp.pid`, mounted via `MCP_RUN_DIR`) so `--mcp-down` can stop either launch mode, same `/proc/<pid>/cmdline` disambiguation to avoid mistaking container PID 1 for a stale pidfile's process, same SIGTERM→wait 5s→SIGKILL stop:
+
+```bash
+# MCP server alone:
+collector-docker --mcp-up             # detached, http://127.0.0.1:8010, persists until stopped
+collector-docker --mcp-down           # stop from another shell
+
+# Or combined with a fresh recon, same container, after --report-up's own dashboard if both are passed:
+collector-docker -d example.com --recon --report-up --mcp-up
+collector-docker --report-down        # stops the whole container (both services)
+collector-docker --mcp-down           # or just the MCP server, leaving app-report running
+```
+
+One hard requirement unique to `--mcp-up`: `collector_mcp_transport` in `conf.d/operation.conf` must already be `"streamable-http"`, not the default `"stdio"` — stdio is a per-client subprocess with no network port, nothing for a background/foreground service to bind. `--mcp-up` refuses to start with a clear message naming the fix, checked both by `collector-docker` on the host (before touching Docker) and by `collector` itself inside the container (functions/mcp_server.sh's `run_mcp_server()`).
+
+`--mcp-up` and `--report-up` share the SAME persistent container and name (`REPORT_CONTAINER_NAME`) when both are passed — one container publishing both ports, not two containers. `--mcp-down` is narrower than `--report-down` though: it `docker exec`s `collector --mcp-down` into the running container (stopping only `collector-mcp.py`'s own pid) rather than stopping the whole container, so app-report (if also running there) is left alone. `--report-down` still stops the whole container, both services included — `collector`'s own SIGTERM trap calls `stop_app_report` and `stop_mcp_server` first so that's graceful, not a kernel SIGKILL.
+
+When combined with a recon target, ordering matters: `start_app_report` always runs before `start_mcp_server` at the tail of `domains_recon`/`url_recon` (see `functions/domains_recon.sh`/`functions/url_recon.sh`), so the dashboard's "is up" line reads before the MCP server's, regardless of which flag was typed first on the command line.
+
+`--report-up --mcp-up` passed together with no target flag is handled specially in `collector`: both services start in the **background**, and `collector` holds the process open afterward (`_collector_hold_for_dashboard` + `_collector_hold_for_mcp_server`) rather than `exec`-replacing itself with either service in the foreground. This matters specifically so `--mcp-down` can stop just the MCP server's own pid without taking the whole container down with it — `exec`-replacing PID 1 with one of the two services would make a plain SIGTERM to that service equivalent to a SIGTERM against the container's own init process.
+
+### 5.7. Vhost-specific configuration (conf.d/functions.conf)
 
 Vhost discovery has its own tuning section in `conf.d/functions.conf`. `vhost_baseline_samples`/`vhost_connect_timeout`/`vhost_max_time`/`vhost_prefilter_timeout` are shared by both tools; `vhost_check_*` only matters with `-vc|--vhost-check`, `vhost_probe_*`/`vhost_use_ffuf` only with `-vp|--vhost-probe`:
 

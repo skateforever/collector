@@ -60,7 +60,7 @@ unset _cfg_area _cfg_file _cfg_example
 for file in check_binaries.sh usage.sh message.sh menu.sh check_structure.sh \
     check_execution.sh domains_sources.sh files.sh diff.sh infra.sh webapp_crawler.sh \
     webapp_discovery.sh webapp_enum.sh git.sh emails_recon.sh \
-    cloudflare_tunnel.sh app_report.sh db_usage.sh llm_prompt.sh llm_json.sh \
+    cloudflare_tunnel.sh app_report.sh mcp_server.sh db_usage.sh llm_prompt.sh llm_json.sh \
     domains_recon.sh url_recon.sh; do
     function="${collector_path}/functions/${file}"
     if [ -s "${function}" ]; then
@@ -128,24 +128,30 @@ cleanup_global(){
     # here then kills the dashboard we just started, seconds after it was
     # confirmed alive (reproduced: gunicorn's own log shows "Handling
     # signal: term" moments after "Starting gunicorn", every run). Skip
-    # its pid explicitly.
+    # its pid explicitly. Same reasoning, same fix, for start_mcp_server's
+    # collector-mcp.py process.
     #
-    # app_report_pidfile() (functions/app_report.sh) is the resolver used
-    # by start_app_report()/stop_app_report() themselves, under
-    # app-report/run/ — calling it here instead of re-deriving the path
-    # from a stale ${output_dir}/${app_report_pidfile_name} fallback keeps
-    # this check in sync with wherever the dashboard actually wrote its
-    # pidfile (previously the fallback always missed, so
+    # app_report_pidfile()/mcp_server_pidfile() (functions/app_report.sh,
+    # functions/mcp_server.sh) are the resolvers used by their own
+    # start_*/stop_* functions, under app-report/run/ and
+    # support/mcp/run/ respectively — calling them here instead of
+    # re-deriving the paths from a stale fallback keeps this check in
+    # sync with wherever each service actually wrote its pidfile
+    # (previously the app-report fallback always missed, so
     # _app_report_live_pid stayed empty and the dashboard got killed
     # along with everything else below — the exact bug this comment block
     # describes guarding against).
     local _app_report_pidfile="$(app_report_pidfile)"
     local _app_report_live_pid=""
     [[ -s "${_app_report_pidfile}" ]] && _app_report_live_pid="$(cat "${_app_report_pidfile}" 2>/dev/null)"
+    local _mcp_server_pidfile="$(mcp_server_pidfile)"
+    local _mcp_server_live_pid=""
+    [[ -s "${_mcp_server_pidfile}" ]] && _mcp_server_live_pid="$(cat "${_mcp_server_pidfile}" 2>/dev/null)"
     local _child
     local -a _signaled=()
     for _child in $(pgrep -P $$ 2>/dev/null); do
         [[ -n "${_app_report_live_pid}" && "${_child}" == "${_app_report_live_pid}" ]] && continue
+        [[ -n "${_mcp_server_live_pid}" && "${_child}" == "${_mcp_server_live_pid}" ]] && continue
         kill -TERM "${_child}" 2>/dev/null
         _signaled+=("${_child}")
     done
@@ -245,8 +251,8 @@ cleanup_global(){
 # process exits (see _collector_hold_for_dashboard below for the other
 # half of this — keeping PID 1 alive at all while the dashboard should
 # still be serving).
-trap 'echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Execution terminated."; stop_app_report; exit 130' SIGINT
-trap 'echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Execution terminated."; stop_app_report; exit 143' SIGTERM
+trap 'echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Execution terminated."; stop_app_report; stop_mcp_server; exit 130' SIGINT
+trap 'echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} Execution terminated."; stop_app_report; stop_mcp_server; exit 143' SIGTERM
 trap cleanup_global EXIT
 
 # _collector_hold_for_dashboard — only relevant when -ru|--report-up
@@ -291,6 +297,30 @@ _collector_hold_for_dashboard(){
     fi
 }
 
+# _collector_hold_for_mcp_server — sibling of _collector_hold_for_dashboard
+# above, same rationale, for -mu|--mcp-up accompanying a recon flag instead
+# of the dashboard. Kept as its own function rather than folded into the
+# other one so each service's hold is independent: a run combining
+# --report-up and --mcp-up needs to block on BOTH pids, not just whichever
+# one happened to be checked first, and both collector's own target
+# branches below already call them one after the other.
+_collector_hold_for_mcp_server(){
+    [[ "${mcp_up_check:-}" == "yes" ]] || return 0
+    local _pid
+    _pid="$(cat "$(mcp_server_pidfile)" 2>/dev/null)"
+    if [[ -n "${_pid}" ]] && kill -0 "${_pid}" 2>/dev/null; then
+        # The "server is up" announcement itself already happened —
+        # start_mcp_server (functions/mcp_server.sh) prints it the moment
+        # collector-mcp.py is confirmed alive. This is just the "how to
+        # stop it" follow-up, same split as _collector_hold_for_dashboard.
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} collector-docker --mcp-down (or docker stop) to end."
+        while kill -0 "${_pid}" 2>/dev/null; do
+            sleep 1 &
+            wait $! 2>/dev/null
+        done
+    fi
+}
+
 # --report-down / --report-up (alone) short-circuit every step below
 # (target validation, lock acquisition, directory creation, recon). The
 # app-report Flask app is strictly read-only over the existing outputs/,
@@ -321,8 +351,46 @@ if [[ "${report_down_check}" == "yes" ]]; then
     exit $?
 fi
 
+# --mcp-down, same "must be used alone" rule as --report-down above, for
+# the exact same reason — checked as its own independent block (not
+# combined with report_down_check) so `collector --mcp-down` alone still
+# rejects any OTHER flag, including --report-up/--report-down themselves.
+if [[ "${mcp_down_check}" == "yes" ]]; then
+    if [[ "${args_count}" -ne 1 ]]; then
+        echo -e "${yellow}$(date +"%d/%m/%Y %H:%M")${reset} ${red}>>${reset} -md|--mcp-down must be used alone, with no other parameters."
+        usage
+    fi
+    stop_mcp_server
+    exit $?
+fi
+
+if [[ "${report_up_check}" == "yes" && "${mcp_up_check}" == "yes" && -z "${domain_check}${domainlist_check}${url_check}" ]]; then
+    # Both alone, no target: start BOTH in the background (never exec
+    # either one into PID 1 here) and hold this shell open until both are
+    # stopped — same pattern the combined-with-recon dispatch already
+    # uses below (<recon>; _collector_hold_for_dashboard;
+    # _collector_hold_for_mcp_server). Foreground/exec only works for a
+    # SINGLE service owning PID 1 (see start_app_report_foreground/
+    # start_mcp_server_foreground below) — exec'ing one of the two here
+    # would make --mcp-down (or --report-down) against whichever service
+    # landed on PID 1 take the WHOLE container down with it, instead of
+    # just that one service (confirmed: collector-docker --mcp-down
+    # against a foreground-MCP PID 1 killed the dashboard too, since
+    # SIGTERM to PID 1 is SIGTERM to the whole container's init).
+    start_app_report
+    start_mcp_server
+    _collector_hold_for_dashboard
+    _collector_hold_for_mcp_server
+    exit 0
+fi
+
 if [[ "${report_up_check}" == "yes" && -z "${domain_check}${domainlist_check}${url_check}" ]]; then
     start_app_report_foreground
+    exit $?
+fi
+
+if [[ "${mcp_up_check}" == "yes" && -z "${domain_check}${domainlist_check}${url_check}" ]]; then
+    start_mcp_server_foreground
     exit $?
 fi
 
@@ -363,6 +431,7 @@ if [[ "${domain_check}" == "yes" && -n "${domain}" ]]; then
     domains_recon
     _domains_recon_exit=$?
     _collector_hold_for_dashboard
+    _collector_hold_for_mcp_server
     exit "${_domains_recon_exit}"
 fi
 
@@ -433,8 +502,9 @@ if  [[ "${domainlist_check}" == "yes" && -s "${domain_list}" ]]; then
     # subshell above — a subshell exiting doesn't kill it (it's not PID 1,
     # just a forked child of this top-level process), so one hold here
     # after the whole list finishes is enough to keep this process (and
-    # thus the container) alive for it.
+    # thus the container) alive for it. Same reasoning for --mcp-up.
     _collector_hold_for_dashboard
+    _collector_hold_for_mcp_server
 
     # Exit com código apropriado
     if [[ "${failed_runs}" -gt 0 ]]; then
@@ -459,5 +529,6 @@ if [[ "${url_check}" == "yes" && -n "${url_verify}" ]]; then
     url_recon
     _url_recon_exit=$?
     _collector_hold_for_dashboard
+    _collector_hold_for_mcp_server
     exit "${_url_recon_exit}"
 fi

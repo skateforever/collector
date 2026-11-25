@@ -38,7 +38,7 @@ Install it once and use it like a native command:
 
 ```bash
 sudo install -m 0755 /opt/collector/collector-docker /usr/local/bin/collector-docker
-sudo mkdir -p /opt/collector/{outputs,wordlists,app-report/db,app-report/run}
+sudo mkdir -p /opt/collector/{outputs,wordlists,app-report/db,app-report/run,support/mcp/run}
 sudo cp -r /opt/collector/conf.d /opt/collector/conf.d
 ```
 
@@ -51,12 +51,15 @@ Override defaults via environment variables (`<root>` is the checkout directory 
 | `WORDLISTS_DIR` | `<root>/wordlists` (mounted to `/opt/collector/wordlists`) |
 | `APP_REPORT_DB_DIR` | `<root>/app-report/db` (mounted onto itself, `/opt/collector/app-report/db`) |
 | `APP_REPORT_RUN_DIR` | `<root>/app-report/run` (mounted onto itself, `/opt/collector/app-report/run`) |
+| `MCP_RUN_DIR` | `<root>/support/mcp/run` (mounted onto itself, `/opt/collector/support/mcp/run`) |
 | `CONF_D_DIR` | `<root>/conf.d` (mounted to `/opt/collector/conf.d`) |
 | `ALERT_PROVIDER_TYPE` | `discord` (discord, slack, teams, telegram, signal) |
 | `ALERT_PROVIDER_FILE` | `<root>/{type}-provider.yaml` (optional; if missing, uses template from image) |
 | `APP_REPORT_HOST_ADDRESS` | overrides `app_report_host_address` from `conf.d/operation.conf` for this invocation (see below) |
 | `APP_REPORT_HOST_PORT` | overrides `app_report_host_port` from `conf.d/operation.conf` for this invocation (see below) |
-| `REPORT_CONTAINER_NAME` | `collector-report` |
+| `MCP_HOST_ADDRESS` | overrides `collector_mcp_host` from `conf.d/operation.conf` for this invocation — only takes effect with `-mu\|--mcp-up` |
+| `MCP_HOST_PORT` | overrides `collector_mcp_port` from `conf.d/operation.conf` for this invocation — only takes effect with `-mu\|--mcp-up` |
+| `REPORT_CONTAINER_NAME` | `collector-report` (shared by `--report-up` and `--mcp-up` alike) |
 
 **Every setting that changes how the dashboard is exposed lives in `conf.d/operation.conf`** — `collector-docker` reads it rather than hardcoding its own values; `127.0.0.1`/`8000` only kick in as a last-resort fallback if that file is missing or unreadable (see the precedence note below the list):
 
@@ -176,8 +179,10 @@ The app-report dashboard **never starts unless you explicitly ask for it** with 
 |------|-------------|
 | `-ru \| --report-up` | Requests the dashboard. **Alone** (no target flag): opens it read-only against the existing `outputs/` directory and exits when stopped — skips recon entirely; requires `collector-results` (in `app-report/db/`) from a previous run, and fails with a clear message if that file doesn't exist yet. **Combined** with a target flag and `--recon` (e.g. `-d target.com --recon --report-up`): runs the recon first, then brings the dashboard up and keeps the container running afterward. Either way, Ctrl-C or `--report-down` (from another shell) stops it. |
 | `-rd \| --report-down` | Stop the dashboard, however it was started — alone via `--report-up`, or combined with a recon. **Must be used alone**: passing any other flag alongside it is rejected with a usage error (checked both by `collector-docker` and by `collector` itself). Sends SIGTERM, waits 5 s, then SIGKILLs if needed. Via `collector-docker` it does the equivalent `docker stop collector-report` on the host. |
+| `-mu \| --mcp-up` | Requests the [MCP server](support/mcp/MCP.md) (`collector-mcp.py`) as a long-lived `streamable-http` service, managed the same way as the dashboard above. **Alone** (no target flag): starts it and keeps the process alive until stopped. **Combined** with a target flag and `--recon`: runs the recon first, then starts the server (after `--report-up`'s own dashboard, if both are passed) and keeps the container running afterward. Requires `collector_mcp_transport="streamable-http"` in `conf.d/operation.conf` — fails with a clear message otherwise (the default `stdio` transport has no network port for a background/foreground service to bind). |
+| `-md \| --mcp-down` | Stop the MCP server, however it was started. **Must be used alone**, same rule as `--report-down`. Sends SIGTERM, waits 5 s, then SIGKILLs if needed. Via `collector-docker` this only reaches into the running container to stop `collector-mcp.py` (`docker exec ... collector --mcp-down`) — it does **not** stop the whole container, so a dashboard also running there (`--report-up`) is left untouched. |
 
-Via `collector-docker`, `--report-up` also changes how the container itself runs: it's started detached (`docker run -d`, not attached) and **without** `--rm` (so it persists until stopped), with `app_report_host_address:app_report_host_port` published. Without `--report-up`, nothing changes from a plain recon: attached, `--rm`, no port published. Recon progress isn't streamed to your terminal in the combined `--report-up` case since the container runs detached — follow it with `docker logs -f collector-report` or the run's own log file under `outputs/`.
+Via `collector-docker`, `--report-up`/`--mcp-up` also change how the container itself runs: it's started detached (`docker run -d`, not attached) and **without** `--rm` (so it persists until stopped), with whichever port(s) were requested published (`app_report_host_address:app_report_host_port` and/or `collector_mcp_host:collector_mcp_port`). Both flags share the same persistent container (named `collector-report`, like a plain `--report-up`) when passed together — one container, both ports. Without either flag, nothing changes from a plain recon: attached, `--rm`, no port published. Recon progress isn't streamed to your terminal in the detached case since the container runs detached — follow it with `docker logs -f collector-report` or the run's own log file under `outputs/`.
 
 > **On stopping recon runs:** collector runs in a one-shot container, so the right way to abort an in-flight recon is `docker stop <container>` on the host. To wipe artifacts, `rm -rf` the target's directory under `outputs/`. Per-target `flock` already prevents concurrent runs against the same domain.
 

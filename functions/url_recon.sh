@@ -88,6 +88,7 @@ url_recon(){
     # same reasoning: the dashboard's own "is up" line should read
     # before the run's "finished!" verdict, not after.
     start_app_report
+    start_mcp_server
     message "${url_domain}" finished
     rm "${recon_dir}/url_test.txt" > /dev/null 2>&1) 2>> "${log_execution_file}" | tee -a "${log_execution_file}"
     # See the matching comment in domains_recon.sh: the subshell above is a

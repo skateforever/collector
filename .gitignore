@@ -5,6 +5,7 @@ collector.orig
 # Ignore some old and third scripts
 ./functions/externo/
 app-report/__pycache__/
+support/mcp/__pycache__/
 
 # Ignore workspace directory
 ./workspace/
@@ -38,6 +39,15 @@ app-report/db/*
 !app-report/db/.gitkeep
 app-report/run/*
 !app-report/run/.gitkeep
+
+# collector-mcp.py's own pidfile/logfile (see functions/mcp_server.sh) —
+# same host-specific-runtime-state reasoning as app-report/run/ above,
+# just under support/mcp/ instead since that's where collector-mcp.py
+# itself lives (not a sibling of app-report/db, no DB of its own to be
+# sibling to). The .gitkeep stays tracked so the directory is always
+# present after a checkout, never created by code at runtime.
+support/mcp/run/*
+!support/mcp/run/.gitkeep
 
 # Local override for compose: lets the user point OUTPUTS_DIR / WORDLISTS_DIR
 # / APP_REPORT_DB_DIR / CONF_D_DIR elsewhere without modifying the YAML.
